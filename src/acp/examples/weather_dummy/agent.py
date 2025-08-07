@@ -22,6 +22,7 @@ def factory_weather_dummy(
         user_token=user_token,
         llm=llm,
         comm_targets=comm_targets,
+        agent_params=agent_params,
         action_tools=action_tools,
         system=system,
         reasoning_effort=reasoning_effort,

@@ -7,7 +7,7 @@ from langsmith import traceable
 from litellm import acompletion
 from pydantic import BaseModel
 
-from common.langmem_store import get_langmem_store
+from acp.store import get_langmem_store
 
 
 class AgentToolCall(BaseModel):
@@ -33,6 +33,8 @@ AgentFunction = Callable[
 def base_agent_factory(
     user_token: str,
     llm: str,
+    comm_targets: list[str],
+    agent_params: dict[str, Any],
     tools: list[dict[str, Any]],
     system: str,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,

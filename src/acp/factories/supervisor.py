@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from acp.factories.base import AgentFunction, base_agent_factory
 from acp.tools import create_supervisor_tools
@@ -8,6 +8,7 @@ def supervisor_factory(
     user_token: str,
     llm: str,
     comm_targets: list[str],
+    agent_params: dict[str, Any],
     system: str,
     can_complete_tasks: bool = False,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
@@ -20,6 +21,8 @@ def supervisor_factory(
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,
+        comm_targets=comm_targets,
+        agent_params=agent_params,
         tools=tools,
         system=system,
         reasoning_effort=reasoning_effort,

@@ -37,7 +37,7 @@ class Swarm(BaseModel):
         """
         agents, actions = self._build_acp_dicts(user_token)
 
-        return ACP(agents=agents, actions=actions)
+        return ACP(agents=agents, actions=actions, user_token=user_token)
 
     def _build_acp_dicts(
         self, user_token: str

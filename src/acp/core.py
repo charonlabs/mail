@@ -6,7 +6,7 @@ import uuid
 from asyncio import PriorityQueue, Task
 
 from acp.executor import execute_action_tool
-from acp.message import ACPBroadcast, ACPMessage, build_acp_xml
+from acp.message import ACPBroadcast, ACPMessage, build_acp_xml, ACPResponse
 from acp.tools import (
     ACP_TOOL_NAMES,
     action_complete_broadcast,
@@ -23,8 +23,10 @@ class ACP:
         self,
         agents: dict[str, AgentFunction],
         actions: dict[str, ActionFunction],
+        user_token: str = None,
     ):
         self.message_queue: PriorityQueue[tuple[int, ACPMessage]] = PriorityQueue()
+        self.response_queue: asyncio.Queue[tuple[str, ACPMessage]] = asyncio.Queue()
         self.agents = agents
         self.actions = actions
         self.agent_histories: dict[str, list[dict[str, Any]]] = {
@@ -33,8 +35,23 @@ class ACP:
         self.active_tasks: set[Task[Any]] = set()
         self.shutdown_event = asyncio.Event()
         self.response_to_user: ACPMessage | None = None
+        self.is_running = False
+        self.current_request_id: str | None = None
+        self.pending_requests: dict[str, asyncio.Future[ACPMessage]] = {}
+        self.user_token = user_token  # Track which user this ACP instance belongs to
 
     async def run(self) -> ACPMessage:
+        """
+        Run the ACP system until a task is complete or shutdown is requested.
+        This method can be called multiple times for different requests.
+        """
+        if self.is_running:
+            logger.warning(f"ACP is already running for user {self.user_token[:8] if self.user_token else 'unknown'}, cannot start another run")
+            return self._system_shutdown_message("ACP already running")
+        
+        self.is_running = True
+        self.response_to_user = None
+        
         try:
             while True:
                 try:
@@ -57,7 +74,7 @@ class ACP:
 
                     # Check if shutdown was requested
                     if shutdown_task in done:
-                        logger.info("shutdown requested...")
+                        logger.info(f"shutdown requested for user {self.user_token[:8] if self.user_token else 'unknown'}...")
                         self.response_to_user = self._system_shutdown_message(
                             "shutdown requested"
                         )
@@ -66,7 +83,7 @@ class ACP:
                     # Process the message
                     message_tuple = get_message_task.result()
                     message = message_tuple[1]
-                    logger.info(message)
+                    logger.info(f"Processing message for user {self.user_token[:8] if self.user_token else 'unknown'}: {message}")
 
                     if message["msg_type"] == "broadcast_complete":
                         # Mark this message as done before breaking
@@ -74,28 +91,113 @@ class ACP:
                         self.response_to_user = message
                         break
 
-                    self._process_message(message)
+                    self._process_message(self.user_token, message)
                     # Note: task_done() is called by the schedule function for regular messages
 
                 except asyncio.CancelledError:
-                    logger.info("run loop cancelled, initiating shutdown...")
+                    logger.info(f"run loop cancelled for user {self.user_token[:8] if self.user_token else 'unknown'}, initiating shutdown...")
                     self.response_to_user = self._system_shutdown_message(
                         "run loop cancelled"
                     )
                     break
                 except Exception as e:
-                    logger.error(f"error in run loop: {e}")
+                    logger.error(f"error in run loop for user {self.user_token[:8] if self.user_token else 'unknown'}: {e}")
                     self.response_to_user = self._system_shutdown_message(
                         f"error in run loop: {e}"
                     )
                     break
         finally:
-            await self._graceful_shutdown()
+            self.is_running = False
             return self.response_to_user  # type: ignore
+
+    async def run_continuous(self) -> None:
+        """
+        Run the ACP system continuously, handling multiple requests.
+        This method runs indefinitely until shutdown is requested.
+        """
+        user_id = self.user_token[:8] if self.user_token else 'unknown'
+        logger.info(f"Starting continuous ACP operation for user {user_id}...")
+        
+        while not self.shutdown_event.is_set():
+            try:
+                # Wait for either a message or shutdown signal
+                get_message_task = asyncio.create_task(self.message_queue.get())
+                shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+
+                done, pending = await asyncio.wait(
+                    [get_message_task, shutdown_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                # Cancel pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Check if shutdown was requested
+                if shutdown_task in done:
+                    logger.info(f"shutdown requested in continuous mode for user {user_id}...")
+                    break
+
+                # Process the message
+                message_tuple = get_message_task.result()
+                message = message_tuple[1]
+                logger.info(f"Processing message in continuous mode for user {user_id}: {message}")
+
+                if message["msg_type"] == "broadcast_complete":
+                    # Mark this message as done and continue processing
+                    self.message_queue.task_done()
+                    continue
+
+                self._process_message(self.user_token, message)
+                # Note: task_done() is called by the schedule function for regular messages
+
+            except asyncio.CancelledError:
+                logger.info(f"continuous run loop cancelled for user {user_id}...")
+                break
+            except Exception as e:
+                logger.error(f"error in continuous run loop for user {user_id}: {e}")
+                # Continue processing other messages instead of shutting down
+                continue
+        
+        logger.info(f"Continuous ACP operation stopped for user {user_id}.")
+
+    async def submit_and_wait(self, message: ACPMessage, timeout: float = 3600.0) -> ACPMessage:
+        """
+        Submit a message and wait for the response.
+        This method is designed for handling individual requests in a persistent ACP instance.
+        """
+        request_id = message["message"]["request_id"]
+        user_id = self.user_token[:8] if self.user_token else 'unknown'
+        
+        # Create a future to wait for the response
+        future = asyncio.Future()
+        self.pending_requests[request_id] = future
+        
+        try:
+            # Submit the message
+            await self.submit(message)
+            
+            # Wait for the response with timeout
+            response = await asyncio.wait_for(future, timeout=timeout)
+            return response
+            
+        except asyncio.TimeoutError:
+            # Remove the pending request
+            self.pending_requests.pop(request_id, None)
+            raise TimeoutError(f"Request {request_id} for user {user_id} timed out after {timeout} seconds")
+        except Exception as e:
+            # Remove the pending request
+            self.pending_requests.pop(request_id, None)
+            raise e
 
     async def shutdown(self) -> None:
         """Request a graceful shutdown of the ACP system."""
-        logger.info("requesting shutdown...")
+        user_id = self.user_token[:8] if self.user_token else 'unknown'
+        logger.info(f"requesting shutdown for user {user_id}...")
         self.shutdown_event.set()
 
     async def _graceful_shutdown(self) -> None:
@@ -175,7 +277,7 @@ class ACP:
 
         return
 
-    def _process_message(self, message: ACPMessage) -> None:
+    def _process_message(self, user_token: str, message: ACPMessage) -> None:
         """
         The internal process for sending a message to the recipient agent(s)
         """
@@ -191,11 +293,11 @@ class ACP:
             recipients = [msg_content["recipient"]]
 
         for recipient in recipients:
-            self._send_message(recipient, message)
+            self._send_message(user_token, recipient, message)
 
         return None
 
-    def _send_message(self, recipient: str, message: ACPMessage) -> None:
+    def _send_message(self, user_token: str, recipient: str, message: ACPMessage) -> None:
         """
         Send a message to a recipient
         """
@@ -243,6 +345,26 @@ class ACP:
                                 convert_call_to_acp_message(call, recipient)
                             )
                         case "task_complete":
+                            # Check if this completes a pending request
+                            if req_id and req_id in self.pending_requests:
+                                # Create a response message for the user
+                                response_message = ACPMessage(
+                                    id=str(uuid.uuid4()),
+                                    timestamp=datetime.datetime.now(),
+                                    message=ACPBroadcast(
+                                        request_id=req_id,
+                                        sender="supervisor",
+                                        recipients=["all"],
+                                        header="Task Complete",
+                                        body=call.tool_args.get("finish_message", "Task completed successfully"),
+                                    ),
+                                    msg_type="broadcast_complete",
+                                )
+                                # Resolve the pending request
+                                future = self.pending_requests.pop(req_id)
+                                if not future.done():
+                                    future.set_result(response_message)
+                            
                             await self.submit(
                                 convert_call_to_acp_message(call, recipient)
                             )

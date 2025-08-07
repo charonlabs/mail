@@ -7,7 +7,7 @@
                 "name": "supervisor",
                 "factory": "acp.factories.supervisor:supervisor_factory",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.supervisor_prompts:SYSPROMPT_SUPERVISOR",
+                "system": "acp.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math"],
                 "agent_params": { }
             },

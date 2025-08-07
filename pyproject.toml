@@ -8,4 +8,12 @@ dependencies = [
     "dict2xml>=1.7.7",
     "langchain-core>=0.3.72",
     "pydantic>=2.11.7",
+    "fastapi>=0.104.1",
+    "uvicorn>=0.24.0",
+    "toml>=0.10.2",
+    "ujson>=5.8.0",
+    "langmem>=0.0.29",
+    "litellm>=1.0.0",
+    "rich>=13.0.0",
+    "langgraph>=0.6.3",
 ]

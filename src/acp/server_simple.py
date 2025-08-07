@@ -1,4 +1,4 @@
-# FastAPI server for ACP over HTTP
+# Simplified FastAPI server for ACP over HTTP
 
 import datetime
 import logging
@@ -11,11 +11,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from toml import load as load_toml
 
-from acp.core import ACP
-from acp.message import ACPMessage, ACPRequest
 from acp.logger import init_logger
-from acp.swarms.builder import build_swarm_from_name
-from acp.auth import login
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()
@@ -23,8 +19,11 @@ logger = logging.getLogger("acp")
 
 # Global variables to hold the persistent swarm and user-specific ACP instances
 persistent_swarm = None
-user_acp_instances: Dict[str, ACP] = {}
+user_acp_instances: Dict[str, dict] = {}
 user_acp_tasks: Dict[str, asyncio.Task] = {}
+
+app = FastAPI()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,7 +35,8 @@ async def lifespan(app: FastAPI):
     global persistent_swarm
     try:
         logger.info("Building persistent swarm...")
-        persistent_swarm = build_swarm_from_name("example")
+        # For now, just create a simple swarm object
+        persistent_swarm = {"name": "example", "status": "ready"}
         logger.info("Persistent swarm built successfully")
     except Exception as e:
         logger.error(f"Error building persistent swarm: {e}")
@@ -49,10 +49,6 @@ async def lifespan(app: FastAPI):
     
     # Clean up all user ACP instances
     global user_acp_instances, user_acp_tasks
-    for user_token, acp_instance in user_acp_instances.items():
-        logger.info(f"Shutting down ACP instance for user: {user_token[:8]}...")
-        await acp_instance.shutdown()
-    
     for user_token, acp_task in user_acp_tasks.items():
         if acp_task and not acp_task.done():
             logger.info(f"Cancelling ACP task for user: {user_token[:8]}...")
@@ -62,9 +58,8 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
 
-app = FastAPI(lifespan=lifespan)
 
-async def get_or_create_user_acp(user_token: str) -> ACP:
+async def get_or_create_user_acp(user_token: str) -> dict:
     """
     Get or create an ACP instance for a specific user.
     Each user gets their own isolated ACP instance.
@@ -76,12 +71,17 @@ async def get_or_create_user_acp(user_token: str) -> ACP:
             logger.info(f"Creating ACP instance for user: {user_token[:8]}...")
             
             # Create a new ACP instance for this user
-            acp_instance = persistent_swarm.instantiate(user_token)
-            user_acp_instances[user_token] = acp_instance
+            user_acp_instances[user_token] = {
+                "user_token": user_token,
+                "status": "running",
+                "message_count": 0,
+                "agent_histories": {},  # Each user has their own agent histories
+                "pending_requests": {}  # Each user has their own pending requests
+            }
             
             # Start the ACP instance in continuous mode for this user
             logger.info(f"Starting ACP continuous mode for user: {user_token[:8]}...")
-            acp_task = asyncio.create_task(acp_instance.run_continuous())
+            acp_task = asyncio.create_task(simulate_acp_continuous(user_token))
             user_acp_tasks[user_token] = acp_task
             
             logger.info(f"ACP instance created and started for user: {user_token[:8]}")
@@ -91,6 +91,40 @@ async def get_or_create_user_acp(user_token: str) -> ACP:
             raise e
     
     return user_acp_instances[user_token]
+
+
+async def simulate_acp_continuous(user_token: str):
+    """Simulate continuous ACP operation for a specific user."""
+    user_id = user_token[:8]
+    logger.info(f"Simulating continuous ACP operation for user {user_id}...")
+    try:
+        while True:
+            await asyncio.sleep(1)  # Simulate background processing
+    except asyncio.CancelledError:
+        logger.info(f"ACP continuous operation cancelled for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error in continuous ACP operation for user {user_id}: {e}")
+
+
+async def submit_and_wait_simple(user_token: str, message: str, timeout: float = 30.0) -> str:
+    """
+    Simplified submit and wait function that simulates ACP processing for a specific user.
+    """
+    global user_acp_instances
+    
+    if user_token not in user_acp_instances:
+        raise Exception(f"ACP instance not initialized for user {user_token[:8]}")
+    
+    user_acp = user_acp_instances[user_token]
+    
+    # Simulate processing time
+    await asyncio.sleep(0.1)
+    
+    # Increment message count for this user
+    user_acp["message_count"] += 1
+    
+    # Return a simple response with user-specific information
+    return f"Processed message for user {user_token[:8]}: {message} (Message #{user_acp['message_count']})"
 
 
 @app.get("/")
@@ -111,15 +145,26 @@ async def status(request: Request):
         user_token = api_key.split(" ")[1]
         user_acp_status = user_token in user_acp_instances
         user_task_running = user_token in user_acp_tasks and not user_acp_tasks[user_token].done() if user_token in user_acp_tasks else False
+        user_message_count = user_acp_instances[user_token]["message_count"] if user_token in user_acp_instances else 0
     else:
         user_acp_status = False
         user_task_running = False
+        user_message_count = 0
     
     return {
-        "swarm": {"name": persistent_swarm.name if persistent_swarm else None, "status": "ready"},
+        "swarm": persistent_swarm,
         "active_users": len(user_acp_instances),
         "user_acp_ready": user_acp_status,
-        "user_task_running": user_task_running
+        "user_task_running": user_task_running,
+        "user_message_count": user_message_count,
+        "all_users": [
+            {
+                "user_id": token[:8],
+                "message_count": acp["message_count"],
+                "status": acp["status"]
+            }
+            for token, acp in user_acp_instances.items()
+        ]
     }
 
 
@@ -137,14 +182,14 @@ async def chat(request: Request):
     """
     logger.info("Chat endpoint accessed")
 
-    # auth process
+    # auth process (simplified)
     api_key = request.headers.get("Authorization")
     if api_key is None:
         logger.warning("No API key provided")
         raise HTTPException(status_code=401, detail="no API key provided")
 
     if api_key.startswith("Bearer "):
-        user_token = await login(api_key.split(" ")[1])
+        user_token = api_key.split(" ")[1]
         logger.info(f"User authenticated with token: {user_token[:8]}...")
     else:
         logger.warning("Invalid API key format")
@@ -176,23 +221,10 @@ async def chat(request: Request):
 
     # ACP process
     try:
-        logger.info(f"Creating ACP message for user {user_token[:8]}...")
-        new_message = ACPMessage(
-            id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(),
-            message=ACPRequest(
-                request_id=str(uuid.uuid4()),
-                sender="user",
-                recipient="supervisor",
-                header="New Message",
-                body=message,
-            ),
-            msg_type="request",
-        )
-        logger.info(f"Submitting message to user ACP and waiting for response...")
-        response = await user_acp.submit_and_wait(new_message)
+        logger.info(f"Processing message with user ACP for user {user_token[:8]}...")
+        response = await submit_and_wait_simple(user_token, message)
         logger.info(f"ACP completed successfully for user {user_token[:8]}")
-        return {"response": response["message"]["body"]}
+        return {"response": response}
     except Exception as e:
         logger.error(f"Error processing message for user {user_token[:8]}: {e}")
         raise HTTPException(
@@ -203,4 +235,4 @@ async def chat(request: Request):
 
 if __name__ == "__main__":
     logger.info("Starting ACP server directly...")
-    uvicorn.run("acp.server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("acp.server_simple:app", host="0.0.0.0", port=8000, reload=True)
