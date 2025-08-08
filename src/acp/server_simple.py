@@ -1,4 +1,4 @@
-# Simplified FastAPI server for ACP over HTTP
+# Simple FastAPI server for ACP over HTTP
 
 import datetime
 import logging
@@ -11,7 +11,11 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from toml import load as load_toml
 
-from acp.logger import init_logger
+from .core import ACP
+from .message import ACPMessage, ACPRequest
+from .logger import init_logger
+from .swarms.builder import build_swarm_from_name
+from .auth import login
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()

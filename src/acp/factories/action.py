@@ -1,9 +1,9 @@
 from typing import Awaitable, Callable, Literal, Any
 
-from acp.tools import create_message_tool
+from ..tools import create_message_tool
 
-from acp.factories.base import AgentFunction, base_agent_factory
-from acp.swarms.utils import create_tools_from_actions
+from .base import AgentFunction, base_agent_factory
+from ..swarms.utils import create_tools_from_actions
 
 ActionFunction = Callable[[dict[str, Any]], Awaitable[str]]
 

@@ -1,12 +1,13 @@
 import importlib
 import json
+from typing import Any
 
-from acp.core import ACP
-from acp.factories.action import action_agent_factory
-from acp.factories.base import AgentFunction, base_agent_factory
-from acp.factories.supervisor import supervisor_factory
-from acp.swarms.swarm import Agent, Swarm
-from acp.swarms.utils import read_python_string
+from ..core import ACP
+from ..factories.action import action_agent_factory
+from ..factories.base import AgentFunction, base_agent_factory
+from ..factories.supervisor import supervisor_factory
+from .swarm import Agent, Swarm
+from .utils import read_python_string
 
 
 def build_swarm_from_name(name: str) -> Swarm:

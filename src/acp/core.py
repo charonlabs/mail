@@ -1,19 +1,21 @@
 import asyncio
 import datetime
 import logging
-from typing import Any
+from typing import Any, Optional
 import uuid
 from asyncio import PriorityQueue, Task
 
-from acp.executor import execute_action_tool
-from acp.message import ACPBroadcast, ACPMessage, build_acp_xml, ACPResponse
-from acp.tools import (
+from .executor import execute_action_tool
+from .message import ACPBroadcast, ACPMessage, build_acp_xml, ACPResponse, parse_agent_address
+from .tools import (
     ACP_TOOL_NAMES,
     action_complete_broadcast,
     convert_call_to_acp_message,
 )
-from acp.factories.action import ActionFunction
-from acp.factories.base import AgentFunction
+from .factories.action import ActionFunction
+from .factories.base import AgentFunction
+from .interswarm_router import InterswarmRouter
+from .swarm_registry import SwarmRegistry
 
 logger = logging.getLogger("acp")
 
@@ -24,6 +26,9 @@ class ACP:
         agents: dict[str, AgentFunction],
         actions: dict[str, ActionFunction],
         user_token: str = None,
+        swarm_name: str = "default",
+        swarm_registry: Optional[SwarmRegistry] = None,
+        enable_interswarm: bool = False,
     ):
         self.message_queue: PriorityQueue[tuple[int, ACPMessage]] = PriorityQueue()
         self.response_queue: asyncio.Queue[tuple[str, ACPMessage]] = asyncio.Queue()
@@ -39,6 +44,33 @@ class ACP:
         self.current_request_id: str | None = None
         self.pending_requests: dict[str, asyncio.Future[ACPMessage]] = {}
         self.user_token = user_token  # Track which user this ACP instance belongs to
+        
+        # Interswarm messaging support
+        self.swarm_name = swarm_name
+        self.enable_interswarm = enable_interswarm
+        self.swarm_registry = swarm_registry
+        self.interswarm_router: Optional[InterswarmRouter] = None
+        
+        if enable_interswarm and swarm_registry:
+            self.interswarm_router = InterswarmRouter(swarm_registry, swarm_name)
+            # Register local message handler
+            self.interswarm_router.register_message_handler("local_message_handler", self._handle_local_message)
+
+    async def start_interswarm(self) -> None:
+        """Start interswarm messaging capabilities."""
+        if self.enable_interswarm and self.interswarm_router:
+            await self.interswarm_router.start()
+            logger.info(f"Started interswarm messaging for swarm: {self.swarm_name}")
+
+    async def stop_interswarm(self) -> None:
+        """Stop interswarm messaging capabilities."""
+        if self.interswarm_router:
+            await self.interswarm_router.stop()
+            logger.info(f"Stopped interswarm messaging for swarm: {self.swarm_name}")
+
+    async def _handle_local_message(self, message: ACPMessage) -> None:
+        """Handle a message that should be processed locally."""
+        await self.submit(message)
 
     async def run(self) -> ACPMessage:
         """
@@ -198,6 +230,11 @@ class ACP:
         """Request a graceful shutdown of the ACP system."""
         user_id = self.user_token[:8] if self.user_token else 'unknown'
         logger.info(f"requesting shutdown for user {user_id}...")
+        
+        # Stop interswarm messaging first
+        if self.enable_interswarm:
+            await self.stop_interswarm()
+        
         self.shutdown_event.set()
 
     async def _graceful_shutdown(self) -> None:
@@ -281,6 +318,44 @@ class ACP:
         """
         The internal process for sending a message to the recipient agent(s)
         """
+        # If interswarm messaging is enabled, try to route via interswarm router first
+        if self.enable_interswarm and self.interswarm_router:
+            # Check if any recipients are in interswarm format
+            msg_content = message["message"]
+            has_interswarm_recipients = False
+            
+            if "recipients" in msg_content:
+                for recipient in msg_content["recipients"]:
+                    _, recipient_swarm = parse_agent_address(recipient)
+                    if recipient_swarm and recipient_swarm != self.swarm_name:
+                        has_interswarm_recipients = True
+                        break
+            elif "recipient" in msg_content:
+                _, recipient_swarm = parse_agent_address(msg_content["recipient"])
+                if recipient_swarm and recipient_swarm != self.swarm_name:
+                    has_interswarm_recipients = True
+            
+            if has_interswarm_recipients:
+                # Route via interswarm router
+                asyncio.create_task(self._route_interswarm_message(message))
+                return
+        
+        # Fall back to local processing
+        self._process_local_message(user_token, message)
+
+    async def _route_interswarm_message(self, message: ACPMessage) -> None:
+        """Route a message via interswarm router."""
+        if self.interswarm_router:
+            success = await self.interswarm_router.route_message(message)
+            if not success:
+                logger.error(f"Failed to route interswarm message: {message['id']}")
+                # Fall back to local processing for failed interswarm messages
+                self._process_local_message(self.user_token, message)
+
+    def _process_local_message(self, user_token: str, message: ACPMessage) -> None:
+        """
+        Process a message locally (original _process_message logic)
+        """
         msg_content = message["message"]
 
         if "recipients" in msg_content:
@@ -293,7 +368,17 @@ class ACP:
             recipients = [msg_content["recipient"]]
 
         for recipient in recipients:
-            self._send_message(user_token, recipient, message)
+            # Parse recipient address to get local agent name
+            recipient_agent, recipient_swarm = parse_agent_address(recipient)
+            
+            # Only process if this is a local agent or no swarm specified
+            if not recipient_swarm or recipient_swarm == self.swarm_name:
+                if recipient_agent in self.agents:
+                    self._send_message(user_token, recipient_agent, message)
+                else:
+                    logger.warning(f"Unknown local agent: {recipient_agent}")
+            else:
+                logger.debug(f"Skipping remote agent {recipient} in local processing")
 
         return None
 

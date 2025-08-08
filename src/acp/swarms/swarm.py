@@ -1,10 +1,11 @@
+import json
 from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from acp.core import ACP
-from acp.factories.action import ActionFunction
-from acp.factories.base import AgentFunction
+from ..core import ACP
+from ..factories.action import ActionFunction
+from ..factories.base import AgentFunction
 
 
 class Agent(BaseModel):

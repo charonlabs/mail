@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
-from acp.factories.base import AgentFunction, base_agent_factory
-from acp.tools import create_supervisor_tools
+from .base import AgentFunction, base_agent_factory
+from ..tools import create_supervisor_tools
 
 
 def supervisor_factory(

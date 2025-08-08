@@ -16,4 +16,5 @@ dependencies = [
     "litellm>=1.0.0",
     "rich>=13.0.0",
     "langgraph>=0.6.3",
+    "aiohttp>=3.9.0",
 ]

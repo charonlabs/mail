@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, Optional
 
 from dict2xml import dict2xml
 
@@ -22,6 +22,16 @@ class ACPRequest(TypedDict):
     body: str
     """The body of the request."""
 
+    # Interswarm fields
+    sender_swarm: Optional[str]
+    """The swarm name of the sender (for interswarm messages)."""
+
+    recipient_swarm: Optional[str]
+    """The swarm name of the recipient (for interswarm messages)."""
+
+    routing_info: Optional[dict[str, Any]]
+    """Additional routing information for interswarm messages."""
+
 
 class ACPResponse(TypedDict):
     """A response from an agent using the ACP protocol."""
@@ -40,6 +50,16 @@ class ACPResponse(TypedDict):
 
     body: str
     """The body of the response."""
+
+    # Interswarm fields
+    sender_swarm: Optional[str]
+    """The swarm name of the sender (for interswarm messages)."""
+
+    recipient_swarm: Optional[str]
+    """The swarm name of the recipient (for interswarm messages)."""
+
+    routing_info: Optional[dict[str, Any]]
+    """Additional routing information for interswarm messages."""
 
 
 class ACPBroadcast(TypedDict):
@@ -60,6 +80,16 @@ class ACPBroadcast(TypedDict):
     body: str
     """The full details of the broadcast."""
 
+    # Interswarm fields
+    sender_swarm: Optional[str]
+    """The swarm name of the sender (for interswarm messages)."""
+
+    recipient_swarms: Optional[list[str]]
+    """The swarm names of the recipients (for interswarm messages)."""
+
+    routing_info: Optional[dict[str, Any]]
+    """Additional routing information for interswarm messages."""
+
 
 class ACPInterrupt(TypedDict):
     """An interrupt using the ACP protocol."""
@@ -78,6 +108,68 @@ class ACPInterrupt(TypedDict):
 
     body: str
     """The full details of the interrupt, including what tasks to halt, conditions for resuming, and if interrupted tasks should be discarded."""
+
+    # Interswarm fields
+    sender_swarm: Optional[str]
+    """The swarm name of the sender (for interswarm messages)."""
+
+    recipient_swarms: Optional[list[str]]
+    """The swarm names of the recipients (for interswarm messages)."""
+
+    routing_info: Optional[dict[str, Any]]
+    """Additional routing information for interswarm messages."""
+
+
+class ACPInterswarmMessage(TypedDict):
+    """An interswarm message wrapper for HTTP transport."""
+
+    message_id: str
+    """The unique identifier for the interswarm message."""
+
+    source_swarm: str
+    """The source swarm name."""
+
+    target_swarm: str
+    """The target swarm name."""
+
+    timestamp: datetime
+    """The timestamp of the message."""
+
+    payload: ACPRequest | ACPResponse | ACPBroadcast | ACPInterrupt
+    """The wrapped ACP message."""
+
+    auth_token: Optional[str]
+    """Authentication token for interswarm communication."""
+
+    metadata: Optional[dict[str, Any]]
+    """Additional metadata for routing and processing."""
+
+
+def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
+    """
+    Parse an agent address in the format 'agent-name' or 'agent-name@swarm-name'.
+    
+    Returns:
+        tuple: (agent_name, swarm_name or None)
+    """
+    if "@" in address:
+        agent_name, swarm_name = address.split("@", 1)
+        return agent_name.strip(), swarm_name.strip()
+    else:
+        return address.strip(), None
+
+
+def format_agent_address(agent_name: str, swarm_name: Optional[str] = None) -> str:
+    """
+    Format an agent address from agent name and optional swarm name.
+    
+    Returns:
+        str: Formatted address
+    """
+    if swarm_name:
+        return f"{agent_name}@{swarm_name}"
+    else:
+        return agent_name
 
 
 def build_body_xml(content: dict[str, Any]) -> str:

@@ -7,7 +7,7 @@ from langsmith import traceable
 from litellm import acompletion
 from pydantic import BaseModel
 
-from acp.store import get_langmem_store
+from ..store import get_langmem_store
 
 
 class AgentToolCall(BaseModel):

@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from acp.factories.base import AgentFunction, base_agent_factory
+from ...factories.base import AgentFunction, base_agent_factory
 
 
 def factory_math_dummy(
