@@ -121,7 +121,7 @@ When interswarm messaging is enabled, agents can use enhanced tools:
 
 ```python
 # Send message to remote agent
-send_message(
+send_request(
     target="consultant@swarm-beta",
     header="Data Analysis Request",
     message="Please analyze the quarterly sales data."

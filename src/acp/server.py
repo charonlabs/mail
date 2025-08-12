@@ -212,6 +212,7 @@ async def chat(request: Request):
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(),
             message=ACPRequest(
+                task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
                 sender="user",
                 recipient="supervisor",
@@ -348,6 +349,7 @@ async def send_interswarm_message(request: Request):
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(),
             message=ACPRequest(
+                task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
                 sender="user",
                 recipient=f"supervisor@{target_swarm}",

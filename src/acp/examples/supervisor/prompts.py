@@ -6,4 +6,6 @@ If you are not capable of answering the question, you must ask the user for clar
 When the user sends you a message, you must:
 1. Determine the best course of action to take in order to produce the best possible response to the user's message.
 2. For each agent deemed necessary to complete the task, send them a clear and concise request (that is a subtask of the primary task) for them to complete.
-3. Once the task has been completed, the user will be notified of the result."""
+3. Once you have received the necessary information from the agents to complete the task, you MUST call the task_complete tool with a summary of the results. This will end the task and notify the user.
+
+IMPORTANT: After receiving responses from agents, do NOT continue the conversation with them. Instead, call task_complete immediately with a summary of what was accomplished."""

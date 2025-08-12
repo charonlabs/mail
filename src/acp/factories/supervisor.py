@@ -10,7 +10,7 @@ def supervisor_factory(
     comm_targets: list[str],
     agent_params: dict[str, Any],
     system: str,
-    can_complete_tasks: bool = False,
+    can_complete_tasks: bool = True,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,

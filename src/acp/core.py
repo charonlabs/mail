@@ -152,6 +152,8 @@ class ACP:
         
         while not self.shutdown_event.is_set():
             try:
+                logger.info(f"Pending requests: {self.pending_requests}")
+                
                 # Wait for either a message or shutdown signal
                 get_message_task = asyncio.create_task(self.message_queue.get())
                 shutdown_task = asyncio.create_task(self.shutdown_event.wait())
@@ -180,9 +182,18 @@ class ACP:
                 logger.info(f"Processing message in continuous mode for user {user_id}: {message}")
 
                 if message["msg_type"] == "broadcast_complete":
-                    # Mark this message as done and continue processing
-                    self.message_queue.task_done()
-                    continue
+                    # Check if this completes a pending request
+                    msg_content = message["message"]
+                    if "task_id" in msg_content and msg_content["task_id"] in self.pending_requests:
+                        # Resolve the pending request
+                        logger.info(f"Task {msg_content['task_id']} completed, resolving pending request")
+                        future = self.pending_requests.pop(msg_content["task_id"])
+                        if not future.done():
+                            future.set_result(message)
+                    else:
+                        # Mark this message as done and continue processing
+                        self.message_queue.task_done()
+                        continue
 
                 self._process_message(self.user_token, message)
                 # Note: task_done() is called by the schedule function for regular messages
@@ -200,30 +211,37 @@ class ACP:
     async def submit_and_wait(self, message: ACPMessage, timeout: float = 3600.0) -> ACPMessage:
         """
         Submit a message and wait for the response.
-        This method is designed for handling individual requests in a persistent ACP instance.
+        This method is designed for handling individual task requests in a persistent ACP instance.
         """
-        request_id = message["message"]["request_id"]
+        task_id = message["message"]["task_id"]
         user_id = self.user_token[:8] if self.user_token else 'unknown'
+        
+        logger.info(f"submitAndWait: Creating future for task {task_id} for user {user_id}")
         
         # Create a future to wait for the response
         future = asyncio.Future()
-        self.pending_requests[request_id] = future
+        self.pending_requests[task_id] = future
         
         try:
             # Submit the message
+            logger.info(f"submitAndWait: Submitting message for task {task_id}")
             await self.submit(message)
             
             # Wait for the response with timeout
+            logger.info(f"submitAndWait: Waiting for future for task {task_id}")
             response = await asyncio.wait_for(future, timeout=timeout)
+            logger.info(f"submitAndWait: Got response for task {task_id}: {response['message']['body'][:50]}...")
             return response
             
         except asyncio.TimeoutError:
             # Remove the pending request
-            self.pending_requests.pop(request_id, None)
-            raise TimeoutError(f"Request {request_id} for user {user_id} timed out after {timeout} seconds")
+            self.pending_requests.pop(task_id, None)
+            logger.error(f"submitAndWait: Timeout for task {task_id}")
+            raise TimeoutError(f"Task {task_id} for user {user_id} timed out after {timeout} seconds")
         except Exception as e:
             # Remove the pending request
-            self.pending_requests.pop(request_id, None)
+            self.pending_requests.pop(task_id, None)
+            logger.error(f"submitAndWait: Exception for task {task_id}: {e}")
             raise e
 
     async def shutdown(self) -> None:
@@ -392,6 +410,7 @@ class ACP:
 
         async def schedule(message: ACPMessage) -> None:
             try:
+                task_id = message["message"]["task_id"]
                 if message["msg_type"] == "request":
                     req_id = message["message"]["request_id"]  # type: ignore
                     sender = message["message"]["sender"]
@@ -412,47 +431,54 @@ class ACP:
 
                 for call in results:
                     match call.tool_name:
-                        case "send_message":
-                            if req_id and sender == call.tool_args["target"]:
-                                await self.submit(
-                                    convert_call_to_acp_message(call, recipient, req_id)
-                                )
-                            else:
-                                await self.submit(
-                                    convert_call_to_acp_message(call, recipient)
-                                )
+                        case "send_request":
+                            await self.submit(
+                                convert_call_to_acp_message(call, recipient, task_id)
+                            )
+                        case "send_response":
+                            await self.submit(
+                                convert_call_to_acp_message(call, recipient, task_id)
+                            )
                         case "send_interrupt":
                             await self.submit(
-                                convert_call_to_acp_message(call, recipient)
+                                convert_call_to_acp_message(call, recipient, task_id)
                             )
                         case "send_broadcast":
                             await self.submit(
-                                convert_call_to_acp_message(call, recipient)
+                                convert_call_to_acp_message(call, recipient, task_id)
                             )
                         case "task_complete":
                             # Check if this completes a pending request
-                            if req_id and req_id in self.pending_requests:
+                            if task_id and task_id in self.pending_requests:
+                                logger.info(f"Task {task_id} completed, resolving pending request for user {self.user_token[:8] if self.user_token else 'unknown'}")
                                 # Create a response message for the user
                                 response_message = ACPMessage(
                                     id=str(uuid.uuid4()),
                                     timestamp=datetime.datetime.now(),
                                     message=ACPBroadcast(
-                                        request_id=req_id,
+                                        task_id=task_id,
+                                        broadcast_id=str(uuid.uuid4()),
                                         sender="supervisor",
                                         recipients=["all"],
-                                        header="Task Complete",
+                                        header="Task complete",
                                         body=call.tool_args.get("finish_message", "Task completed successfully"),
                                     ),
                                     msg_type="broadcast_complete",
                                 )
                                 # Resolve the pending request
-                                future = self.pending_requests.pop(req_id)
+                                future = self.pending_requests.pop(task_id)
                                 if not future.done():
+                                    logger.info(f"Resolving future for task {task_id}")
                                     future.set_result(response_message)
-                            
-                            await self.submit(
-                                convert_call_to_acp_message(call, recipient)
-                            )
+                                else:
+                                    logger.warning(f"Future for task {task_id} was already done")
+                                # Don't submit the duplicate message - we've already resolved the request
+                            else:
+                                logger.info(f"Task {task_id} completed but no pending request found, submitting message")
+                                # Only submit the message if there's no pending request to resolve
+                                await self.submit(
+                                    convert_call_to_acp_message(call, recipient, task_id)
+                                )
                         case _:
                             logger.info(f"executing action tool: {call.tool_name}")
                             result_message = await execute_action_tool(
@@ -460,7 +486,7 @@ class ACP:
                             )
                             history.append(result_message)
                             await self.submit(
-                                action_complete_broadcast(result_message, recipient)
+                                action_complete_broadcast(result_message, recipient, task_id)
                             )
                 self.agent_histories[recipient] = history[1:]
             finally:

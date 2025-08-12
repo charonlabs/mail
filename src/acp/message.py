@@ -7,6 +7,9 @@ from dict2xml import dict2xml
 class ACPRequest(TypedDict):
     """A request to an agent using the ACP protocol."""
 
+    task_id: str
+    """The unique identifier for the task."""
+
     request_id: str
     """The unique identifier for the request."""
 
@@ -35,6 +38,9 @@ class ACPRequest(TypedDict):
 
 class ACPResponse(TypedDict):
     """A response from an agent using the ACP protocol."""
+
+    task_id: str
+    """The unique identifier for the task."""
 
     request_id: str
     """The unique identifier of the request being responded to."""
@@ -65,6 +71,9 @@ class ACPResponse(TypedDict):
 class ACPBroadcast(TypedDict):
     """A broadcast message using the ACP protocol."""
 
+    task_id: str
+    """The unique identifier for the task."""
+
     broadcast_id: str
     """The unique identifier for the broadcast."""
 
@@ -93,6 +102,9 @@ class ACPBroadcast(TypedDict):
 
 class ACPInterrupt(TypedDict):
     """An interrupt using the ACP protocol."""
+
+    task_id: str
+    """The unique identifier for the task."""
 
     interrupt_id: str
     """The unique identifier for the interrupt."""
@@ -196,52 +208,6 @@ def build_acp_xml(message: "ACPMessage") -> dict[str, str]:
 </incoming_message>
 """,
     }
-
-
-def build_sme_context_xml(sections: list[dict[str, str]]) -> str:
-    """Build XML for SME context sections following the SME prompt schema.
-
-    Args:
-        sections: List of dictionaries with 'SECTION_TITLE' and 'SECTION_CONTENT' keys
-
-    Returns:
-        XML string formatted for SME context with numbered sections
-    """
-    xml = ""
-    for i, section in enumerate(sections, 1):
-        xml += f"<CONTEXT>\n"
-        xml += f"[{i}]\n"
-        xml += f"<SECTION_TITLE>\n"
-        xml += f"{section['SECTION_TITLE']}\n"
-        xml += f"</SECTION_TITLE>\n"
-        xml += f"<SECTION_CONTENT>\n"
-        xml += f"{section['SECTION_CONTENT']}\n"
-        xml += f"</SECTION_CONTENT>\n"
-        xml += f"</CONTEXT>\n"
-        if i < len(sections):
-            xml += "\n"
-    return xml
-
-
-def build_sme_task_xml(title: str, description: str) -> str:
-    """Build XML for SME task following the SME prompt schema.
-
-    Args:
-        title: The task title
-        description: The task description
-
-    Returns:
-        XML string formatted for SME task
-    """
-    xml = f"<TASK>\n"
-    xml += f"<TASK_TITLE>\n"
-    xml += f"{title}\n"
-    xml += f"</TASK_TITLE>\n"
-    xml += f"<TASK_DESCRIPTION>\n"
-    xml += f"{description}\n"
-    xml += f"</TASK_DESCRIPTION>\n"
-    xml += f"</TASK>\n"
-    return xml
 
 
 class ACPMessage(TypedDict):

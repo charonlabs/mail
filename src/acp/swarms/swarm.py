@@ -1,11 +1,13 @@
 import json
 from typing import Any, Literal
 
+from acp.swarm_registry import SwarmRegistry
 from pydantic import BaseModel
 
 from ..core import ACP
 from ..factories.action import ActionFunction
 from ..factories.base import AgentFunction
+from .utils import read_python_string
 
 
 class Agent(BaseModel):
@@ -32,13 +34,20 @@ class Swarm(BaseModel):
     name: str
     agents: list[Agent]
 
-    def instantiate(self, user_token: str) -> ACP:
+    def instantiate(self, user_token: str, swarm_name: str, swarm_registry: SwarmRegistry, enable_interswarm: bool) -> ACP:
         """
         Create an ACP instance for this swarm that is ready to be used.
         """
         agents, actions = self._build_acp_dicts(user_token)
 
-        return ACP(agents=agents, actions=actions, user_token=user_token)
+        return ACP(
+            agents=agents,
+            actions=actions,
+            user_token=user_token,
+            swarm_name=swarm_name,
+            swarm_registry=swarm_registry,
+            enable_interswarm=enable_interswarm
+        )
 
     def _build_acp_dicts(
         self, user_token: str
@@ -73,7 +82,7 @@ class Swarm(BaseModel):
 
         try:
             for action in agent_params["actions"]:
-                actions[action["name"]] = action["function"]
+                actions[action["name"]] = read_python_string(action["function"])
         except KeyError:
             return {}
         

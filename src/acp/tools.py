@@ -14,46 +14,48 @@ from .message import (
 )
 from .factories.base import AgentToolCall
 
-ACP_TOOL_NAMES = ["send_message", "send_interrupt", "send_broadcast", "task_complete"]
+ACP_TOOL_NAMES = ["send_request", "send_response", "send_interrupt", "send_broadcast", "task_complete"]
 
 
 def convert_call_to_acp_message(
-    call: AgentToolCall, sender: str, req_id: str | None = None
+    call: AgentToolCall, sender: str, task_id: str
 ) -> ACPMessage:
     """Convert an ACP tool call to an ACP message."""
     match call.tool_name:
-        case "send_message":
-            if not req_id:
-                return ACPMessage(
-                    id=str(uuid4()),
-                    timestamp=datetime.now(),
-                    message=ACPRequest(
-                        request_id=str(uuid4()),
-                        sender=sender,
-                        recipient=call.tool_args["target"],
-                        header=call.tool_args["header"],
-                        body=call.tool_args["message"],
-                    ),
-                    msg_type="request",
-                )
-            else:
-                return ACPMessage(
-                    id=req_id,
-                    timestamp=datetime.now(),
-                    message=ACPResponse(
-                        request_id=str(uuid4()),
-                        sender=sender,
-                        recipient=call.tool_args["target"],
-                        header=call.tool_args["header"],
-                        body=call.tool_args["message"],
-                    ),
-                    msg_type="response",
-                )
+        case "send_request":
+            return ACPMessage(
+                id=str(uuid4()),
+                timestamp=datetime.now(),
+                message=ACPRequest(
+                    task_id=task_id,
+                    request_id=str(uuid4()),
+                    sender=sender,
+                    recipient=call.tool_args["target"],
+                    header=call.tool_args["header"],
+                    body=call.tool_args["message"],
+                ),
+                msg_type="request",
+            )
+        case "send_response":
+            return ACPMessage(
+                id=str(uuid4()),
+                timestamp=datetime.now(),
+                message=ACPResponse(
+                    task_id=task_id,
+                    request_id=str(uuid4()),
+                    sender=sender,
+                    recipient=call.tool_args["target"],
+                    header=call.tool_args["header"],
+                    body=call.tool_args["message"],
+                ),
+                msg_type="response",
+            )
         case "send_interrupt":
             return ACPMessage(
                 id=str(uuid4()),
                 timestamp=datetime.now(),
                 message=ACPInterrupt(
+                    task_id=task_id,
                     interrupt_id=str(uuid4()),
                     sender=sender,
                     recipients=[call.tool_args["target"]],
@@ -67,6 +69,7 @@ def convert_call_to_acp_message(
                 id=str(uuid4()),
                 timestamp=datetime.now(),
                 message=ACPBroadcast(
+                    task_id=task_id,
                     broadcast_id=str(uuid4()),
                     sender=sender,
                     recipients=["all"],
@@ -80,6 +83,7 @@ def convert_call_to_acp_message(
                 id=str(uuid4()),
                 timestamp=datetime.now(),
                 message=ACPBroadcast(
+                    task_id=task_id,
                     broadcast_id=str(uuid4()),
                     sender=sender,
                     recipients=["all"],
@@ -93,7 +97,7 @@ def convert_call_to_acp_message(
 
 
 def action_complete_broadcast(
-    result_message: dict[str, Any], recipient: str
+    result_message: dict[str, Any], recipient: str, task_id: str
 ) -> ACPMessage:
     """Create an ACP broadcast message to indicate that an action has been completed."""
 
@@ -101,6 +105,7 @@ def action_complete_broadcast(
         id=str(uuid4()),
         timestamp=datetime.now(),
         message=ACPBroadcast(
+            task_id=task_id,
             broadcast_id=str(uuid4()),
             sender="system",
             recipients=[recipient],
@@ -111,10 +116,10 @@ def action_complete_broadcast(
     )
 
 
-def create_message_tool(targets: list[str], enable_interswarm: bool = False) -> dict[str, Any]:
+def create_request_tool(targets: list[str], enable_interswarm: bool = False) -> dict[str, Any]:
     """Create an ACP message tool to send messages to specific agents."""
 
-    class send_message(BaseModel):
+    class send_request(BaseModel):
         """Send a message to a specific target recipient agent."""
 
         target: str = Field(
@@ -124,7 +129,33 @@ def create_message_tool(targets: list[str], enable_interswarm: bool = False) -> 
         header: str = Field(description="The header of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = convert_to_openai_tool(send_message)
+    tool_dict = convert_to_openai_tool(send_request)
+
+    target_param = tool_dict["function"]["parameters"]["properties"]["target"]
+    if enable_interswarm:
+        # For interswarm messaging, we don't restrict to enum values
+        # The validation will happen at runtime
+        target_param["description"] = target_param["description"] + " (supports interswarm format: agent-name@swarm-name)"
+    else:
+        target_param["enum"] = targets  # This provides the allowed values to the LLM
+
+    return tool_dict
+
+
+def create_response_tool(targets: list[str], enable_interswarm: bool = False) -> dict[str, Any]:
+    """Create an ACP message tool to send messages to specific agents."""
+
+    class send_response(BaseModel):
+        """Send a message to a specific target recipient agent."""
+
+        target: str = Field(
+            description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}" + 
+                       (f", or use 'agent-name@swarm-name' format for interswarm messaging" if enable_interswarm else "")
+        )
+        header: str = Field(description="The header of the message.")
+        message: str = Field(description="The message content to send.")
+
+    tool_dict = convert_to_openai_tool(send_response)
 
     target_param = tool_dict["function"]["parameters"]["properties"]["target"]
     if enable_interswarm:
@@ -216,12 +247,13 @@ def create_task_complete_tool() -> dict[str, Any]:
 
 
 def create_supervisor_tools(
-    targets: list[str], can_complete_tasks: bool = False, enable_interswarm: bool = False
+    targets: list[str], can_complete_tasks: bool = True, enable_interswarm: bool = False
 ) -> list[dict[str, Any]]:
     """Create ACP supervisor tools. Targets are the agents that the supervisor can send messages to."""
 
     tools = [
-        create_message_tool(targets, enable_interswarm),
+        create_request_tool(targets, enable_interswarm),
+        create_response_tool(targets, enable_interswarm),
         create_interrupt_tool(targets, enable_interswarm),
         create_broadcast_tool(),
     ]
