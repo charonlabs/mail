@@ -150,10 +150,12 @@ class InterswarmRouter:
                 target_swarm=swarm_name,
                 timestamp=datetime.now().isoformat(),
                 payload=message["message"],
+                msg_type=message["msg_type"],
                 auth_token=endpoint.auth_token,
                 metadata={
                     "original_message_id": message["id"],
-                    "routing_info": message["message"].get("routing_info", {})
+                    "routing_info": message["message"].get("routing_info", {}),
+                    "expect_response": True
                 }
             )
             
@@ -186,6 +188,22 @@ class InterswarmRouter:
             logger.error(f"Error routing to remote swarm {swarm_name}: {e}")
             return self._system_router_message(message, f"Error routing to remote swarm {swarm_name}: {e}")
     
+    async def handle_incoming_response(self, response_message: ACPMessage) -> bool:
+        """Handle an incoming response from a remote swarm."""
+        try:
+            # Route the response to the local ACP instance
+            if "local_message_handler" in self.message_handlers:
+                await self.message_handlers["local_message_handler"](response_message)
+                logger.info(f"Successfully handled incoming response from remote swarm")
+                return True
+            else:
+                logger.warning("No local message handler registered for incoming responses")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error handling incoming response: {e}")
+            return False
+    
     def _create_local_message(self, original_message: ACPMessage, local_recipients: list[str]) -> ACPMessage:
         """Create a local message from an original message with local recipients only."""
         msg_content = original_message["message"].copy()
@@ -199,7 +217,7 @@ class InterswarmRouter:
         
         return ACPMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.now(),
+            timestamp=datetime.now().isoformat(),
             message=msg_content,
             msg_type=original_message["msg_type"]
         )
@@ -222,7 +240,7 @@ class InterswarmRouter:
         
         return ACPMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.now(),
+            timestamp=datetime.now().isoformat(),
             message=msg_content,
             msg_type=original_message["msg_type"]
         )

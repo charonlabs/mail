@@ -219,7 +219,7 @@ class ACPMessage(TypedDict):
     id: str
     """The unique identifier for the message."""
 
-    timestamp: datetime
+    timestamp: str
     """The timestamp of the message."""
 
     message: ACPRequest | ACPResponse | ACPBroadcast | ACPInterrupt
