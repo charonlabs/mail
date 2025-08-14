@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from toml import load as load_toml
 
 from .core import ACP
-from .message import ACPMessage, ACPRequest, ACPInterswarmMessage
+from .message import ACPMessage, ACPRequest, ACPInterswarmMessage, ACPResponse
 from .logger import init_logger
 from .swarms.builder import build_swarm_from_name
 from .auth import login
@@ -23,10 +23,12 @@ from .swarm_registry import SwarmRegistry
 init_logger()
 logger = logging.getLogger("acp")
 
-# Global variables to hold the persistent swarm and user-specific ACP instances
+# Global variables 
 persistent_swarm = None
 user_acp_instances: Dict[str, ACP] = {}
 user_acp_tasks: Dict[str, asyncio.Task] = {}
+agent_acp_instances: Dict[str, ACP] = {}
+agent_acp_tasks: Dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
 swarm_registry: Optional[SwarmRegistry] = None
@@ -55,7 +57,7 @@ async def lifespan(app: FastAPI):
     global persistent_swarm
     try:
         logger.info("Building persistent swarm...")
-        persistent_swarm = build_swarm_from_name("example")
+        persistent_swarm = build_swarm_from_name(local_swarm_name)
         logger.info("Persistent swarm built successfully")
     except Exception as e:
         logger.error(f"Error building persistent swarm: {e}")
@@ -85,43 +87,100 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
 
+    # Clean up all agent ACP instances
+    global agent_acp_instances, agent_acp_tasks
+    for agent_id, acp_instance in agent_acp_instances.items():
+        logger.info(f"Shutting down ACP instance for agent: {agent_id}...")
+        await acp_instance.shutdown()
+    
+    for agent_id, acp_task in agent_acp_tasks.items():
+        if acp_task and not acp_task.done():
+            logger.info(f"Cancelling ACP task for agent: {agent_id}...")
+            acp_task.cancel()
+            try:
+                await acp_task
+            except asyncio.CancelledError:
+                pass
+
 app = FastAPI(lifespan=lifespan)
 
-async def get_or_create_user_acp(user_token: str) -> ACP:
+async def get_or_create_user_acp(jwt: str) -> ACP:
     """
     Get or create an ACP instance for a specific user.
     Each user gets their own isolated ACP instance.
     """
     global persistent_swarm, user_acp_instances, user_acp_tasks, swarm_registry
     
-    if user_token not in user_acp_instances:
+    # TODO: implement user_id from jwt
+    user_id = jwt
+
+    if user_id not in user_acp_instances:
         try:
-            logger.info(f"Creating ACP instance for user: {user_token[:8]}...")
+            logger.info(f"Creating ACP instance for user: {user_id[:8]}...")
             
             # Create a new ACP instance for this user with interswarm support
             acp_instance = persistent_swarm.instantiate(
-                user_token, 
+                user_token=jwt, 
                 swarm_name=local_swarm_name,
                 swarm_registry=swarm_registry,
                 enable_interswarm=True
             )
-            user_acp_instances[user_token] = acp_instance
+            user_acp_instances[user_id] = acp_instance
             
             # Start interswarm messaging
             await acp_instance.start_interswarm()
             
             # Start the ACP instance in continuous mode for this user
-            logger.info(f"Starting ACP continuous mode for user: {user_token[:8]}...")
+            logger.info(f"Starting ACP continuous mode for user: {user_id[:8]}...")
             acp_task = asyncio.create_task(acp_instance.run_continuous())
-            user_acp_tasks[user_token] = acp_task
+            user_acp_tasks[user_id] = acp_task
             
-            logger.info(f"ACP instance created and started for user: {user_token[:8]}")
+            logger.info(f"ACP instance created and started for user: {user_id[:8]}")
             
         except Exception as e:
-            logger.error(f"Error creating ACP instance for user {user_token[:8]}: {e}")
+            logger.error(f"Error creating ACP instance for user {user_id[:8]}: {e}")
             raise e
     
-    return user_acp_instances[user_token]
+    return user_acp_instances[user_id]
+
+async def get_or_create_agent_acp(jwt: str) -> ACP:
+    """
+    Get or create an ACP instance for a specific agent.
+    Each agent gets their own isolated ACP instance.
+    """
+    global persistent_swarm, agent_acp_instances, agent_acp_tasks, swarm_registry
+    
+    # TODO: implement agent_id from jwt
+    agent_id = jwt
+
+    if agent_id not in agent_acp_instances:
+        try:
+            logger.info(f"Creating ACP instance for agent: {agent_id[:8]}...")
+            
+            # Create a new ACP instance for this user with interswarm support
+            acp_instance = persistent_swarm.instantiate(
+                user_token=jwt, 
+                swarm_name=local_swarm_name,
+                swarm_registry=swarm_registry,
+                enable_interswarm=True
+            )
+            agent_acp_instances[agent_id] = acp_instance
+            
+            # Start interswarm messaging
+            await acp_instance.start_interswarm()
+            
+            # Start the ACP instance in continuous mode for this user
+            logger.info(f"Starting ACP continuous mode for agent: {agent_id[:8]}...")
+            acp_task = asyncio.create_task(acp_instance.run_continuous())
+            agent_acp_tasks[agent_id] = acp_task
+            
+            logger.info(f"ACP instance created and started for agent: {agent_id[:8]}")
+            
+        except Exception as e:
+            logger.error(f"Error creating ACP instance for agent {agent_id[:8]}: {e}")
+            raise e
+    
+    return agent_acp_instances[agent_id]
 
 
 @app.get("/")
@@ -139,9 +198,9 @@ async def status(request: Request):
     # Get user token from request
     api_key = request.headers.get("Authorization")
     if api_key and api_key.startswith("Bearer "):
-        user_token = api_key.split(" ")[1]
-        user_acp_status = user_token in user_acp_instances
-        user_task_running = user_token in user_acp_tasks and not user_acp_tasks[user_token].done() if user_token in user_acp_tasks else False
+        user_id = api_key.split(" ")[1]
+        user_acp_status = user_id in user_acp_instances
+        user_task_running = user_id in user_acp_tasks and not user_acp_tasks[user_id].done() if user_id in user_acp_tasks else False
     else:
         user_acp_status = False
         user_task_running = False
@@ -175,15 +234,15 @@ async def chat(request: Request):
         raise HTTPException(status_code=401, detail="no API key provided")
 
     if api_key.startswith("Bearer "):
-        user_token = await login(api_key.split(" ")[1])
-        logger.info(f"User authenticated with token: {user_token[:8]}...")
+        jwt = await login(api_key.split(" ")[1])
+        logger.info(f"User authenticated with token: {jwt[:8]}...")
     else:
         logger.warning("Invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
     # Get or create user-specific ACP instance
     try:
-        user_acp = await get_or_create_user_acp(user_token)
+        user_acp = await get_or_create_user_acp(jwt)
     except Exception as e:
         logger.error(f"Error getting user ACP instance: {e}")
         raise HTTPException(
@@ -194,7 +253,7 @@ async def chat(request: Request):
     try:
         data = await request.json()
         message = data.get("message", "")
-        logger.info(f"Received message from user {user_token[:8]}: {message[:50]}...")
+        logger.info(f"Received message from user {jwt[:8]}: {message[:50]}...")
     except Exception as e:
         logger.error(f"Error parsing request: {e}")
         raise HTTPException(
@@ -207,7 +266,7 @@ async def chat(request: Request):
 
     # ACP process
     try:
-        logger.info(f"Creating ACP message for user {user_token[:8]}...")
+        logger.info(f"Creating ACP message for user {jwt[:8]}...")
         new_message = ACPMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(),
@@ -223,10 +282,10 @@ async def chat(request: Request):
         )
         logger.info(f"Submitting message to user ACP and waiting for response...")
         response = await user_acp.submit_and_wait(new_message)
-        logger.info(f"ACP completed successfully for user {user_token[:8]}")
+        logger.info(f"ACP completed successfully for user {jwt[:8]}")
         return {"response": response["message"]["body"]}
     except Exception as e:
-        logger.error(f"Error processing message for user {user_token[:8]}: {e}")
+        logger.error(f"Error processing message for user {jwt[:8]}: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
@@ -293,36 +352,80 @@ async def register_swarm(request: Request):
 @app.post("/interswarm/message")
 async def receive_interswarm_message(request: Request):
     """Receive an interswarm message from another swarm."""
-    global swarm_registry, user_acp_instances
-    
+    logger.info("Interswarm message endpoint accessed")
+
+    # auth process
+    api_key = request.headers.get("Authorization")
+    if api_key is None:
+        logger.warning("No API key provided")
+        raise HTTPException(status_code=401, detail="no API key provided")
+
+    if api_key.startswith("Bearer "):
+        jwt = await login(api_key.split(" ")[1])
+        logger.info(f"Agent authenticated with token: {jwt[:8]}...")
+    else:
+        logger.warning("Invalid API key format")
+        raise HTTPException(status_code=401, detail="invalid API key format")
+
+    # Get or create agent-specific ACP instance
+    try:
+        agent_acp = await get_or_create_agent_acp(jwt)
+    except Exception as e:
+        logger.error(f"Error getting agent ACP instance: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"error getting agent ACP instance: {e.with_traceback(None)}"
+        )
+
+    # parse request
     try:
         data = await request.json()
-        interswarm_message = ACPInterswarmMessage(**data)
-        
-        # Validate the message is for this swarm
-        if interswarm_message["target_swarm"] != local_swarm_name:
-            raise HTTPException(status_code=400, detail="Message not intended for this swarm")
-        
-        # For now, we'll route to the first available user ACP instance
-        # In a more sophisticated implementation, you might want to route based on user context
-        if user_acp_instances:
-            # Get the first available ACP instance
-            user_token, acp_instance = next(iter(user_acp_instances.items()))
-            
-            if acp_instance.interswarm_router:
-                success = await acp_instance.interswarm_router.handle_incoming_interswarm_message(interswarm_message)
-                if success:
-                    return {"status": "delivered", "message_id": interswarm_message["message_id"]}
-                else:
-                    raise HTTPException(status_code=500, detail="Failed to process interswarm message")
-            else:
-                raise HTTPException(status_code=503, detail="Interswarm router not available")
-        else:
-            raise HTTPException(status_code=503, detail="No ACP instances available")
-            
+        message = data.get("payload", {})
+        source_agent = f"{message.get("sender", "unknown")}@{data.get("source_swarm", "unknown")}"
+        target_agent = f"{message.get("recipient", "unknown")}"
+        message["sender"] = source_agent
+        logger.info(f"Received message from agent {source_agent} to agent {target_agent}: {message.get("header", "unknown")}...")
     except Exception as e:
-        logger.error(f"Error processing interswarm message: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing interswarm message: {str(e)}")
+        logger.error(f"Error parsing request: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
+        )
+
+    if not message:
+        logger.warning("No message provided")
+        raise HTTPException(status_code=400, detail="no message provided")
+
+    # ACP process
+    try:
+        logger.info(f"Creating ACP message for agent {source_agent}...")
+        new_message = ACPMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.datetime.now().isoformat(),
+            message=message,
+            msg_type=data.get("msg_type", "request"),
+        )
+        logger.info(f"Submitting message to agent ACP and waiting for response...")
+        task_response = await agent_acp.submit_and_wait(new_message)
+        response = ACPMessage(
+            id=task_response["id"],
+            timestamp=task_response["timestamp"],
+            message=ACPResponse(
+                task_id=task_response["message"]["task_id"],
+                request_id=task_response["message"]["task_id"],
+                sender=task_response["message"]["sender"],
+                recipient=source_agent,
+                header=task_response["message"]["header"],
+                body=task_response["message"]["body"],
+            ),
+            msg_type=task_response["msg_type"],
+        )
+        logger.info(f"ACP completed successfully for agent {source_agent}")
+        return response
+    except Exception as e:
+        logger.error(f"Error processing message for agent {source_agent}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"error processing message: {e.with_traceback(None)}",
+        )
 
 
 @app.post("/interswarm/send")
@@ -332,12 +435,12 @@ async def send_interswarm_message(request: Request):
     
     try:
         data = await request.json()
-        target_swarm = data.get("target_swarm")
+        target_agent = data.get("target_agent")
         message_content = data.get("message")
         user_token = data.get("user_token")
         
-        if not target_swarm or not message_content:
-            raise HTTPException(status_code=400, detail="target_swarm and message are required")
+        if not target_agent or not message_content:
+            raise HTTPException(status_code=400, detail="target_agent and message are required")
         
         if not user_token or user_token not in user_acp_instances:
             raise HTTPException(status_code=400, detail="Valid user_token is required")
@@ -352,22 +455,19 @@ async def send_interswarm_message(request: Request):
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
                 sender="user",
-                recipient=f"supervisor@{target_swarm}",
+                recipient=f"{target_agent}",
                 header="Interswarm Message",
                 body=message_content,
                 sender_swarm=local_swarm_name,
-                recipient_swarm=target_swarm
+                recipient_swarm=target_agent.split("@")[1]
             ),
             msg_type="request",
         )
         
         # Route the message
         if acp_instance.interswarm_router:
-            success = await acp_instance.interswarm_router.route_message(acp_message)
-            if success:
-                return {"status": "sent", "message_id": acp_message["id"]}
-            else:
-                raise HTTPException(status_code=500, detail="Failed to send interswarm message")
+            response = await acp_instance.interswarm_router.route_message(acp_message)
+            return response
         else:
             raise HTTPException(status_code=503, detail="Interswarm router not available")
             
@@ -378,4 +478,5 @@ async def send_interswarm_message(request: Request):
 
 if __name__ == "__main__":
     logger.info("Starting ACP server directly...")
-    uvicorn.run("acp.server:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.getenv("BASE_URL", "http://localhost:8000").split(":")[-1])
+    uvicorn.run("acp.server:app", host="0.0.0.0", port=port, reload=True)

@@ -13,7 +13,8 @@ import json
 
 from .message import (
     ACPMessage, 
-    ACPInterswarmMessage, 
+    ACPInterswarmMessage,
+    ACPResponse, 
     parse_agent_address, 
     format_agent_address
 )
@@ -51,12 +52,12 @@ class InterswarmRouter:
         self.message_handlers[message_type] = handler
         logger.info(f"Registered handler for message type: {message_type}")
     
-    async def route_message(self, message: ACPMessage) -> bool:
+    async def route_message(self, message: ACPMessage) -> ACPMessage:
         """
         Route a message to the appropriate destination (local or remote).
         
         Returns:
-            bool: True if message was routed successfully, False otherwise
+            ACPMessage: The response to the routed message
         """
         try:
             # Determine if this is an interswarm message
@@ -69,10 +70,12 @@ class InterswarmRouter:
                 
                 # If recipient is in a different swarm, route via HTTP
                 if recipient_swarm and recipient_swarm != self.local_swarm_name:
-                    return await self._route_to_remote_swarm(message, recipient_swarm)
+                    response = await self._route_to_remote_swarm(message, recipient_swarm)
                 else:
                     # Local message, handle normally
-                    return await self._route_to_local_agent(message)
+                    response = await self._route_to_local_agent(message)
+
+                return response
             
             # Check if recipients list contains interswarm addresses
             elif "recipients" in msg_content:
@@ -95,59 +98,57 @@ class InterswarmRouter:
                 # Route to local recipients
                 if local_recipients:
                     local_message = self._create_local_message(message, local_recipients)
-                    await self._route_to_local_agent(local_message)
+                    response = await self._route_to_local_agent(local_message)
                 
                 # Route to remote swarms
-                success = True
                 for swarm_name, agents in remote_routes.items():
                     remote_message = self._create_remote_message(message, agents, swarm_name)
-                    if not await self._route_to_remote_swarm(remote_message, swarm_name):
-                        success = False
+                    response = await self._route_to_remote_swarm(remote_message, swarm_name)
                 
-                return success
+                return response
             
             else:
                 # No recipients found
                 logger.error("Message has no recipients")
-                return False
+                return self._system_router_message(message, "Message has no recipients")
                 
         except Exception as e:
             logger.error(f"Error routing message: {e}")
-            return False
+            return self._system_router_message(message, f"Error routing message: {e}")
     
-    async def _route_to_local_agent(self, message: ACPMessage) -> bool:
+    async def _route_to_local_agent(self, message: ACPMessage) -> ACPMessage:
         """Route a message to a local agent."""
         try:
             # This will be handled by the local ACP system
             # We need to register a handler that the core ACP can call
             if "local_message_handler" in self.message_handlers:
                 await self.message_handlers["local_message_handler"](message)
-                return True
+                return message
             else:
                 logger.warning("No local message handler registered")
-                return False
+                return self._system_router_message(message, "No local message handler registered")
         except Exception as e:
             logger.error(f"Error routing to local agent: {e}")
-            return False
+            return self._system_router_message(message, f"Error routing to local agent: {e}")
     
-    async def _route_to_remote_swarm(self, message: ACPMessage, swarm_name: str) -> bool:
+    async def _route_to_remote_swarm(self, message: ACPMessage, swarm_name: str) -> ACPMessage:
         """Route a message to a remote swarm via HTTP."""
         try:
             endpoint = self.swarm_registry.get_swarm_endpoint(swarm_name)
             if not endpoint:
                 logger.error(f"Unknown swarm endpoint: {swarm_name}")
-                return False
+                return self._system_router_message(message, f"Unknown swarm endpoint: {swarm_name}")
             
             if not endpoint.is_active:
                 logger.warning(f"Swarm {swarm_name} is not active")
-                return False
+                return self._system_router_message(message, f"Swarm {swarm_name} is not active")
             
             # Create interswarm message wrapper
             interswarm_message = ACPInterswarmMessage(
                 message_id=str(uuid.uuid4()),
                 source_swarm=self.local_swarm_name,
                 target_swarm=swarm_name,
-                timestamp=datetime.now(),
+                timestamp=datetime.now().isoformat(),
                 payload=message["message"],
                 auth_token=endpoint.auth_token,
                 metadata={
@@ -166,7 +167,7 @@ class InterswarmRouter:
             if endpoint.auth_token:
                 headers["Authorization"] = f"Bearer {endpoint.auth_token}"
             
-            timeout = aiohttp.ClientTimeout(total=30)
+            timeout = aiohttp.ClientTimeout(total=3600)
             async with self.session.post(
                 url, 
                 json=interswarm_message, 
@@ -175,14 +176,15 @@ class InterswarmRouter:
             ) as response:
                 if response.status == 200:
                     logger.info(f"Successfully routed message to swarm: {swarm_name}")
-                    return True
+                    response_json = await response.json()
+                    return ACPMessage(**response_json)
                 else:
                     logger.error(f"Failed to route message to swarm {swarm_name}: {response.status}")
-                    return False
+                    return self._system_router_message(message, f"Failed to route message to swarm {swarm_name}: {response.status}")
                     
         except Exception as e:
             logger.error(f"Error routing to remote swarm {swarm_name}: {e}")
-            return False
+            return self._system_router_message(message, f"Error routing to remote swarm {swarm_name}: {e}")
     
     def _create_local_message(self, original_message: ACPMessage, local_recipients: list[str]) -> ACPMessage:
         """Create a local message from an original message with local recipients only."""
@@ -287,3 +289,19 @@ class InterswarmRouter:
             "active_endpoints": len(active_endpoints),
             "registered_handlers": list(self.message_handlers.keys())
         }
+
+    def _system_router_message(self, message: ACPMessage, reason: str) -> ACPMessage:
+        """Create a system router message."""
+        return ACPMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.now().isoformat(),
+            message=ACPResponse(
+                task_id=message["message"]["task_id"],
+                request_id=message["message"]["request_id"],
+                sender=message["message"]["sender"],
+                recipient=message["message"]["recipient"],
+                header="Router Error",
+                body=reason,
+            ),
+            msg_type="response"
+        )

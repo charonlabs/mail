@@ -364,11 +364,13 @@ class ACP:
     async def _route_interswarm_message(self, message: ACPMessage) -> None:
         """Route a message via interswarm router."""
         if self.interswarm_router:
-            success = await self.interswarm_router.route_message(message)
-            if not success:
+            response = await self.interswarm_router.route_message(message)
+            if isinstance(response, ACPMessage):
+                self._process_local_message(self.user_token, response)
+            else:
                 logger.error(f"Failed to route interswarm message: {message['id']}")
                 # Fall back to local processing for failed interswarm messages
-                self._process_local_message(self.user_token, message)
+                self._process_local_message(self.user_token, response)
 
     def _process_local_message(self, user_token: str, message: ACPMessage) -> None:
         """
