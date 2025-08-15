@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
     # Startup
     logger.info("ACP server starting up...")
-    
+
     # Create persistent swarm at startup
     global persistent_swarm
     try:
@@ -45,12 +45,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Error building persistent swarm: {e}")
         raise e
-    
+
     yield
-    
+
     # Shutdown
     logger.info("ACP server shutting down...")
-    
+
     # Clean up all user ACP instances
     global user_acp_instances, user_acp_tasks
     for user_token, acp_task in user_acp_tasks.items():
@@ -69,31 +69,31 @@ async def get_or_create_user_acp(user_token: str) -> dict:
     Each user gets their own isolated ACP instance.
     """
     global persistent_swarm, user_acp_instances, user_acp_tasks
-    
+
     if user_token not in user_acp_instances:
         try:
             logger.info(f"Creating ACP instance for user: {user_token[:8]}...")
-            
+
             # Create a new ACP instance for this user
             user_acp_instances[user_token] = {
                 "user_token": user_token,
                 "status": "running",
                 "message_count": 0,
                 "agent_histories": {},  # Each user has their own agent histories
-                "pending_requests": {}  # Each user has their own pending requests
+                "pending_requests": {},  # Each user has their own pending requests
             }
-            
+
             # Start the ACP instance in continuous mode for this user
             logger.info(f"Starting ACP continuous mode for user: {user_token[:8]}...")
             acp_task = asyncio.create_task(simulate_acp_continuous(user_token))
             user_acp_tasks[user_token] = acp_task
-            
+
             logger.info(f"ACP instance created and started for user: {user_token[:8]}")
-            
+
         except Exception as e:
             logger.error(f"Error creating ACP instance for user {user_token[:8]}: {e}")
             raise e
-    
+
     return user_acp_instances[user_token]
 
 
@@ -110,23 +110,25 @@ async def simulate_acp_continuous(user_token: str):
         logger.error(f"Error in continuous ACP operation for user {user_id}: {e}")
 
 
-async def submit_and_wait_simple(user_token: str, message: str, timeout: float = 30.0) -> str:
+async def submit_and_wait_simple(
+    user_token: str, message: str, timeout: float = 30.0
+) -> str:
     """
     Simplified submit and wait function that simulates ACP processing for a specific user.
     """
     global user_acp_instances
-    
+
     if user_token not in user_acp_instances:
         raise Exception(f"ACP instance not initialized for user {user_token[:8]}")
-    
+
     user_acp = user_acp_instances[user_token]
-    
+
     # Simulate processing time
     await asyncio.sleep(0.1)
-    
+
     # Increment message count for this user
     user_acp["message_count"] += 1
-    
+
     # Return a simple response with user-specific information
     return f"Processed message for user {user_token[:8]}: {message} (Message #{user_acp['message_count']})"
 
@@ -142,19 +144,27 @@ async def root():
 async def status(request: Request):
     """Get the status of the persistent swarm and user-specific ACP instances."""
     global persistent_swarm, user_acp_instances, user_acp_tasks
-    
+
     # Get user token from request
     api_key = request.headers.get("Authorization")
     if api_key and api_key.startswith("Bearer "):
         user_token = api_key.split(" ")[1]
         user_acp_status = user_token in user_acp_instances
-        user_task_running = user_token in user_acp_tasks and not user_acp_tasks[user_token].done() if user_token in user_acp_tasks else False
-        user_message_count = user_acp_instances[user_token]["message_count"] if user_token in user_acp_instances else 0
+        user_task_running = (
+            user_token in user_acp_tasks and not user_acp_tasks[user_token].done()
+            if user_token in user_acp_tasks
+            else False
+        )
+        user_message_count = (
+            user_acp_instances[user_token]["message_count"]
+            if user_token in user_acp_instances
+            else 0
+        )
     else:
         user_acp_status = False
         user_task_running = False
         user_message_count = 0
-    
+
     return {
         "swarm": persistent_swarm,
         "active_users": len(user_acp_instances),
@@ -165,10 +175,10 @@ async def status(request: Request):
             {
                 "user_id": token[:8],
                 "message_count": acp["message_count"],
-                "status": acp["status"]
+                "status": acp["status"],
             }
             for token, acp in user_acp_instances.items()
-        ]
+        ],
     }
 
 
@@ -205,7 +215,8 @@ async def chat(request: Request):
     except Exception as e:
         logger.error(f"Error getting user ACP instance: {e}")
         raise HTTPException(
-            status_code=500, detail=f"error getting user ACP instance: {e.with_traceback(None)}"
+            status_code=500,
+            detail=f"error getting user ACP instance: {e.with_traceback(None)}",
         )
 
     # parse request

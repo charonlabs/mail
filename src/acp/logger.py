@@ -4,6 +4,7 @@ from datetime import datetime
 
 from rich.logging import RichHandler
 
+
 def get_loggers():
     """
     Get the loggers for the application.

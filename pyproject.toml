@@ -17,7 +17,8 @@ dependencies = [
     "rich>=13.0.0",
     "langgraph>=0.6.3",
     "aiohttp>=3.9.0",
+    "pyjwt>=2.10.1",
 ]
 
 [tool.mypy]
-ignore_missing_imports=True
+ignore_missing_imports=true

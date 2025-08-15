@@ -16,7 +16,18 @@ async def get_weather_forecast(args: dict[str, Any]) -> str:
     forecast = {
         "location": location,
         "date": str(datetime.datetime.now() + datetime.timedelta(days=days_ahead)),
-        "condition": random.choice(["clear", "mostly clear", "partly cloudy", "mostly cloudy", "overcast", "light precipitation", "moderate precipitation", "heavy precipitation"]),
+        "condition": random.choice(
+            [
+                "clear",
+                "mostly clear",
+                "partly cloudy",
+                "mostly cloudy",
+                "overcast",
+                "light precipitation",
+                "moderate precipitation",
+                "heavy precipitation",
+            ]
+        ),
         "temperature": random.randint(-15, 35) if metric else random.randint(5, 95),
         "units": "C" if metric else "F",
     }

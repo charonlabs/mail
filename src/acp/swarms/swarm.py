@@ -34,7 +34,13 @@ class Swarm(BaseModel):
     name: str
     agents: list[Agent]
 
-    def instantiate(self, user_token: str, swarm_name: str, swarm_registry: SwarmRegistry, enable_interswarm: bool) -> ACP:
+    def instantiate(
+        self,
+        user_token: str,
+        swarm_name: str,
+        swarm_registry: SwarmRegistry,
+        enable_interswarm: bool,
+    ) -> ACP:
         """
         Create an ACP instance for this swarm that is ready to be used.
         """
@@ -46,7 +52,7 @@ class Swarm(BaseModel):
             user_token=user_token,
             swarm_name=swarm_name,
             swarm_registry=swarm_registry,
-            enable_interswarm=enable_interswarm
+            enable_interswarm=enable_interswarm,
         )
 
     def _build_acp_dicts(

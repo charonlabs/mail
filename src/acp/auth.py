@@ -4,10 +4,14 @@ Authentication module for ACP server.
 
 import os
 import logging
+from typing import Any
 
 import aiohttp
+import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
-PROXY_URL = os.getenv("LITELLM_PROXY_API_BASE")
+AUTH_ENDPOINT = os.getenv("AUTH_ENDPOINT")
+JWT_SECRET = os.getenv("JWT_SECRET")
 
 logger = logging.getLogger("acp")
 
@@ -15,21 +19,20 @@ logger = logging.getLogger("acp")
 async def login(api_key: str) -> str:
     """
     Authenticate a user with an API key.
-    
+
     Args:
         api_key: The API key to validate
-        
+
     Returns:
         A user token if authentication is successful
-        
+
     Raises:
         ValueError: If the API key is invalid
     """
-    # hit the auth/login endpoint in the proxy
+    # hit the login endpoint in the auth service
     async with aiohttp.ClientSession() as session:
         response = await session.post(
-            f"{PROXY_URL}/auth/login", 
-            headers={"Authorization": f"Bearer {api_key}"}
+            f"{AUTH_ENDPOINT}", headers={"Authorization": f"Bearer {api_key}"}
         )
         response.raise_for_status()
         data = await response.json()

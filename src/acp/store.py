@@ -13,6 +13,7 @@ try:
         AsyncPostgresStore,
         PostgresIndexConfig,
     )
+
     POSTGRES_AVAILABLE = True
 except ImportError:
     POSTGRES_AVAILABLE = False

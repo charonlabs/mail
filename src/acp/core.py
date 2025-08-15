@@ -6,7 +6,13 @@ import uuid
 from asyncio import PriorityQueue, Task
 
 from .executor import execute_action_tool
-from .message import ACPBroadcast, ACPMessage, build_acp_xml, ACPResponse, parse_agent_address
+from .message import (
+    ACPBroadcast,
+    ACPMessage,
+    build_acp_xml,
+    ACPResponse,
+    parse_agent_address,
+)
 from .tools import (
     ACP_TOOL_NAMES,
     action_complete_broadcast,
@@ -44,17 +50,19 @@ class ACP:
         self.current_request_id: str | None = None
         self.pending_requests: dict[str, asyncio.Future[ACPMessage]] = {}
         self.user_token = user_token  # Track which user this ACP instance belongs to
-        
+
         # Interswarm messaging support
         self.swarm_name = swarm_name
         self.enable_interswarm = enable_interswarm
         self.swarm_registry = swarm_registry
         self.interswarm_router: Optional[InterswarmRouter] = None
-        
+
         if enable_interswarm and swarm_registry:
             self.interswarm_router = InterswarmRouter(swarm_registry, swarm_name)
             # Register local message handler
-            self.interswarm_router.register_message_handler("local_message_handler", self._handle_local_message)
+            self.interswarm_router.register_message_handler(
+                "local_message_handler", self._handle_local_message
+            )
 
     async def start_interswarm(self) -> None:
         """Start interswarm messaging capabilities."""
@@ -75,12 +83,12 @@ class ACP:
     async def handle_interswarm_response(self, response_message: ACPMessage) -> None:
         """Handle an incoming response from a remote swarm."""
         logger.info(f"Handling interswarm response: {response_message['id']}")
-        
+
         # Submit the response to the local message queue for processing
         # This will allow the local supervisor agent to process the response
         # and generate a final response for the user
         await self.submit(response_message)
-        
+
         # Don't immediately complete the pending request here
         # Let the local processing flow handle it naturally
         # The supervisor agent should process the response and generate
@@ -92,12 +100,14 @@ class ACP:
         This method can be called multiple times for different requests.
         """
         if self.is_running:
-            logger.warning(f"ACP is already running for user {self.user_token[:8] if self.user_token else 'unknown'}, cannot start another run")
+            logger.warning(
+                f"ACP is already running for user {self.user_token[:8] if self.user_token else 'unknown'}, cannot start another run"
+            )
             return self._system_shutdown_message("ACP already running")
-        
+
         self.is_running = True
         self.response_to_user = None
-        
+
         try:
             while True:
                 try:
@@ -120,7 +130,9 @@ class ACP:
 
                     # Check if shutdown was requested
                     if shutdown_task in done:
-                        logger.info(f"shutdown requested for user {self.user_token[:8] if self.user_token else 'unknown'}...")
+                        logger.info(
+                            f"shutdown requested for user {self.user_token[:8] if self.user_token else 'unknown'}..."
+                        )
                         self.response_to_user = self._system_shutdown_message(
                             "shutdown requested"
                         )
@@ -129,7 +141,9 @@ class ACP:
                     # Process the message
                     message_tuple = get_message_task.result()
                     message = message_tuple[1]
-                    logger.info(f"Processing message for user {self.user_token[:8] if self.user_token else 'unknown'}: {message}")
+                    logger.info(
+                        f"Processing message for user {self.user_token[:8] if self.user_token else 'unknown'}: {message}"
+                    )
 
                     if message["msg_type"] == "broadcast_complete":
                         # Mark this message as done before breaking
@@ -141,13 +155,17 @@ class ACP:
                     # Note: task_done() is called by the schedule function for regular messages
 
                 except asyncio.CancelledError:
-                    logger.info(f"run loop cancelled for user {self.user_token[:8] if self.user_token else 'unknown'}, initiating shutdown...")
+                    logger.info(
+                        f"run loop cancelled for user {self.user_token[:8] if self.user_token else 'unknown'}, initiating shutdown..."
+                    )
                     self.response_to_user = self._system_shutdown_message(
                         "run loop cancelled"
                     )
                     break
                 except Exception as e:
-                    logger.error(f"error in run loop for user {self.user_token[:8] if self.user_token else 'unknown'}: {e}")
+                    logger.error(
+                        f"error in run loop for user {self.user_token[:8] if self.user_token else 'unknown'}: {e}"
+                    )
                     self.response_to_user = self._system_shutdown_message(
                         f"error in run loop: {e}"
                     )
@@ -161,13 +179,13 @@ class ACP:
         Run the ACP system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
         """
-        user_id = self.user_token[:8] if self.user_token else 'unknown'
+        user_id = self.user_token[:8] if self.user_token else "unknown"
         logger.info(f"Starting continuous ACP operation for user {user_id}...")
-        
+
         while not self.shutdown_event.is_set():
             try:
-                logger.info(f"Pending requests: {self.pending_requests}")
-                
+                logger.debug(f"Pending requests: {self.pending_requests}")
+
                 # Wait for either a message or shutdown signal
                 get_message_task = asyncio.create_task(self.message_queue.get())
                 shutdown_task = asyncio.create_task(self.shutdown_event.wait())
@@ -187,20 +205,29 @@ class ACP:
 
                 # Check if shutdown was requested
                 if shutdown_task in done:
-                    logger.info(f"shutdown requested in continuous mode for user {user_id}...")
+                    logger.info(
+                        f"shutdown requested in continuous mode for user {user_id}..."
+                    )
                     break
 
                 # Process the message
                 message_tuple = get_message_task.result()
                 message = message_tuple[1]
-                logger.info(f"Processing message in continuous mode for user {user_id}: {message}")
+                logger.info(
+                    f"Processing message in continuous mode for user {user_id}: {message}"
+                )
 
                 if message["msg_type"] == "broadcast_complete":
                     # Check if this completes a pending request
                     msg_content = message["message"]
-                    if "task_id" in msg_content and msg_content["task_id"] in self.pending_requests:
+                    if (
+                        "task_id" in msg_content
+                        and msg_content["task_id"] in self.pending_requests
+                    ):
                         # Resolve the pending request
-                        logger.info(f"Task {msg_content['task_id']} completed, resolving pending request")
+                        logger.info(
+                            f"Task {msg_content['task_id']} completed, resolving pending request"
+                        )
                         future = self.pending_requests.pop(msg_content["task_id"])
                         if not future.done():
                             future.set_result(message)
@@ -219,39 +246,47 @@ class ACP:
                 logger.error(f"error in continuous run loop for user {user_id}: {e}")
                 # Continue processing other messages instead of shutting down
                 continue
-        
+
         logger.info(f"Continuous ACP operation stopped for user {user_id}.")
 
-    async def submit_and_wait(self, message: ACPMessage, timeout: float = 3600.0) -> ACPMessage:
+    async def submit_and_wait(
+        self, message: ACPMessage, timeout: float = 3600.0
+    ) -> ACPMessage:
         """
         Submit a message and wait for the response.
         This method is designed for handling individual task requests in a persistent ACP instance.
         """
         task_id = message["message"]["task_id"]
-        user_id = self.user_token[:8] if self.user_token else 'unknown'
-        
-        logger.info(f"submitAndWait: Creating future for task {task_id} for user {user_id}")
-        
+        user_id = self.user_token[:8] if self.user_token else "unknown"
+
+        logger.info(
+            f"submitAndWait: Creating future for task {task_id} for user {user_id}"
+        )
+
         # Create a future to wait for the response
         future = asyncio.Future()
         self.pending_requests[task_id] = future
-        
+
         try:
             # Submit the message
             logger.info(f"submitAndWait: Submitting message for task {task_id}")
             await self.submit(message)
-            
+
             # Wait for the response with timeout
             logger.info(f"submitAndWait: Waiting for future for task {task_id}")
             response = await asyncio.wait_for(future, timeout=timeout)
-            logger.info(f"submitAndWait: Got response for task {task_id}: {response['message']['body'][:50]}...")
+            logger.info(
+                f"submitAndWait: Got response for task {task_id}: {response['message']['body'][:50]}..."
+            )
             return response
-            
+
         except asyncio.TimeoutError:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
             logger.error(f"submitAndWait: Timeout for task {task_id}")
-            raise TimeoutError(f"Task {task_id} for user {user_id} timed out after {timeout} seconds")
+            raise TimeoutError(
+                f"Task {task_id} for user {user_id} timed out after {timeout} seconds"
+            )
         except Exception as e:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
@@ -260,13 +295,13 @@ class ACP:
 
     async def shutdown(self) -> None:
         """Request a graceful shutdown of the ACP system."""
-        user_id = self.user_token[:8] if self.user_token else 'unknown'
+        user_id = self.user_token[:8] if self.user_token else "unknown"
         logger.info(f"requesting shutdown for user {user_id}...")
-        
+
         # Stop interswarm messaging first
         if self.enable_interswarm:
             await self.stop_interswarm()
-        
+
         self.shutdown_event.set()
 
     async def _graceful_shutdown(self) -> None:
@@ -355,7 +390,7 @@ class ACP:
             # Check if any recipients are in interswarm format
             msg_content = message["message"]
             has_interswarm_recipients = False
-            
+
             if "recipients" in msg_content:
                 for recipient in msg_content["recipients"]:
                     _, recipient_swarm = parse_agent_address(recipient)
@@ -366,12 +401,12 @@ class ACP:
                 _, recipient_swarm = parse_agent_address(msg_content["recipient"])
                 if recipient_swarm and recipient_swarm != self.swarm_name:
                     has_interswarm_recipients = True
-            
+
             if has_interswarm_recipients:
                 # Route via interswarm router
                 asyncio.create_task(self._route_interswarm_message(message))
                 return
-        
+
         # Fall back to local processing
         self._process_local_message(user_token, message)
 
@@ -380,7 +415,9 @@ class ACP:
         if self.interswarm_router:
             try:
                 response = await self.interswarm_router.route_message(message)
-                logger.info(f"Received response from remote swarm, processing locally: {response['id']}")
+                logger.info(
+                    f"Received response from remote swarm, processing locally: {response['id']}"
+                )
                 self._process_local_message(self.user_token, response)
             except Exception as e:
                 logger.error(f"Error in interswarm routing: {e}")
@@ -409,7 +446,7 @@ class ACP:
         for recipient in recipients:
             # Parse recipient address to get local agent name
             recipient_agent, recipient_swarm = parse_agent_address(recipient)
-            
+
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
@@ -421,7 +458,9 @@ class ACP:
 
         return None
 
-    def _send_message(self, user_token: str, recipient: str, message: ACPMessage) -> None:
+    def _send_message(
+        self, user_token: str, recipient: str, message: ACPMessage
+    ) -> None:
         """
         Send a message to a recipient
         """
@@ -471,7 +510,9 @@ class ACP:
                         case "task_complete":
                             # Check if this completes a pending request
                             if task_id and task_id in self.pending_requests:
-                                logger.info(f"Task {task_id} completed, resolving pending request for user {self.user_token[:8] if self.user_token else 'unknown'}")
+                                logger.info(
+                                    f"Task {task_id} completed, resolving pending request for user {self.user_token[:8] if self.user_token else 'unknown'}"
+                                )
                                 # Create a response message for the user
                                 response_message = ACPMessage(
                                     id=str(uuid.uuid4()),
@@ -482,7 +523,10 @@ class ACP:
                                         sender="supervisor",
                                         recipients=["all"],
                                         header="Task complete",
-                                        body=call.tool_args.get("finish_message", "Task completed successfully"),
+                                        body=call.tool_args.get(
+                                            "finish_message",
+                                            "Task completed successfully",
+                                        ),
                                     ),
                                     msg_type="broadcast_complete",
                                 )
@@ -492,13 +536,19 @@ class ACP:
                                     logger.info(f"Resolving future for task {task_id}")
                                     future.set_result(response_message)
                                 else:
-                                    logger.warning(f"Future for task {task_id} was already done")
+                                    logger.warning(
+                                        f"Future for task {task_id} was already done"
+                                    )
                                 # Don't submit the duplicate message - we've already resolved the request
                             else:
-                                logger.info(f"Task {task_id} completed but no pending request found, submitting message")
+                                logger.info(
+                                    f"Task {task_id} completed but no pending request found, submitting message"
+                                )
                                 # Only submit the message if there's no pending request to resolve
                                 await self.submit(
-                                    convert_call_to_acp_message(call, recipient, task_id)
+                                    convert_call_to_acp_message(
+                                        call, recipient, task_id
+                                    )
                                 )
                         case _:
                             logger.info(f"executing action tool: {call.tool_name}")
@@ -507,7 +557,9 @@ class ACP:
                             )
                             history.append(result_message)
                             await self.submit(
-                                action_complete_broadcast(result_message, recipient, task_id)
+                                action_complete_broadcast(
+                                    result_message, recipient, task_id
+                                )
                             )
                 self.agent_histories[recipient] = history[1:]
             finally:

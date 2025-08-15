@@ -163,7 +163,7 @@ class ACPInterswarmMessage(TypedDict):
 def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
     """
     Parse an agent address in the format 'agent-name' or 'agent-name@swarm-name'.
-    
+
     Returns:
         tuple: (agent_name, swarm_name or None)
     """
@@ -177,7 +177,7 @@ def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
 def format_agent_address(agent_name: str, swarm_name: Optional[str] = None) -> str:
     """
     Format an agent address from agent name and optional swarm name.
-    
+
     Returns:
         str: Formatted address
     """

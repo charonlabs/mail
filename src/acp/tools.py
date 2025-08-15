@@ -14,7 +14,13 @@ from .message import (
 )
 from .factories.base import AgentToolCall
 
-ACP_TOOL_NAMES = ["send_request", "send_response", "send_interrupt", "send_broadcast", "task_complete"]
+ACP_TOOL_NAMES = [
+    "send_request",
+    "send_response",
+    "send_interrupt",
+    "send_broadcast",
+    "task_complete",
+]
 
 
 def convert_call_to_acp_message(
@@ -116,15 +122,21 @@ def action_complete_broadcast(
     )
 
 
-def create_request_tool(targets: list[str], enable_interswarm: bool = False) -> dict[str, Any]:
+def create_request_tool(
+    targets: list[str], enable_interswarm: bool = False
+) -> dict[str, Any]:
     """Create an ACP message tool to send messages to specific agents."""
 
     class send_request(BaseModel):
         """Send a message to a specific target recipient agent."""
 
         target: str = Field(
-            description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}" + 
-                       (f", or use 'agent-name@swarm-name' format for interswarm messaging" if enable_interswarm else "")
+            description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}"
+            + (
+                f", or use 'agent-name@swarm-name' format for interswarm messaging"
+                if enable_interswarm
+                else ""
+            )
         )
         header: str = Field(description="The header of the message.")
         message: str = Field(description="The message content to send.")
@@ -135,22 +147,31 @@ def create_request_tool(targets: list[str], enable_interswarm: bool = False) -> 
     if enable_interswarm:
         # For interswarm messaging, we don't restrict to enum values
         # The validation will happen at runtime
-        target_param["description"] = target_param["description"] + " (supports interswarm format: agent-name@swarm-name)"
+        target_param["description"] = (
+            target_param["description"]
+            + " (supports interswarm format: agent-name@swarm-name)"
+        )
     else:
         target_param["enum"] = targets  # This provides the allowed values to the LLM
 
     return tool_dict
 
 
-def create_response_tool(targets: list[str], enable_interswarm: bool = False) -> dict[str, Any]:
+def create_response_tool(
+    targets: list[str], enable_interswarm: bool = False
+) -> dict[str, Any]:
     """Create an ACP message tool to send messages to specific agents."""
 
     class send_response(BaseModel):
         """Send a message to a specific target recipient agent."""
 
         target: str = Field(
-            description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}" + 
-                       (f", or use 'agent-name@swarm-name' format for interswarm messaging" if enable_interswarm else "")
+            description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}"
+            + (
+                f", or use 'agent-name@swarm-name' format for interswarm messaging"
+                if enable_interswarm
+                else ""
+            )
         )
         header: str = Field(description="The header of the message.")
         message: str = Field(description="The message content to send.")
@@ -161,22 +182,31 @@ def create_response_tool(targets: list[str], enable_interswarm: bool = False) ->
     if enable_interswarm:
         # For interswarm messaging, we don't restrict to enum values
         # The validation will happen at runtime
-        target_param["description"] = target_param["description"] + " (supports interswarm format: agent-name@swarm-name)"
+        target_param["description"] = (
+            target_param["description"]
+            + " (supports interswarm format: agent-name@swarm-name)"
+        )
     else:
         target_param["enum"] = targets  # This provides the allowed values to the LLM
 
     return tool_dict
 
 
-def create_interrupt_tool(targets: list[str], enable_interswarm: bool = False) -> dict[str, Any]:
+def create_interrupt_tool(
+    targets: list[str], enable_interswarm: bool = False
+) -> dict[str, Any]:
     """Create an ACP interrupt tool to interrupt specific agents."""
 
     class send_interrupt(BaseModel):
         """Interrupt a specific target recipient agent."""
 
         target: str = Field(
-            description=f"The target recipient agent for the interrupt. Must be one of: {', '.join(targets)}" +
-                       (f", or use 'agent-name@swarm-name' format for interswarm messaging" if enable_interswarm else "")
+            description=f"The target recipient agent for the interrupt. Must be one of: {', '.join(targets)}"
+            + (
+                f", or use 'agent-name@swarm-name' format for interswarm messaging"
+                if enable_interswarm
+                else ""
+            )
         )
         header: str = Field(description="The header of the interrupt.")
         message: str = Field(description="The message content to send.")
@@ -185,7 +215,10 @@ def create_interrupt_tool(targets: list[str], enable_interswarm: bool = False) -
 
     target_param = tool_dict["function"]["parameters"]["properties"]["target"]
     if enable_interswarm:
-        target_param["description"] = target_param["description"] + " (supports interswarm format: agent-name@swarm-name)"
+        target_param["description"] = (
+            target_param["description"]
+            + " (supports interswarm format: agent-name@swarm-name)"
+        )
     else:
         target_param["enum"] = targets  # This provides the allowed values to the LLM
 
@@ -202,7 +235,7 @@ def create_interswarm_broadcast_tool() -> dict[str, Any]:
         message: str = Field(description="The message content to send.")
         target_swarms: list[str] = Field(
             description="List of target swarm names. If empty, broadcasts to all known swarms.",
-            default=[]
+            default=[],
         )
 
     return convert_to_openai_tool(send_interswarm_broadcast)
@@ -259,10 +292,12 @@ def create_supervisor_tools(
     ]
 
     if enable_interswarm:
-        tools.extend([
-            create_interswarm_broadcast_tool(),
-            create_swarm_discovery_tool(),
-        ])
+        tools.extend(
+            [
+                create_interswarm_broadcast_tool(),
+                create_swarm_discovery_tool(),
+            ]
+        )
 
     if can_complete_tasks:
         tools.append(create_task_complete_tool())
