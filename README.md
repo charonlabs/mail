@@ -1,14 +1,29 @@
-# Agent Communication Protocol (ACP)
+# Agent Communication Protocol (ACP): Protocol and Swarm Reference Implementation
 
-A sophisticated multi-agent communication system built with FastAPI and Python, enabling agents to collaborate within a swarm or across multiple swarms via HTTP-based interswarm messaging.
+A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. ACP facilitates complex multi-agent workflows, from simple task delegation within a single environment to sophisticated cross-organizational agent interactions spanning multiple networks and domains.
 
-## Overview
+## Agent Communication Protocol
 
-ACP is a distributed multi-agent system where AI agents can communicate, coordinate, and collaborate to handle complex tasks. The system supports both single-swarm operations and advanced interswarm messaging for distributed architectures.
+![TODO]
 
-## Architecture
+## ACP Swarm Reference Implementation
 
-### Key Components
+### Overview
+
+This reference implementation demonstrates a complete ACP-compliant multi-agent system built with Python and FastAPI. It showcases how autonomous AI agents can be organized into swarms, communicate using the standardized ACP message format, and coordinate to solve complex tasks both within individual swarms and across distributed networks.
+
+Key features of this implementation include:
+- **Persistent Swarm Management**: Long-running agent swarms that maintain state and context
+- **HTTP-based Communication**: RESTful API endpoints for external integration and interswarm messaging
+- **Service Discovery**: Automatic registration and health monitoring of distributed swarms
+- **Flexible Agent Architecture**: Configurable agents with specialized capabilities and communication patterns
+- **Example Swarm**: A working demonstration with supervisor, weather, and math agents
+
+The implementation serves as both a functional multi-agent system and a reference for building ACP-compliant applications in various domains.
+
+### Architecture
+
+#### Key Components
 
 1. **ACP Core** (`src/acp/core.py`): The main orchestration engine that manages message queuing, agent interactions, and task execution
 2. **FastAPI Server** (`src/acp/server.py`): HTTP API server providing REST endpoints for client interactions and interswarm communication
@@ -16,21 +31,20 @@ ACP is a distributed multi-agent system where AI agents can communicate, coordin
 4. **Interswarm Router**: Enables communication between agents across different swarms via HTTP
 5. **Swarm Registry**: Service discovery system for managing multiple swarms
 
-### Agent Types
+#### Agent Types
 
 The system comes with example agents:
 - **Supervisor**: Orchestrates tasks and coordinates with other agents
 - **Weather Agent**: Provides weather-related information and forecasts
 - **Math Agent**: Handles mathematical calculations and analysis
 
-## Prerequisites
+### Prerequisites
 
 - Python 3.12 or higher
 - UV package manager (recommended) or pip
-- OpenAI API access (uses `openai/o3-mini` model)
-- LiteLLM proxy server (for authentication)
+- LiteLLM proxy server (for LLM access and user authentication)
 
-## Installation
+### Installation
 
 1. Clone the repository:
 ```bash
@@ -48,9 +62,9 @@ Or with pip:
 pip install -e .
 ```
 
-## Configuration
+### Configuration
 
-### Required Environment Variables
+#### Required Environment Variables
 
 For basic operation:
 ```bash
@@ -68,12 +82,11 @@ BASE_URL=http://localhost:8000     # Default: "http://localhost:8000"
 DATABASE_URL=your-database-url     # Default: "none"
 ```
 
-### Swarm Configuration
+#### Swarm Configuration
 
-The system uses JSON configuration files to define swarms:
+The system uses a single JSON configuration file to define swarms:
 
-- `swarms.json`: Basic swarm configuration for single-swarm operation
-- `swarms_interswarm.json`: Configuration for multi-swarm deployments
+- `swarms.json`: Contains all accessible swarm definitions, including configurations for both single-swarm operation and multi-swarm deployments
 
 Example swarm configuration:
 ```json
@@ -88,16 +101,48 @@ Example swarm configuration:
                 "llm": "openai/o3-mini",
                 "system": "src.acp.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math"],
-                "agent_params": {}
+                "agent_params": { }
+            },
+            {
+                "name": "weather",
+                "factory": "src.acp.examples.weather_dummy.agent:factory_weather_dummy",
+                "llm": "openai/o3-mini",
+                "system": "src.acp.examples.weather_dummy.prompts:SYSPROMPT",
+                "comm_targets": ["supervisor", "math"],
+                "agent_params": { 
+                    "actions": [
+                        {
+                            "name": "get_weather_forecast",
+                            "description": "Get the weather forecast for a given location",
+                            "parameters": { 
+                                "type": "object",
+                                "properties": {
+                                    "location": { "type": "string", "description": "The location to get the weather forecast for" },
+                                    "days_ahead": { "type": "integer", "description": "The number of days ahead to get the weather forecast for" },
+                                    "metric": { "type": "boolean", "description": "Whether to use metric units" }
+                                }
+                            },
+                            "function": "src.acp.examples.weather_dummy.actions:get_weather_forecast"
+                        }
+                    ]
+                 }
+            },
+            {
+                "name": "math",
+                "factory": "src.acp.examples.math_dummy.agent:factory_math_dummy",
+                "llm": "openai/o3-mini",
+                "system": "src.acp.examples.math_dummy.prompts:SYSPROMPT",
+                "comm_targets": ["supervisor", "weather"],
+                "agent_params": { }
             }
         ]
     }
 ]
 ```
 
-## Running the Server
+### Running the Server
 
-### Option 1: Simple Server (Recommended for Testing)
+#### Option 1: Simple Server (Recommended for Testing)
 ```bash
 # Using UV
 uv run -m src.acp.server_simple
@@ -106,7 +151,7 @@ uv run -m src.acp.server_simple
 python -m src.acp.server_simple
 ```
 
-### Option 2: Full Server with Interswarm Support
+#### Option 2: Full Server with Interswarm Support
 ```bash
 # Set environment variables
 export SWARM_NAME=my-swarm
@@ -120,7 +165,7 @@ uv run -m src.acp.server
 python -m src.acp.server
 ```
 
-### Option 3: Direct Execution
+#### Option 3: Direct Execution
 ```bash
 # Run the server directly
 uv run python src/acp/server.py
@@ -128,28 +173,28 @@ uv run python src/acp/server.py
 
 The server will start on `http://localhost:8000` by default.
 
-## API Usage
+### API Usage
 
-### Authentication
+#### Authentication
 
 All requests require a Bearer token in the Authorization header:
 ```bash
 Authorization: Bearer your-api-token
 ```
 
-### Basic Endpoints
+#### Basic Endpoints
 
-#### Health Check
+##### Health Check
 ```bash
 curl http://localhost:8000/
 ```
 
-#### Server Status
+##### Server Status
 ```bash
 curl -H "Authorization: Bearer your-token" http://localhost:8000/status
 ```
 
-#### Chat with Agents
+##### Chat with Agents
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
@@ -157,14 +202,14 @@ curl -X POST http://localhost:8000/chat \
   -d '{"message": "What is the weather like today?"}'
 ```
 
-### Interswarm Communication (Advanced)
+#### Interswarm Communication (Advanced)
 
-#### List Available Swarms
+##### List Available Swarms
 ```bash
 curl http://localhost:8000/swarms
 ```
 
-#### Register a New Swarm
+##### Register a New Swarm
 ```bash
 curl -X POST http://localhost:8000/swarms/register \
   -H "Content-Type: application/json" \
@@ -175,7 +220,7 @@ curl -X POST http://localhost:8000/swarms/register \
   }'
 ```
 
-#### Send Interswarm Message
+##### Send Interswarm Message
 ```bash
 curl -X POST http://localhost:8000/interswarm/send \
   -H "Content-Type: application/json" \
@@ -187,11 +232,11 @@ curl -X POST http://localhost:8000/interswarm/send \
   }'
 ```
 
-## Multi-Swarm Deployment
+### Multi-Swarm Deployment
 
 To set up multiple communicating swarms:
 
-### Terminal 1: Start First Swarm
+#### Terminal 1: Start First Swarm
 ```bash
 export SWARM_NAME=swarm-alpha
 export BASE_URL=http://localhost:8000
@@ -199,7 +244,7 @@ export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
 uv run -m src.acp.server
 ```
 
-### Terminal 2: Start Second Swarm
+#### Terminal 2: Start Second Swarm
 ```bash
 export SWARM_NAME=swarm-beta
 export BASE_URL=http://localhost:8001
@@ -207,7 +252,7 @@ export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
 uv run -m src.acp.server
 ```
 
-### Register Swarms with Each Other
+#### Register Swarms with Each Other
 ```bash
 # Register swarm-beta with swarm-alpha
 curl -X POST http://localhost:8000/swarms/register \
@@ -220,9 +265,9 @@ curl -X POST http://localhost:8001/swarms/register \
   -d '{"name": "swarm-alpha", "base_url": "http://localhost:8000"}'
 ```
 
-## Development
+### Development
 
-### Project Structure
+#### Project Structure
 ```
 acp/
 ├── src/acp/
@@ -238,32 +283,31 @@ acp/
 │   ├── examples/            # Example agents and prompts
 │   ├── factories/           # Agent factory functions
 │   └── swarms/              # Swarm management utilities
-├── swarms.json              # Basic swarm configuration
-├── swarms_interswarm.json   # Interswarm deployment configuration
+├── swarms.json              # Swarm definitions and configuration
 └── pyproject.toml           # Project dependencies
 ```
 
-### Adding New Agents
+#### Adding New Agents
 
 1. Create agent implementation in `src/acp/examples/your_agent/`
 2. Add agent configuration to `swarms.json`
 3. Implement required factory function and prompts
 4. Restart the server
 
-## Authentication Setup
+### Authentication Setup
 
 The system requires a LiteLLM proxy server for authentication. Set up the proxy and configure the `LITELLM_PROXY_API_BASE` environment variable to point to your proxy instance.
 
-## Troubleshooting
+### Troubleshooting
 
-### Common Issues
+#### Common Issues
 
 1. **Server won't start**: Check that all required environment variables are set and the LiteLLM proxy is accessible
 2. **Authentication errors**: Verify your API token is valid and the LiteLLM proxy is configured correctly
 3. **Agent communication failures**: Check the swarm configuration in `swarms.json` and ensure all referenced agents exist
 4. **Interswarm messaging issues**: Verify network connectivity between swarms and check that swarms are properly registered
 
-### Logs
+#### Logs
 
 The system uses Python logging. Enable debug logging to see detailed message flow:
 ```bash
@@ -271,7 +315,7 @@ export PYTHONPATH=src
 python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
 ```
 
-## Security Considerations
+### Security Considerations
 
 - Use HTTPS in production deployments
 - Implement proper authentication tokens for interswarm communication
@@ -279,18 +323,18 @@ python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
 - Validate all incoming messages and parameters
 - Use secure networks for swarm-to-swarm communication
 
-## Contributing
+### Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality
 4. Submit a pull request
 
-## License
+### License
 
-[Add your license information here]
+![TODO]
 
-## Additional Resources
+### Additional Resources
 
 - See `INTERSWARM_README.md` for detailed interswarm messaging documentation
 - Check the `examples/` directory for agent implementation examples
