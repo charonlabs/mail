@@ -25,7 +25,7 @@ def convert_call_to_acp_message(
         case "send_request":
             return ACPMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now(),
+                timestamp=datetime.now().isoformat(),
                 message=ACPRequest(
                     task_id=task_id,
                     request_id=str(uuid4()),
@@ -39,7 +39,7 @@ def convert_call_to_acp_message(
         case "send_response":
             return ACPMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now(),
+                timestamp=datetime.now().isoformat(),
                 message=ACPResponse(
                     task_id=task_id,
                     request_id=str(uuid4()),
@@ -53,7 +53,7 @@ def convert_call_to_acp_message(
         case "send_interrupt":
             return ACPMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now(),
+                timestamp=datetime.now().isoformat(),
                 message=ACPInterrupt(
                     task_id=task_id,
                     interrupt_id=str(uuid4()),
@@ -67,7 +67,7 @@ def convert_call_to_acp_message(
         case "send_broadcast":
             return ACPMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now(),
+                timestamp=datetime.now().isoformat(),
                 message=ACPBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
@@ -81,7 +81,7 @@ def convert_call_to_acp_message(
         case "task_complete":
             return ACPMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now(),
+                timestamp=datetime.now().isoformat(),
                 message=ACPBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
@@ -103,7 +103,7 @@ def action_complete_broadcast(
 
     return ACPMessage(
         id=str(uuid4()),
-        timestamp=datetime.now(),
+        timestamp=datetime.now().isoformat(),
         message=ACPBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid4()),

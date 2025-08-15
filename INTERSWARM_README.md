@@ -1,252 +1,152 @@
-# ACP Interswarm Messaging
+# Interswarm Response Flow
 
-This document describes the interswarm messaging feature for ACP (Agent Communication Protocol), which enables communication between agents across different swarms via HTTP.
+This document explains how responses flow between different ACP swarms when using interswarm messaging.
 
 ## Overview
 
-Interswarm messaging allows agents in one swarm to communicate with agents in other swarms using a standardized addressing format and HTTP-based routing. This enables distributed multi-agent systems where different swarms can specialize in different domains while maintaining the ability to collaborate.
+When Swarm A sends a message to Swarm B, the response from Swarm B needs to be properly routed back to Swarm A and fed into its local ACP instance. This document describes the complete flow.
 
-## Key Features
+## Message Flow
 
-- **Interswarm Addressing**: Messages can be sent to agents in other swarms using the format `agent-name@swarm-name`
-- **HTTP-based Routing**: Messages are routed between swarms via HTTP(S) requests
-- **Service Discovery**: Automatic discovery and registration of swarm endpoints
-- **Health Monitoring**: Continuous health checks for swarm availability
-- **Authentication**: Support for authentication tokens between swarms
-- **Backward Compatibility**: Existing within-swarm messaging continues to work unchanged
+### 1. Swarm A → Swarm B (Request)
 
-## Architecture
+1. **User in Swarm A** sends a message via `/chat` endpoint
+2. **Swarm A ACP** creates a message with recipient `agent@swarm-b`
+3. **Interswarm Router** detects remote recipient and routes via HTTP
+4. **HTTP POST** to `swarm-b:8000/interswarm/message`
+5. **Swarm B** receives message and processes it via local ACP
 
-### Components
+### 2. Swarm B → Swarm A (Response)
 
-1. **Swarm Registry**: Manages swarm endpoints and service discovery
-2. **Interswarm Router**: Handles message routing between swarms
-3. **Enhanced Message Types**: Extended ACP messages with swarm routing information
-4. **HTTP Endpoints**: REST API endpoints for interswarm communication
+1. **Swarm B ACP** generates response after processing
+2. **Swarm B** creates response message with `sender_swarm: swarm-b`
+3. **HTTP POST** to `swarm-a:8000/interswarm/response`
+4. **Swarm A** receives response via `/interswarm/response` endpoint
+5. **Swarm A** finds appropriate ACP instance using `task_id`
+6. **Response** is fed back into Swarm A's ACP instance
 
-### Message Flow
+## Key Components
 
-1. Agent A in Swarm Alpha sends message to `agent-b@swarm-beta`
-2. Interswarm Router detects interswarm address
-3. Router looks up Swarm Beta's endpoint in registry
-4. Router sends HTTP POST to Swarm Beta's `/interswarm/message` endpoint
-5. Swarm Beta receives message and routes to local Agent B
-6. Agent B processes message and can respond back to Swarm Alpha
+### Server Endpoints
+
+- `/interswarm/message` - Receives messages from other swarms
+- `/interswarm/response` - Receives responses from other swarms
+- `/interswarm/send` - Sends messages to other swarms
+
+### Core ACP Methods
+
+- `handle_interswarm_response()` - Handles incoming responses from remote swarms
+- `_route_interswarm_message()` - Routes messages to remote swarms
+- `submit_and_wait()` - Waits for responses to complete
+
+### Interswarm Router
+
+- Routes messages between local and remote swarms
+- Handles HTTP communication between swarms
+- Manages swarm registry and endpoint discovery
+
+## Example Flow
+
+```
+Swarm A (localhost:8000)                    Swarm B (localhost:8001)
+┌─────────────────┐                        ┌─────────────────┐
+│ User sends msg  │                        │                 │
+│ to agent@swarm-b│                        │                 │
+└─────────┬───────┘                        └─────────────────┘
+          │
+          ▼
+┌─────────────────┐
+│ ACP creates msg │
+│ with remote     │
+│ recipient       │
+└─────────┬───────┘
+          │
+          ▼
+┌─────────────────┐
+│ Interswarm      │
+│ Router detects  │
+│ remote swarm    │
+└─────────┬───────┘
+          │
+          ▼
+┌─────────────────┐                        ┌─────────────────┐
+│ HTTP POST to    │───────────────────────▶│ /interswarm/    │
+│ swarm-b:8001/   │                        │ message         │
+│ interswarm/     │                        └─────────┬───────┘
+│ message         │                        │         │
+└─────────────────┘                        │         ▼
+          │                                │ ┌───────────────┐
+          │                                │ │ Swarm B ACP   │
+          │                                │ │ processes msg │
+          │                                │ └───────┬───────┘
+          │                                │         │
+          │                                │         ▼
+          │                                │ ┌───────────────┐
+          │                                │ │ Response      │
+          │                                │ │ generated     │
+          │                                │ └───────┬───────┘
+          │                                │         │
+          │                                │         ▼
+          │                                │ ┌───────────────┐
+          │                                │ │ HTTP POST to  │
+          │                                │ │ swarm-a:8000/ │
+          │                                │ │ interswarm/   │
+          │                                │ │ response      │
+          │                                │ └───────┬───────┘
+          │                                │         │
+          ▼                                │         │
+┌─────────────────┐                        │         │
+│ /interswarm/    │◀───────────────────────┘         │
+│ response        │                                    │
+└─────────┬───────┘                                    │
+          │                                            │
+          ▼                                            │
+┌─────────────────┐                                    │
+│ Find ACP        │                                    │
+│ instance by     │                                    │
+│ task_id         │                                    │
+└─────────┬───────┘                                    │
+          │                                            │
+          ▼                                            │
+┌─────────────────┐                                    │
+│ Feed response   │                                    │
+│ back into       │                                    │
+│ local ACP       │                                    │
+└─────────────────┘                                    │
+```
 
 ## Configuration
 
 ### Environment Variables
 
-```bash
-# Required for interswarm messaging
-SWARM_NAME=my-swarm-name
-BASE_URL=http://localhost:8000
+- `SWARM_NAME` - Name of the local swarm
+- `BASE_URL` - Base URL for the local swarm server
 
-# Optional: Discovery endpoints
-DISCOVERY_URLS=http://registry.example.com/swarms,http://backup-registry.example.com/swarms
-```
+### Swarm Registry
 
-### Swarm Configuration
-
-Enable interswarm messaging in your swarm configuration:
-
-```json
-{
-    "name": "my-swarm",
-    "agents": [
-        {
-            "name": "supervisor",
-            "comm_targets": ["agent1", "agent2", "external-agent@other-swarm"],
-            "agent_params": {
-                "enable_interswarm": true
-            }
-        }
-    ]
-}
-```
-
-## Usage Examples
-
-### Basic Interswarm Communication
-
-```python
-# Send message to agent in another swarm
-message = ACPMessage(
-    id=str(uuid.uuid4()),
-    timestamp=datetime.now(),
-    message=ACPRequest(
-        request_id=str(uuid.uuid4()),
-        sender="supervisor",
-        recipient="consultant@swarm-beta",
-        header="Request for Analysis",
-        body="Please analyze the following data...",
-        sender_swarm="swarm-alpha",
-        recipient_swarm="swarm-beta"
-    ),
-    msg_type="request"
-)
-
-# Submit to local ACP instance
-await acp_instance.submit(message)
-```
-
-### Using the HTTP API
+Swarms register themselves with each other for discovery:
 
 ```bash
-# Register a new swarm
+# Register Swarm B with Swarm A
 curl -X POST http://localhost:8000/swarms/register \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "swarm-beta",
+    "name": "swarm-b",
     "base_url": "http://localhost:8001",
     "auth_token": "optional-auth-token"
   }'
-
-# Send interswarm message
-curl -X POST http://localhost:8000/interswarm/send \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer user-token" \
-  -d '{
-    "target_swarm": "swarm-beta",
-    "message": "Hello from swarm-alpha!"
-  }'
-
-# List known swarms
-curl http://localhost:8000/swarms
 ```
 
-### Agent Tools with Interswarm Support
+## Testing
 
-When interswarm messaging is enabled, agents can use enhanced tools:
+1. Start two ACP servers on different ports
+2. Register swarms with each other
+3. Send a message from one swarm to another
+4. Verify the response flows back correctly
 
-```python
-# Send message to remote agent
-send_request(
-    target="consultant@swarm-beta",
-    header="Data Analysis Request",
-    message="Please analyze the quarterly sales data."
-)
+## Troubleshooting
 
-# Broadcast to multiple swarms
-send_interswarm_broadcast(
-    header="System Maintenance",
-    message="Scheduled maintenance in 1 hour.",
-    target_swarms=["swarm-beta", "swarm-gamma"]
-)
-
-# Discover new swarms
-discover_swarms(
-    discovery_urls=["http://registry.example.com/swarms"]
-)
-```
-
-## API Endpoints
-
-### Health Check
-- `GET /health` - Health check for interswarm communication
-
-### Swarm Management
-- `GET /swarms` - List all known swarms
-- `POST /swarms/register` - Register a new swarm
-
-### Interswarm Communication
-- `POST /interswarm/message` - Receive interswarm message
-- `POST /interswarm/send` - Send interswarm message
-
-## Security Considerations
-
-### Authentication
-- Use authentication tokens for interswarm communication
-- Validate tokens on both sending and receiving sides
-- Consider using mutual TLS for additional security
-
-### Network Security
-- Use HTTPS for all interswarm communication
-- Implement rate limiting to prevent abuse
-- Consider using VPNs for private swarm networks
-
-### Message Validation
-- Validate message format and content
-- Implement message signing for critical communications
-- Log all interswarm messages for audit purposes
-
-## Deployment
-
-### Single Swarm Setup
-
-```bash
-# Set environment variables
-export SWARM_NAME=swarm-alpha
-export BASE_URL=http://localhost:8000
-
-# Start the server
-uv run -m src.acp.server
-```
-
-### Multi-Swarm Setup
-
-```bash
-# Terminal 1: Start Swarm Alpha
-export SWARM_NAME=swarm-alpha
-export BASE_URL=http://localhost:8000
-uv run -m src.acp.server
-
-# Terminal 2: Start Swarm Beta
-export SWARM_NAME=swarm-beta
-export BASE_URL=http://localhost:8001
-uv run -m src.acp.server
-
-# Register swarms with each other
-curl -X POST http://localhost:8000/swarms/register \
-  -H "Content-Type: application/json" \
-  -d '{"name": "swarm-beta", "base_url": "http://localhost:8001"}'
-
-curl -X POST http://localhost:8001/swarms/register \
-  -H "Content-Type: application/json" \
-  -d '{"name": "swarm-alpha", "base_url": "http://localhost:8000"}'
-```
-
-## Monitoring and Debugging
-
-### Health Monitoring
-- Check `/health` endpoint for swarm status
-- Monitor swarm registry for endpoint availability
-- Set up alerts for swarm failures
-
-### Logging
-- Enable debug logging for interswarm messages
-- Monitor HTTP request/response logs
-- Track message routing and delivery
-
-### Troubleshooting
-- Verify swarm endpoints are accessible
-- Check authentication tokens are valid
-- Ensure message format is correct
-- Monitor network connectivity between swarms
-
-## Best Practices
-
-1. **Naming Conventions**: Use descriptive swarm names and agent names
-2. **Error Handling**: Implement proper error handling for network failures
-3. **Message Size**: Keep messages reasonably sized for HTTP transport
-4. **Rate Limiting**: Implement rate limiting to prevent abuse
-5. **Monitoring**: Set up comprehensive monitoring for interswarm communication
-6. **Security**: Use authentication and encryption for all interswarm communication
-7. **Documentation**: Document swarm interfaces and message formats
-
-## Limitations
-
-- HTTP-based routing adds latency compared to local messaging
-- Network failures can cause message delivery failures
-- Requires all swarms to be running and accessible
-- Authentication and security must be properly configured
-- Message ordering is not guaranteed across swarms
-
-## Future Enhancements
-
-- Message queuing and retry mechanisms
-- Message encryption and signing
-- Load balancing across multiple swarm instances
-- Message routing based on content and capabilities
-- Integration with service mesh technologies
-- Support for WebSocket-based real-time communication
+- Check that both swarms are registered in each other's registries
+- Verify HTTP endpoints are accessible between swarms
+- Check logs for routing and response handling errors
+- Ensure task_id consistency between request and response

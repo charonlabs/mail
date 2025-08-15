@@ -79,11 +79,7 @@ class Swarm(BaseModel):
         Build a dictionary of actions from the agent parameters.
         """
         actions: dict[str, ActionFunction] = {}
-
-        try:
-            for action in agent_params["actions"]:
-                actions[action["name"]] = read_python_string(action["function"])
-        except KeyError:
-            return {}
-        
+        actions_list = agent_params.get("actions", [])
+        for action in actions_list:
+            actions[action["name"]] = read_python_string(action["function"])
         return actions

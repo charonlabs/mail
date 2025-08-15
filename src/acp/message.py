@@ -144,11 +144,14 @@ class ACPInterswarmMessage(TypedDict):
     target_swarm: str
     """The target swarm name."""
 
-    timestamp: datetime
+    timestamp: str
     """The timestamp of the message."""
 
     payload: ACPRequest | ACPResponse | ACPBroadcast | ACPInterrupt
     """The wrapped ACP message."""
+
+    msg_type: Literal["request", "response", "broadcast", "interrupt"]
+    """The type of the message."""
 
     auth_token: Optional[str]
     """Authentication token for interswarm communication."""
@@ -216,7 +219,7 @@ class ACPMessage(TypedDict):
     id: str
     """The unique identifier for the message."""
 
-    timestamp: datetime
+    timestamp: str
     """The timestamp of the message."""
 
     message: ACPRequest | ACPResponse | ACPBroadcast | ACPInterrupt

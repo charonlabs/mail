@@ -72,6 +72,20 @@ class ACP:
         """Handle a message that should be processed locally."""
         await self.submit(message)
 
+    async def handle_interswarm_response(self, response_message: ACPMessage) -> None:
+        """Handle an incoming response from a remote swarm."""
+        logger.info(f"Handling interswarm response: {response_message['id']}")
+        
+        # Submit the response to the local message queue for processing
+        # This will allow the local supervisor agent to process the response
+        # and generate a final response for the user
+        await self.submit(response_message)
+        
+        # Don't immediately complete the pending request here
+        # Let the local processing flow handle it naturally
+        # The supervisor agent should process the response and generate
+        # a final response that will complete the user's request
+
     async def run(self) -> ACPMessage:
         """
         Run the ACP system until a task is complete or shutdown is requested.
@@ -364,11 +378,18 @@ class ACP:
     async def _route_interswarm_message(self, message: ACPMessage) -> None:
         """Route a message via interswarm router."""
         if self.interswarm_router:
-            success = await self.interswarm_router.route_message(message)
-            if not success:
-                logger.error(f"Failed to route interswarm message: {message['id']}")
+            try:
+                response = await self.interswarm_router.route_message(message)
+                logger.info(f"Received response from remote swarm, processing locally: {response['id']}")
+                self._process_local_message(self.user_token, response)
+            except Exception as e:
+                logger.error(f"Error in interswarm routing: {e}")
                 # Fall back to local processing for failed interswarm messages
                 self._process_local_message(self.user_token, message)
+        else:
+            logger.error("Interswarm router not available")
+            # Fall back to local processing
+            self._process_local_message(self.user_token, message)
 
     def _process_local_message(self, user_token: str, message: ACPMessage) -> None:
         """
@@ -454,7 +475,7 @@ class ACP:
                                 # Create a response message for the user
                                 response_message = ACPMessage(
                                     id=str(uuid.uuid4()),
-                                    timestamp=datetime.datetime.now(),
+                                    timestamp=datetime.datetime.now().isoformat(),
                                     message=ACPBroadcast(
                                         task_id=task_id,
                                         broadcast_id=str(uuid.uuid4()),
@@ -502,7 +523,7 @@ class ACP:
     def _system_shutdown_message(self, reason: str) -> ACPMessage:
         return ACPMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(),
+            timestamp=datetime.datetime.now().isoformat(),
             message=ACPBroadcast(
                 broadcast_id=str(uuid.uuid4()),
                 sender="system",
