@@ -3,43 +3,6 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
-name = "acp"
-version = "1.0.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "dict2xml" },
-    { name = "fastapi" },
-    { name = "langchain-core" },
-    { name = "langgraph" },
-    { name = "langmem" },
-    { name = "litellm" },
-    { name = "pydantic" },
-    { name = "pyjwt" },
-    { name = "rich" },
-    { name = "toml" },
-    { name = "ujson" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9.0" },
-    { name = "dict2xml", specifier = ">=1.7.7" },
-    { name = "fastapi", specifier = ">=0.104.1" },
-    { name = "langchain-core", specifier = ">=0.3.72" },
-    { name = "langgraph", specifier = ">=0.6.3" },
-    { name = "langmem", specifier = ">=0.0.29" },
-    { name = "litellm", specifier = ">=1.0.0" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pyjwt", specifier = ">=2.10.1" },
-    { name = "rich", specifier = ">=13.0.0" },
-    { name = "toml", specifier = ">=0.10.2" },
-    { name = "ujson", specifier = ">=5.8.0" },
-    { name = "uvicorn", specifier = ">=0.24.0" },
-]
-
-[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -804,6 +767,43 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1b/28/50837cb0246c42a8caac45610572883de7f478543cf4d143e84f099c0234/litellm-1.75.0.tar.gz", hash = "sha256:ec7fbfe79e1b9cd4a2b36ca9e71e71959d8fc43305b222e5f257aced1a0d1d63", size = 9928112, upload-time = "2025-08-05T20:28:53.663Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/db/43/e10905870d42e927de3b095a9248f2764156c7eb45ec172d72be35cd2bb4/litellm-1.75.0-py3-none-any.whl", hash = "sha256:1657472f37d291b366050dd2035e3640eebd96142d6fa0f935ceb290a0e1d5ad", size = 8850420, upload-time = "2025-08-05T20:28:50.836Z" },
+]
+
+[[package]]
+name = "mail"
+version = "1.0.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "dict2xml" },
+    { name = "fastapi" },
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "langmem" },
+    { name = "litellm" },
+    { name = "pydantic" },
+    { name = "pyjwt" },
+    { name = "rich" },
+    { name = "toml" },
+    { name = "ujson" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
+    { name = "dict2xml", specifier = ">=1.7.7" },
+    { name = "fastapi", specifier = ">=0.104.1" },
+    { name = "langchain-core", specifier = ">=0.3.72" },
+    { name = "langgraph", specifier = ">=0.6.3" },
+    { name = "langmem", specifier = ">=0.0.29" },
+    { name = "litellm", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pyjwt", specifier = ">=2.10.1" },
+    { name = "rich", specifier = ">=13.0.0" },
+    { name = "toml", specifier = ">=0.10.2" },
+    { name = "ujson", specifier = ">=5.8.0" },
+    { name = "uvicorn", specifier = ">=0.24.0" },
 ]
 
 [[package]]

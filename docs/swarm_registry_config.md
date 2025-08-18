@@ -1,6 +1,6 @@
 # Swarm Registry Volatility Configuration
 
-This document explains how to configure and use the volatility features in the ACP Swarm Registry.
+This document explains how to configure and use the volatility features in the MAIL Swarm Registry.
 
 ## Overview
 

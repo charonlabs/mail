@@ -1,7 +1,7 @@
 [project]
-name = "acp"
+name = "mail"
 version = "1.0.0"
-description = "Agent Communication Protocol"
+description = "Multi-Agent Interface Layer"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

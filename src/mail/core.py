@@ -7,29 +7,29 @@ from asyncio import PriorityQueue, Task
 
 from .executor import execute_action_tool
 from .message import (
-    ACPBroadcast,
-    ACPMessage,
-    build_acp_xml,
-    ACPResponse,
+    MAILBroadcast,
+    MAILMessage,
+    build_mail_xml,
+    MAILResponse,
     parse_agent_address,
     create_agent_address,
     create_system_address,
     create_user_address,
 )
 from .tools import (
-    ACP_TOOL_NAMES,
+    MAIL_TOOL_NAMES,
     action_complete_broadcast,
-    convert_call_to_acp_message,
+    convert_call_to_mail_message,
 )
 from .factories.action import ActionFunction
 from .factories.base import AgentFunction
 from .interswarm_router import InterswarmRouter
 from .swarm_registry import SwarmRegistry
 
-logger = logging.getLogger("acp")
+logger = logging.getLogger("mail")
 
 
-class ACP:
+class MAIL:
     def __init__(
         self,
         agents: dict[str, AgentFunction],
@@ -39,8 +39,8 @@ class ACP:
         swarm_registry: Optional[SwarmRegistry] = None,
         enable_interswarm: bool = False,
     ):
-        self.message_queue: PriorityQueue[tuple[int, ACPMessage]] = PriorityQueue()
-        self.response_queue: asyncio.Queue[tuple[str, ACPMessage]] = asyncio.Queue()
+        self.message_queue: PriorityQueue[tuple[int, MAILMessage]] = PriorityQueue()
+        self.response_queue: asyncio.Queue[tuple[str, MAILMessage]] = asyncio.Queue()
         self.agents = agents
         self.actions = actions
         self.agent_histories: dict[str, list[dict[str, Any]]] = {
@@ -48,11 +48,11 @@ class ACP:
         }
         self.active_tasks: set[Task[Any]] = set()
         self.shutdown_event = asyncio.Event()
-        self.response_to_user: ACPMessage | None = None
+        self.response_to_user: MAILMessage | None = None
         self.is_running = False
         self.current_request_id: str | None = None
-        self.pending_requests: dict[str, asyncio.Future[ACPMessage]] = {}
-        self.user_token = user_token  # Track which user this ACP instance belongs to
+        self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
+        self.user_token = user_token  # Track which user this MAIL instance belongs to
 
         # Interswarm messaging support
         self.swarm_name = swarm_name
@@ -71,21 +71,21 @@ class ACP:
         """Start interswarm messaging capabilities."""
         if self.enable_interswarm and self.interswarm_router:
             await self.interswarm_router.start()
-            logger.info(f"Started interswarm messaging for swarm: {self.swarm_name}")
+            logger.info(f"started interswarm messaging for swarm: '{self.swarm_name}'")
 
     async def stop_interswarm(self) -> None:
         """Stop interswarm messaging capabilities."""
         if self.interswarm_router:
             await self.interswarm_router.stop()
-            logger.info(f"Stopped interswarm messaging for swarm: {self.swarm_name}")
+            logger.info(f"stopped interswarm messaging for swarm: '{self.swarm_name}'")
 
-    async def _handle_local_message(self, message: ACPMessage) -> None:
+    async def _handle_local_message(self, message: MAILMessage) -> None:
         """Handle a message that should be processed locally."""
         await self.submit(message)
 
-    async def handle_interswarm_response(self, response_message: ACPMessage) -> None:
+    async def handle_interswarm_response(self, response_message: MAILMessage) -> None:
         """Handle an incoming response from a remote swarm."""
-        logger.info(f"Handling interswarm response: {response_message['id']}")
+        logger.info(f"handling interswarm response: '{response_message['id']}'")
 
         # Submit the response to the local message queue for processing
         # This will allow the local supervisor agent to process the response
@@ -97,16 +97,16 @@ class ACP:
         # The supervisor agent should process the response and generate
         # a final response that will complete the user's request
 
-    async def run(self) -> ACPMessage:
+    async def run(self) -> MAILMessage:
         """
-        Run the ACP system until a task is complete or shutdown is requested.
+        Run the MAIL system until a task is complete or shutdown is requested.
         This method can be called multiple times for different requests.
         """
         if self.is_running:
             logger.warning(
-                f"ACP is already running for user {self.user_token[:8] if self.user_token else 'unknown'}, cannot start another run"
+                f"MAIL is already running for user '{self.user_token[:8] if self.user_token else 'unknown'}', cannot start another run"
             )
-            return self._system_shutdown_message("ACP already running")
+            return self._system_shutdown_message("MAIL already running")
 
         self.is_running = True
         self.response_to_user = None
@@ -134,7 +134,7 @@ class ACP:
                     # Check if shutdown was requested
                     if shutdown_task in done:
                         logger.info(
-                            f"shutdown requested for user {self.user_token[:8] if self.user_token else 'unknown'}..."
+                            f"shutdown requested for user '{self.user_token[:8] if self.user_token else 'unknown'}'..."
                         )
                         self.response_to_user = self._system_shutdown_message(
                             "shutdown requested"
@@ -145,7 +145,7 @@ class ACP:
                     message_tuple = get_message_task.result()
                     message = message_tuple[1]
                     logger.info(
-                        f"Processing message for user {self.user_token[:8] if self.user_token else 'unknown'}: {message}"
+                        f"processing message for user '{self.user_token[:8] if self.user_token else 'unknown'}' with message: '{message}'"
                     )
 
                     if message["msg_type"] == "broadcast_complete":
@@ -159,7 +159,7 @@ class ACP:
 
                 except asyncio.CancelledError:
                     logger.info(
-                        f"run loop cancelled for user {self.user_token[:8] if self.user_token else 'unknown'}, initiating shutdown..."
+                        f"run loop cancelled for user '{self.user_token[:8] if self.user_token else 'unknown'}', initiating shutdown..."
                     )
                     self.response_to_user = self._system_shutdown_message(
                         "run loop cancelled"
@@ -167,7 +167,7 @@ class ACP:
                     break
                 except Exception as e:
                     logger.error(
-                        f"error in run loop for user {self.user_token[:8] if self.user_token else 'unknown'}: {e}"
+                        f"error in run loop for user '{self.user_token[:8] if self.user_token else 'unknown'}' with error: '{e}'"
                     )
                     self.response_to_user = self._system_shutdown_message(
                         f"error in run loop: {e}"
@@ -179,15 +179,15 @@ class ACP:
 
     async def run_continuous(self) -> None:
         """
-        Run the ACP system continuously, handling multiple requests.
+        Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
         """
         user_id = self.user_token[:8] if self.user_token else "unknown"
-        logger.info(f"Starting continuous ACP operation for user {user_id}...")
+        logger.info(f"starting continuous MAIL operation for user '{user_id}'...")
 
         while not self.shutdown_event.is_set():
             try:
-                logger.debug(f"Pending requests: {self.pending_requests}")
+                logger.debug(f"pending requests: {self.pending_requests}")
 
                 # Wait for either a message or shutdown signal
                 get_message_task = asyncio.create_task(self.message_queue.get())
@@ -209,7 +209,7 @@ class ACP:
                 # Check if shutdown was requested
                 if shutdown_task in done:
                     logger.info(
-                        f"shutdown requested in continuous mode for user {user_id}..."
+                        f"shutdown requested in continuous mode for user '{user_id}'..."
                     )
                     break
 
@@ -217,7 +217,7 @@ class ACP:
                 message_tuple = get_message_task.result()
                 message = message_tuple[1]
                 logger.info(
-                    f"Processing message in continuous mode for user {user_id}: {message}"
+                    f"processing message in continuous mode for user '{user_id}' with message: '{message}'"
                 )
 
                 if message["msg_type"] == "broadcast_complete":
@@ -229,7 +229,7 @@ class ACP:
                     ):
                         # Resolve the pending request
                         logger.info(
-                            f"Task {msg_content['task_id']} completed, resolving pending request"
+                            f"task '{msg_content['task_id']}' completed, resolving pending request"
                         )
                         future = self.pending_requests.pop(msg_content["task_id"])
                         if not future.done():
@@ -243,27 +243,27 @@ class ACP:
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
-                logger.info(f"continuous run loop cancelled for user {user_id}...")
+                logger.info(f"continuous run loop cancelled for user '{user_id}'...")
                 break
             except Exception as e:
-                logger.error(f"error in continuous run loop for user {user_id}: {e}")
+                logger.error(f"error in continuous run loop for user '{user_id}' with error: '{e}'")
                 # Continue processing other messages instead of shutting down
                 continue
 
-        logger.info(f"Continuous ACP operation stopped for user {user_id}.")
+        logger.info(f"continuous MAIL operation stopped for user '{user_id}'.")
 
     async def submit_and_wait(
-        self, message: ACPMessage, timeout: float = 3600.0
-    ) -> ACPMessage:
+        self, message: MAILMessage, timeout: float = 3600.0
+    ) -> MAILMessage:
         """
         Submit a message and wait for the response.
-        This method is designed for handling individual task requests in a persistent ACP instance.
+        This method is designed for handling individual task requests in a persistent MAIL instance.
         """
         task_id = message["message"]["task_id"]
         user_id = self.user_token[:8] if self.user_token else "unknown"
 
         logger.info(
-            f"submitAndWait: Creating future for task {task_id} for user {user_id}"
+            f"submitAndWait: creating future for task '{task_id}' for user '{user_id}'"
         )
 
         # Create a future to wait for the response
@@ -272,34 +272,34 @@ class ACP:
 
         try:
             # Submit the message
-            logger.info(f"submitAndWait: Submitting message for task {task_id}")
+            logger.info(f"submitAndWait: submitting message for task '{task_id}'")
             await self.submit(message)
 
             # Wait for the response with timeout
-            logger.info(f"submitAndWait: Waiting for future for task {task_id}")
+            logger.info(f"submitAndWait: waiting for future for task '{task_id}'")
             response = await asyncio.wait_for(future, timeout=timeout)
             logger.info(
-                f"submitAndWait: Got response for task {task_id}: {response['message']['body'][:50]}..."
+                f"submitAndWait: got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
             )
             return response
 
         except asyncio.TimeoutError:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
-            logger.error(f"submitAndWait: Timeout for task {task_id}")
+            logger.error(f"submitAndWait: timeout for task '{task_id}'")
             raise TimeoutError(
-                f"Task {task_id} for user {user_id} timed out after {timeout} seconds"
+                f"task '{task_id}' for user '{user_id}' timed out after {timeout} seconds"
             )
         except Exception as e:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
-            logger.error(f"submitAndWait: Exception for task {task_id}: {e}")
+            logger.error(f"submitAndWait: exception for task '{task_id}' with error: '{e}'")    
             raise e
 
     async def shutdown(self) -> None:
-        """Request a graceful shutdown of the ACP system."""
+        """Request a graceful shutdown of the MAIL system."""
         user_id = self.user_token[:8] if self.user_token else "unknown"
-        logger.info(f"requesting shutdown for user {user_id}...")
+        logger.info(f"requesting shutdown for user '{user_id}'...")
 
         # Stop interswarm messaging first
         if self.enable_interswarm:
@@ -353,7 +353,7 @@ class ACP:
 
         logger.info("graceful shutdown completed.")
 
-    async def submit(self, message: ACPMessage) -> None:
+    async def submit(self, message: MAILMessage) -> None:
         """
         Add a message to the priority queue
         Priority order:
@@ -384,7 +384,7 @@ class ACP:
 
         return
 
-    def _process_message(self, user_token: str, message: ACPMessage) -> None:
+    def _process_message(self, user_token: str, message: MAILMessage) -> None:
         """
         The internal process for sending a message to the recipient agent(s)
         """
@@ -415,25 +415,25 @@ class ACP:
         # Fall back to local processing
         self._process_local_message(user_token, message)
 
-    async def _route_interswarm_message(self, message: ACPMessage) -> None:
+    async def _route_interswarm_message(self, message: MAILMessage) -> None:
         """Route a message via interswarm router."""
         if self.interswarm_router:
             try:
                 response = await self.interswarm_router.route_message(message)
                 logger.info(
-                    f"Received response from remote swarm, processing locally: {response['id']}"
+                    f"received response from remote swarm, processing locally: '{response['id']}'"
                 )
                 self._process_local_message(self.user_token, response)
             except Exception as e:
-                logger.error(f"Error in interswarm routing: {e}")
+                logger.error(f"error in interswarm routing: '{e}'")
                 # Fall back to local processing for failed interswarm messages
                 self._process_local_message(self.user_token, message)
         else:
-            logger.error("Interswarm router not available")
+            logger.error("interswarm router not available")
             # Fall back to local processing
             self._process_local_message(self.user_token, message)
 
-    def _process_local_message(self, user_token: str, message: ACPMessage) -> None:
+    def _process_local_message(self, user_token: str, message: MAILMessage) -> None:
         """
         Process a message locally (original _process_message logic)
         """
@@ -457,23 +457,23 @@ class ACP:
                 if recipient_agent in self.agents:
                     self._send_message(user_token, recipient_agent, message)
                 else:
-                    logger.warning(f"Unknown local agent: {recipient_agent}")
+                    logger.warning(f"unknown local agent: '{recipient_agent}'")
             else:
-                logger.debug(f"Skipping remote agent {recipient} in local processing")
+                logger.debug(f"skipping remote agent '{recipient}' in local processing")
 
         return None
 
     def _send_message(
-        self, user_token: str, recipient: str, message: ACPMessage
+        self, user_token: str, recipient: str, message: MAILMessage
     ) -> None:
         """
         Send a message to a recipient
         """
         logger.info(
-            f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with header "{message["message"]["header"]}"'
+            f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with header: "{message["message"]["header"]}"'
         )
 
-        async def schedule(message: ACPMessage) -> None:
+        async def schedule(message: MAILMessage) -> None:
             try:
                 task_id = message["message"]["task_id"]
                 if message["msg_type"] == "request":
@@ -482,13 +482,13 @@ class ACP:
                 else:
                     req_id = ""
                     sender = ""
-                incoming_message = build_acp_xml(message)
+                incoming_message = build_mail_xml(message)
                 history = self.agent_histories[recipient]
                 history.append(incoming_message)
                 out, results = await self.agents[recipient](history, "required")
                 history.append(results[0].completion)
                 for tc in results:
-                    if tc.tool_name in ACP_TOOL_NAMES:
+                    if tc.tool_name in MAIL_TOOL_NAMES:
                         result_message = tc.create_response_msg(
                             "Message sent. The response, if any, will be sent in the next user message."
                         )
@@ -498,31 +498,31 @@ class ACP:
                     match call.tool_name:
                         case "send_request":
                             await self.submit(
-                                convert_call_to_acp_message(call, recipient, task_id)
+                                convert_call_to_mail_message(call, recipient, task_id)
                             )
                         case "send_response":
                             await self.submit(
-                                convert_call_to_acp_message(call, recipient, task_id)
+                                convert_call_to_mail_message(call, recipient, task_id)
                             )
                         case "send_interrupt":
                             await self.submit(
-                                convert_call_to_acp_message(call, recipient, task_id)
+                                convert_call_to_mail_message(call, recipient, task_id)
                             )
                         case "send_broadcast":
                             await self.submit(
-                                convert_call_to_acp_message(call, recipient, task_id)
+                                convert_call_to_mail_message(call, recipient, task_id)
                             )
                         case "task_complete":
                             # Check if this completes a pending request
                             if task_id and task_id in self.pending_requests:
                                 logger.info(
-                                    f"Task {task_id} completed, resolving pending request for user {self.user_token[:8] if self.user_token else 'unknown'}"
+                                    f"task '{task_id}' completed, resolving pending request for user '{self.user_token[:8] if self.user_token else 'unknown'}'"
                                 )
                                 # Create a response message for the user
-                                response_message = ACPMessage(
+                                response_message = MAILMessage(
                                     id=str(uuid.uuid4()),
                                     timestamp=datetime.datetime.now().isoformat(),
-                                    message=ACPBroadcast(
+                                    message=MAILBroadcast(
                                         task_id=task_id,
                                         broadcast_id=str(uuid.uuid4()),
                                         sender=create_agent_address("supervisor"),
@@ -538,25 +538,25 @@ class ACP:
                                 # Resolve the pending request
                                 future = self.pending_requests.pop(task_id)
                                 if not future.done():
-                                    logger.info(f"Resolving future for task {task_id}")
+                                    logger.info(f"resolving future for task '{task_id}'")
                                     future.set_result(response_message)
                                 else:
                                     logger.warning(
-                                        f"Future for task {task_id} was already done"
+                                        f"future for task '{task_id}' was already done"
                                     )
                                 # Don't submit the duplicate message - we've already resolved the request
                             else:
                                 logger.info(
-                                    f"Task {task_id} completed but no pending request found, submitting message"
+                                    f"task '{task_id}' completed but no pending request found, submitting message"
                                 )
                                 # Only submit the message if there's no pending request to resolve
                                 await self.submit(
-                                    convert_call_to_acp_message(
+                                    convert_call_to_mail_message(
                                         call, recipient, task_id
                                     )
                                 )
                         case _:
-                            logger.info(f"executing action tool: {call.tool_name}")
+                            logger.info(f"executing action tool: '{call.tool_name}'")
                             result_message = await execute_action_tool(
                                 call, self.actions
                             )
@@ -577,11 +577,11 @@ class ACP:
 
         return None
 
-    def _system_shutdown_message(self, reason: str) -> ACPMessage:
-        return ACPMessage(
+    def _system_shutdown_message(self, reason: str) -> MAILMessage:
+        return MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now().isoformat(),
-            message=ACPBroadcast(
+            message=MAILBroadcast(
                 broadcast_id=str(uuid.uuid4()),
                 sender=create_system_address(self.swarm_name),
                 recipients=[create_user_address("user")],

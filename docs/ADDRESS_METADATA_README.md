@@ -1,8 +1,8 @@
-# ACP Address Metadata System
+# MAIL Address Metadata System
 
 ## Overview
 
-The ACP (Agent Communication Protocol) message system has been enhanced to include metadata about the type of addresses used in `sender` and `recipient` fields. This allows the system to distinguish between human users, AI agents, and system components.
+The MAIL (Multi-Agent Interface Layer) message system has been enhanced to include metadata about the type of addresses used in `sender` and `recipient` fields. This allows the system to distinguish between human users, AI agents, and system components.
 
 ## Address Types
 
@@ -14,12 +14,12 @@ The system now supports three distinct address types:
 
 ## Implementation Details
 
-### ACPAddress Structure
+### MAILAddress Structure
 
-Each address is now represented as an `ACPAddress` object with the following structure:
+Each address is now represented as a `MAILAddress` object with the following structure:
 
 ```python
-class ACPAddress(TypedDict):
+class MAILAddress(TypedDict):
     address_type: Literal["agent", "user", "system"]
     address: str
 ```
@@ -28,32 +28,32 @@ class ACPAddress(TypedDict):
 
 The system provides several helper functions to create addresses with proper types:
 
-- `create_agent_address(address: str) -> ACPAddress` - Creates an address for AI agents
-- `create_user_address(address: str) -> ACPAddress` - Creates an address for human users  
-- `create_system_address(address: str) -> ACPAddress` - Creates an address for system components
-- `create_address(address: str, address_type: str) -> ACPAddress` - Generic address creation
+- `create_agent_address(address: str) -> MAILAddress` - Creates an address for AI agents
+- `create_user_address(address: str) -> MAILAddress` - Creates an address for human users  
+- `create_system_address(address: str) -> MAILAddress` - Creates an address for system components
+- `create_address(address: str, address_type: str) -> MAILAddress` - Generic address creation
 
 ### Utility Functions
 
 For backward compatibility and data extraction:
 
-- `get_address_string(address: ACPAddress | str) -> str` - Extracts the address string
-- `get_address_type(address: ACPAddress | str) -> str` - Extracts the address type
+- `get_address_string(address: MAILAddress | str) -> str` - Extracts the address string
+- `get_address_type(address: MAILAddress | str) -> str` - Extracts the address type
 
 ## Usage Examples
 
 ### Creating Messages with Typed Addresses
 
 ```python
-from src.acp.message import (
-    ACPMessage, ACPRequest, create_agent_address, create_user_address
+from src.mail.message import (
+    MAILMessage, MAILRequest, create_agent_address, create_user_address
 )
 
 # Create a request from a user to an agent
-request = ACPMessage(
+request = MAILMessage(
     id="123",
     timestamp="2024-01-01T00:00:00Z",
-    message=ACPRequest(
+    message=MAILRequest(
         task_id="task_123",
         request_id="req_123", 
         sender=create_user_address("john.doe@company.com"),
@@ -68,7 +68,7 @@ request = ACPMessage(
 ### Extracting Address Information
 
 ```python
-from src.acp.message import get_address_string, get_address_type
+from src.mail.message import get_address_string, get_address_type
 
 # Extract information from addresses
 sender = request["message"]["sender"]

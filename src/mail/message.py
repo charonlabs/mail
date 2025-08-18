@@ -4,8 +4,8 @@ from typing import Any, Literal, TypedDict, Optional
 from dict2xml import dict2xml
 
 
-class ACPAddress(TypedDict):
-    """An address representing the sender or recipient of an ACP message."""
+class MAILAddress(TypedDict):
+    """An address representing the sender or recipient of a MAIL message."""
 
     address_type: Literal["agent", "user", "system"]
     """The type of address."""
@@ -14,8 +14,8 @@ class ACPAddress(TypedDict):
     """The address of the sender or recipient."""
 
 
-class ACPRequest(TypedDict):
-    """A request to an agent using the ACP protocol."""
+class MAILRequest(TypedDict):
+    """A request to an agent using the MAIL protocol."""
 
     task_id: str
     """The unique identifier for the task."""
@@ -23,10 +23,10 @@ class ACPRequest(TypedDict):
     request_id: str
     """The unique identifier for the request."""
 
-    sender: ACPAddress
+    sender: MAILAddress
     """The sender of the request."""
 
-    recipient: ACPAddress
+    recipient: MAILAddress
     """The recipient of the request."""
 
     header: str
@@ -46,8 +46,8 @@ class ACPRequest(TypedDict):
     """Additional routing information for interswarm messages."""
 
 
-class ACPResponse(TypedDict):
-    """A response from an agent using the ACP protocol."""
+class MAILResponse(TypedDict):
+    """A response from an agent using the MAIL protocol."""
 
     task_id: str
     """The unique identifier for the task."""
@@ -55,10 +55,10 @@ class ACPResponse(TypedDict):
     request_id: str
     """The unique identifier of the request being responded to."""
 
-    sender: ACPAddress
+    sender: MAILAddress
     """The sender of the response."""
 
-    recipient: ACPAddress
+    recipient: MAILAddress
     """The recipient of the response."""
 
     header: str
@@ -78,8 +78,8 @@ class ACPResponse(TypedDict):
     """Additional routing information for interswarm messages."""
 
 
-class ACPBroadcast(TypedDict):
-    """A broadcast message using the ACP protocol."""
+class MAILBroadcast(TypedDict):
+    """A broadcast message using the MAIL protocol."""
 
     task_id: str
     """The unique identifier for the task."""
@@ -87,10 +87,10 @@ class ACPBroadcast(TypedDict):
     broadcast_id: str
     """The unique identifier for the broadcast."""
 
-    sender: ACPAddress
+    sender: MAILAddress
     """The sender of the broadcast."""
 
-    recipients: list[ACPAddress]
+    recipients: list[MAILAddress]
     """The recipients of the broadcast."""
 
     header: str
@@ -110,8 +110,8 @@ class ACPBroadcast(TypedDict):
     """Additional routing information for interswarm messages."""
 
 
-class ACPInterrupt(TypedDict):
-    """An interrupt using the ACP protocol."""
+class MAILInterrupt(TypedDict):
+    """An interrupt using the MAIL protocol."""
 
     task_id: str
     """The unique identifier for the task."""
@@ -119,10 +119,10 @@ class ACPInterrupt(TypedDict):
     interrupt_id: str
     """The unique identifier for the interrupt."""
 
-    sender: ACPAddress
+    sender: MAILAddress
     """The sender of the interrupt."""
 
-    recipients: list[ACPAddress]
+    recipients: list[MAILAddress]
     """The recipients of the interrupt."""
 
     header: str
@@ -142,7 +142,7 @@ class ACPInterrupt(TypedDict):
     """Additional routing information for interswarm messages."""
 
 
-class ACPInterswarmMessage(TypedDict):
+class MAILInterswarmMessage(TypedDict):
     """An interswarm message wrapper for HTTP transport."""
 
     message_id: str
@@ -157,8 +157,8 @@ class ACPInterswarmMessage(TypedDict):
     timestamp: str
     """The timestamp of the message."""
 
-    payload: ACPRequest | ACPResponse | ACPBroadcast | ACPInterrupt
-    """The wrapped ACP message."""
+    payload: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt
+    """The wrapped MAIL message."""
 
     msg_type: Literal["request", "response", "broadcast", "interrupt"]
     """The type of the message."""
@@ -186,57 +186,57 @@ def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
 
 def format_agent_address(
     agent_name: str, swarm_name: Optional[str] = None
-) -> ACPAddress:
+) -> MAILAddress:
     """
     Format an agent address from agent name and optional swarm name.
 
     Returns:
-        ACPAddress: Formatted address
+        MAILAddress: Formatted address
     """
     if swarm_name:
-        return ACPAddress(address_type="agent", address=f"{agent_name}@{swarm_name}")
+        return MAILAddress(address_type="agent", address=f"{agent_name}@{swarm_name}")
     else:
-        return ACPAddress(address_type="agent", address=agent_name)
+        return MAILAddress(address_type="agent", address=agent_name)
 
 
 def create_address(
     address: str, address_type: Literal["agent", "user", "system"]
-) -> ACPAddress:
+) -> MAILAddress:
     """
-    Create an ACPAddress object with the specified type.
+    Create a MAILAddress object with the specified type.
 
     Args:
         address: The address string
         address_type: The type of address ("agent", "user", or "system")
 
     Returns:
-        ACPAddress: A properly formatted address object
+        MAILAddress: A properly formatted address object
     """
-    return ACPAddress(address_type=address_type, address=address)
+    return MAILAddress(address_type=address_type, address=address)
 
 
-def create_agent_address(address: str) -> ACPAddress:
-    """Create an ACPAddress for an AI agent."""
+def create_agent_address(address: str) -> MAILAddress:
+    """Create a MAILAddress for an AI agent."""
     return create_address(address, "agent")
 
 
-def create_user_address(address: str) -> ACPAddress:
-    """Create an ACPAddress for a human user."""
+def create_user_address(address: str) -> MAILAddress:
+    """Create a MAILAddress for a human user."""
     return create_address(address, "user")
 
 
-def create_system_address(address: str) -> ACPAddress:
-    """Create an ACPAddress for the system."""
+def create_system_address(address: str) -> MAILAddress:
+    """Create a MAILAddress for the system."""
     return create_address(address, "system")
 
 
-def get_address_string(address: ACPAddress | str) -> str:
+def get_address_string(address: MAILAddress | str) -> str:
     """
-    Extract the address string from either an ACPAddress object or a plain string.
+    Extract the address string from either a MAILAddress object or a plain string.
     This provides backward compatibility during the transition.
 
     Args:
-        address: Either an ACPAddress object or a plain string
+        address: Either a MAILAddress object or a plain string
 
     Returns:
         str: The address string
@@ -246,13 +246,13 @@ def get_address_string(address: ACPAddress | str) -> str:
     return str(address)
 
 
-def get_address_type(address: ACPAddress | str) -> Literal["agent", "user", "system"]:
+def get_address_type(address: MAILAddress | str) -> Literal["agent", "user", "system"]:
     """
-    Extract the address type from either an ACPAddress object or a plain string.
+    Extract the address type from either a MAILAddress object or a plain string.
     Defaults to "agent" for backward compatibility.
 
     Args:
-        address: Either an ACPAddress object or a plain string
+        address: Either a MAILAddress object or a plain string
 
     Returns:
         Literal["agent", "user", "system"]: The address type
@@ -263,12 +263,12 @@ def get_address_type(address: ACPAddress | str) -> Literal["agent", "user", "sys
 
 
 def build_body_xml(content: dict[str, Any]) -> str:
-    """Build the XML representation an ACP body section."""
+    """Build the XML representation a MAIL body section."""
     return str(dict2xml(content, wrap="body", indent=""))
 
 
-def build_acp_xml(message: "ACPMessage") -> dict[str, str]:
-    """Build the XML representation of an ACP message."""
+def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
+    """Build the XML representation of a MAIL message."""
     to = (
         message["message"]["recipient"]  # type: ignore
         if "recipient" in message["message"]
@@ -297,8 +297,8 @@ def build_acp_xml(message: "ACPMessage") -> dict[str, str]:
     }
 
 
-class ACPMessage(TypedDict):
-    """A message using the ACP protocol."""
+class MAILMessage(TypedDict):
+    """A message using the MAIL protocol."""
 
     id: str
     """The unique identifier for the message."""
@@ -306,7 +306,7 @@ class ACPMessage(TypedDict):
     timestamp: str
     """The timestamp of the message."""
 
-    message: ACPRequest | ACPResponse | ACPBroadcast | ACPInterrupt
+    message: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt
     """The message content."""
 
     msg_type: Literal[

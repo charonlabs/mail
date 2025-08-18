@@ -1,6 +1,6 @@
 # Swarm Registry Security Configuration
 
-This document explains how to securely configure the ACP Swarm Registry using environment variables for authentication tokens.
+This document explains how to securely configure the MAIL Swarm Registry using environment variables for authentication tokens.
 
 ## Security Overview
 
@@ -109,8 +109,8 @@ SWARM_AUTH_TOKEN_STAGING: ❌ NOT SET
 ```yaml
 version: '3.8'
 services:
-  acp-server:
-    image: your-acp-image
+  mail-server:
+    image: your-mail-image
     environment:
       - SWARM_NAME=main-swarm
       - BASE_URL=http://localhost:8000
@@ -135,13 +135,13 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: acp-server
+  name: mail-server
 spec:
   template:
     spec:
       containers:
-      - name: acp-server
-        image: your-acp-image
+      - name: mail-server
+        image: your-mail-image
         env:
         - name: SWARM_AUTH_TOKEN_PRODUCTION
           valueFrom:
@@ -159,7 +159,7 @@ spec:
 
 ```yaml
 # GitHub Actions example
-name: Deploy ACP Server
+name: Deploy MAIL Server
 on:
   push:
     branches: [main]
@@ -282,8 +282,8 @@ with open("swarm_registry.json", "r") as f:
 ### Environment Variables
 ```bash
 export SWARM_NAME="main-swarm"
-export BASE_URL="https://acp.example.com"
-export SWARM_REGISTRY_FILE="/etc/acp/swarm_registry.json"
+export BASE_URL="https://mail.example.com"
+export SWARM_REGISTRY_FILE="/etc/mail/swarm_registry.json"
 export SWARM_AUTH_TOKEN_PRODUCTION="prod-secret-12345"
 export SWARM_AUTH_TOKEN_STAGING="staging-secret-67890"
 export SWARM_AUTH_TOKEN_DEVELOPMENT="dev-secret-abcde"
@@ -293,7 +293,7 @@ export SWARM_AUTH_TOKEN_DEVELOPMENT="dev-secret-abcde"
 ```json
 {
   "local_swarm_name": "main-swarm",
-  "local_base_url": "https://acp.example.com",
+  "local_base_url": "https://mail.example.com",
   "endpoints": {
     "production": {
       "swarm_name": "production",

@@ -1,6 +1,6 @@
 # Authentication Token Reference Implementation
 
-This document explains how the new `auth_token_ref` functionality works in the ACP Swarm Registry.
+This document explains how the new `auth_token_ref` functionality works in the MAIL Swarm Registry.
 
 ## Overview
 
@@ -60,7 +60,7 @@ SWARM_AUTH_TOKEN_SWARM_ALPHA
 ### Registering a Persistent Swarm
 
 ```python
-from acp.swarm_registry import SwarmRegistry
+from mail.swarm_registry import SwarmRegistry
 
 # Create registry
 registry = SwarmRegistry("my-swarm", "http://localhost:8000")

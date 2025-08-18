@@ -12,12 +12,12 @@ The solution ensures that when an interswarm response comes back, it gets proces
 
 ### 1. Modified `handle_interswarm_response()` Method
 
-**File**: `src/acp/core.py`
+**File**: `src/mail/core.py`
 
 **Change**: Removed immediate request completion logic to allow natural processing flow.
 
 ```python
-async def handle_interswarm_response(self, response_message: ACPMessage) -> None:
+async def handle_interswarm_response(self, response_message: MAILMessage) -> None:
     """Handle an incoming response from a remote swarm."""
     logger.info(f"Handling interswarm response: {response_message['id']}")
     
@@ -36,7 +36,7 @@ async def handle_interswarm_response(self, response_message: ACPMessage) -> None
 
 ### 2. Enhanced `/interswarm/response` Endpoint
 
-**File**: `src/acp/server.py`
+**File**: `src/mail/server.py`
 
 **Change**: Modified response handling to ensure proper routing to supervisor agent.
 
@@ -50,10 +50,10 @@ if "@" in original_sender:
     original_sender = original_sender.split("@")[0]
 
 # Create a new message that the supervisor can process
-supervisor_message = ACPMessage(
+supervisor_message = MAILMessage(
     id=str(uuid.uuid4()),
     timestamp=datetime.datetime.now().isoformat(),
-    message=ACPResponse(
+    message=MAILResponse(
         task_id=response_message["message"]["task_id"],
         request_id=response_message["message"].get("request_id", response_message["message"]["task_id"]),
         sender=response_message["message"]["sender"],
@@ -71,17 +71,17 @@ supervisor_message = ACPMessage(
 
 ### 3. Fixed Interswarm Router Response Handling
 
-**File**: `src/acp/core.py`
+**File**: `src/mail/core.py`
 
 **Change**: Restored proper response type checking in `_route_interswarm_message()`.
 
 ```python
-async def _route_interswarm_message(self, message: ACPMessage) -> None:
+async def _route_interswarm_message(self, message: MAILMessage) -> None:
     """Route a message via interswarm router."""
     if self.interswarm_router:
         try:
             response = await self.interswarm_router.route_message(message)
-            if isinstance(response, ACPMessage):
+            if isinstance(response, MAILMessage):
                 # This is a response from a remote swarm, process it locally
                 logger.info(f"Received response from remote swarm, processing locally: {response['id']}")
                 self._process_local_message(self.user_token, response)
@@ -105,7 +105,7 @@ async def _route_interswarm_message(self, message: ACPMessage) -> None:
 
 ### 1. User Request Phase
 ```
-User → POST /chat → Swarm A ACP → Supervisor Agent
+User → POST /chat → Swarm A MAIL → Supervisor Agent
 ```
 
 ### 2. Interswarm Communication Phase

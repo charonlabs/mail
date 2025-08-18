@@ -5,17 +5,17 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "src.acp.factories.supervisor:supervisor_factory",
+                "factory": "src.mail.factories.supervisor:supervisor_factory",
                 "llm": "openai/o3-mini",
-                "system": "src.acp.examples.supervisor.prompts:SYSPROMPT",
+                "system": "src.mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math"],
                 "agent_params": { }
             },
             {
                 "name": "weather",
-                "factory": "src.acp.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "src.mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "llm": "openai/o3-mini",
-                "system": "src.acp.examples.weather_dummy.prompts:SYSPROMPT",
+                "system": "src.mail.examples.weather_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
                     "actions": [
@@ -30,16 +30,16 @@
                                     "metric": { "type": "boolean", "description": "Whether to use metric units" }
                                 }
                             },
-                            "function": "src.acp.examples.weather_dummy.actions:get_weather_forecast"
+                            "function": "src.mail.examples.weather_dummy.actions:get_weather_forecast"
                         }
                     ]
                  }
             },
             {
                 "name": "math",
-                "factory": "src.acp.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "src.mail.examples.math_dummy.agent:factory_math_dummy",
                 "llm": "openai/o3-mini",
-                "system": "src.acp.examples.math_dummy.prompts:SYSPROMPT",
+                "system": "src.mail.examples.math_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { }
             }
@@ -53,9 +53,9 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "acp.factories.supervisor:supervisor_factory",
+                "factory": "mail.factories.supervisor:supervisor_factory",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.supervisor.prompts:SYSPROMPT",
+                "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math", "consultant@swarm-beta"],
                 "agent_params": { 
                     "enable_interswarm": true
@@ -63,9 +63,9 @@
             },
             {
                 "name": "weather",
-                "factory": "acp.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.weather_dummy.prompts:SYSPROMPT",
+                "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
                     "actions": [
@@ -80,16 +80,16 @@
                                     "metric": { "type": "boolean", "description": "Whether to use metric units" }
                                 }
                             },
-                            "function": "src.acp.examples.weather_dummy.actions:get_weather_forecast"
+                            "function": "src.mail.examples.weather_dummy.actions:get_weather_forecast"
                         }
                     ]
                 }
             },
             {
                 "name": "math",
-                "factory": "acp.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.math_dummy.prompts:SYSPROMPT",
+                "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { }
             }
@@ -103,9 +103,9 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "acp.factories.supervisor:supervisor_factory",
+                "factory": "mail.factories.supervisor:supervisor_factory",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.supervisor.prompts:SYSPROMPT",
+                "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["consultant", "analyst", "supervisor@swarm-alpha"],
                 "agent_params": { 
                     "enable_interswarm": true
@@ -113,17 +113,17 @@
             },
             {
                 "name": "consultant",
-                "factory": "acp.examples.consultant_dummy.agent:factory_consultant_dummy",
+                "factory": "mail.examples.consultant_dummy.agent:factory_consultant_dummy",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.consultant_dummy.prompts:SYSPROMPT",
+                "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "analyst"],
                 "agent_params": { }
             },
             {
                 "name": "analyst",
-                "factory": "acp.examples.analyst_dummy.agent:factory_analyst_dummy",
+                "factory": "mail.examples.analyst_dummy.agent:factory_analyst_dummy",
                 "llm": "openai/o3-mini",
-                "system": "acp.examples.analyst_dummy.prompts:SYSPROMPT",
+                "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "consultant"],
                 "agent_params": { }
             }

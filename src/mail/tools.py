@@ -6,18 +6,18 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import BaseModel, Field
 
 from .message import (
-    ACPBroadcast,
-    ACPInterrupt,
-    ACPMessage,
-    ACPRequest,
-    ACPResponse,
+    MAILBroadcast,
+    MAILInterrupt,
+    MAILMessage,
+    MAILRequest,
+    MAILResponse,
     create_agent_address,
     create_system_address,
     create_user_address,
 )
 from .factories.base import AgentToolCall
 
-ACP_TOOL_NAMES = [
+MAIL_TOOL_NAMES = [
     "send_request",
     "send_response",
     "send_interrupt",
@@ -26,19 +26,19 @@ ACP_TOOL_NAMES = [
 ]
 
 
-def convert_call_to_acp_message(
+def convert_call_to_mail_message(
     call: AgentToolCall, sender: str, task_id: str
-) -> ACPMessage:
-    """Convert an ACP tool call to an ACP message."""
-    # Convert sender string to ACPAddress (assuming it's an agent)
+) -> MAILMessage:
+    """Convert a MAIL tool call to a MAIL message."""
+    # Convert sender string to MAILAddress (assuming it's an agent)
     sender_address = create_agent_address(sender)
 
     match call.tool_name:
         case "send_request":
-            return ACPMessage(
+            return MAILMessage(
                 id=str(uuid4()),
                 timestamp=datetime.now().isoformat(),
-                message=ACPRequest(
+                message=MAILRequest(
                     task_id=task_id,
                     request_id=str(uuid4()),
                     sender=sender_address,
@@ -49,10 +49,10 @@ def convert_call_to_acp_message(
                 msg_type="request",
             )
         case "send_response":
-            return ACPMessage(
+            return MAILMessage(
                 id=str(uuid4()),
                 timestamp=datetime.now().isoformat(),
-                message=ACPResponse(
+                message=MAILResponse(
                     task_id=task_id,
                     request_id=str(uuid4()),
                     sender=sender_address,
@@ -63,10 +63,10 @@ def convert_call_to_acp_message(
                 msg_type="response",
             )
         case "send_interrupt":
-            return ACPMessage(
+            return MAILMessage(
                 id=str(uuid4()),
                 timestamp=datetime.now().isoformat(),
-                message=ACPInterrupt(
+                message=MAILInterrupt(
                     task_id=task_id,
                     interrupt_id=str(uuid4()),
                     sender=sender_address,
@@ -77,10 +77,10 @@ def convert_call_to_acp_message(
                 msg_type="interrupt",
             )
         case "send_broadcast":
-            return ACPMessage(
+            return MAILMessage(
                 id=str(uuid4()),
                 timestamp=datetime.now().isoformat(),
-                message=ACPBroadcast(
+                message=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
                     sender=sender_address,
@@ -91,10 +91,10 @@ def convert_call_to_acp_message(
                 msg_type="broadcast",
             )
         case "task_complete":
-            return ACPMessage(
+            return MAILMessage(
                 id=str(uuid4()),
                 timestamp=datetime.now().isoformat(),
-                message=ACPBroadcast(
+                message=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
                     sender=sender_address,
@@ -110,13 +110,13 @@ def convert_call_to_acp_message(
 
 def action_complete_broadcast(
     result_message: dict[str, Any], recipient: str, task_id: str
-) -> ACPMessage:
-    """Create an ACP broadcast message to indicate that an action has been completed."""
+) -> MAILMessage:
+    """Create a MAIL broadcast message to indicate that an action has been completed."""
 
-    return ACPMessage(
+    return MAILMessage(
         id=str(uuid4()),
         timestamp=datetime.now().isoformat(),
-        message=ACPBroadcast(
+        message=MAILBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid4()),
             sender=create_system_address("system"),
@@ -131,7 +131,7 @@ def action_complete_broadcast(
 def create_request_tool(
     targets: list[str], enable_interswarm: bool = False
 ) -> dict[str, Any]:
-    """Create an ACP message tool to send messages to specific agents."""
+    """Create a MAIL message tool to send messages to specific agents."""
 
     class send_request(BaseModel):
         """Send a message to a specific target recipient agent."""
@@ -166,7 +166,7 @@ def create_request_tool(
 def create_response_tool(
     targets: list[str], enable_interswarm: bool = False
 ) -> dict[str, Any]:
-    """Create an ACP message tool to send messages to specific agents."""
+    """Create a MAIL message tool to send messages to specific agents."""
 
     class send_response(BaseModel):
         """Send a message to a specific target recipient agent."""
@@ -201,7 +201,7 @@ def create_response_tool(
 def create_interrupt_tool(
     targets: list[str], enable_interswarm: bool = False
 ) -> dict[str, Any]:
-    """Create an ACP interrupt tool to interrupt specific agents."""
+    """Create a MAIL interrupt tool to interrupt specific agents."""
 
     class send_interrupt(BaseModel):
         """Interrupt a specific target recipient agent."""
@@ -232,7 +232,7 @@ def create_interrupt_tool(
 
 
 def create_interswarm_broadcast_tool() -> dict[str, Any]:
-    """Create an ACP broadcast tool for interswarm communication."""
+    """Create a MAIL broadcast tool for interswarm communication."""
 
     class send_interswarm_broadcast(BaseModel):
         """Broadcast a message to all known swarms."""
@@ -261,7 +261,7 @@ def create_swarm_discovery_tool() -> dict[str, Any]:
 
 
 def create_broadcast_tool() -> dict[str, Any]:
-    """Create an ACP broadcast tool to broadcast messages to all agents."""
+    """Create a MAIL broadcast tool to broadcast messages to all agents."""
 
     class send_broadcast(BaseModel):
         """Broadcast a message to all possible recipient agents."""
@@ -273,7 +273,7 @@ def create_broadcast_tool() -> dict[str, Any]:
 
 
 def create_task_complete_tool() -> dict[str, Any]:
-    """Create an ACP task complete tool to indicate that a task has been completed."""
+    """Create a MAIL task complete tool to indicate that a task has been completed."""
 
     class task_complete(BaseModel):
         """Indicate that a task has been completed. This will end the current loop, and should always be the last tool called."""
@@ -288,7 +288,7 @@ def create_task_complete_tool() -> dict[str, Any]:
 def create_supervisor_tools(
     targets: list[str], can_complete_tasks: bool = True, enable_interswarm: bool = False
 ) -> list[dict[str, Any]]:
-    """Create ACP supervisor tools. Targets are the agents that the supervisor can send messages to."""
+    """Create MAIL supervisor tools. Targets are the agents that the supervisor can send messages to."""
 
     tools = [
         create_request_tool(targets, enable_interswarm),

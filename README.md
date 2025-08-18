@@ -1,16 +1,16 @@
-# Agent Communication Protocol (ACP): Protocol and Swarm Reference Implementation
+# Multi-Agent Interface Layer (MAIL): Protocol and Swarm Reference Implementation
 
-A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. ACP facilitates complex multi-agent workflows, from simple task delegation within a single environment to sophisticated cross-organizational agent interactions spanning multiple networks and domains.
+A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. MAIL facilitates complex multi-agent workflows, from simple task delegation within a single environment to sophisticated cross-organizational agent interactions spanning multiple networks and domains.
 
-## Agent Communication Protocol
+## Multi-Agent Interface Layer
 
 ![TODO]
 
-## ACP Swarm Reference Implementation
+## MAIL Swarm Reference Implementation
 
 ### Overview
 
-This reference implementation demonstrates a complete ACP-compliant multi-agent system built with Python and FastAPI. It showcases how autonomous AI agents can be organized into swarms, communicate using the standardized ACP message format, and coordinate to solve complex tasks both within individual swarms and across distributed networks.
+This reference implementation demonstrates a complete MAIL-compliant multi-agent system built with Python and FastAPI. It showcases how autonomous AI agents can be organized into swarms, communicate using the standardized MAIL message format, and coordinate to solve complex tasks both within individual swarms and across distributed networks.
 
 Key features of this implementation include:
 - **Persistent Swarm Management**: Long-running agent swarms that maintain state and context
@@ -19,14 +19,14 @@ Key features of this implementation include:
 - **Flexible Agent Architecture**: Configurable agents with specialized capabilities and communication patterns
 - **Example Swarm**: A working demonstration with supervisor, weather, and math agents
 
-The implementation serves as both a functional multi-agent system and a reference for building ACP-compliant applications in various domains.
+The implementation serves as both a functional multi-agent system and a reference for building MAIL-compliant applications in various domains.
 
 ### Architecture
 
 #### Key Components
 
-1. **ACP Core** (`src/acp/core.py`): The main orchestration engine that manages message queuing, agent interactions, and task execution
-2. **FastAPI Server** (`src/acp/server.py`): HTTP API server providing REST endpoints for client interactions and interswarm communication
+1. **MAIL Core** (`src/mail/core.py`): The main orchestration engine that manages message queuing, agent interactions, and task execution
+2. **FastAPI Server** (`src/mail/server.py`): HTTP API server providing REST endpoints for client interactions and interswarm communication
 3. **Agent Swarms**: Collections of specialized AI agents that can communicate with each other
 4. **Interswarm Router**: Enables communication between agents across different swarms via HTTP
 5. **Swarm Registry**: Service discovery system for managing multiple swarms
@@ -49,7 +49,7 @@ The system comes with example agents:
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd acp
+cd mail
 ```
 
 2. Install dependencies using UV:
@@ -97,17 +97,17 @@ Example swarm configuration:
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "src.acp.factories.supervisor:supervisor_factory",
+                "factory": "src.mail.factories.supervisor:supervisor_factory",
                 "llm": "openai/o3-mini",
-                "system": "src.acp.examples.supervisor.prompts:SYSPROMPT",
+                "system": "src.mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math"],
                 "agent_params": { }
             },
             {
                 "name": "weather",
-                "factory": "src.acp.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "src.mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "llm": "openai/o3-mini",
-                "system": "src.acp.examples.weather_dummy.prompts:SYSPROMPT",
+                "system": "src.mail.examples.weather_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
                     "actions": [
@@ -122,16 +122,16 @@ Example swarm configuration:
                                     "metric": { "type": "boolean", "description": "Whether to use metric units" }
                                 }
                             },
-                            "function": "src.acp.examples.weather_dummy.actions:get_weather_forecast"
+                            "function": "src.mail.examples.weather_dummy.actions:get_weather_forecast"
                         }
                     ]
                  }
             },
             {
                 "name": "math",
-                "factory": "src.acp.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "src.mail.examples.math_dummy.agent:factory_math_dummy",
                 "llm": "openai/o3-mini",
-                "system": "src.acp.examples.math_dummy.prompts:SYSPROMPT",
+                "system": "src.mail.examples.math_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { }
             }
@@ -145,10 +145,10 @@ Example swarm configuration:
 #### Option 1: Simple Server (Recommended for Testing)
 ```bash
 # Using UV
-uv run -m src.acp.server_simple
+uv run -m src.mail.server_simple
 
 # Or with Python
-python -m src.acp.server_simple
+python -m src.mail.server_simple
 ```
 
 #### Option 2: Full Server with Interswarm Support
@@ -159,16 +159,16 @@ export BASE_URL=http://localhost:8000
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
 
 # Start the server
-uv run -m src.acp.server
+uv run -m src.mail.server
 
 # Or with Python
-python -m src.acp.server
+python -m src.mail.server
 ```
 
 #### Option 3: Direct Execution
 ```bash
 # Run the server directly
-uv run python src/acp/server.py
+uv run python src/mail/server.py
 ```
 
 The server will start on `http://localhost:8000` by default.
@@ -241,7 +241,7 @@ To set up multiple communicating swarms:
 export SWARM_NAME=swarm-alpha
 export BASE_URL=http://localhost:8000
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
-uv run -m src.acp.server
+uv run -m src.mail.server
 ```
 
 #### Terminal 2: Start Second Swarm
@@ -249,7 +249,7 @@ uv run -m src.acp.server
 export SWARM_NAME=swarm-beta
 export BASE_URL=http://localhost:8001
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
-uv run -m src.acp.server
+uv run -m src.mail.server
 ```
 
 #### Register Swarms with Each Other
@@ -269,10 +269,10 @@ curl -X POST http://localhost:8001/swarms/register \
 
 #### Project Structure
 ```
-acp/
-├── src/acp/
+mail/
+├── src/mail/
 │   ├── __init__.py
-│   ├── core.py              # Main ACP orchestration engine
+│   ├── core.py              # Main MAIL orchestration engine
 │   ├── server.py            # Full FastAPI server with interswarm support
 │   ├── server_simple.py     # Simplified server for testing
 │   ├── auth.py              # Authentication module
@@ -289,7 +289,7 @@ acp/
 
 #### Adding New Agents
 
-1. Create agent implementation in `src/acp/examples/your_agent/`
+1. Create agent implementation in `src/mail/examples/your_agent/`
 2. Add agent configuration to `swarms.json`
 3. Implement required factory function and prompts
 4. Restart the server

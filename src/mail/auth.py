@@ -1,5 +1,5 @@
 """
-Authentication module for ACP server.
+Authentication module for MAIL server.
 """
 
 import os
@@ -13,7 +13,7 @@ from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 AUTH_ENDPOINT = os.getenv("AUTH_ENDPOINT")
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-logger = logging.getLogger("acp")
+logger = logging.getLogger("mail")
 
 
 async def login(api_key: str) -> str:
@@ -37,5 +37,5 @@ async def login(api_key: str) -> str:
         response.raise_for_status()
         data = await response.json()
 
-        logger.info(f"User authenticated with API key: {api_key[:8]}...")
+        logger.info(f"user authenticated with API key: '{api_key[:8]}...'")
         return data["token"]

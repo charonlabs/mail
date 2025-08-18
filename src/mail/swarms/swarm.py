@@ -1,10 +1,10 @@
 import json
 from typing import Any, Literal
 
-from acp.swarm_registry import SwarmRegistry
+from ..swarm_registry import SwarmRegistry
 from pydantic import BaseModel
 
-from ..core import ACP
+from ..core import MAIL
 from ..factories.action import ActionFunction
 from ..factories.base import AgentFunction
 from .utils import read_python_string
@@ -40,13 +40,13 @@ class Swarm(BaseModel):
         swarm_name: str,
         swarm_registry: SwarmRegistry,
         enable_interswarm: bool,
-    ) -> ACP:
+    ) -> MAIL:
         """
-        Create an ACP instance for this swarm that is ready to be used.
+        Create a MAIL instance for this swarm that is ready to be used.
         """
-        agents, actions = self._build_acp_dicts(user_token)
+        agents, actions = self._build_mail_dicts(user_token)
 
-        return ACP(
+        return MAIL(
             agents=agents,
             actions=actions,
             user_token=user_token,
@@ -55,7 +55,7 @@ class Swarm(BaseModel):
             enable_interswarm=enable_interswarm,
         )
 
-    def _build_acp_dicts(
+    def _build_mail_dicts(
         self, user_token: str
     ) -> tuple[dict[str, AgentFunction], dict[str, ActionFunction]]:
         """

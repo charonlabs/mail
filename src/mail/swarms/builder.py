@@ -2,7 +2,7 @@ import importlib
 import json
 from typing import Any
 
-from ..core import ACP
+from ..core import MAIL
 from ..factories.action import action_agent_factory
 from ..factories.base import AgentFunction, base_agent_factory
 from ..factories.supervisor import supervisor_factory

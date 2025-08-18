@@ -1,10 +1,10 @@
-# ACP Swarm Registry Security Features
+# MAIL Swarm Registry Security Features
 
-This directory contains documentation and tools for securely managing the ACP Swarm Registry.
+This directory contains documentation and tools for securely managing the MAIL Swarm Registry.
 
 ## Overview
 
-The ACP Swarm Registry now supports secure authentication token management using environment variables instead of storing raw tokens in configuration files.
+The MAIL Swarm Registry now supports secure authentication token management using environment variables instead of storing raw tokens in configuration files.
 
 ## Key Features
 
@@ -37,7 +37,7 @@ export SWARM_AUTH_TOKEN_DEVELOPMENT="your-dev-token"
 ### 2. Register Swarms
 
 ```python
-from acp.swarm_registry import SwarmRegistry
+from mail.swarm_registry import SwarmRegistry
 
 registry = SwarmRegistry("my-swarm", "http://localhost:8000")
 
@@ -59,7 +59,7 @@ uv run scripts/migrate_auth_tokens.py swarm_registry.json
 ## Documentation
 
 - **[Security Configuration](swarm_registry_security.md)** - Complete security setup guide
-- **[API Reference](../src/acp/swarm_registry.py)** - Code documentation
+- **[API Reference](../src/mail/swarm_registry.py)** - Code documentation
 
 ## Scripts
 
@@ -74,8 +74,8 @@ uv run scripts/migrate_auth_tokens.py swarm_registry.json
 ```yaml
 version: '3.8'
 services:
-  acp-server:
-    image: your-acp-image
+  mail-server:
+          image: your-mail-image
     environment:
       - SWARM_AUTH_TOKEN_PRODUCTION=${SWARM_AUTH_TOKEN_PRODUCTION}
       - SWARM_AUTH_TOKEN_STAGING=${SWARM_AUTH_TOKEN_STAGING}
@@ -98,7 +98,7 @@ spec:
   template:
     spec:
       containers:
-      - name: acp-server
+      - name: mail-server
         env:
         - name: SWARM_AUTH_TOKEN_PRODUCTION
           valueFrom:

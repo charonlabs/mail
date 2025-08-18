@@ -21,17 +21,17 @@ def init_logger():
 
     # File handler
     file_handler = logging.FileHandler(
-        f"logs/acp_{datetime.now().strftime('%Y-%m-%d')}.log"
+        f"logs/mail_{datetime.now().strftime('%Y-%m-%d')}.log"
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] - %(message)s")
     )
 
-    # for all loggers that are not acp, clear all handlers
+    # for all loggers that are not mail, clear all handlers
     # and then add only the file handler above
     for logger in get_loggers():
-        if not logger.startswith("acp"):
+        if not logger.startswith("mail"):
             logging.getLogger(logger).propagate = False
             logging.getLogger(logger).handlers.clear()
             logging.getLogger(logger).addHandler(file_handler)
@@ -45,17 +45,17 @@ def init_logger():
     )
     console_handler.setLevel(logging.DEBUG)
 
-    # Configure the charon logger (using the actual module name)
-    charon_logger = logging.getLogger("acp")
-    charon_logger.setLevel(logging.DEBUG)
-    charon_logger.propagate = False  # Prevent double logging
+    # Configure the mail logger (using the actual module name)
+    mail_logger = logging.getLogger("mail")
+    mail_logger.setLevel(logging.DEBUG)
+    mail_logger.propagate = False  # Prevent double logging
 
     # Clear any existing handlers
-    charon_logger.handlers.clear()
+    mail_logger.handlers.clear()
 
     # Add our handlers
-    charon_logger.addHandler(console_handler)
-    charon_logger.addHandler(file_handler)
+    mail_logger.addHandler(console_handler)
+    mail_logger.addHandler(file_handler)
 
     # Configure root logger to avoid conflicts with Uvicorn
     root_logger = logging.getLogger()
