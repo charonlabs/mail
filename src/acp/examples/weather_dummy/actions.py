@@ -8,9 +8,12 @@ async def get_weather_forecast(args: dict[str, Any]) -> str:
     """
     Dummy action that returns the weather "forecast" for a given location.
     """
-    location = args["location"]
-    days_ahead = args["days_ahead"]
-    metric = args["metric"] or True
+    try:
+        location = args["location"]
+        days_ahead = args["days_ahead"]
+        metric = args["metric"]
+    except KeyError as e:
+        return f"Error: {e} is required"
 
     # generate a random weather forecast
     forecast = {

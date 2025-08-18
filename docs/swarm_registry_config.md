@@ -48,7 +48,7 @@ swarm_registry.register_swarm(
 swarm_registry.register_swarm(
     swarm_name="production-swarm",
     base_url="https://prod-swarm.example.com",
-    auth_token="secret-token",
+    auth_token="secret-token",  # Will be automatically converted to environment variable reference
     metadata={"environment": "production", "version": "1.0.0"},
     volatile=False  # Make it persistent
 )

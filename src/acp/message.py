@@ -4,6 +4,16 @@ from typing import Any, Literal, TypedDict, Optional
 from dict2xml import dict2xml
 
 
+class ACPAddress(TypedDict):
+    """An address representing the sender or recipient of an ACP message."""
+
+    address_type: Literal["agent", "user", "system"]
+    """The type of address."""
+
+    address: str
+    """The address of the sender or recipient."""
+
+
 class ACPRequest(TypedDict):
     """A request to an agent using the ACP protocol."""
 
@@ -13,10 +23,10 @@ class ACPRequest(TypedDict):
     request_id: str
     """The unique identifier for the request."""
 
-    sender: str
+    sender: ACPAddress
     """The sender of the request."""
 
-    recipient: str
+    recipient: ACPAddress
     """The recipient of the request."""
 
     header: str
@@ -45,10 +55,10 @@ class ACPResponse(TypedDict):
     request_id: str
     """The unique identifier of the request being responded to."""
 
-    sender: str
+    sender: ACPAddress
     """The sender of the response."""
 
-    recipient: str
+    recipient: ACPAddress
     """The recipient of the response."""
 
     header: str
@@ -77,10 +87,10 @@ class ACPBroadcast(TypedDict):
     broadcast_id: str
     """The unique identifier for the broadcast."""
 
-    sender: str
+    sender: ACPAddress
     """The sender of the broadcast."""
 
-    recipients: list[str]
+    recipients: list[ACPAddress]
     """The recipients of the broadcast."""
 
     header: str
@@ -109,10 +119,10 @@ class ACPInterrupt(TypedDict):
     interrupt_id: str
     """The unique identifier for the interrupt."""
 
-    sender: str
+    sender: ACPAddress
     """The sender of the interrupt."""
 
-    recipients: list[str]
+    recipients: list[ACPAddress]
     """The recipients of the interrupt."""
 
     header: str
@@ -174,17 +184,82 @@ def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
         return address.strip(), None
 
 
-def format_agent_address(agent_name: str, swarm_name: Optional[str] = None) -> str:
+def format_agent_address(
+    agent_name: str, swarm_name: Optional[str] = None
+) -> ACPAddress:
     """
     Format an agent address from agent name and optional swarm name.
 
     Returns:
-        str: Formatted address
+        ACPAddress: Formatted address
     """
     if swarm_name:
-        return f"{agent_name}@{swarm_name}"
+        return ACPAddress(address_type="agent", address=f"{agent_name}@{swarm_name}")
     else:
-        return agent_name
+        return ACPAddress(address_type="agent", address=agent_name)
+
+
+def create_address(
+    address: str, address_type: Literal["agent", "user", "system"]
+) -> ACPAddress:
+    """
+    Create an ACPAddress object with the specified type.
+
+    Args:
+        address: The address string
+        address_type: The type of address ("agent", "user", or "system")
+
+    Returns:
+        ACPAddress: A properly formatted address object
+    """
+    return ACPAddress(address_type=address_type, address=address)
+
+
+def create_agent_address(address: str) -> ACPAddress:
+    """Create an ACPAddress for an AI agent."""
+    return create_address(address, "agent")
+
+
+def create_user_address(address: str) -> ACPAddress:
+    """Create an ACPAddress for a human user."""
+    return create_address(address, "user")
+
+
+def create_system_address(address: str) -> ACPAddress:
+    """Create an ACPAddress for the system."""
+    return create_address(address, "system")
+
+
+def get_address_string(address: ACPAddress | str) -> str:
+    """
+    Extract the address string from either an ACPAddress object or a plain string.
+    This provides backward compatibility during the transition.
+
+    Args:
+        address: Either an ACPAddress object or a plain string
+
+    Returns:
+        str: The address string
+    """
+    if isinstance(address, dict) and "address" in address:
+        return address["address"]
+    return str(address)
+
+
+def get_address_type(address: ACPAddress | str) -> Literal["agent", "user", "system"]:
+    """
+    Extract the address type from either an ACPAddress object or a plain string.
+    Defaults to "agent" for backward compatibility.
+
+    Args:
+        address: Either an ACPAddress object or a plain string
+
+    Returns:
+        Literal["agent", "user", "system"]: The address type
+    """
+    if isinstance(address, dict) and "address_type" in address:
+        return address["address_type"]
+    return "agent"  # Default assumption for backward compatibility
 
 
 def build_body_xml(content: dict[str, Any]) -> str:
@@ -199,13 +274,22 @@ def build_acp_xml(message: "ACPMessage") -> dict[str, str]:
         if "recipient" in message["message"]
         else message["message"]["recipients"]
     )
+
+    # Extract sender and recipient information with type metadata
+    sender = message["message"]["sender"]
+    sender_str = get_address_string(sender)
+    sender_type = get_address_type(sender)
+
+    to_str = get_address_string(to) if isinstance(to, dict) else str(to)
+    to_type = get_address_type(to) if isinstance(to, dict) else "agent"
+
     return {
         "role": "user",
         "content": f"""
 <incoming_message>
 <timestamp>{message["timestamp"]}</timestamp>
-<from>{message["message"]["sender"]}</from>
-<to>{to}</to>
+<from type="{sender_type}">{sender_str}</from>
+<to type="{to_type}">{to_str}</to>
 <header>{message["message"]["header"]}</header>
 <body>{message["message"]["body"]}</body>
 </incoming_message>

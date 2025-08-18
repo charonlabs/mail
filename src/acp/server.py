@@ -14,7 +14,16 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from toml import load as load_toml
 
 from .core import ACP
-from .message import ACPMessage, ACPRequest, ACPInterswarmMessage, ACPResponse
+from .message import (
+    ACPMessage,
+    ACPRequest,
+    ACPInterswarmMessage,
+    ACPResponse,
+    create_user_address,
+    create_agent_address,
+    create_system_address,
+    format_agent_address,
+)
 from .logger import init_logger
 from .swarms.builder import build_swarm_from_name
 from .auth import login
@@ -33,7 +42,7 @@ agent_acp_tasks: Dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
 swarm_registry: Optional[SwarmRegistry] = None
-local_swarm_name: str = "default"
+local_swarm_name: str = "example"
 local_base_url: str = "http://localhost:8000"
 
 
@@ -47,9 +56,9 @@ async def lifespan(app: FastAPI):
     global swarm_registry, local_swarm_name, local_base_url
 
     # Get configuration from environment
-    local_swarm_name = os.getenv("SWARM_NAME", "default")
+    local_swarm_name = os.getenv("SWARM_NAME", "example")
     local_base_url = os.getenv("BASE_URL", "http://localhost:8000")
-    persistence_file = os.getenv("SWARM_REGISTRY_FILE", "swarm_registry.json")
+    persistence_file = os.getenv("SWARM_REGISTRY_FILE", "registries/example.json")
 
     swarm_registry = SwarmRegistry(local_swarm_name, local_base_url, persistence_file)
 
@@ -292,8 +301,8 @@ async def chat(request: Request):
             message=ACPRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
-                sender="user",
-                recipient="supervisor",
+                sender=create_user_address("user"),
+                recipient=create_agent_address("supervisor"),
                 header="New Message",
                 body=message,
             ),
@@ -417,11 +426,8 @@ async def receive_interswarm_message(request: Request):
         interswarm_message = ACPInterswarmMessage(**data)
         message = interswarm_message["payload"]
         source_swarm = interswarm_message["source_swarm"]
-        source_agent = f"{message.get('sender', 'unknown')}@{source_swarm}"
-        target_agent = f"{message.get('recipient', 'unknown')}"
-
-        # Update the message to include the full source agent address
-        message["sender"] = source_agent
+        source_agent = message.get("sender", {})
+        target_agent = message.get("recipient", {})
 
         logger.info(
             f"Received message from {source_agent} to {target_agent}: {message.get('header', 'unknown')}..."
@@ -470,11 +476,15 @@ async def receive_interswarm_message(request: Request):
         # Send response back to the source swarm via HTTP
         await _send_response_to_swarm(source_swarm, response_message)
 
-        logger.info(f"ACP completed successfully for agent {source_agent}")
+        logger.info(
+            f"ACP completed successfully for agent {source_agent} with response {response_message}"
+        )
         return response_message
 
     except Exception as e:
-        logger.error(f"Error processing message for agent {source_agent}: {e}")
+        logger.error(
+            f"Error processing message for agent {source_agent} with response {response_message}: {e}"
+        )
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
@@ -587,14 +597,10 @@ async def _send_response_to_swarm(
             return
 
         # ensure both the sender and recipient are in the format of "agent@swarm"
-        if "@" not in response_message["message"]["sender"]:
-            response_message["message"]["sender"] = (
-                f"{response_message['message']['sender']}@{local_swarm_name}"
-            )
-        if "@" not in response_message["message"]["recipient"]:
-            response_message["message"]["recipient"] = (
-                f"{response_message['message']['recipient']}@{target_swarm}"
-            )
+        response_message["message"]["sender"] = format_agent_address(
+            response_message["message"]["sender"]["address"], local_swarm_name
+        )
+        # response_message["message"]["recipient"] = format_agent_address(response_message["message"]["recipient"]["address"], target_swarm)
 
         # Send response via HTTP
         url = f"{endpoint['base_url']}/interswarm/response"
@@ -603,8 +609,9 @@ async def _send_response_to_swarm(
             "User-Agent": f"ACP-Interswarm-Router/{local_swarm_name}",
         }
 
-        if endpoint["auth_token"]:
-            headers["Authorization"] = f"Bearer {endpoint['auth_token']}"
+        auth_token = swarm_registry.get_resolved_auth_token(target_swarm)
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
 
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession() as session:
@@ -650,8 +657,8 @@ async def send_interswarm_message(request: Request):
             message=ACPRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
-                sender="user",
-                recipient=f"{target_agent}",
+                sender=create_user_address("user"),
+                recipient=create_agent_address(f"{target_agent}"),
                 header="Interswarm Message",
                 body=message_content,
                 sender_swarm=local_swarm_name,

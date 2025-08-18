@@ -11,6 +11,9 @@ from .message import (
     ACPMessage,
     ACPRequest,
     ACPResponse,
+    create_agent_address,
+    create_system_address,
+    create_user_address,
 )
 from .factories.base import AgentToolCall
 
@@ -27,6 +30,9 @@ def convert_call_to_acp_message(
     call: AgentToolCall, sender: str, task_id: str
 ) -> ACPMessage:
     """Convert an ACP tool call to an ACP message."""
+    # Convert sender string to ACPAddress (assuming it's an agent)
+    sender_address = create_agent_address(sender)
+
     match call.tool_name:
         case "send_request":
             return ACPMessage(
@@ -35,8 +41,8 @@ def convert_call_to_acp_message(
                 message=ACPRequest(
                     task_id=task_id,
                     request_id=str(uuid4()),
-                    sender=sender,
-                    recipient=call.tool_args["target"],
+                    sender=sender_address,
+                    recipient=create_agent_address(call.tool_args["target"]),
                     header=call.tool_args["header"],
                     body=call.tool_args["message"],
                 ),
@@ -49,8 +55,8 @@ def convert_call_to_acp_message(
                 message=ACPResponse(
                     task_id=task_id,
                     request_id=str(uuid4()),
-                    sender=sender,
-                    recipient=call.tool_args["target"],
+                    sender=sender_address,
+                    recipient=create_agent_address(call.tool_args["target"]),
                     header=call.tool_args["header"],
                     body=call.tool_args["message"],
                 ),
@@ -63,8 +69,8 @@ def convert_call_to_acp_message(
                 message=ACPInterrupt(
                     task_id=task_id,
                     interrupt_id=str(uuid4()),
-                    sender=sender,
-                    recipients=[call.tool_args["target"]],
+                    sender=sender_address,
+                    recipients=[create_agent_address(call.tool_args["target"])],
                     header=call.tool_args["header"],
                     body=call.tool_args["message"],
                 ),
@@ -77,8 +83,8 @@ def convert_call_to_acp_message(
                 message=ACPBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
-                    sender=sender,
-                    recipients=["all"],
+                    sender=sender_address,
+                    recipients=[create_agent_address("all")],
                     header=call.tool_args["header"],
                     body=call.tool_args["message"],
                 ),
@@ -91,8 +97,8 @@ def convert_call_to_acp_message(
                 message=ACPBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
-                    sender=sender,
-                    recipients=["all"],
+                    sender=sender_address,
+                    recipients=[create_agent_address("all")],
                     header="Task complete",
                     body=call.tool_args["finish_message"],
                 ),
@@ -113,8 +119,8 @@ def action_complete_broadcast(
         message=ACPBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid4()),
-            sender="system",
-            recipients=[recipient],
+            sender=create_system_address("system"),
+            recipients=[create_agent_address(recipient)],
             header=f"Action Complete: {result_message['name']}",
             body=f"The action {result_message['name']} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",
         ),

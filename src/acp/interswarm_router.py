@@ -66,7 +66,9 @@ class InterswarmRouter:
             # Check if recipient is in interswarm format
             if "recipient" in msg_content:
                 recipient = msg_content["recipient"]
-                recipient_agent, recipient_swarm = parse_agent_address(recipient)
+                recipient_agent, recipient_swarm = parse_agent_address(
+                    recipient["address"]
+                )
 
                 # If recipient is in a different swarm, route via HTTP
                 if recipient_swarm and recipient_swarm != self.local_swarm_name:
@@ -86,7 +88,9 @@ class InterswarmRouter:
                 remote_routes = {}
 
                 for recipient in recipients:
-                    recipient_agent, recipient_swarm = parse_agent_address(recipient)
+                    recipient_agent, recipient_swarm = parse_agent_address(
+                        recipient["address"]
+                    )
 
                     if recipient_swarm and recipient_swarm != self.local_swarm_name:
                         # Remote recipient
@@ -161,6 +165,11 @@ class InterswarmRouter:
                     message, f"Swarm {swarm_name} is not active"
                 )
 
+            # Update the message to include the full source agent address
+            message["message"]["sender"] = format_agent_address(
+                message["message"]["sender"]["address"], self.local_swarm_name
+            )
+
             # Create interswarm message wrapper
             interswarm_message = ACPInterswarmMessage(
                 message_id=str(uuid.uuid4()),
@@ -169,7 +178,7 @@ class InterswarmRouter:
                 timestamp=datetime.now().isoformat(),
                 payload=message["message"],
                 msg_type=message["msg_type"],
-                auth_token=endpoint["auth_token"],
+                auth_token=self.swarm_registry.get_resolved_auth_token(swarm_name),
                 metadata={
                     "original_message_id": message["id"],
                     "routing_info": message["message"].get("routing_info", {}),
@@ -184,8 +193,9 @@ class InterswarmRouter:
                 "User-Agent": f"ACP-Interswarm-Router/{self.local_swarm_name}",
             }
 
-            if endpoint["auth_token"]:
-                headers["Authorization"] = f"Bearer {endpoint['auth_token']}"
+            auth_token = self.swarm_registry.get_resolved_auth_token(swarm_name)
+            if auth_token:
+                headers["Authorization"] = f"Bearer {auth_token}"
 
             timeout = aiohttp.ClientTimeout(total=3600)
             async with self.session.post(

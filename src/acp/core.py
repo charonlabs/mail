@@ -12,6 +12,9 @@ from .message import (
     build_acp_xml,
     ACPResponse,
     parse_agent_address,
+    create_agent_address,
+    create_system_address,
+    create_user_address,
 )
 from .tools import (
     ACP_TOOL_NAMES,
@@ -32,7 +35,7 @@ class ACP:
         agents: dict[str, AgentFunction],
         actions: dict[str, ActionFunction],
         user_token: str = None,
-        swarm_name: str = "default",
+        swarm_name: str = "example",
         swarm_registry: Optional[SwarmRegistry] = None,
         enable_interswarm: bool = False,
     ):
@@ -393,12 +396,14 @@ class ACP:
 
             if "recipients" in msg_content:
                 for recipient in msg_content["recipients"]:
-                    _, recipient_swarm = parse_agent_address(recipient)
+                    _, recipient_swarm = parse_agent_address(recipient["address"])
                     if recipient_swarm and recipient_swarm != self.swarm_name:
                         has_interswarm_recipients = True
                         break
             elif "recipient" in msg_content:
-                _, recipient_swarm = parse_agent_address(msg_content["recipient"])
+                _, recipient_swarm = parse_agent_address(
+                    msg_content["recipient"]["address"]
+                )
                 if recipient_swarm and recipient_swarm != self.swarm_name:
                     has_interswarm_recipients = True
 
@@ -445,7 +450,7 @@ class ACP:
 
         for recipient in recipients:
             # Parse recipient address to get local agent name
-            recipient_agent, recipient_swarm = parse_agent_address(recipient)
+            recipient_agent, recipient_swarm = parse_agent_address(recipient["address"])
 
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
@@ -520,8 +525,8 @@ class ACP:
                                     message=ACPBroadcast(
                                         task_id=task_id,
                                         broadcast_id=str(uuid.uuid4()),
-                                        sender="supervisor",
-                                        recipients=["all"],
+                                        sender=create_agent_address("supervisor"),
+                                        recipients=[create_agent_address("all")],
                                         header="Task complete",
                                         body=call.tool_args.get(
                                             "finish_message",
@@ -578,8 +583,8 @@ class ACP:
             timestamp=datetime.datetime.now().isoformat(),
             message=ACPBroadcast(
                 broadcast_id=str(uuid.uuid4()),
-                sender="system",
-                recipients=["user"],
+                sender=create_system_address(self.swarm_name),
+                recipients=[create_user_address("user")],
                 header="System Shutdown",
                 body=reason,
             ),

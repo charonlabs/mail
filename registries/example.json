@@ -7,7 +7,7 @@
       "base_url": "http://localhost:8000",
       "health_check_url": "http://localhost:8000/health",
       "auth_token_ref": null,
-      "last_seen": "2025-08-15T16:11:06.519123",
+      "last_seen": "2025-08-18T17:31:51.285876",
       "is_active": true,
       "metadata": null,
       "volatile": false

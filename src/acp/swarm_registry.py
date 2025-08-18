@@ -27,8 +27,8 @@ class SwarmEndpoint(TypedDict):
     health_check_url: str
     """The health check endpoint URL."""
 
-    auth_token: Optional[str] = None
-    """Authentication token for this swarm."""
+    auth_token_ref: Optional[str] = None
+    """Authentication token reference (environment variable or actual token)."""
 
     last_seen: Optional[datetime] = None
     """When this swarm was last seen/heard from."""
@@ -93,11 +93,17 @@ class SwarmRegistry:
             logger.warning(f"Attempted to register local swarm {swarm_name} as remote")
             return
 
+        # Automatically convert auth token to environment variable reference if it's a persistent swarm
+        if not volatile:
+            auth_token_ref = self._get_auth_token_ref(swarm_name, auth_token)
+        else:
+            auth_token_ref = auth_token
+
         self.endpoints[swarm_name] = SwarmEndpoint(
             swarm_name=swarm_name,
             base_url=base_url,
             health_check_url=f"{base_url}/health",
-            auth_token=auth_token,
+            auth_token_ref=auth_token_ref,
             last_seen=datetime.now(),
             is_active=True,
             metadata=metadata,
@@ -127,6 +133,14 @@ class SwarmRegistry:
     def get_swarm_endpoint(self, swarm_name: str) -> Optional[SwarmEndpoint]:
         """Get the endpoint for a specific swarm."""
         return self.endpoints.get(swarm_name)
+
+    def get_resolved_auth_token(self, swarm_name: str) -> Optional[str]:
+        """Get the resolved authentication token for a swarm (resolves environment variable references)."""
+        endpoint = self.endpoints.get(swarm_name)
+        if not endpoint:
+            return None
+
+        return self._resolve_auth_token_ref(endpoint.get("auth_token_ref"))
 
     def get_all_endpoints(self) -> Dict[str, SwarmEndpoint]:
         """Get all registered endpoints."""
@@ -163,7 +177,7 @@ class SwarmRegistry:
                         "base_url": endpoint["base_url"],
                         "health_check_url": endpoint["health_check_url"],
                         "auth_token_ref": self._get_auth_token_ref(
-                            endpoint.get("auth_token")
+                            endpoint.get("swarm_name"), endpoint.get("auth_token_ref")
                         ),
                         "last_seen": endpoint["last_seen"].isoformat()
                         if endpoint["last_seen"]
@@ -186,7 +200,9 @@ class SwarmRegistry:
         except Exception as e:
             logger.error(f"Failed to save persistent endpoints: {e}")
 
-    def _get_auth_token_ref(self, auth_token: Optional[str]) -> Optional[str]:
+    def _get_auth_token_ref(
+        self, swarm_name: str, auth_token: Optional[str]
+    ) -> Optional[str]:
         """Convert an auth token to an environment variable reference if it exists."""
         if not auth_token:
             return None
@@ -195,12 +211,18 @@ class SwarmRegistry:
         if auth_token.startswith("${") and auth_token.endswith("}"):
             return auth_token
 
-        # For now, we'll store the token as-is but log a warning
-        # In a production system, you might want to encrypt it or use a secure vault
-        logger.warning(
-            f"Auth token for swarm will be stored in plain text. Consider using environment variable references like ${{SWARM_AUTH_TOKEN_{self.local_swarm_name.upper()}}}"
+        # For persistent swarms, automatically convert to environment variable reference
+        # Generate a unique environment variable name based on the swarm name
+        env_var_name = f"SWARM_AUTH_TOKEN_{swarm_name.upper().replace('-', '_')}"
+
+        logger.info(
+            f"Converting auth token to environment variable reference: ${{{env_var_name}}}"
         )
-        return auth_token
+        logger.info(
+            f"Please set the environment variable {env_var_name} with the actual token value"
+        )
+
+        return f"${{{env_var_name}}}"
 
     def _resolve_auth_token_ref(self, auth_token_ref: Optional[str]) -> Optional[str]:
         """Resolve an auth token reference to its actual value."""
@@ -233,13 +255,13 @@ class SwarmRegistry:
             if name == self.local_swarm_name:
                 continue
 
-            auth_token = endpoint.get("auth_token")
+            auth_token = endpoint.get("auth_token_ref")
             if auth_token and not auth_token.startswith("${"):
                 # Create environment variable name
                 env_var_name = f"{env_var_prefix}_{name.upper().replace('-', '_')}"
 
                 # Update the endpoint to use the reference
-                endpoint["auth_token"] = f"${{{env_var_name}}}"
+                endpoint["auth_token_ref"] = f"${{{env_var_name}}}"
                 migrated_count += 1
 
                 logger.info(
@@ -266,7 +288,7 @@ class SwarmRegistry:
             if name == self.local_swarm_name:
                 continue
 
-            auth_token = endpoint.get("auth_token")
+            auth_token = endpoint.get("auth_token_ref")
             if auth_token and auth_token.startswith("${") and auth_token.endswith("}"):
                 env_var = auth_token[2:-1]
                 is_set = os.getenv(env_var) is not None
@@ -302,7 +324,7 @@ class SwarmRegistry:
                         swarm_name=endpoint_data["swarm_name"],
                         base_url=endpoint_data["base_url"],
                         health_check_url=endpoint_data["health_check_url"],
-                        auth_token=auth_token,
+                        auth_token_ref=auth_token,
                         last_seen=datetime.fromisoformat(endpoint_data["last_seen"])
                         if endpoint_data["last_seen"]
                         else None,
@@ -461,7 +483,7 @@ class SwarmRegistry:
                     "base_url": endpoint["base_url"],
                     "health_check_url": endpoint["health_check_url"],
                     "auth_token_ref": self._get_auth_token_ref(
-                        endpoint.get("auth_token")
+                        endpoint.get("swarm_name"), endpoint.get("auth_token_ref")
                     ),
                     "last_seen": endpoint["last_seen"].isoformat()
                     if endpoint["last_seen"]
@@ -494,7 +516,7 @@ class SwarmRegistry:
                 swarm_name=endpoint_data["swarm_name"],
                 base_url=endpoint_data["base_url"],
                 health_check_url=endpoint_data["health_check_url"],
-                auth_token=auth_token,
+                auth_token_ref=auth_token,
                 last_seen=datetime.fromisoformat(endpoint_data["last_seen"])
                 if endpoint_data["last_seen"]
                 else None,
