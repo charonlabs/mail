@@ -34,6 +34,7 @@ class MAIL:
         self,
         agents: dict[str, AgentFunction],
         actions: dict[str, ActionFunction],
+        user_id: str,
         user_token: str = None,
         swarm_name: str = "example",
         swarm_registry: Optional[SwarmRegistry] = None,
@@ -52,6 +53,7 @@ class MAIL:
         self.is_running = False
         self.current_request_id: str | None = None
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
+        self.user_id = user_id
         self.user_token = user_token  # Track which user this MAIL instance belongs to
 
         # Interswarm messaging support
@@ -104,7 +106,7 @@ class MAIL:
         """
         if self.is_running:
             logger.warning(
-                f"MAIL is already running for user '{self.user_token[:8] if self.user_token else 'unknown'}', cannot start another run"
+                f"MAIL is already running for user '{self.user_id}', cannot start another run"
             )
             return self._system_shutdown_message("MAIL already running")
 
@@ -133,9 +135,7 @@ class MAIL:
 
                     # Check if shutdown was requested
                     if shutdown_task in done:
-                        logger.info(
-                            f"shutdown requested for user '{self.user_token[:8] if self.user_token else 'unknown'}'..."
-                        )
+                        logger.info(f"shutdown requested for user '{self.user_id}'...")
                         self.response_to_user = self._system_shutdown_message(
                             "shutdown requested"
                         )
@@ -145,7 +145,7 @@ class MAIL:
                     message_tuple = get_message_task.result()
                     message = message_tuple[1]
                     logger.info(
-                        f"processing message for user '{self.user_token[:8] if self.user_token else 'unknown'}' with message: '{message}'"
+                        f"processing message for user '{self.user_id}' with message: '{message}'"
                     )
 
                     if message["msg_type"] == "broadcast_complete":
@@ -159,7 +159,7 @@ class MAIL:
 
                 except asyncio.CancelledError:
                     logger.info(
-                        f"run loop cancelled for user '{self.user_token[:8] if self.user_token else 'unknown'}', initiating shutdown..."
+                        f"run loop cancelled for user '{self.user_id}', initiating shutdown..."
                     )
                     self.response_to_user = self._system_shutdown_message(
                         "run loop cancelled"
@@ -167,7 +167,7 @@ class MAIL:
                     break
                 except Exception as e:
                     logger.error(
-                        f"error in run loop for user '{self.user_token[:8] if self.user_token else 'unknown'}' with error: '{e}'"
+                        f"error in run loop for user '{self.user_id}' with error: '{e}'"
                     )
                     self.response_to_user = self._system_shutdown_message(
                         f"error in run loop: {e}"
@@ -182,8 +182,7 @@ class MAIL:
         Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
         """
-        user_id = self.user_token[:8] if self.user_token else "unknown"
-        logger.info(f"starting continuous MAIL operation for user '{user_id}'...")
+        logger.info(f"starting continuous MAIL operation for user '{self.user_id}'...")
 
         while not self.shutdown_event.is_set():
             try:
@@ -209,7 +208,7 @@ class MAIL:
                 # Check if shutdown was requested
                 if shutdown_task in done:
                     logger.info(
-                        f"shutdown requested in continuous mode for user '{user_id}'..."
+                        f"shutdown requested in continuous mode for user '{self.user_id}'..."
                     )
                     break
 
@@ -217,7 +216,7 @@ class MAIL:
                 message_tuple = get_message_task.result()
                 message = message_tuple[1]
                 logger.info(
-                    f"processing message in continuous mode for user '{user_id}' with message: '{message}'"
+                    f"processing message in continuous mode for user '{self.user_id}' with message: '{message}'"
                 )
 
                 if message["msg_type"] == "broadcast_complete":
@@ -243,14 +242,18 @@ class MAIL:
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
-                logger.info(f"continuous run loop cancelled for user '{user_id}'...")
+                logger.info(
+                    f"continuous run loop cancelled for user '{self.user_id}'..."
+                )
                 break
             except Exception as e:
-                logger.error(f"error in continuous run loop for user '{user_id}' with error: '{e}'")
+                logger.error(
+                    f"error in continuous run loop for user '{self.user_id}' with error: '{e}'"
+                )
                 # Continue processing other messages instead of shutting down
                 continue
 
-        logger.info(f"continuous MAIL operation stopped for user '{user_id}'.")
+        logger.info(f"continuous MAIL operation stopped for user '{self.user_id}'.")
 
     async def submit_and_wait(
         self, message: MAILMessage, timeout: float = 3600.0
@@ -260,10 +263,9 @@ class MAIL:
         This method is designed for handling individual task requests in a persistent MAIL instance.
         """
         task_id = message["message"]["task_id"]
-        user_id = self.user_token[:8] if self.user_token else "unknown"
 
         logger.info(
-            f"submitAndWait: creating future for task '{task_id}' for user '{user_id}'"
+            f"submitAndWait: creating future for task '{task_id}' for user '{self.user_id}'"
         )
 
         # Create a future to wait for the response
@@ -288,18 +290,19 @@ class MAIL:
             self.pending_requests.pop(task_id, None)
             logger.error(f"submitAndWait: timeout for task '{task_id}'")
             raise TimeoutError(
-                f"task '{task_id}' for user '{user_id}' timed out after {timeout} seconds"
+                f"task '{task_id}' for user '{self.user_id}' timed out after {timeout} seconds"
             )
         except Exception as e:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
-            logger.error(f"submitAndWait: exception for task '{task_id}' with error: '{e}'")    
+            logger.error(
+                f"submitAndWait: exception for task '{task_id}' with error: '{e}'"
+            )
             raise e
 
     async def shutdown(self) -> None:
         """Request a graceful shutdown of the MAIL system."""
-        user_id = self.user_token[:8] if self.user_token else "unknown"
-        logger.info(f"requesting shutdown for user '{user_id}'...")
+        logger.info(f"requesting shutdown for user '{self.user_id}'...")
 
         # Stop interswarm messaging first
         if self.enable_interswarm:
@@ -516,7 +519,7 @@ class MAIL:
                             # Check if this completes a pending request
                             if task_id and task_id in self.pending_requests:
                                 logger.info(
-                                    f"task '{task_id}' completed, resolving pending request for user '{self.user_token[:8] if self.user_token else 'unknown'}'"
+                                    f"task '{task_id}' completed, resolving pending request for user '{self.user_id}'"
                                 )
                                 # Create a response message for the user
                                 response_message = MAILMessage(
@@ -538,7 +541,9 @@ class MAIL:
                                 # Resolve the pending request
                                 future = self.pending_requests.pop(task_id)
                                 if not future.done():
-                                    logger.info(f"resolving future for task '{task_id}'")
+                                    logger.info(
+                                        f"resolving future for task '{task_id}'"
+                                    )
                                     future.set_result(response_message)
                                 else:
                                     logger.warning(
@@ -584,7 +589,7 @@ class MAIL:
             message=MAILBroadcast(
                 broadcast_id=str(uuid.uuid4()),
                 sender=create_system_address(self.swarm_name),
-                recipients=[create_user_address("user")],
+                recipients=[create_user_address(self.user_id)],
                 header="System Shutdown",
                 body=reason,
             ),

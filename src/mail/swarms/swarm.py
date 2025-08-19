@@ -36,6 +36,7 @@ class Swarm(BaseModel):
 
     def instantiate(
         self,
+        user_id: str,
         user_token: str,
         swarm_name: str,
         swarm_registry: SwarmRegistry,
@@ -49,6 +50,7 @@ class Swarm(BaseModel):
         return MAIL(
             agents=agents,
             actions=actions,
+            user_id=user_id,
             user_token=user_token,
             swarm_name=swarm_name,
             swarm_registry=swarm_registry,

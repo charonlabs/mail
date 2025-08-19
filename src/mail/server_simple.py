@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
     global user_mail_instances, user_mail_tasks
     for user_token, mail_task in user_mail_tasks.items():
         if mail_task and not mail_task.done():
-            logger.info(f"cancelling MAIL task for user: '{user_token[:8]}'...")
+            logger.info(f"cancelling MAIL task for user: '{user_token[:8]}...'")
             mail_task.cancel()
             try:
                 await mail_task
@@ -72,7 +72,7 @@ async def get_or_create_user_mail(user_token: str) -> dict:
 
     if user_token not in user_mail_instances:
         try:
-            logger.info(f"creating MAIL instance for user: '{user_token[:8]}'...")
+            logger.info(f"creating MAIL instance for user: '{user_token[:8]}...'")
 
             # Create a new MAIL instance for this user
             user_mail_instances[user_token] = {
@@ -84,14 +84,20 @@ async def get_or_create_user_mail(user_token: str) -> dict:
             }
 
             # Start the MAIL instance in continuous mode for this user
-            logger.info(f"starting MAIL continuous mode for user: '{user_token[:8]}'...")
+            logger.info(
+                f"starting MAIL continuous mode for user: '{user_token[:8]}...'"
+            )
             mail_task = asyncio.create_task(simulate_mail_continuous(user_token))
             user_mail_tasks[user_token] = mail_task
 
-            logger.info(f"MAIL instance created and started for user: '{user_token[:8]}'")
+            logger.info(
+                f"MAIL instance created and started for user: '{user_token[:8]}...'"
+            )
 
         except Exception as e:
-            logger.error(f"error creating MAIL instance for user '{user_token[:8]}' with error: '{e}'")
+            logger.error(
+                f"error creating MAIL instance for user '{user_token[:8]}...' with error: '{e}'"
+            )
             raise e
 
     return user_mail_instances[user_token]
@@ -107,7 +113,9 @@ async def simulate_mail_continuous(user_token: str):
     except asyncio.CancelledError:
         logger.info(f"MAIL continuous operation cancelled for user '{user_id}'")
     except Exception as e:
-        logger.error(f"error in continuous MAIL operation for user '{user_id}' with error: '{e}'")
+        logger.error(
+            f"error in continuous MAIL operation for user '{user_id}' with error: '{e}'"
+        )
 
 
 async def submit_and_wait_simple(
@@ -119,7 +127,7 @@ async def submit_and_wait_simple(
     global user_mail_instances
 
     if user_token not in user_mail_instances:
-        raise Exception(f"MAIL instance not initialized for user '{user_token[:8]}'")
+        raise Exception(f"MAIL instance not initialized for user '{user_token[:8]}...'")
 
     user_mail = user_mail_instances[user_token]
 
@@ -130,7 +138,7 @@ async def submit_and_wait_simple(
     user_mail["message_count"] += 1
 
     # Return a simple response with user-specific information
-    return f"processed message for user '{user_token[:8]}': '{message}' (message #{user_mail['message_count']})"
+    return f"processed message for user '{user_token[:8]}...': '{message}' (message #{user_mail['message_count']})"
 
 
 @app.get("/")
@@ -204,7 +212,7 @@ async def chat(request: Request):
 
     if api_key.startswith("Bearer "):
         user_token = api_key.split(" ")[1]
-        logger.info(f"user authenticated with token: '{user_token[:8]}'...")
+        logger.info(f"user authenticated with token: '{user_token[:8]}...'")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
@@ -223,7 +231,9 @@ async def chat(request: Request):
     try:
         data = await request.json()
         message = data.get("message", "")
-        logger.info(f"received message from user '{user_token[:8]}': '{message[:50]}...'")
+        logger.info(
+            f"received message from user '{user_token[:8]}...': '{message[:50]}...'"
+        )
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
         raise HTTPException(
@@ -236,12 +246,16 @@ async def chat(request: Request):
 
     # MAIL process
     try:
-        logger.info(f"processing message with user MAIL for user '{user_token[:8]}'...")
+        logger.info(
+            f"processing message with user MAIL for user '{user_token[:8]}...'..."
+        )
         response = await submit_and_wait_simple(user_token, message)
-        logger.info(f"MAIL completed successfully for user '{user_token[:8]}'")
+        logger.info(f"MAIL completed successfully for user '{user_token[:8]}...'")
         return {"response": response}
     except Exception as e:
-        logger.error(f"error processing message for user '{user_token[:8]}' with error: '{e}'")
+        logger.error(
+            f"error processing message for user '{user_token[:8]}...' with error: '{e}'"
+        )
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",

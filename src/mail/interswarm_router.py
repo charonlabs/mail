@@ -215,9 +215,12 @@ class InterswarmRouter:
                     )
 
         except Exception as e:
-            logger.error(f"error routing to remote swarm '{swarm_name}' with error: '{e}'")
+            logger.error(
+                f"error routing to remote swarm '{swarm_name}' with error: '{e}'"
+            )
             return self._system_router_message(
-                message, f"error routing to remote swarm '{swarm_name}' with error: '{e}'"
+                message,
+                f"error routing to remote swarm '{swarm_name}' with error: '{e}'",
             )
 
     async def handle_incoming_response(self, response_message: MAILMessage) -> bool:

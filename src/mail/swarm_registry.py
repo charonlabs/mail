@@ -78,7 +78,9 @@ class SwarmRegistry:
             is_active=True,
             volatile=False,  # Local swarm is never volatile
         )
-        logger.info(f"registered local swarm: '{self.local_swarm_name}' at '{base_url}'")
+        logger.info(
+            f"registered local swarm: '{self.local_swarm_name}' at '{base_url}'"
+        )
 
     def register_swarm(
         self,
@@ -90,7 +92,9 @@ class SwarmRegistry:
     ) -> None:
         """Register a remote swarm in the registry."""
         if swarm_name == self.local_swarm_name:
-            logger.warning(f"attempted to register local swarm '{swarm_name}' as remote")
+            logger.warning(
+                f"attempted to register local swarm '{swarm_name}' as remote"
+            )
             return
 
         # Automatically convert auth token to environment variable reference if it's a persistent swarm
@@ -234,7 +238,9 @@ class SwarmRegistry:
             env_var = auth_token_ref[2:-1]  # Remove ${ and }
             resolved_token = os.getenv(env_var)
             if resolved_token:
-                logger.debug(f"resolved auth token from environment variable '{env_var}'")
+                logger.debug(
+                    f"resolved auth token from environment variable '{env_var}'"
+                )
                 return resolved_token
             else:
                 logger.warning(

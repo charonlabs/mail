@@ -21,12 +21,11 @@ from .message import (
     MAILResponse,
     create_user_address,
     create_agent_address,
-    create_system_address,
     format_agent_address,
 )
 from .logger import init_logger
 from .swarms.builder import build_swarm_from_name
-from .auth import login
+from .auth import generate_agent_id, generate_user_id, login, get_token_info
 from .swarm_registry import SwarmRegistry
 
 # Initialize logger at module level so it runs regardless of how the server is started
@@ -88,13 +87,13 @@ async def lifespan(app: FastAPI):
 
     # Clean up all user MAIL instances
     global user_mail_instances, user_mail_tasks
-    for user_token, mail_instance in user_mail_instances.items():
-        logger.info(f"shutting down MAIL instance for user: '{user_token[:8]}'...")
+    for user_id, mail_instance in user_mail_instances.items():
+        logger.info(f"shutting down MAIL instance for user: '{user_id}'...")
         await mail_instance.shutdown()
 
-    for user_token, mail_task in user_mail_tasks.items():
+    for user_id, mail_task in user_mail_tasks.items():
         if mail_task and not mail_task.done():
-            logger.info(f"cancelling MAIL task for user: '{user_token[:8]}'...")
+            logger.info(f"cancelling MAIL task for user: '{user_id}'...")
             mail_task.cancel()
             try:
                 await mail_task
@@ -120,22 +119,20 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-async def get_or_create_user_mail(jwt: str) -> MAIL:
+async def get_or_create_user_mail(user_id: str, jwt: str) -> MAIL:
     """
     Get or create a MAIL instance for a specific user.
     Each user gets their own isolated MAIL instance.
     """
     global persistent_swarm, user_mail_instances, user_mail_tasks, swarm_registry
 
-    # TODO: get user id from jwt
-    user_id = jwt
-
     if user_id not in user_mail_instances:
         try:
-            logger.info(f"creating MAIL instance for user: '{user_id[:8]}'...")
+            logger.info(f"creating MAIL instance for user: '{user_id}'...")
 
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
+                user_id=user_id,
                 user_token=jwt,
                 swarm_name=local_swarm_name,
                 swarm_registry=swarm_registry,
@@ -147,35 +144,35 @@ async def get_or_create_user_mail(jwt: str) -> MAIL:
             await mail_instance.start_interswarm()
 
             # Start the MAIL instance in continuous mode for this user
-            logger.info(f"starting MAIL continuous mode for user: '{user_id[:8]}'...")
+            logger.info(f"starting MAIL continuous mode for user: '{user_id}'...")
             mail_task = asyncio.create_task(mail_instance.run_continuous())
             user_mail_tasks[user_id] = mail_task
 
-            logger.info(f"MAIL instance created and started for user: '{user_id[:8]}'")
+            logger.info(f"MAIL instance created and started for user: '{user_id}'")
 
         except Exception as e:
-            logger.error(f"error creating MAIL instance for user '{user_id[:8]}' with error: '{e}'")
+            logger.error(
+                f"error creating MAIL instance for user '{user_id}' with error: '{e}'"
+            )
             raise e
 
     return user_mail_instances[user_id]
 
 
-async def get_or_create_agent_mail(jwt: str) -> MAIL:
+async def get_or_create_agent_mail(agent_id: str, jwt: str) -> MAIL:
     """
     Get or create a MAIL instance for a specific agent.
     Each agent gets their own isolated MAIL instance.
     """
     global persistent_swarm, agent_mail_instances, agent_mail_tasks, swarm_registry
 
-    # TODO: get agent id from jwt
-    agent_id = jwt
-
     if agent_id not in agent_mail_instances:
         try:
-            logger.info(f"creating MAIL instance for agent: '{agent_id[:8]}'...")
+            logger.info(f"creating MAIL instance for agent: '{agent_id}'...")
 
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
+                user_id=agent_id,
                 user_token=jwt,
                 swarm_name=local_swarm_name,
                 swarm_registry=swarm_registry,
@@ -187,14 +184,16 @@ async def get_or_create_agent_mail(jwt: str) -> MAIL:
             await mail_instance.start_interswarm()
 
             # Start the MAIL instance in continuous mode for this user
-            logger.info(f"starting MAIL continuous mode for agent: '{agent_id[:8]}'...")
+            logger.info(f"starting MAIL continuous mode for agent: '{agent_id}'...")
             mail_task = asyncio.create_task(mail_instance.run_continuous())
             agent_mail_tasks[agent_id] = mail_task
 
-            logger.info(f"MAIL instance created and started for agent: '{agent_id[:8]}'")
+            logger.info(f"MAIL instance created and started for agent: '{agent_id}'")
 
         except Exception as e:
-            logger.error(f"error creating MAIL instance for agent '{agent_id[:8]}' with error: '{e}'")
+            logger.error(
+                f"error creating MAIL instance for agent '{agent_id}' with error: '{e}'"
+            )
             raise e
 
     return agent_mail_instances[agent_id]
@@ -216,8 +215,8 @@ async def status(request: Request):
     api_key = request.headers.get("Authorization")
     if api_key and api_key.startswith("Bearer "):
         jwt = await login(api_key.split(" ")[1])
-        # TODO: get user id from jwt
-        user_id = jwt
+        token_info = await get_token_info(jwt)
+        user_id = generate_user_id(token_info)
 
         user_mail_status = user_id in user_mail_instances
         user_task_running = (
@@ -262,14 +261,21 @@ async def chat(request: Request):
 
     if api_key.startswith("Bearer "):
         jwt = await login(api_key.split(" ")[1])
-        logger.info(f"user authenticated with token: '{jwt[:8]}'...")
+        logger.info(f"user authenticated with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
+    token_info = await get_token_info(jwt)
+    role = token_info["role"]
+    if (role != "user") and (role != "admin"):
+        logger.warning("invalid role")
+        raise HTTPException(status_code=401, detail="invalid role")
+    user_id = generate_user_id(token_info)
+
     # Get or create user-specific MAIL instance
     try:
-        user_mail = await get_or_create_user_mail(jwt)
+        user_mail = await get_or_create_user_mail(user_id, jwt)
     except Exception as e:
         logger.error(f"error getting user MAIL instance: '{e}'")
         raise HTTPException(
@@ -281,7 +287,7 @@ async def chat(request: Request):
     try:
         data = await request.json()
         message = data.get("message", "")
-        logger.info(f"received message from user '{jwt[:8]}': '{message[:50]}...'")
+        logger.info(f"received message from user '{user_id}': '{message[:50]}...'")
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
         raise HTTPException(
@@ -294,14 +300,14 @@ async def chat(request: Request):
 
     # MAIL process
     try:
-        logger.info(f"creating MAIL message for user '{jwt[:8]}'...")
+        logger.info(f"creating MAIL message for user '{user_id}'...")
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now().isoformat(),
             message=MAILRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
-                sender=create_user_address("user"),
+                sender=create_user_address(user_id),
                 recipient=create_agent_address("supervisor"),
                 header="New Message",
                 body=message,
@@ -310,10 +316,10 @@ async def chat(request: Request):
         )
         logger.info(f"submitting message to user MAIL and waiting for response...")
         response = await user_mail.submit_and_wait(new_message)
-        logger.info(f"MAIL completed successfully for user '{jwt[:8]}'")
+        logger.info(f"MAIL completed successfully for user '{user_id}'")
         return {"response": response["message"]["body"]}
     except Exception as e:
-        logger.error(f"error processing message for user '{jwt[:8]}' with error: '{e}'")
+        logger.error(f"error processing message for user '{user_id}' with error: '{e}'")
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
@@ -368,6 +374,26 @@ async def register_swarm(request: Request):
         raise HTTPException(status_code=503, detail="swarm registry not available")
 
     try:
+        # auth process
+        api_key = request.headers.get("Authorization")
+        if api_key is None:
+            logger.warning("no API key provided")
+            raise HTTPException(status_code=401, detail="no API key provided")
+
+        if api_key.startswith("Bearer "):
+            jwt = await login(api_key.split(" ")[1])
+            logger.info(f"swarm registered with token: '{jwt[:8]}...'...")
+        else:
+            logger.warning("invalid API key format")
+            raise HTTPException(status_code=401, detail="invalid API key format")
+
+        token_info = await get_token_info(jwt)
+        role = token_info["role"]
+        if role != "admin":
+            logger.warning("invalid role")
+            raise HTTPException(status_code=401, detail="invalid role")
+
+        # parse request
         data = await request.json()
         swarm_name = data.get("name")
         base_url = data.get("base_url")
@@ -405,14 +431,21 @@ async def receive_interswarm_message(request: Request):
 
     if api_key.startswith("Bearer "):
         jwt = await login(api_key.split(" ")[1])
-        logger.info(f"agent authenticated with token: '{jwt[:8]}'...")
+        logger.info(f"agent authenticated with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
+    token_info = await get_token_info(jwt)
+    role = token_info["role"]
+    if role != "agent":
+        logger.warning("invalid role")
+        raise HTTPException(status_code=401, detail="invalid role")
+    agent_id = generate_agent_id(token_info)
+
     # Get or create agent-specific MAIL instance
     try:
-        agent_mail = await get_or_create_agent_mail(jwt)
+        agent_mail = await get_or_create_agent_mail(agent_id, jwt)
     except Exception as e:
         logger.error(f"error getting agent MAIL instance: '{e}'")
         raise HTTPException(
@@ -451,7 +484,9 @@ async def receive_interswarm_message(request: Request):
             message=message,
             msg_type=data.get("msg_type", "request"),
         )
-        logger.info(f"submitting message '{new_message['id']}' to agent MAIL and waiting for response...")
+        logger.info(
+            f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
+        )
         task_response = await agent_mail.submit_and_wait(new_message)
 
         # Create response message
@@ -504,10 +539,16 @@ async def receive_interswarm_response(request: Request):
 
     if api_key.startswith("Bearer "):
         jwt = await login(api_key.split(" ")[1])
-        logger.info(f"response received with token: '{jwt[:8]}'...")
+        logger.info(f"response received with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
+
+    token_info = await get_token_info(jwt)
+    role = token_info["role"]
+    if role != "agent":
+        logger.warning("invalid role")
+        raise HTTPException(status_code=401, detail="invalid role")
 
     # parse request
     try:
@@ -619,14 +660,18 @@ async def _send_response_to_swarm(
                 url, json=response_message, headers=headers, timeout=timeout
             ) as response:
                 if response.status == 200:
-                    logger.info(f"successfully sent response to swarm: '{target_swarm}'")
+                    logger.info(
+                        f"successfully sent response to swarm: '{target_swarm}'"
+                    )
                 else:
                     logger.error(
                         f"failed to send response to swarm '{target_swarm}' with status: '{response.status}'"
                     )
 
     except Exception as e:
-        logger.error(f"error sending response to swarm '{target_swarm}' with error: '{e}'")
+        logger.error(
+            f"error sending response to swarm '{target_swarm}' with error: '{e}'"
+        )
 
 
 @app.post("/interswarm/send")
@@ -635,6 +680,27 @@ async def send_interswarm_message(request: Request):
     global swarm_registry, user_mail_instances
 
     try:
+        # auth process
+        api_key = request.headers.get("Authorization")
+        if api_key is None:
+            logger.warning("no API key provided")
+            raise HTTPException(status_code=401, detail="no API key provided")
+
+        if api_key.startswith("Bearer "):
+            jwt = await login(api_key.split(" ")[1])
+            logger.info(f"response received with token: '{jwt[:8]}...'...")
+        else:
+            logger.warning("invalid API key format")
+            raise HTTPException(status_code=401, detail="invalid API key format")
+
+        token_info = await get_token_info(jwt)
+        role = token_info["role"]
+        if (role != "user") and (role != "admin"):
+            logger.warning("invalid role")
+            raise HTTPException(status_code=401, detail="invalid role")
+        user_id = generate_user_id(token_info)
+
+        # parse request
         data = await request.json()
         target_agent = data.get("target_agent")
         message_content = data.get("message")
@@ -657,7 +723,7 @@ async def send_interswarm_message(request: Request):
             message=MAILRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
-                sender=create_user_address("user"),
+                sender=create_user_address(f"{user_id}@{local_swarm_name}"),
                 recipient=create_agent_address(f"{target_agent}"),
                 header="Interswarm Message",
                 body=message_content,
