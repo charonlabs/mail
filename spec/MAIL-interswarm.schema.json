@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/spec/MAIL-interswarm.schema.json",
+  "title": "MAIL Interswarm Schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "message_id",
+    "source_swarm",
+    "target_swarm",
+    "timestamp",
+    "payload",
+    "msg_type"
+  ],
+  "properties": {
+    "message_id": { "type": "string", "minLength": 1 },
+    "source_swarm": { "type": "string", "minLength": 1 },
+    "target_swarm": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "payload": { "type": "object" },
+    "msg_type": {
+      "type": "string",
+      "enum": ["request", "response", "broadcast", "interrupt"]
+    },
+    "auth_token": { "type": "string" },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "msg_type": { "const": "request" } }, "required": ["msg_type"] },
+      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILRequest" } } }
+    },
+    {
+      "if": { "properties": { "msg_type": { "const": "response" } }, "required": ["msg_type"] },
+      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILResponse" } } }
+    },
+    {
+      "if": { "properties": { "msg_type": { "const": "broadcast" } }, "required": ["msg_type"] },
+      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILBroadcast" } } }
+    },
+    {
+      "if": { "properties": { "msg_type": { "const": "interrupt" } }, "required": ["msg_type"] },
+      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILInterrupt" } } }
+    }
+  ]
+}

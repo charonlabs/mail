@@ -1,0 +1,19 @@
+{
+  "message_id": "66666666-6666-4666-8666-666666666666",
+  "source_swarm": "swarm-a",
+  "target_swarm": "swarm-b",
+  "timestamp": "2025-01-01T12:15:00Z",
+  "payload": {
+    "task_id": "33333333-aaaa-4aaa-8aaa-333333333333",
+    "request_id": "44444444-bbbb-4bbb-8bbb-444444444444",
+    "sender": { "address_type": "agent", "address": "supervisor@swarm-a" },
+    "recipient": { "address_type": "agent", "address": "weather@swarm-b" },
+    "subject": "Interswarm Message",
+    "body": "Forecast please",
+    "sender_swarm": "swarm-a",
+    "recipient_swarm": "swarm-b"
+  },
+  "msg_type": "request",
+  "metadata": { "expect_response": true }
+}
+

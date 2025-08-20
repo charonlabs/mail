@@ -1,0 +1,16 @@
+{
+  "id": "55555555-5555-4555-8555-555555555555",
+  "timestamp": "2025-01-01T12:10:00Z",
+  "message": {
+    "task_id": "11111111-aaaa-4aaa-8aaa-111111111111",
+    "broadcast_id": "22222222-bbbb-4bbb-8bbb-222222222222",
+    "sender": { "address_type": "agent", "address": "supervisor" },
+    "recipients": [
+      { "address_type": "agent", "address": "all" }
+    ],
+    "subject": "Task complete",
+    "body": "I’ve consulted with weather and math. Task completed successfully."
+  },
+  "msg_type": "broadcast_complete"
+}
+

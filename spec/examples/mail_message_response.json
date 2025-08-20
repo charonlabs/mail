@@ -1,0 +1,14 @@
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "timestamp": "2025-01-01T12:05:00Z",
+  "message": {
+    "task_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "request_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "sender": { "address_type": "agent", "address": "weather" },
+    "recipient": { "address_type": "agent", "address": "supervisor" },
+    "subject": "Re: Forecast",
+    "body": "Sunny with light winds."
+  },
+  "msg_type": "response"
+}
+

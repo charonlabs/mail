@@ -1,0 +1,19 @@
+{
+  "message_id": "77777777-7777-4777-8777-777777777777",
+  "source_swarm": "swarm-b",
+  "target_swarm": "swarm-a",
+  "timestamp": "2025-01-01T12:18:00Z",
+  "payload": {
+    "task_id": "33333333-aaaa-4aaa-8aaa-333333333333",
+    "request_id": "99999999-9999-4999-8999-999999999999",
+    "sender": { "address_type": "agent", "address": "weather@swarm-b" },
+    "recipient": { "address_type": "agent", "address": "supervisor@swarm-a" },
+    "subject": "Re: Interswarm Message",
+    "body": "Sunny on remote swarm.",
+    "sender_swarm": "swarm-b",
+    "recipient_swarm": "swarm-a"
+  },
+  "msg_type": "response",
+  "metadata": { "expect_response": false }
+}
+

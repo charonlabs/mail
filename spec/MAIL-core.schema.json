@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/spec/MAIL-core.schema.json",
+  "title": "MAIL Core Schema",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/MAILMessage" }
+  ],
+  "$defs": {
+    "MAILAddress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address_type", "address"],
+      "properties": {
+        "address_type": {
+          "type": "string",
+          "enum": ["agent", "user", "system"]
+        },
+        "address": { "type": "string", "minLength": 1 }
+      }
+    },
+    "MAILRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "request_id", "sender", "recipient", "subject", "body"],
+      "properties": {
+        "task_id": { "type": "string", "format": "uuid" },
+        "request_id": { "type": "string", "format": "uuid" },
+        "sender": { "$ref": "#/$defs/MAILAddress" },
+        "recipient": { "$ref": "#/$defs/MAILAddress" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "sender_swarm": { "type": "string" },
+        "recipient_swarm": { "type": "string" },
+        "routing_info": { "type": "object" }
+      }
+    },
+    "MAILResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "request_id", "sender", "recipient", "subject", "body"],
+      "properties": {
+        "task_id": { "type": "string", "format": "uuid" },
+        "request_id": { "type": "string" },
+        "sender": { "$ref": "#/$defs/MAILAddress" },
+        "recipient": { "$ref": "#/$defs/MAILAddress" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "sender_swarm": { "type": "string" },
+        "recipient_swarm": { "type": "string" },
+        "routing_info": { "type": "object" }
+      }
+    },
+    "MAILBroadcast": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "broadcast_id", "sender", "recipients", "subject", "body"],
+      "properties": {
+        "task_id": { "type": "string", "format": "uuid" },
+        "broadcast_id": { "type": "string", "format": "uuid" },
+        "sender": { "$ref": "#/$defs/MAILAddress" },
+        "recipients": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/MAILAddress" }
+        },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "sender_swarm": { "type": "string" },
+        "recipient_swarms": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "routing_info": { "type": "object" }
+      }
+    },
+    "MAILInterrupt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "interrupt_id", "sender", "recipients", "subject", "body"],
+      "properties": {
+        "task_id": { "type": "string", "format": "uuid" },
+        "interrupt_id": { "type": "string", "format": "uuid" },
+        "sender": { "$ref": "#/$defs/MAILAddress" },
+        "recipients": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/MAILAddress" }
+        },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "sender_swarm": { "type": "string" },
+        "recipient_swarms": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "routing_info": { "type": "object" }
+      }
+    },
+    "MAILMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "timestamp", "message", "msg_type"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "message": { "type": "object" },
+        "msg_type": {
+          "type": "string",
+          "enum": ["request", "response", "broadcast", "interrupt", "broadcast_complete"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "msg_type": { "const": "request" } }, "required": ["msg_type"] },
+          "then": { "properties": { "message": { "$ref": "#/$defs/MAILRequest" } } }
+        },
+        {
+          "if": { "properties": { "msg_type": { "const": "response" } }, "required": ["msg_type"] },
+          "then": { "properties": { "message": { "$ref": "#/$defs/MAILResponse" } } }
+        },
+        {
+          "if": { "properties": { "msg_type": { "const": "broadcast" } }, "required": ["msg_type"] },
+          "then": { "properties": { "message": { "$ref": "#/$defs/MAILBroadcast" } } }
+        },
+        {
+          "if": { "properties": { "msg_type": { "const": "interrupt" } }, "required": ["msg_type"] },
+          "then": { "properties": { "message": { "$ref": "#/$defs/MAILInterrupt" } } }
+        },
+        {
+          "if": { "properties": { "msg_type": { "const": "broadcast_complete" } }, "required": ["msg_type"] },
+          "then": { "properties": { "message": { "$ref": "#/$defs/MAILBroadcast" } } }
+        }
+      ]
+    }
+  }
+}
