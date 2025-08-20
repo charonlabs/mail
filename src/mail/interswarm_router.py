@@ -6,7 +6,7 @@ This module handles routing messages between different MAIL swarms via HTTP.
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+import datetime
 from typing import Optional, Dict, Any
 import aiohttp
 import json
@@ -175,7 +175,7 @@ class InterswarmRouter:
                 message_id=str(uuid.uuid4()),
                 source_swarm=self.local_swarm_name,
                 target_swarm=swarm_name,
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 payload=message["message"],
                 msg_type=message["msg_type"],
                 auth_token=self.swarm_registry.get_resolved_auth_token(swarm_name),
@@ -256,7 +256,7 @@ class InterswarmRouter:
 
         return MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=msg_content,
             msg_type=original_message["msg_type"],
         )
@@ -285,7 +285,7 @@ class InterswarmRouter:
 
         return MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=msg_content,
             msg_type=original_message["msg_type"],
         )
@@ -367,13 +367,13 @@ class InterswarmRouter:
         """Create a system router message."""
         return MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILResponse(
                 task_id=message["message"]["task_id"],
                 request_id=message["message"]["request_id"],
                 sender=message["message"]["sender"],
                 recipient=message["message"]["recipient"],
-                header="Router Error",
+                subject="Router Error",
                 body=reason,
             ),
             msg_type="response",

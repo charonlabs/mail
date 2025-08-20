@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 from typing import Any, Literal, TypedDict, Optional
 
 from dict2xml import dict2xml
@@ -29,7 +29,7 @@ class MAILRequest(TypedDict):
     recipient: MAILAddress
     """The recipient of the request."""
 
-    header: str
+    subject: str
     """The subject of the request."""
 
     body: str
@@ -61,7 +61,7 @@ class MAILResponse(TypedDict):
     recipient: MAILAddress
     """The recipient of the response."""
 
-    header: str
+    subject: str
     """The status of the response."""
 
     body: str
@@ -93,7 +93,7 @@ class MAILBroadcast(TypedDict):
     recipients: list[MAILAddress]
     """The recipients of the broadcast."""
 
-    header: str
+    subject: str
     """The subject of the broadcast."""
 
     body: str
@@ -125,7 +125,7 @@ class MAILInterrupt(TypedDict):
     recipients: list[MAILAddress]
     """The recipients of the interrupt."""
 
-    header: str
+    subject: str
     """The description of the interrupt."""
 
     body: str
@@ -287,10 +287,10 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
         "role": "user",
         "content": f"""
 <incoming_message>
-<timestamp>{message["timestamp"]}</timestamp>
+<timestamp>{datetime.datetime.fromisoformat(message["timestamp"]).astimezone(datetime.timezone.utc).isoformat()}</timestamp>
 <from type="{sender_type}">{sender_str}</from>
 <to type="{to_type}">{to_str}</to>
-<header>{message["message"]["header"]}</header>
+<subject>{message["message"]["subject"]}</subject>
 <body>{message["message"]["body"]}</body>
 </incoming_message>
 """,

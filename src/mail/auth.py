@@ -68,4 +68,4 @@ def generate_agent_id(token_info: dict[str, Any]) -> str:
     Generate an agent ID from a token info dictionary.
     """
     agent_id = token_info["id"]
-    return f"agent_{agent_id}"
+    return f"swarm_{agent_id}"

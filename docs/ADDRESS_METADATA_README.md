@@ -58,7 +58,7 @@ request = MAILMessage(
         request_id="req_123", 
         sender=create_user_address("john.doe@company.com"),
         recipient=create_agent_address("supervisor"),
-        header="Help needed",
+        subject="Help needed",
         body="I need assistance with analysis"
     ),
     msg_type="request"
@@ -86,7 +86,7 @@ The XML generation now includes address type metadata:
 <timestamp>2024-01-01T00:00:00Z</timestamp>
 <from type="user">john.doe@company.com</from>
 <to type="agent">supervisor</to>
-<header>Help needed</header>
+<subject>Help needed</subject>
 <body>I need assistance with analysis</body>
 </incoming_message>
 ```

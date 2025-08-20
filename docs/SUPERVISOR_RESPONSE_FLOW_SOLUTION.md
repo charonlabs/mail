@@ -52,13 +52,13 @@ if "@" in original_sender:
 # Create a new message that the supervisor can process
 supervisor_message = MAILMessage(
     id=str(uuid.uuid4()),
-    timestamp=datetime.datetime.now().isoformat(),
+    timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
     message=MAILResponse(
         task_id=response_message["message"]["task_id"],
         request_id=response_message["message"].get("request_id", response_message["message"]["task_id"]),
         sender=response_message["message"]["sender"],
         recipient=original_sender,  # Route back to the original sender (supervisor)
-        header=f"Response from {response_message['message']['sender']}: {response_message['message']['header']}",
+        subject=f"Response from {response_message['message']['sender']}: {response_message['message']['subject']}",
         body=response_message["message"]["body"],
         sender_swarm=response_message["message"].get("sender_swarm"),
         recipient_swarm=local_swarm_name,

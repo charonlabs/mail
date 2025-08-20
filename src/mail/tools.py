@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -37,13 +37,13 @@ def convert_call_to_mail_message(
         case "send_request":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 message=MAILRequest(
                     task_id=task_id,
                     request_id=str(uuid4()),
                     sender=sender_address,
                     recipient=create_agent_address(call.tool_args["target"]),
-                    header=call.tool_args["header"],
+                    subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
                 ),
                 msg_type="request",
@@ -51,13 +51,13 @@ def convert_call_to_mail_message(
         case "send_response":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 message=MAILResponse(
                     task_id=task_id,
                     request_id=str(uuid4()),
                     sender=sender_address,
                     recipient=create_agent_address(call.tool_args["target"]),
-                    header=call.tool_args["header"],
+                    subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
                 ),
                 msg_type="response",
@@ -65,13 +65,13 @@ def convert_call_to_mail_message(
         case "send_interrupt":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 message=MAILInterrupt(
                     task_id=task_id,
                     interrupt_id=str(uuid4()),
                     sender=sender_address,
                     recipients=[create_agent_address(call.tool_args["target"])],
-                    header=call.tool_args["header"],
+                    subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
                 ),
                 msg_type="interrupt",
@@ -79,13 +79,13 @@ def convert_call_to_mail_message(
         case "send_broadcast":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 message=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
                     sender=sender_address,
                     recipients=[create_agent_address("all")],
-                    header=call.tool_args["header"],
+                    subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
                 ),
                 msg_type="broadcast",
@@ -93,13 +93,13 @@ def convert_call_to_mail_message(
         case "task_complete":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 message=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
                     sender=sender_address,
                     recipients=[create_agent_address("all")],
-                    header="Task complete",
+                    subject="Task complete",
                     body=call.tool_args["finish_message"],
                 ),
                 msg_type="broadcast_complete",
@@ -115,13 +115,13 @@ def action_complete_broadcast(
 
     return MAILMessage(
         id=str(uuid4()),
-        timestamp=datetime.now().isoformat(),
+        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         message=MAILBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid4()),
             sender=create_system_address("system"),
             recipients=[create_agent_address(recipient)],
-            header=f"Action Complete: {result_message['name']}",
+            subject=f"Action Complete: {result_message['name']}",
             body=f"The action {result_message['name']} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",
         ),
         msg_type="broadcast",
@@ -144,7 +144,7 @@ def create_request_tool(
                 else ""
             )
         )
-        header: str = Field(description="The header of the message.")
+        subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
     tool_dict = convert_to_openai_tool(send_request)
@@ -179,7 +179,7 @@ def create_response_tool(
                 else ""
             )
         )
-        header: str = Field(description="The header of the message.")
+        subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
     tool_dict = convert_to_openai_tool(send_response)
@@ -214,7 +214,7 @@ def create_interrupt_tool(
                 else ""
             )
         )
-        header: str = Field(description="The header of the interrupt.")
+        subject: str = Field(description="The subject of the interrupt.")
         message: str = Field(description="The message content to send.")
 
     tool_dict = convert_to_openai_tool(send_interrupt)
@@ -237,7 +237,7 @@ def create_interswarm_broadcast_tool() -> dict[str, Any]:
     class send_interswarm_broadcast(BaseModel):
         """Broadcast a message to all known swarms."""
 
-        header: str = Field(description="The header of the broadcast.")
+        subject: str = Field(description="The subject of the broadcast.")
         message: str = Field(description="The message content to send.")
         target_swarms: list[str] = Field(
             description="List of target swarm names. If empty, broadcasts to all known swarms.",
@@ -266,7 +266,7 @@ def create_broadcast_tool() -> dict[str, Any]:
     class send_broadcast(BaseModel):
         """Broadcast a message to all possible recipient agents."""
 
-        header: str = Field(description="The header of the broadcast.")
+        subject: str = Field(description="The subject of the broadcast.")
         message: str = Field(description="The message content to send.")
 
     return convert_to_openai_tool(send_broadcast)

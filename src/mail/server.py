@@ -36,8 +36,8 @@ logger = logging.getLogger("mail")
 persistent_swarm = None
 user_mail_instances: Dict[str, MAIL] = {}
 user_mail_tasks: Dict[str, asyncio.Task] = {}
-agent_mail_instances: Dict[str, MAIL] = {}
-agent_mail_tasks: Dict[str, asyncio.Task] = {}
+swarm_mail_instances: Dict[str, MAIL] = {}
+swarm_mail_tasks: Dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
 swarm_registry: Optional[SwarmRegistry] = None
@@ -100,15 +100,15 @@ async def lifespan(app: FastAPI):
             except asyncio.CancelledError:
                 pass
 
-    # Clean up all agent MAIL instances
-    global agent_mail_instances, agent_mail_tasks
-    for agent_id, mail_instance in agent_mail_instances.items():
-        logger.info(f"shutting down MAIL instance for agent: '{agent_id}'...")
+    # Clean up all swarm MAIL instances
+    global swarm_mail_instances, swarm_mail_tasks
+    for swarm_id, mail_instance in swarm_mail_instances.items():
+        logger.info(f"shutting down MAIL instance for swarm: '{swarm_id}'...")
         await mail_instance.shutdown()
 
-    for agent_id, mail_task in agent_mail_tasks.items():
+    for swarm_id, mail_task in swarm_mail_tasks.items():
         if mail_task and not mail_task.done():
-            logger.info(f"cancelling MAIL task for agent: '{agent_id}'...")
+            logger.info(f"cancelling MAIL task for swarm: '{swarm_id}'...")
             mail_task.cancel()
             try:
                 await mail_task
@@ -159,44 +159,44 @@ async def get_or_create_user_mail(user_id: str, jwt: str) -> MAIL:
     return user_mail_instances[user_id]
 
 
-async def get_or_create_agent_mail(agent_id: str, jwt: str) -> MAIL:
+async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAIL:
     """
-    Get or create a MAIL instance for a specific agent.
-    Each agent gets their own isolated MAIL instance.
+    Get or create a MAIL instance for a specific swarm.
+    Each swarm gets their own isolated MAIL instance.
     """
-    global persistent_swarm, agent_mail_instances, agent_mail_tasks, swarm_registry
+    global persistent_swarm, swarm_mail_instances, swarm_mail_tasks, swarm_registry
 
-    if agent_id not in agent_mail_instances:
+    if swarm_id not in swarm_mail_instances:
         try:
-            logger.info(f"creating MAIL instance for agent: '{agent_id}'...")
+            logger.info(f"creating MAIL instance for swarm: '{swarm_id}'...")
 
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
-                user_id=agent_id,
+                user_id=swarm_id,
                 user_token=jwt,
                 swarm_name=local_swarm_name,
                 swarm_registry=swarm_registry,
                 enable_interswarm=True,
             )
-            agent_mail_instances[agent_id] = mail_instance
+            swarm_mail_instances[swarm_id] = mail_instance
 
             # Start interswarm messaging
             await mail_instance.start_interswarm()
 
             # Start the MAIL instance in continuous mode for this user
-            logger.info(f"starting MAIL continuous mode for agent: '{agent_id}'...")
+            logger.info(f"starting MAIL continuous mode for swarm: '{swarm_id}'...")
             mail_task = asyncio.create_task(mail_instance.run_continuous())
-            agent_mail_tasks[agent_id] = mail_task
+            swarm_mail_tasks[swarm_id] = mail_task
 
-            logger.info(f"MAIL instance created and started for agent: '{agent_id}'")
+            logger.info(f"MAIL instance created and started for swarm: '{swarm_id}'")
 
         except Exception as e:
             logger.error(
-                f"error creating MAIL instance for agent '{agent_id}' with error: '{e}'"
+                f"error creating MAIL instance for swarm '{swarm_id}' with error: '{e}'"
             )
             raise e
 
-    return agent_mail_instances[agent_id]
+    return swarm_mail_instances[swarm_id]
 
 
 @app.get("/")
@@ -303,13 +303,13 @@ async def chat(request: Request):
         logger.info(f"creating MAIL message for user '{user_id}'...")
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
                 sender=create_user_address(user_id),
                 recipient=create_agent_address("supervisor"),
-                header="New Message",
+                subject="New Message",
                 body=message,
             ),
             msg_type="request",
@@ -332,7 +332,7 @@ async def health():
     return {
         "status": "healthy",
         "swarm_name": local_swarm_name,
-        "timestamp": datetime.datetime.now().isoformat(),
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
 
@@ -441,16 +441,16 @@ async def receive_interswarm_message(request: Request):
     if role != "agent":
         logger.warning("invalid role")
         raise HTTPException(status_code=401, detail="invalid role")
-    agent_id = generate_agent_id(token_info)
+    swarm_id = generate_agent_id(token_info)
 
-    # Get or create agent-specific MAIL instance
+    # Get or create swarm-specific MAIL instance
     try:
-        agent_mail = await get_or_create_agent_mail(agent_id, jwt)
+        swarm_mail = await get_or_create_swarm_mail(swarm_id, jwt)
     except Exception as e:
-        logger.error(f"error getting agent MAIL instance: '{e}'")
+        logger.error(f"error getting swarm MAIL instance: '{e}'")
         raise HTTPException(
             status_code=500,
-            detail=f"error getting agent MAIL instance: {e.with_traceback(None)}",
+            detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
         )
 
     # parse request
@@ -463,7 +463,7 @@ async def receive_interswarm_message(request: Request):
         target_agent = message.get("recipient", {})
 
         logger.info(
-            f"Received message from {source_agent} to {target_agent}: {message.get('header', 'unknown')}..."
+            f"Received message from {source_agent} to {target_agent}: {message.get('subject', 'unknown')}..."
         )
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
@@ -477,22 +477,22 @@ async def receive_interswarm_message(request: Request):
 
     # MAIL process
     try:
-        logger.info(f"creating MAIL message for agent '{source_agent}'...")
+        logger.info(f"creating MAIL message for swarm '{source_swarm}'...")
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=message,
             msg_type=data.get("msg_type", "request"),
         )
         logger.info(
             f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
         )
-        task_response = await agent_mail.submit_and_wait(new_message)
+        task_response = await swarm_mail.submit_and_wait(new_message)
 
         # Create response message
         response_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILResponse(
                 task_id=task_response["message"]["task_id"],
                 request_id=task_response["message"].get(
@@ -500,7 +500,7 @@ async def receive_interswarm_message(request: Request):
                 ),
                 sender=task_response["message"]["sender"],
                 recipient=source_agent,
-                header=task_response["message"]["header"],
+                subject=task_response["message"]["subject"],
                 body=task_response["message"]["body"],
                 sender_swarm=local_swarm_name,
                 recipient_swarm=source_swarm,
@@ -512,13 +512,13 @@ async def receive_interswarm_message(request: Request):
         await _send_response_to_swarm(source_swarm, response_message)
 
         logger.info(
-            f"MAIL completed successfully for agent '{source_agent}' with response '{response_message}'"
+            f"MAIL completed successfully for swarm '{source_swarm}' with response '{response_message}'"
         )
         return response_message
 
     except Exception as e:
         logger.error(
-            f"error processing message for agent '{source_agent}' with response '{response_message}' with error: '{e}'"
+            f"error processing message for swarm '{source_swarm}' with response '{response_message}' with error: '{e}'"
         )
         raise HTTPException(
             status_code=500,
@@ -555,7 +555,7 @@ async def receive_interswarm_response(request: Request):
         data = await request.json()
         response_message = MAILMessage(**data)
         logger.info(
-            f"received response from '{response_message['message']['sender']}': '{response_message['message']['header']}'..."
+            f"received response from '{response_message['message']['sender']}': '{response_message['message']['subject']}'..."
         )
     except Exception as e:
         logger.error(f"error parsing response: '{e}'")
@@ -565,7 +565,7 @@ async def receive_interswarm_response(request: Request):
 
     # Find the appropriate MAIL instance to handle this response
     # We need to match it based on the task_id or request_id
-    global user_mail_instances, agent_mail_instances
+    global user_mail_instances, swarm_mail_instances
 
     # Try to find the MAIL instance that sent the original request
     task_id = response_message["message"]["task_id"]
@@ -579,9 +579,9 @@ async def receive_interswarm_response(request: Request):
             break
 
     if not mail_instance:
-        for agent_id, agent_mail in agent_mail_instances.items():
-            if task_id in agent_mail.pending_requests:
-                mail_instance = agent_mail
+        for swarm_id, swarm_mail in swarm_mail_instances.items():
+            if task_id in swarm_mail.pending_requests:
+                mail_instance = swarm_mail
                 break
 
     if mail_instance:
@@ -596,7 +596,7 @@ async def receive_interswarm_response(request: Request):
         # Create a new message that the supervisor can process
         supervisor_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILResponse(
                 task_id=response_message["message"]["task_id"],
                 request_id=response_message["message"].get(
@@ -604,7 +604,7 @@ async def receive_interswarm_response(request: Request):
                 ),
                 sender=response_message["message"]["sender"],
                 recipient=original_sender,  # Route back to the original sender (supervisor)
-                header=f"Response from {response_message['message']['sender']}: {response_message['message']['header']}",
+                subject=f"Response from {response_message['message']['sender']}: {response_message['message']['subject']}",
                 body=response_message["message"]["body"],
                 sender_swarm=response_message["message"].get("sender_swarm"),
                 recipient_swarm=local_swarm_name,
@@ -719,13 +719,13 @@ async def send_interswarm_message(request: Request):
         # Create MAIL message
         mail_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
                 sender=create_user_address(f"{user_id}@{local_swarm_name}"),
                 recipient=create_agent_address(f"{target_agent}"),
-                header="Interswarm Message",
+                subject="Interswarm Message",
                 body=message_content,
                 sender_swarm=local_swarm_name,
                 recipient_swarm=target_agent.split("@")[1],

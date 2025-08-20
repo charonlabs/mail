@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+import datetime
 
 from rich.logging import RichHandler
 
@@ -21,7 +21,7 @@ def init_logger():
 
     # File handler
     file_handler = logging.FileHandler(
-        f"logs/mail_{datetime.now().strftime('%Y-%m-%d')}.log"
+        f"logs/mail_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d')}.log"
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(

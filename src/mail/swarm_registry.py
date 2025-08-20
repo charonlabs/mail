@@ -7,7 +7,7 @@ import asyncio
 import logging
 import os
 import json
-from datetime import datetime, timedelta
+import datetime
 from typing import Dict, Optional, Set, TypedDict
 from dataclasses import dataclass
 import aiohttp
@@ -74,7 +74,7 @@ class SwarmRegistry:
             swarm_name=self.local_swarm_name,
             base_url=base_url,
             health_check_url=f"{base_url}/health",
-            last_seen=datetime.now(),
+            last_seen=datetime.datetime.now(datetime.timezone.utc),
             is_active=True,
             volatile=False,  # Local swarm is never volatile
         )
@@ -108,7 +108,7 @@ class SwarmRegistry:
             base_url=base_url,
             health_check_url=f"{base_url}/health",
             auth_token_ref=auth_token_ref,
-            last_seen=datetime.now(),
+            last_seen=datetime.datetime.now(datetime.timezone.utc),
             is_active=True,
             metadata=metadata,
             volatile=volatile,
@@ -331,7 +331,9 @@ class SwarmRegistry:
                         base_url=endpoint_data["base_url"],
                         health_check_url=endpoint_data["health_check_url"],
                         auth_token_ref=auth_token,
-                        last_seen=datetime.fromisoformat(endpoint_data["last_seen"])
+                        last_seen=datetime.datetime.fromisoformat(
+                            endpoint_data["last_seen"]
+                        )
                         if endpoint_data["last_seen"]
                         else None,
                         is_active=endpoint_data["is_active"],
@@ -424,7 +426,7 @@ class SwarmRegistry:
                 endpoint["health_check_url"], timeout=timeout
             ) as response:
                 if response.status == 200:
-                    endpoint["last_seen"] = datetime.now()
+                    endpoint["last_seen"] = datetime.datetime.now(datetime.timezone.utc)
                     if not endpoint["is_active"]:
                         endpoint["is_active"] = True
                         logger.info(f"swarm '{swarm_name}' is now active")
@@ -523,7 +525,7 @@ class SwarmRegistry:
                 base_url=endpoint_data["base_url"],
                 health_check_url=endpoint_data["health_check_url"],
                 auth_token_ref=auth_token,
-                last_seen=datetime.fromisoformat(endpoint_data["last_seen"])
+                last_seen=datetime.datetime.fromisoformat(endpoint_data["last_seen"])
                 if endpoint_data["last_seen"]
                 else None,
                 is_active=endpoint_data["is_active"],

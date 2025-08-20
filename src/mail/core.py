@@ -371,7 +371,7 @@ class MAIL:
             else [message["message"]["recipient"]]
         )
         logger.info(
-            f'submitting message: "{message["message"]["sender"]}" -> "{recipients}" with header "{message["message"]["header"]}"'
+            f'submitting message: "{message["message"]["sender"]}" -> "{recipients}" with subject "{message["message"]["subject"]}"'
         )
 
         priority = 0
@@ -473,7 +473,7 @@ class MAIL:
         Send a message to a recipient
         """
         logger.info(
-            f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with header: "{message["message"]["header"]}"'
+            f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
         )
 
         async def schedule(message: MAILMessage) -> None:
@@ -524,13 +524,15 @@ class MAIL:
                                 # Create a response message for the user
                                 response_message = MAILMessage(
                                     id=str(uuid.uuid4()),
-                                    timestamp=datetime.datetime.now().isoformat(),
+                                    timestamp=datetime.datetime.now(
+                                        datetime.timezone.utc
+                                    ).isoformat(),
                                     message=MAILBroadcast(
                                         task_id=task_id,
                                         broadcast_id=str(uuid.uuid4()),
                                         sender=create_agent_address("supervisor"),
                                         recipients=[create_agent_address("all")],
-                                        header="Task complete",
+                                        subject="Task complete",
                                         body=call.tool_args.get(
                                             "finish_message",
                                             "Task completed successfully",
@@ -585,12 +587,12 @@ class MAIL:
     def _system_shutdown_message(self, reason: str) -> MAILMessage:
         return MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now().isoformat(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILBroadcast(
                 broadcast_id=str(uuid.uuid4()),
                 sender=create_system_address(self.swarm_name),
                 recipients=[create_user_address(self.user_id)],
-                header="System Shutdown",
+                subject="System Shutdown",
                 body=reason,
             ),
             msg_type="response",
