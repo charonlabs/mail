@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/mail.png" alt="Knowledge Tree Icon" width="300"/>
+  <img src="assets/mail.png" alt="Knowledge Tree Icon" width="400"/>
 </p>
 
 # Multi-Agent Interface Layer (MAIL): Protocol and Swarm Reference Implementation
