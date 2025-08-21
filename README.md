@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/mail.png" alt="Knowledge Tree Icon" width="300"/>
+</p>
+
 # Multi-Agent Interface Layer (MAIL): Protocol and Swarm Reference Implementation
 
 A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. MAIL facilitates complex multi-agent workflows, from simple task delegation within a single environment to sophisticated cross-organizational agent interactions spanning multiple networks and domains.
