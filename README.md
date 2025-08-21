@@ -8,7 +8,7 @@ A standardized protocol for enabling autonomous agents to communicate, coordinat
 
 ## Multi-Agent Interface Layer
 
-![TODO]
+See the protocol specification in `spec/` for the normative definition of MAIL message formats and behaviors. The spec text is licensed under CC BY 4.0 (see `SPEC-LICENSE`) and covered by OWFa 1.1 for Essential Claims (see `SPEC-PATENT-LICENSE`).
 
 ## MAIL Swarm Reference Implementation
 
@@ -329,17 +329,24 @@ python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
 
 ### Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
+We welcome contributions to both the protocol spec and the reference implementation.
+
+- Start with `CONTRIBUTING.md` for the workflow and guidelines.
+- All commits must include a DCO sign‑off (`git commit -s`). See `DCO`.
+- Open an issue to discuss significant changes before starting work.
 
 ### License
 
-![TODO]
+- Code: Licensed under Apache License 2.0. See `LICENSE`.
+- Specification text: Licensed under Creative Commons Attribution 4.0 (CC BY 4.0). See `SPEC-LICENSE`.
+- Specification patent license: Open Web Foundation Final Specification Agreement 1.1 (OWFa 1.1). See `SPEC-PATENT-LICENSE`.
+- Trademarks: See `TRADEMARKS.md` for descriptive use policy.
+
+Using the spec or code implies acceptance of their respective licenses.
 
 ### Additional Resources
 
-- See `INTERSWARM_README.md` for detailed interswarm messaging documentation
-- Check the `examples/` directory for agent implementation examples
-- Review `factories/` for agent creation patterns
+- See `docs/INTERSWARM_README.md` for detailed interswarm messaging docs
+- Check `src/mail/examples/` for agent implementation examples
+- Review `src/mail/factories/` for agent creation patterns
+- Read `docs/` for registry configuration and security notes

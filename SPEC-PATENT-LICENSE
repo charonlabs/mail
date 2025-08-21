@@ -1,0 +1,21 @@
+MAIL Specification Patent License
+
+This project adopts the Open Web Foundation Final Specification Agreement
+version 1.1 (OWFa 1.1) for the MAIL protocol specification.
+
+- Overview: OWFa 1.1 provides a royalty-free license to Essential Claims
+  necessary to implement the specification, for all implementers, subject
+  to the terms defined by OWFa 1.1.
+
+- Applicability: Contributions to the MAIL specification are made under the
+  OWFa 1.1. By contributing text to the specification, contributors agree
+  that their Essential Claims are licensed as described in OWFa 1.1.
+
+- Reference: Please see the Open Web Foundation website for the full text
+  of the OWFa 1.1 Final Specification Agreement:
+  https://www.openwebfoundation.org/the-owf-1-1-agreements
+
+Note: The OWFa 1.1 applies to the specification text only. Source code in
+this repository is licensed under Apache License 2.0, which includes a
+separate patent grant applicable to code contributions.
+

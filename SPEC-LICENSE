@@ -1,0 +1,18 @@
+MAIL Specification License
+
+SPDX-License-Identifier: CC-BY-4.0
+
+The MAIL protocol specification text (including narrative text, figures,
+and diagrams) in this repository is licensed under the Creative Commons
+Attribution 4.0 International license (CC BY 4.0).
+
+Legal code: https://creativecommons.org/licenses/by/4.0/legalcode
+Plain-language summary: https://creativecommons.org/licenses/by/4.0/
+
+Attribution: Please attribute as "MAIL Specification, © 2025 MAIL Project
+Contributors" and include a link to the repository.
+
+Scope: This license applies to the specification materials only. The
+reference implementation source code is licensed separately under the
+Apache License, Version 2.0 (see LICENSE).
+
