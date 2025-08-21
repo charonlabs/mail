@@ -7,23 +7,27 @@
 
 ## Normative References
 
-- Core schema: `spec/MAIL-core.schema.json`
-- Interswarm schema: `spec/MAIL-interswarm.schema.json`
-- REST API: `spec/openapi.yaml` (OpenAPI 3.1)
+- Core schema: `spec/MAIL-core.schema.json` (JSON Schema[^jsonschema-core][^jsonschema-validation])
+- Interswarm schema: `spec/MAIL-interswarm.schema.json` (JSON Schema[^jsonschema-core][^jsonschema-validation])
+- REST API: `spec/openapi.yaml` (OpenAPI 3.1[^openapi])
 
 ## Terminology
 
-- Agent: Autonomous process participating in MAIL.
-- User: Human or external client initiating a task.
-- Swarm: Named deployment domain hosting a set of agents.
-- MAIL Instance: Runtime engine handling message queues and agent interactions for a user or swarm.
-- Interswarm: Communication between agents in different swarms via HTTP.
+- **Agent**: Autonomous process participating in MAIL.
+- **User**: Human or external client initiating a task.
+- **Swarm**: Named deployment domain hosting a set of agents and providing a runtime for actions.
+- **MAIL Instance**: Runtime engine handling message queues,  agent interactions, and action calls for a user or swarm.
+- **Interswarm**: Communication between agents in different swarms via HTTP(S)[^rfc9110].
+
+## Requirements Language
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in RFC 2119[^rfc2119] and RFC 8174[^rfc8174] when, and only when, they appear in all capitals.
 
 ## Conformance
 
-- Producers MUST emit messages conforming to the JSON Schemas referenced above.
+- Producers MUST emit messages conforming to the JSON Schemas[^jsonschema-core][^jsonschema-validation] referenced above.
 - Consumers MUST validate at least the presence and type of `msg_type`, `id`, `timestamp`, and the required fields for the bound payload type.
-- Implementations of HTTP transport MUST conform to `spec/openapi.yaml`.
+- Implementations of HTTP transport MUST conform to `spec/openapi.yaml` (OpenAPI 3.1[^openapi]).
 - Interswarm implementations MUST accept both request and response wrappers and deliver payloads to local MAIL processing.
 
 ## Data Model
@@ -37,7 +41,7 @@ All types are defined in `spec/MAIL-core.schema.json` unless noted.
 
 ### MAILRequest
 
-- Required: `task_id` (uuid), `request_id` (uuid), `sender` (MAILAddress), `recipient` (MAILAddress), `subject` (string), `body` (string).
+- Required: `task_id` (uuid[^rfc4122]), `request_id` (uuid), `sender` (MAILAddress), `recipient` (MAILAddress), `subject` (string), `body` (string).
 - Optional: `sender_swarm` (string), `recipient_swarm` (string), `routing_info` (object).
 - No `additionalProperties`.
 
@@ -61,7 +65,7 @@ All types are defined in `spec/MAIL-core.schema.json` unless noted.
 
 ### MAILMessage
 
-- Required: `id` (uuid), `timestamp` (date-time), `message` (object), `msg_type` (enum: `request|response|broadcast|interrupt|broadcast_complete`).
+- Required: `id` (uuid), `timestamp` (date-time[^rfc3339]), `message` (object), `msg_type` (enum: `request|response|broadcast|interrupt|broadcast_complete`).
 - Conditional binding:
   - `request` → `message` MUST be MAILRequest
   - `response` → `message` MUST be MAILResponse
@@ -100,7 +104,7 @@ All types are defined in `spec/MAIL-core.schema.json` unless noted.
 ### Task Lifecycle
 
 - A user task is identified by `task_id`.
-- The task completes when a `broadcast_complete` for the corresponding `task_id` is produced (typically by the supervisor).
+- The task completes when a `broadcast_complete` for the corresponding `task_id` is produced by the swarm that initiated it (typically by the supervisor).
 - Systems using `submit_and_wait` MUST resolve awaiting futures only when `broadcast_complete` for that `task_id` is observed.
 
 ### Body Encoding
@@ -138,11 +142,11 @@ All types are defined in `spec/MAIL-core.schema.json` unless noted.
 
 ## REST Transport
 
-Authoritative contract: `spec/openapi.yaml`.
+Authoritative contract: `spec/openapi.yaml` (OpenAPI 3.1[^openapi]).
 
 ### Security
 
-- HTTP Bearer authentication.
+- HTTP Bearer[^rfc6750] authentication.
 - Roles:
   - `user|admin`: initiate user chats and interswarm sends.
   - `agent`: call interswarm receive/response endpoints.
@@ -178,7 +182,7 @@ Authoritative contract: `spec/openapi.yaml`.
 
 ## Security Considerations
 
-- Use TLS for all inter-swarm communication.
+- Use TLS[^rfc8446] for all inter-swarm communication.
 - Validate all incoming MAIL/Interswarm payloads against schemas prior to processing.
 - Rate-limit public endpoints; protect registry mutation operations (admin role).
 - Avoid embedding secrets in persisted registry; prefer environment variable references.
@@ -191,5 +195,17 @@ Authoritative contract: `spec/openapi.yaml`.
 ## Versioning
 
 - Protocol version: 0.1.0 (draft).
-- Backward-incompatible changes MUST bump the major version and update schema `$id`s and OpenAPI `info.version`.
+- Backward-incompatible changes MUST bump the minor (or major) version and update schema `$id`s and OpenAPI `info.version`.
 
+## References
+
+[^jsonschema-core]: JSON Schema (Core): https://json-schema.org/draft/2020-12/json-schema-core
+[^jsonschema-validation]: JSON Schema (Validation): https://json-schema.org/draft/2020-12/json-schema-validation
+[^openapi]: OpenAPI Specification 3.1.0: https://spec.openapis.org/oas/v3.1.0
+[^rfc3339]: RFC 3339: Date and Time on the Internet: https://www.rfc-editor.org/rfc/rfc3339
+[^rfc4122]: RFC 4122: UUID URN Namespace: https://www.rfc-editor.org/rfc/rfc4122
+[^rfc9110]: RFC 9110: HTTP Semantics: https://www.rfc-editor.org/rfc/rfc9110
+[^rfc6750]: RFC 6750: OAuth 2.0 Bearer Token Usage: https://www.rfc-editor.org/rfc/rfc6750
+[^rfc8446]: RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3: https://www.rfc-editor.org/rfc/rfc8446
+[^rfc2119]: RFC 2119: Key words for use in RFCs to Indicate Requirement Levels: https://www.rfc-editor.org/rfc/rfc2119
+[^rfc8174]: RFC 8174: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words: https://www.rfc-editor.org/rfc/rfc8174
