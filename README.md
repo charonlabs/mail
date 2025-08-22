@@ -59,7 +59,7 @@ With `uv`:
    cd mail
    ```
 
-2. Install dependencies using UV:
+2. Install dependencies using `uv`:
    ```bash
    uv sync
    ```
@@ -166,6 +166,8 @@ Example swarm configuration:
 export SWARM_NAME=my-swarm
 export BASE_URL=http://localhost:8000
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
+export AUTH_ENDPOINT=http://your-auth-server/auth/login
+export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 
 # Start the server
 uv run -m src.mail.server
