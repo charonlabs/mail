@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL): Protocol and Swarm Reference Implementation
 
 <p align="center">
-  <img src="assets/mail.png" alt="Knowledge Tree Icon" width="400"/>
+  <img src="assets/mail.png" alt="MAIL Example Diagram" width="400"/>
 </p>
 
 A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. MAIL facilitates complex multi-agent workflows, from simple task delegation within a single environment to sophisticated cross-organizational agent interactions spanning multiple networks and domains.
@@ -45,21 +45,29 @@ The system comes with example agents:
 ### Prerequisites
 
 - Python 3.12 or higher
-- UV package manager (recommended) or pip
-- LiteLLM proxy server (for LLM access and user authentication)
+- `uv` package manager (recommended) or `pip`
+- LiteLLM proxy server (for LLM access)
+- Authentication server with endpoints for logging in and getting user info from a token
 
 ### Installation
 
+With `uv`:
+
 1. Clone the repository:
-```bash
-git clone <repository-url>
-cd mail
-```
+   ```bash
+   git clone <repository-url>
+   cd mail
+   ```
 
 2. Install dependencies using UV:
-```bash
-uv sync
-```
+   ```bash
+   uv sync
+   ```
+
+3. Install `mail` package as editable:
+   ```bash
+   uv pip install -e .
+   ```
 
 Or with pip:
 ```bash
@@ -72,8 +80,14 @@ pip install -e .
 
 For basic operation:
 ```bash
-# Required for OpenAI API access (set up LiteLLM proxy)
 LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
+AUTH_ENDPOINT=http://your-auth-server/auth/login
+TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
+
+# used by the LiteLLM proxy
+OPENAI_API_KEY=sk-your-openai-api-key
+# used by the memory system (WIP)
+ANTHROPIC_API_KEY=sk-your-anthropic-api-key
 ```
 
 For interswarm messaging (optional):
@@ -146,16 +160,7 @@ Example swarm configuration:
 
 ### Running the Server
 
-#### Option 1: Simple Server (Recommended for Testing)
-```bash
-# Using UV
-uv run -m src.mail.server_simple
-
-# Or with Python
-python -m src.mail.server_simple
-```
-
-#### Option 2: Full Server with Interswarm Support
+#### Option 1: Full Server with Interswarm Support
 ```bash
 # Set environment variables
 export SWARM_NAME=my-swarm
@@ -169,7 +174,7 @@ uv run -m src.mail.server
 python -m src.mail.server
 ```
 
-#### Option 3: Direct Execution
+#### Option 2: Direct Execution
 ```bash
 # Run the server directly
 uv run python src/mail/server.py
@@ -300,14 +305,29 @@ mail/
 
 ### Authentication Setup
 
-The system requires a LiteLLM proxy server for authentication. Set up the proxy and configure the `LITELLM_PROXY_API_BASE` environment variable to point to your proxy instance.
+The system requires a separate server for authentication. Specifically, the endpoints you need are as follows:
+
+1. `AUTH_ENDPOINT`: Takes in an `Authorization: Bearer` header containing a swarm API key and returns a temporary token for the user (or agent) that called it in the following format:
+```json
+{
+  "token": string
+}
+```
+2. `TOKEN_INFO_ENDPOINT`: Takes in an `Authorization: Bearer` header containing a temporary token and returns info for the calling user (or agent) in the following format:
+```json
+{
+  "role": "admin" | "user" | "agent",
+  "id": int,
+  "api_key": string
+}
+```
 
 ### Troubleshooting
 
 #### Common Issues
 
 1. **Server won't start**: Check that all required environment variables are set and the LiteLLM proxy is accessible
-2. **Authentication errors**: Verify your API token is valid and the LiteLLM proxy is configured correctly
+2. **Authentication errors**: Verify your API token is valid and the authentication server is configured correctly
 3. **Agent communication failures**: Check the swarm configuration in `swarms.json` and ensure all referenced agents exist
 4. **Interswarm messaging issues**: Verify network connectivity between swarms and check that swarms are properly registered
 

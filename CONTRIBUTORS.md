@@ -3,19 +3,19 @@
 ## Will Hahn
 - **Affiliation**: Charon Labs, LLC
 - **GitHub**: wsfhahn
-- **Contributions**: Documentation and protocol work
+- **Contributions**: Documentation diagrams and swarm endpoint work
 - **Status**: active
 
 ## Ryan Heaton
 - **Affiliation**: Charon Labs, LLC
 - **GitHub**: rheaton64
-- **Contributions**: ![TODO]
+- **Contributions**: MAIL reference implementation runtime architecture work
 - **Status**: active
 
 ## Jacob Hahn
 - **Affiliation**: Charon Labs, LLC
 - **GitHub**: jacobtohahn
-- **Contributions**: ![TODO]
+- **Contributions**: Help with protocol development
 - **Status**: active
 
 ## Addison Kline
