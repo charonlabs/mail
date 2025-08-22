@@ -749,17 +749,21 @@ async def send_interswarm_message(request: Request):
             status_code=500, detail=f"error sending interswarm message: '{str(e)}'"
         )
 
+
 @app.post("/swarms/load")
 async def load_swarm_from_json(request: Request):
     global persistent_swarm
 
+    # got to let them know (shouting emoji)
     logger.info("Send swarm endpoint accessed")
 
+    # verify that we have a key
     api_key = request.headers.get("Authorization")
     if api_key is None:
         logger.warning("no API key provided")
         raise HTTPException(status_code=401, details="no API key provided")
     
+    # check that the key matches the bearer pattern
     if api_key.startswith("Bearer "):
         jwt = await login(api_key.split(" "[1]))
         logger.info(f"load swarm accessed with token: '{jwt[:8]}...'...")
@@ -767,25 +771,28 @@ async def load_swarm_from_json(request: Request):
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
     
+    # make sure the load endpoint was hit by an admin
     token_info = await get_token_info(jwt)
     role = token_info["role"]
     if role != "admin":
         logger.warning("invalid role for building swarm")
         raise HTTPException(status_code=401, detail="invalid role for building swarm")
     
+    # get the json string from the request
     data = await request.json()
     swarm_json = data.get("json")
 
     try:
+        # try to load the swarm from string and set the persistent swarm
         swarm = build_swarm_from_json_str(swarm_json)
         persistent_swarm = swarm
         return {"status": "success", "swarm_name": swarm.name}
     except Exception as e:
+        # shit hit the fan
         logger.error(f"error loading swarm from JSON: {e}")
         raise HTTPException(
             status_code=500, detail=f"error loading swarm from JSON: {e}"
         )
-
 
 
 if __name__ == "__main__":
