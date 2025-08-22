@@ -24,9 +24,10 @@ from .message import (
     format_agent_address,
 )
 from .logger import init_logger
-from .swarms.builder import build_swarm_from_name
+from .swarms.builder import build_swarm_from_name, build_swarm_from_json_str
 from .auth import generate_agent_id, generate_user_id, login, get_token_info
 from .swarm_registry import SwarmRegistry
+
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()
@@ -747,6 +748,44 @@ async def send_interswarm_message(request: Request):
         raise HTTPException(
             status_code=500, detail=f"error sending interswarm message: '{str(e)}'"
         )
+
+@app.post("/swarms/load")
+async def load_swarm_from_json(request: Request):
+    global persistent_swarm
+
+    logger.info("Send swarm endpoint accessed")
+
+    api_key = request.headers.get("Authorization")
+    if api_key is None:
+        logger.warning("no API key provided")
+        raise HTTPException(status_code=401, details="no API key provided")
+    
+    if api_key.startswith("Bearer "):
+        jwt = await login(api_key.split(" "[1]))
+        logger.info(f"load swarm accessed with token: '{jwt[:8]}...'...")
+    else:
+        logger.warning("invalid API key format")
+        raise HTTPException(status_code=401, detail="invalid API key format")
+    
+    token_info = await get_token_info(jwt)
+    role = token_info["role"]
+    if role != "admin":
+        logger.warning("invalid role for building swarm")
+        raise HTTPException(status_code=401, detail="invalid role for building swarm")
+    
+    data = await request.json()
+    swarm_json = data.get("json")
+
+    try:
+        swarm = build_swarm_from_json_str(swarm_json)
+        persistent_swarm = swarm
+        return {"status": "success", "swarm_name": swarm.name}
+    except Exception as e:
+        logger.error(f"error loading swarm from JSON: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"error loading swarm from JSON: {e}"
+        )
+
 
 
 if __name__ == "__main__":
