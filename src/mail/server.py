@@ -418,6 +418,37 @@ async def register_swarm(request: Request):
             status_code=500, detail=f"error registering swarm: '{str(e)}'"
         )
 
+@app.get("/swarms/dump")
+async def dump_swarm(request: Request):
+    global persistent_swarm
+
+    logger.info("dump swarm endpoint accessed")
+
+    # auth
+    api_key = request.headers.get("Authorization")
+    if api_key is None:
+        logger.warning("no API key provided")
+        raise HTTPException(status_code=401, detail="no API key provided")
+    
+    if api_key.startswith("Bearer "):
+        jwt = await login(api_key.split(" ")[1])
+        logger.info("successfully authenticated")
+    else:
+        logger.warning("invalid API key format")
+        raise HTTPException(status_code=401, detail="invalid API key format")
+    
+    # make sure the endpoint was hit by an admin
+    token_info = await get_token_info(jwt)
+    role = token_info["role"]
+    if role != "admin":
+        logger.warning("invalid role for dumping swarm")
+        raise HTTPException(status_code=401, detail="invalid role for dumping swarm")
+    
+    # log da swarm
+    logger.info(f"current persistent swarm: name='{persistent_swarm.name}', agents={[agent.name for agent in persistent_swarm.agents]}")
+
+    # all done!
+    return {"status": "dumped", "swarm_name": persistent_swarm.name}
 
 @app.post("/interswarm/message")
 async def receive_interswarm_message(request: Request):
@@ -761,11 +792,11 @@ async def load_swarm_from_json(request: Request):
     api_key = request.headers.get("Authorization")
     if api_key is None:
         logger.warning("no API key provided")
-        raise HTTPException(status_code=401, details="no API key provided")
+        raise HTTPException(status_code=401, detail="no API key provided")
     
     # check that the key matches the bearer pattern
     if api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" "[1]))
+        jwt = await login(api_key.split(" ")[1])
         logger.info(f"load swarm accessed with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
