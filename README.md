@@ -69,7 +69,7 @@ With `uv`:
    uv pip install -e .
    ```
 
-Or with pip:
+Or with `pip`:
 ```bash
 pip install -e .
 ```
@@ -250,6 +250,8 @@ To set up multiple communicating swarms:
 export SWARM_NAME=swarm-alpha
 export BASE_URL=http://localhost:8000
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
+export AUTH_ENDPOINT=http://your-auth-server/auth/login
+export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 uv run -m src.mail.server
 ```
 
@@ -258,6 +260,8 @@ uv run -m src.mail.server
 export SWARM_NAME=swarm-beta
 export BASE_URL=http://localhost:8001
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
+export AUTH_ENDPOINT=http://your-auth-server/auth/login
+export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 uv run -m src.mail.server
 ```
 
