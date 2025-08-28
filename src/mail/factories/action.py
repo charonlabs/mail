@@ -6,6 +6,7 @@ from .base import AgentFunction, base_agent_factory
 from ..swarms.utils import create_tools_from_actions
 
 ActionFunction = Callable[[dict[str, Any]], Awaitable[str]]
+ActionOverrideFunction = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | str]]
 
 
 def action_agent_factory(

@@ -21,7 +21,7 @@ from .tools import (
     action_complete_broadcast,
     convert_call_to_mail_message,
 )
-from .factories.action import ActionFunction
+from .factories.action import ActionFunction, ActionOverrideFunction
 from .factories.base import AgentFunction
 from .interswarm_router import InterswarmRouter
 from .swarm_registry import SwarmRegistry
@@ -99,7 +99,7 @@ class MAIL:
         # The supervisor agent should process the response and generate
         # a final response that will complete the user's request
 
-    async def run(self) -> MAILMessage:
+    async def run(self, _action_override: ActionOverrideFunction | None = None) -> MAILMessage:
         """
         Run the MAIL system until a task is complete or shutdown is requested.
         This method can be called multiple times for different requests.
@@ -154,7 +154,7 @@ class MAIL:
                         self.response_to_user = message
                         break
 
-                    self._process_message(self.user_token, message)
+                    self._process_message(self.user_token, message, _action_override)
                     # Note: task_done() is called by the schedule function for regular messages
 
                 except asyncio.CancelledError:
@@ -177,7 +177,7 @@ class MAIL:
             self.is_running = False
             return self.response_to_user  # type: ignore
 
-    async def run_continuous(self) -> None:
+    async def run_continuous(self, _action_override: ActionOverrideFunction | None = None) -> None:
         """
         Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
@@ -238,7 +238,7 @@ class MAIL:
                         self.message_queue.task_done()
                         continue
 
-                self._process_message(self.user_token, message)
+                self._process_message(self.user_token, message, _action_override)
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
@@ -387,7 +387,7 @@ class MAIL:
 
         return
 
-    def _process_message(self, user_token: str, message: MAILMessage) -> None:
+    def _process_message(self, user_token: str, message: MAILMessage, _action_override: ActionOverrideFunction | None = None) -> None:
         """
         The internal process for sending a message to the recipient agent(s)
         """
@@ -416,7 +416,7 @@ class MAIL:
                 return
 
         # Fall back to local processing
-        self._process_local_message(user_token, message)
+        self._process_local_message(user_token, message, _action_override)
 
     async def _route_interswarm_message(self, message: MAILMessage) -> None:
         """Route a message via interswarm router."""
@@ -436,7 +436,7 @@ class MAIL:
             # Fall back to local processing
             self._process_local_message(self.user_token, message)
 
-    def _process_local_message(self, user_token: str, message: MAILMessage) -> None:
+    def _process_local_message(self, user_token: str, message: MAILMessage, _action_override: ActionOverrideFunction | None = None) -> None:
         """
         Process a message locally (original _process_message logic)
         """
@@ -458,7 +458,7 @@ class MAIL:
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
-                    self._send_message(user_token, recipient_agent, message)
+                    self._send_message(user_token, recipient_agent, message, _action_override)
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
             else:
@@ -467,7 +467,7 @@ class MAIL:
         return None
 
     def _send_message(
-        self, user_token: str, recipient: str, message: MAILMessage
+        self, user_token: str, recipient: str, message: MAILMessage, _action_override: ActionOverrideFunction | None = None
     ) -> None:
         """
         Send a message to a recipient
@@ -565,7 +565,7 @@ class MAIL:
                         case _:
                             logger.info(f"executing action tool: '{call.tool_name}'")
                             result_message = await execute_action_tool(
-                                call, self.actions
+                                call, self.actions, _action_override
                             )
                             history.append(result_message)
                             await self.submit(
