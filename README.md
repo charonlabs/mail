@@ -213,6 +213,14 @@ curl -X POST http://localhost:8000/chat \
   -d '{"message": "What is the weather like today?"}'
 ```
 
+Optional: specify an entrypoint agent (defaults to the swarm's configured `entrypoint`, e.g. `supervisor`):
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
+  -d '{"message": "Summarize this.", "entrypoint": "weather"}'
+```
+
 #### Interswarm Communication (Advanced)
 
 ##### List Available Swarms

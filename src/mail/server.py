@@ -12,6 +12,7 @@ import uvicorn
 import aiohttp
 from fastapi import FastAPI, HTTPException, Request, Depends
 from toml import load as load_toml
+import json
 
 from .core import MAIL
 from .message import (
@@ -44,6 +45,26 @@ swarm_mail_tasks: Dict[str, asyncio.Task] = {}
 swarm_registry: Optional[SwarmRegistry] = None
 local_swarm_name: str = "example"
 local_base_url: str = "http://localhost:8000"
+default_entrypoint_agent: str = "supervisor"
+
+
+def load_default_entrypoint_from_config(swarm_name: str) -> str:
+    """Load the default entrypoint agent from swarms.json for a given swarm.
+
+    Falls back to "supervisor" if no entrypoint is specified.
+    """
+    try:
+        with open("swarms.json", "r") as f:
+            swarms = json.load(f)
+        for swarm in swarms:
+            if swarm.get("name") == swarm_name:
+                entry = swarm.get("entrypoint")
+                if isinstance(entry, str) and entry.strip():
+                    return entry.strip()
+                break
+    except Exception as e:
+        logger.warning(f"failed to read default entrypoint from swarms.json: {e}")
+    return "supervisor"
 
 
 @asynccontextmanager
@@ -71,6 +92,12 @@ async def lifespan(app: FastAPI):
         logger.info("building persistent swarm...")
         persistent_swarm = build_swarm_from_name(local_swarm_name)
         logger.info("persistent swarm built successfully")
+        # Load default entrypoint from config
+        global default_entrypoint_agent
+        default_entrypoint_agent = load_default_entrypoint_from_config(local_swarm_name)
+        logger.info(
+            f"default entrypoint for swarm '{local_swarm_name}': '{default_entrypoint_agent}'"
+        )
     except Exception as e:
         logger.error(f"error building persistent swarm: '{e}'")
         raise e
@@ -288,6 +315,12 @@ async def chat(request: Request):
     try:
         data = await request.json()
         message = data.get("message", "")
+        entrypoint = data.get("entrypoint")
+        # Choose recipient: provided entrypoint or default from config
+        if isinstance(entrypoint, str) and entrypoint.strip():
+            recipient_agent = entrypoint.strip()
+        else:
+            recipient_agent = default_entrypoint_agent
         logger.info(f"received message from user '{user_id}': '{message[:50]}...'")
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
@@ -309,7 +342,7 @@ async def chat(request: Request):
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),
                 sender=create_user_address(user_id),
-                recipient=create_agent_address("supervisor"),
+                recipient=create_agent_address(recipient_agent),
                 subject="New Message",
                 body=message,
             ),

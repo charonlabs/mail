@@ -272,6 +272,41 @@ def create_broadcast_tool() -> dict[str, Any]:
     return convert_to_openai_tool(send_broadcast)
 
 
+def create_acknowledge_broadcast_tool() -> dict[str, Any]:
+    """Create a tool for agents to acknowledge a broadcast without replying.
+
+    When invoked, the runtime will store the incoming broadcast in the agent's
+    memory and will not emit any outgoing MAIL message.
+    """
+
+    class acknowledge_broadcast(BaseModel):
+        """Store the received broadcast in memory, do not respond."""
+
+        note: str | None = Field(
+            default=None,
+            description="Optional note to include in internal memory only.",
+        )
+
+    return convert_to_openai_tool(acknowledge_broadcast)
+
+
+def create_ignore_broadcast_tool() -> dict[str, Any]:
+    """Create a tool for agents to ignore a broadcast entirely.
+
+    When invoked, the runtime will neither store nor respond to the broadcast.
+    """
+
+    class ignore_broadcast(BaseModel):
+        """Ignore the received broadcast. No memory, no response."""
+
+        reason: str | None = Field(
+            default=None,
+            description="Optional internal reason for ignoring (not sent).",
+        )
+
+    return convert_to_openai_tool(ignore_broadcast)
+
+
 def create_task_complete_tool() -> dict[str, Any]:
     """Create a MAIL task complete tool to indicate that a task has been completed."""
 
@@ -295,6 +330,8 @@ def create_supervisor_tools(
         create_response_tool(targets, enable_interswarm),
         create_interrupt_tool(targets, enable_interswarm),
         create_broadcast_tool(),
+        create_acknowledge_broadcast_tool(),
+        create_ignore_broadcast_tool(),
     ]
 
     if enable_interswarm:

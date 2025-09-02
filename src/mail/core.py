@@ -25,6 +25,8 @@ from .factories.action import ActionFunction, ActionOverrideFunction
 from .factories.base import AgentFunction
 from .interswarm_router import InterswarmRouter
 from .swarm_registry import SwarmRegistry
+from langmem import create_memory_store_manager
+from .store import get_langmem_store
 
 logger = logging.getLogger("mail")
 
@@ -499,6 +501,51 @@ class MAIL:
 
                 for call in results:
                     match call.tool_name:
+                        case "acknowledge_broadcast":
+                            try:
+                                # Only store if this was a broadcast; otherwise treat as no-op
+                                if message["msg_type"] == "broadcast":
+                                    note = call.tool_args.get("note")
+                                    async with get_langmem_store() as store:
+                                        manager = create_memory_store_manager(
+                                            "anthropic:claude-sonnet-4-20250514",
+                                            query_model="anthropic:claude-sonnet-4-20250514",
+                                            query_limit=10,
+                                            namespace=(f"{recipient}_memory",),
+                                            store=store,
+                                        )
+                                        assistant_content = (
+                                            f"<acknowledged broadcast/>\n{note}".strip()
+                                            if note
+                                            else "<acknowledged broadcast/>"
+                                        )
+                                        await manager.ainvoke(
+                                            {
+                                                "messages": [
+                                                    {
+                                                        "role": "user",
+                                                        "content": incoming_message["content"],
+                                                    },
+                                                    {
+                                                        "role": "assistant",
+                                                        "content": assistant_content,
+                                                    },
+                                                ]
+                                            }
+                                        )
+                                else:
+                                    logger.debug(
+                                        "acknowledge_broadcast used on non-broadcast message; ignoring"
+                                    )
+                            except Exception as e:
+                                logger.error(f"error acknowledging broadcast: '{e}'")
+                            # No outgoing message submission for acknowledge
+                        case "ignore_broadcast":
+                            # Explicitly ignore without storing or responding
+                            logger.info(
+                                "broadcast ignored by agent via ignore_broadcast tool"
+                            )
+                            # No further action
                         case "send_request":
                             await self.submit(
                                 convert_call_to_mail_message(call, recipient, task_id)
