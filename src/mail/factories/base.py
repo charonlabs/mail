@@ -7,23 +7,9 @@ from langsmith import traceable
 from litellm import acompletion
 from pydantic import BaseModel
 
+from mail.tools import AgentToolCall, create_mail_tools
+
 from ..store import get_langmem_store
-
-
-class AgentToolCall(BaseModel):
-    tool_name: str
-    tool_args: dict[str, Any]
-    tool_call_id: str
-    completion: dict[str, Any]
-
-    def create_response_msg(self, content: str) -> dict[str, str]:
-        return {
-            "role": "tool",
-            "name": self.tool_name,
-            "content": content,
-            "tool_call_id": self.tool_call_id,
-        }
-
 
 AgentFunction = Callable[
     [list[dict[str, Any]], str], Awaitable[tuple[str | None, list[AgentToolCall]]]
@@ -93,10 +79,14 @@ def base_agent_factory(
                     f"\n\n<internal_memories>\n{memories_str.strip()}\n</internal_memories>"
                 )
 
+        # add the agent's tools to the list of tools
+        enable_interswarm = agent_params.get("enable_interswarm", False)
+        agent_tools = create_mail_tools(comm_targets, enable_interswarm) + tools
+
         res = await acompletion(
             model=llm,
             messages=messages,
-            tools=tools,
+            tools=agent_tools,
             thinking=thinking,
             reasoning_effort=reasoning_effort,
             max_tokens=max_tokens,

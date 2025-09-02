@@ -9,15 +9,17 @@ def supervisor_factory(
     llm: str,
     comm_targets: list[str],
     agent_params: dict[str, Any],
+    tools: list[dict[str, Any]],
     system: str,
-    can_complete_tasks: bool = True,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,
     memory: bool = True,
     name: str = "supervisor",
 ) -> AgentFunction:
-    tools = create_supervisor_tools(comm_targets, can_complete_tasks)
+    can_complete_tasks = agent_params.get("can_complete_tasks", True)
+    enable_interswarm = agent_params.get("enable_interswarm", False)
+    tools = create_supervisor_tools(comm_targets, can_complete_tasks, enable_interswarm)
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,

@@ -7,7 +7,7 @@ from ..factories.action import action_agent_factory
 from ..factories.base import AgentFunction, base_agent_factory
 from ..factories.supervisor import supervisor_factory
 from .swarm import Agent, Swarm
-from .utils import read_python_string
+from .utils import create_tools_from_actions, read_python_string
 
 
 def build_swarm_from_name(name: str) -> Swarm:
@@ -23,6 +23,8 @@ def build_swarm_from_name(name: str) -> Swarm:
         if swarm["name"] == name:
             swarm_agents = []
             for agent in swarm["agents"]:
+                actions = agent.get("actions", [])
+                tools = create_tools_from_actions(actions)
                 swarm_agents.append(
                     Agent(
                         name=agent["name"],
@@ -31,12 +33,16 @@ def build_swarm_from_name(name: str) -> Swarm:
                         system=read_python_string(agent["system"]),
                         comm_targets=agent["comm_targets"],
                         agent_params=agent["agent_params"],
+                        tools=tools,
                     )
                 )
 
-            return Swarm(name=name, agents=swarm_agents)
+            return Swarm(
+                name=name, agents=swarm_agents, default_entrypoint=swarm["entrypoint"]
+            )
 
     raise ValueError(f"swarm '{name}' not found in swarms.json")
+
 
 def build_swarm_from_json_str(json_swarm: str) -> Swarm:
     try:
@@ -44,6 +50,8 @@ def build_swarm_from_json_str(json_swarm: str) -> Swarm:
 
         swarm_agents: list[Agent] = []
         for agent in swarm["agents"]:
+            actions = agent.get("actions", [])
+            tools = create_tools_from_actions(actions)
             swarm_agents.append(
                 Agent(
                     name=agent["name"],
@@ -51,13 +59,19 @@ def build_swarm_from_json_str(json_swarm: str) -> Swarm:
                     llm=agent["llm"],
                     system=read_python_string(agent["system"]),
                     comm_targets=agent["comm_targets"],
-                    agent_params=agent["agent_params"]
+                    agent_params=agent["agent_params"],
+                    tools=tools,
                 )
             )
-        
-        return Swarm(name=swarm["name"], agents=swarm_agents)
+
+        return Swarm(
+            name=swarm["name"],
+            agents=swarm_agents,
+            default_entrypoint=swarm["entrypoint"],
+        )
     except Exception as e:
         raise Exception(f"Failed to build swarm from JSON string: {e}") from e
+
 
 if __name__ == "__main__":
     json.loads

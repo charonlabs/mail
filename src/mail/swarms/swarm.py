@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import json
 from typing import Any, Literal
 
@@ -12,11 +13,27 @@ from .utils import read_python_string
 
 class Agent(BaseModel):
     name: str
-    factory: AgentFunction
+    factory: Callable[
+        [
+            str,
+            str,
+            list[str],
+            dict[str, Any],
+            list[dict[str, Any]],
+            str,
+            Literal["low", "medium", "high"] | None,
+            int | None,
+            int | None,
+            bool,
+            str,
+        ],
+        AgentFunction,
+    ]
     llm: str
     system: str
     comm_targets: list[str]
     agent_params: dict[str, Any]
+    tools: list[dict[str, Any]]
     reasoning_effort: Literal["low", "medium", "high"] | None = None
     thinking_budget: int | None = None
     max_tokens: int | None = None
@@ -33,6 +50,7 @@ class Action(BaseModel):
 class Swarm(BaseModel):
     name: str
     agents: list[Agent]
+    default_entrypoint: str
 
     def instantiate(
         self,
@@ -67,17 +85,20 @@ class Swarm(BaseModel):
         actions: dict[str, ActionFunction] = {}
 
         for agent in self.agents:
-            agents[agent.name] = agent.factory(
+            factory = agent.factory
+            agents[agent.name] = factory(
                 user_token=user_token,
                 llm=agent.llm,
-                system=agent.system,
                 comm_targets=agent.comm_targets,
                 agent_params=agent.agent_params,
+                tools=agent.tools,
+                system=agent.system,
                 reasoning_effort=agent.reasoning_effort,
                 thinking_budget=agent.thinking_budget,
                 max_tokens=agent.max_tokens,
                 memory=agent.memory,
-            )
+                name=agent.name,
+            )  # type: ignore
             actions.update(self._build_actions(agent.agent_params))
 
         return agents, actions

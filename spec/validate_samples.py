@@ -12,6 +12,7 @@ def load_json(path: Path):
 def try_import_jsonschema():
     try:
         import jsonschema  # type: ignore
+
         return jsonschema
     except Exception:
         return None
@@ -53,9 +54,7 @@ def sample_broadcast_complete_message():
             "task_id": task_id,
             "broadcast_id": make_uuid(),
             "sender": {"address_type": "agent", "address": "supervisor"},
-            "recipients": [
-                {"address_type": "agent", "address": "all"}
-            ],
+            "recipients": [{"address_type": "agent", "address": "all"}],
             "subject": "Task complete",
             "body": "Done.",
         },
@@ -115,7 +114,7 @@ def sample_mail_broadcast_message():
             "sender": {"address_type": "system", "address": "system"},
             "recipients": [
                 {"address_type": "agent", "address": "supervisor"},
-                {"address_type": "agent", "address": "weather"}
+                {"address_type": "agent", "address": "weather"},
             ],
             "subject": "Action Complete: get_weather_forecast",
             "body": "The action result payload...",
@@ -133,9 +132,7 @@ def sample_mail_interrupt_message():
             "task_id": task_id,
             "interrupt_id": make_uuid(),
             "sender": {"address_type": "agent", "address": "supervisor"},
-            "recipients": [
-                {"address_type": "agent", "address": "weather"}
-            ],
+            "recipients": [{"address_type": "agent", "address": "weather"}],
             "subject": "Pause",
             "body": "Stop processing current task.",
         },
@@ -184,17 +181,38 @@ def main():
         ("MAILMessage response", sample_mail_response_message(), core_schema, True),
         ("MAILMessage broadcast", sample_mail_broadcast_message(), core_schema, True),
         ("MAILMessage interrupt", sample_mail_interrupt_message(), core_schema, True),
-        ("MAILMessage broadcast_complete", sample_broadcast_complete_message(), core_schema, True),
-        ("MAILInterswarm request wrapper", sample_interswarm_request_wrapper(), inter_schema, True),
-        ("MAILInterswarm response wrapper", sample_interswarm_response_wrapper(), inter_schema, True),
+        (
+            "MAILMessage broadcast_complete",
+            sample_broadcast_complete_message(),
+            core_schema,
+            True,
+        ),
+        (
+            "MAILInterswarm request wrapper",
+            sample_interswarm_request_wrapper(),
+            inter_schema,
+            True,
+        ),
+        (
+            "MAILInterswarm response wrapper",
+            sample_interswarm_response_wrapper(),
+            inter_schema,
+            True,
+        ),
     ]
 
     if jsonschema is None:
         print("jsonschema not installed; performing basic structure checks only\n")
         # Basic checks: required keys exist
         for name, obj, _schema, _expect_valid in samples:
-            ok = all(k in obj for k in ("id", "timestamp", "message")) if name.startswith("MAILMessage") else all(
-                k in obj for k in ("message_id", "source_swarm", "target_swarm", "payload"))
+            ok = (
+                all(k in obj for k in ("id", "timestamp", "message"))
+                if name.startswith("MAILMessage")
+                else all(
+                    k in obj
+                    for k in ("message_id", "source_swarm", "target_swarm", "payload")
+                )
+            )
             print(f"[BASIC] {name}: {'OK' if ok else 'MISSING KEYS'}")
         sys.exit(0)
 
@@ -202,8 +220,11 @@ def main():
     print("Using jsonschema", jsonschema.__version__)
     Draft = getattr(jsonschema, "Draft202012Validator", None)
     if Draft is None:
-        print("jsonschema does not support Draft 2020-12 validator; attempting generic validate()\n")
+        print(
+            "jsonschema does not support Draft 2020-12 validator; attempting generic validate()\n"
+        )
         from jsonschema import validate
+
         for name, obj, schema in samples:
             try:
                 validate(instance=obj, schema=schema)
@@ -223,7 +244,9 @@ def main():
     store[(root / "MAIL-core.schema.json").as_uri()] = core_schema
     store[(root / "MAIL-interswarm.schema.json").as_uri()] = inter_schema
 
-    resolver = jsonschema.RefResolver(base_uri=(root.as_uri() + "/"), referrer=core_schema, store=store)
+    resolver = jsonschema.RefResolver(
+        base_uri=(root.as_uri() + "/"), referrer=core_schema, store=store
+    )
     for name, obj, schema, expect_valid in samples:
         try:
             Draft(schema, resolver=resolver).validate(obj)
@@ -238,7 +261,9 @@ def main():
         for p in sorted(examples_dir.glob("*.json")):
             try:
                 data = load_json(p)
-                schema = inter_schema if p.name.startswith("interswarm_") else core_schema
+                schema = (
+                    inter_schema if p.name.startswith("interswarm_") else core_schema
+                )
                 Draft(schema, resolver=resolver).validate(data)
                 print(f"[VALID] example {p.name}")
             except Exception as e:

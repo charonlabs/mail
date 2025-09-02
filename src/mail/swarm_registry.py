@@ -8,7 +8,7 @@ import logging
 import os
 import json
 import datetime
-from typing import Dict, Optional, Set, TypedDict
+from typing import Any, TypedDict
 from dataclasses import dataclass
 import aiohttp
 
@@ -27,19 +27,19 @@ class SwarmEndpoint(TypedDict):
     health_check_url: str
     """The health check endpoint URL."""
 
-    auth_token_ref: Optional[str] = None
+    auth_token_ref: str | None
     """Authentication token reference (environment variable or actual token)."""
 
-    last_seen: Optional[datetime] = None
+    last_seen: datetime.datetime | None
     """When this swarm was last seen/heard from."""
 
-    is_active: bool = True
+    is_active: bool
     """Whether this swarm is currently active."""
 
-    metadata: Optional[Dict] = None
+    metadata: dict[str, Any] | None
     """Additional metadata about the swarm."""
 
-    volatile: bool = True
+    volatile: bool
     """Whether this swarm is volatile (will be removed from the registry when the server shuts down)."""
 
 
@@ -52,14 +52,14 @@ class SwarmRegistry:
         self,
         local_swarm_name: str,
         local_base_url: str,
-        persistence_file: Optional[str] = None,
+        persistence_file: str | None = None,
     ):
         self.local_swarm_name = local_swarm_name
         self.local_base_url = local_base_url
         self.endpoints: dict[str, SwarmEndpoint] = {}
         self.health_check_interval = 30  # seconds
-        self.health_check_task: Optional[asyncio.Task] = None
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.health_check_task: asyncio.Task | None = None
+        self.session: aiohttp.ClientSession | None = None
         self.persistence_file = persistence_file or "swarm_registry.json"
 
         # Register self
@@ -74,8 +74,10 @@ class SwarmRegistry:
             swarm_name=self.local_swarm_name,
             base_url=base_url,
             health_check_url=f"{base_url}/health",
+            auth_token_ref=None,
             last_seen=datetime.datetime.now(datetime.timezone.utc),
             is_active=True,
+            metadata=None,
             volatile=False,  # Local swarm is never volatile
         )
         logger.info(
@@ -86,8 +88,8 @@ class SwarmRegistry:
         self,
         swarm_name: str,
         base_url: str,
-        auth_token: Optional[str] = None,
-        metadata: Optional[Dict] = None,
+        auth_token: str | None = None,
+        metadata: dict[str, Any] | None = None,
         volatile: bool = True,
     ) -> None:
         """Register a remote swarm in the registry."""
@@ -134,11 +136,11 @@ class SwarmRegistry:
             if was_persistent:
                 self.save_persistent_endpoints()
 
-    def get_swarm_endpoint(self, swarm_name: str) -> Optional[SwarmEndpoint]:
+    def get_swarm_endpoint(self, swarm_name: str) -> SwarmEndpoint | None:
         """Get the endpoint for a specific swarm."""
         return self.endpoints.get(swarm_name)
 
-    def get_resolved_auth_token(self, swarm_name: str) -> Optional[str]:
+    def get_resolved_auth_token(self, swarm_name: str) -> str | None:
         """Get the resolved authentication token for a swarm (resolves environment variable references)."""
         endpoint = self.endpoints.get(swarm_name)
         if not endpoint:
@@ -146,11 +148,11 @@ class SwarmRegistry:
 
         return self._resolve_auth_token_ref(endpoint.get("auth_token_ref"))
 
-    def get_all_endpoints(self) -> Dict[str, SwarmEndpoint]:
+    def get_all_endpoints(self) -> dict[str, SwarmEndpoint]:
         """Get all registered endpoints."""
         return self.endpoints.copy()
 
-    def get_active_endpoints(self) -> Dict[str, SwarmEndpoint]:
+    def get_active_endpoints(self) -> dict[str, SwarmEndpoint]:
         """Get all active endpoints."""
         return {
             name: endpoint
@@ -158,7 +160,7 @@ class SwarmRegistry:
             if endpoint["is_active"]
         }
 
-    def get_persistent_endpoints(self) -> Dict[str, SwarmEndpoint]:
+    def get_persistent_endpoints(self) -> dict[str, SwarmEndpoint]:
         """Get all non-volatile (persistent) endpoints."""
         return {
             name: endpoint
@@ -181,7 +183,8 @@ class SwarmRegistry:
                         "base_url": endpoint["base_url"],
                         "health_check_url": endpoint["health_check_url"],
                         "auth_token_ref": self._get_auth_token_ref(
-                            endpoint.get("swarm_name"), endpoint.get("auth_token_ref")
+                            endpoint.get("swarm_name", ""),
+                            endpoint.get("auth_token_ref"),
                         ),
                         "last_seen": endpoint["last_seen"].isoformat()
                         if endpoint["last_seen"]
@@ -205,8 +208,8 @@ class SwarmRegistry:
             logger.error(f"failed to save persistent endpoints: '{e}'")
 
     def _get_auth_token_ref(
-        self, swarm_name: str, auth_token: Optional[str]
-    ) -> Optional[str]:
+        self, swarm_name: str, auth_token: str | None
+    ) -> str | None:
         """Convert an auth token to an environment variable reference if it exists."""
         if not auth_token:
             return None
@@ -228,7 +231,7 @@ class SwarmRegistry:
 
         return f"${{{env_var_name}}}"
 
-    def _resolve_auth_token_ref(self, auth_token_ref: Optional[str]) -> Optional[str]:
+    def _resolve_auth_token_ref(self, auth_token_ref: str | None) -> str | None:
         """Resolve an auth token reference to its actual value."""
         if not auth_token_ref:
             return None
@@ -286,7 +289,7 @@ class SwarmRegistry:
         else:
             logger.info("no auth tokens to migrate")
 
-    def validate_environment_variables(self) -> Dict[str, bool]:
+    def validate_environment_variables(self) -> dict[str, bool]:
         """Validate that all required environment variables for auth tokens are set."""
         validation_results = {}
 
@@ -422,6 +425,7 @@ class SwarmRegistry:
         """Check the health of a specific swarm."""
         try:
             timeout = aiohttp.ClientTimeout(total=10)
+            assert self.session is not None
             async with self.session.get(
                 endpoint["health_check_url"], timeout=timeout
             ) as response:
@@ -460,6 +464,7 @@ class SwarmRegistry:
         """Discover swarms from a specific endpoint."""
         try:
             timeout = aiohttp.ClientTimeout(total=10)
+            assert self.session is not None
             async with self.session.get(f"{url}/swarms", timeout=timeout) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -480,7 +485,7 @@ class SwarmRegistry:
         except Exception as e:
             logger.error(f"failed to discover from '{url}' with error: '{e}'")
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert registry to dictionary for serialization."""
         return {
             "local_swarm_name": self.local_swarm_name,
@@ -491,7 +496,7 @@ class SwarmRegistry:
                     "base_url": endpoint["base_url"],
                     "health_check_url": endpoint["health_check_url"],
                     "auth_token_ref": self._get_auth_token_ref(
-                        endpoint.get("swarm_name"), endpoint.get("auth_token_ref")
+                        endpoint.get("swarm_name", ""), endpoint.get("auth_token_ref")
                     ),
                     "last_seen": endpoint["last_seen"].isoformat()
                     if endpoint["last_seen"]
@@ -505,7 +510,7 @@ class SwarmRegistry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "SwarmRegistry":
+    def from_dict(cls, data: dict[str, Any]) -> "SwarmRegistry":
         """Create registry from dictionary."""
         registry = cls(data["local_swarm_name"], data["local_base_url"])
 

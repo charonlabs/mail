@@ -11,13 +11,13 @@ def factory_analyst_dummy(
     system: str,
     comm_targets: list[str],
     agent_params: dict[str, Any],
+    tools: list[dict[str, Any]],
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,
     memory: bool = True,
     name: str = "analyst",
 ) -> AgentFunction:
-    tools = [create_request_tool(comm_targets), create_response_tool(comm_targets)]
     return base_agent_factory(
         user_token=user_token,
         llm=llm,

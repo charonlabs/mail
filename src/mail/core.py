@@ -37,7 +37,7 @@ class MAIL:
         agents: dict[str, AgentFunction],
         actions: dict[str, ActionFunction],
         user_id: str,
-        user_token: str = None,
+        user_token: str = "",
         swarm_name: str = "example",
         swarm_registry: Optional[SwarmRegistry] = None,
         enable_interswarm: bool = False,
@@ -101,7 +101,9 @@ class MAIL:
         # The supervisor agent should process the response and generate
         # a final response that will complete the user's request
 
-    async def run(self, _action_override: ActionOverrideFunction | None = None) -> MAILMessage:
+    async def run(
+        self, _action_override: ActionOverrideFunction | None = None
+    ) -> MAILMessage:
         """
         Run the MAIL system until a task is complete or shutdown is requested.
         This method can be called multiple times for different requests.
@@ -179,7 +181,9 @@ class MAIL:
             self.is_running = False
             return self.response_to_user  # type: ignore
 
-    async def run_continuous(self, _action_override: ActionOverrideFunction | None = None) -> None:
+    async def run_continuous(
+        self, _action_override: ActionOverrideFunction | None = None
+    ) -> None:
         """
         Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
@@ -271,7 +275,7 @@ class MAIL:
         )
 
         # Create a future to wait for the response
-        future = asyncio.Future()
+        future: asyncio.Future[MAILMessage] = asyncio.Future()
         self.pending_requests[task_id] = future
 
         try:
@@ -389,7 +393,12 @@ class MAIL:
 
         return
 
-    def _process_message(self, user_token: str, message: MAILMessage, _action_override: ActionOverrideFunction | None = None) -> None:
+    def _process_message(
+        self,
+        user_token: str,
+        message: MAILMessage,
+        _action_override: ActionOverrideFunction | None = None,
+    ) -> None:
         """
         The internal process for sending a message to the recipient agent(s)
         """
@@ -400,7 +409,7 @@ class MAIL:
             has_interswarm_recipients = False
 
             if "recipients" in msg_content:
-                for recipient in msg_content["recipients"]:
+                for recipient in msg_content["recipients"]:  # type: ignore
                     _, recipient_swarm = parse_agent_address(recipient["address"])
                     if recipient_swarm and recipient_swarm != self.swarm_name:
                         has_interswarm_recipients = True
@@ -438,7 +447,12 @@ class MAIL:
             # Fall back to local processing
             self._process_local_message(self.user_token, message)
 
-    def _process_local_message(self, user_token: str, message: MAILMessage, _action_override: ActionOverrideFunction | None = None) -> None:
+    def _process_local_message(
+        self,
+        user_token: str,
+        message: MAILMessage,
+        _action_override: ActionOverrideFunction | None = None,
+    ) -> None:
         """
         Process a message locally (original _process_message logic)
         """
@@ -447,20 +461,22 @@ class MAIL:
         if "recipients" in msg_content:
             if msg_content["recipients"] == ["all"]:  # type: ignore
                 recipients = list(self.agents.keys())
-                recipients.remove(message["message"]["sender"])
+                recipients.remove(message["message"]["sender"]["address"])
             else:
-                recipients = msg_content["recipients"]  # type: ignore
+                recipients = [agent["address"] for agent in msg_content["recipients"]]  # type: ignore
         else:
-            recipients = [msg_content["recipient"]]
+            recipients = [msg_content["recipient"]["address"]]
 
         for recipient in recipients:
             # Parse recipient address to get local agent name
-            recipient_agent, recipient_swarm = parse_agent_address(recipient["address"])
+            recipient_agent, recipient_swarm = parse_agent_address(recipient)
 
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
-                    self._send_message(user_token, recipient_agent, message, _action_override)
+                    self._send_message(
+                        user_token, recipient_agent, message, _action_override
+                    )
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
             else:
@@ -469,7 +485,11 @@ class MAIL:
         return None
 
     def _send_message(
-        self, user_token: str, recipient: str, message: MAILMessage, _action_override: ActionOverrideFunction | None = None
+        self,
+        user_token: str,
+        recipient: str,
+        message: MAILMessage,
+        _action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         Send a message to a recipient
@@ -481,12 +501,6 @@ class MAIL:
         async def schedule(message: MAILMessage) -> None:
             try:
                 task_id = message["message"]["task_id"]
-                if message["msg_type"] == "request":
-                    req_id = message["message"]["request_id"]  # type: ignore
-                    sender = message["message"]["sender"]
-                else:
-                    req_id = ""
-                    sender = ""
                 incoming_message = build_mail_xml(message)
                 history = self.agent_histories[recipient]
                 history.append(incoming_message)
@@ -524,7 +538,9 @@ class MAIL:
                                                 "messages": [
                                                     {
                                                         "role": "user",
-                                                        "content": incoming_message["content"],
+                                                        "content": incoming_message[
+                                                            "content"
+                                                        ],
                                                     },
                                                     {
                                                         "role": "assistant",
@@ -584,6 +600,9 @@ class MAIL:
                                             "finish_message",
                                             "Task completed successfully",
                                         ),
+                                        sender_swarm=self.swarm_name,
+                                        recipient_swarms=[self.swarm_name],
+                                        routing_info={},
                                     ),
                                     msg_type="broadcast_complete",
                                 )
@@ -636,11 +655,15 @@ class MAIL:
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILBroadcast(
+                task_id=str(uuid.uuid4()),
                 broadcast_id=str(uuid.uuid4()),
                 sender=create_system_address(self.swarm_name),
                 recipients=[create_user_address(self.user_id)],
                 subject="System Shutdown",
                 body=reason,
+                sender_swarm=self.swarm_name,
+                recipient_swarms=[self.swarm_name],
+                routing_info={},
             ),
             msg_type="response",
         )

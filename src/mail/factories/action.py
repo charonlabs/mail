@@ -19,7 +19,7 @@ def action_agent_factory(
     llm: str,
     comm_targets: list[str],
     agent_params: dict[str, Any],
-    action_tools: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
     system: str,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
@@ -28,14 +28,14 @@ def action_agent_factory(
     name: str = "action",
 ) -> AgentFunction:
     # ensure that the action tools are in the correct format
-    action_tools = create_tools_from_actions(action_tools)
+    tools = create_tools_from_actions(tools)
 
     tools = [
         create_request_tool(comm_targets),
         create_response_tool(comm_targets),
         create_acknowledge_broadcast_tool(),
         create_ignore_broadcast_tool(),
-    ] + action_tools
+    ] + tools
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,

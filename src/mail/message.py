@@ -274,14 +274,12 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
         if "recipient" in message["message"]
         else message["message"]["recipients"]
     )
+    to = [to] if isinstance(to, dict) else to
 
     # Extract sender and recipient information with type metadata
     sender = message["message"]["sender"]
     sender_str = get_address_string(sender)
     sender_type = get_address_type(sender)
-
-    to_str = get_address_string(to) if isinstance(to, dict) else str(to)
-    to_type = get_address_type(to) if isinstance(to, dict) else "agent"
 
     return {
         "role": "user",
@@ -289,7 +287,9 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
 <incoming_message>
 <timestamp>{datetime.datetime.fromisoformat(message["timestamp"]).astimezone(datetime.timezone.utc).isoformat()}</timestamp>
 <from type="{sender_type}">{sender_str}</from>
-<to type="{to_type}">{to_str}</to>
+<to>
+{['<address type="{}">{}</address>'.format(get_address_type(recipient), get_address_string(recipient)) for recipient in to]}
+</to>
 <subject>{message["message"]["subject"]}</subject>
 <body>{message["message"]["body"]}</body>
 </incoming_message>

@@ -7,7 +7,7 @@ import asyncio
 import logging
 import uuid
 import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable, Awaitable
 import aiohttp
 import json
 
@@ -15,6 +15,7 @@ from .message import (
     MAILMessage,
     MAILInterswarmMessage,
     MAILResponse,
+    create_agent_address,
     parse_agent_address,
     format_agent_address,
 )
@@ -32,7 +33,7 @@ class InterswarmRouter:
         self.swarm_registry = swarm_registry
         self.local_swarm_name = local_swarm_name
         self.session: Optional[aiohttp.ClientSession] = None
-        self.message_handlers: Dict[str, callable] = {}
+        self.message_handlers: Dict[str, Callable[[MAILMessage], Awaitable[None]]] = {}
 
     async def start(self) -> None:
         """Start the interswarm router."""
@@ -47,7 +48,9 @@ class InterswarmRouter:
             self.session = None
         logger.info(f"stopped interswarm router for swarm: '{self.local_swarm_name}'")
 
-    def register_message_handler(self, message_type: str, handler: callable) -> None:
+    def register_message_handler(
+        self, message_type: str, handler: Callable[[MAILMessage], Awaitable[None]]
+    ) -> None:
         """Register a handler for a specific message type."""
         self.message_handlers[message_type] = handler
         logger.info(f"registered handler for message type: '{message_type}'")
@@ -65,7 +68,7 @@ class InterswarmRouter:
 
             # Check if recipient is in interswarm format
             if "recipient" in msg_content:
-                recipient = msg_content["recipient"]
+                recipient = msg_content["recipient"]  # type: ignore
                 recipient_agent, recipient_swarm = parse_agent_address(
                     recipient["address"]
                 )
@@ -85,7 +88,7 @@ class InterswarmRouter:
             elif "recipients" in msg_content:
                 recipients = msg_content["recipients"]
                 local_recipients = []
-                remote_routes = {}
+                remote_routes: dict[str, list[str]] = {}
 
                 for recipient in recipients:
                     recipient_agent, recipient_swarm = parse_agent_address(
@@ -177,7 +180,7 @@ class InterswarmRouter:
                 target_swarm=swarm_name,
                 timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 payload=message["message"],
-                msg_type=message["msg_type"],
+                msg_type=message["msg_type"],  # type: ignore
                 auth_token=self.swarm_registry.get_resolved_auth_token(swarm_name),
                 metadata={
                     "original_message_id": message["id"],
@@ -198,13 +201,14 @@ class InterswarmRouter:
                 headers["Authorization"] = f"Bearer {auth_token}"
 
             timeout = aiohttp.ClientTimeout(total=3600)
+            assert self.session is not None
             async with self.session.post(
                 url, json=interswarm_message, headers=headers, timeout=timeout
             ) as response:
                 if response.status == 200:
                     logger.info(f"successfully routed message to swarm: '{swarm_name}'")
                     response_json = await response.json()
-                    return MAILMessage(**response_json)
+                    return MAILMessage(**response_json)  # type: ignore
                 else:
                     logger.error(
                         f"failed to route message to swarm '{swarm_name}' with status: '{response.status}'"
@@ -248,11 +252,15 @@ class InterswarmRouter:
         msg_content = original_message["message"].copy()
 
         if "recipients" in msg_content:
-            msg_content["recipients"] = local_recipients
+            msg_content["recipients"] = [ # type: ignore
+                create_agent_address(agent) for agent in local_recipients
+            ]
         elif "recipient" in msg_content:
             # Convert single recipient to list for local routing
-            msg_content["recipients"] = local_recipients
-            del msg_content["recipient"]
+            msg_content["recipients"] = [ # type: ignore
+                create_agent_address(agent) for agent in local_recipients
+            ]
+            del msg_content["recipient"]  # type: ignore
 
         return MAILMessage(
             id=str(uuid.uuid4()),
@@ -269,19 +277,20 @@ class InterswarmRouter:
 
         # Update recipients to use full interswarm addresses
         if "recipients" in msg_content:
-            msg_content["recipients"] = [
+            msg_content["recipients"] = [  # type: ignore
                 format_agent_address(agent, swarm_name) for agent in remote_agents
             ]
+            msg_content["recipient_swarms"] = [swarm_name]  # type: ignore
         elif "recipient" in msg_content:
             # Convert to recipients list for remote routing
-            msg_content["recipients"] = [
+            msg_content["recipients"] = [  # type: ignore
                 format_agent_address(agent, swarm_name) for agent in remote_agents
             ]
-            del msg_content["recipient"]
+            msg_content["recipient_swarm"] = swarm_name  # type: ignore
+            del msg_content["recipient"]  # type: ignore
 
         # Add swarm routing information
         msg_content["sender_swarm"] = self.local_swarm_name
-        msg_content["recipient_swarm"] = swarm_name
 
         return MAILMessage(
             id=str(uuid.uuid4()),
@@ -307,7 +316,7 @@ class InterswarmRouter:
                 id=interswarm_message["message_id"],
                 timestamp=interswarm_message["timestamp"],
                 message=interswarm_message["payload"],
-                msg_type=self._determine_message_type(interswarm_message["payload"]),
+                msg_type=self._determine_message_type(interswarm_message["payload"]),  # type: ignore
             )
 
             # Route to local handler
@@ -340,20 +349,19 @@ class InterswarmRouter:
         else:
             return "unknown"
 
-    async def broadcast_to_all_swarms(self, message: MAILMessage) -> Dict[str, bool]:
+    async def broadcast_to_all_swarms(self, message: MAILMessage) -> dict[str, bool]:
         """Broadcast a message to all known swarms."""
-        results = {}
+        results: dict[str, bool] = {}
         active_endpoints = self.swarm_registry.get_active_endpoints()
 
         for swarm_name, endpoint in active_endpoints.items():
             if swarm_name != self.local_swarm_name:
-                results[swarm_name] = await self._route_to_remote_swarm(
-                    message, swarm_name
-                )
+                response = await self._route_to_remote_swarm(message, swarm_name)
+                results[swarm_name] = response is not None
 
         return results
 
-    def get_routing_stats(self) -> Dict[str, Any]:
+    def get_routing_stats(self) -> dict[str, Any]:
         """Get routing statistics."""
         active_endpoints = self.swarm_registry.get_active_endpoints()
         return {
@@ -370,11 +378,14 @@ class InterswarmRouter:
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             message=MAILResponse(
                 task_id=message["message"]["task_id"],
-                request_id=message["message"]["request_id"],
+                request_id=message["message"]["request_id"],  # type: ignore
                 sender=message["message"]["sender"],
-                recipient=message["message"]["recipient"],
+                recipient=message["message"]["recipient"],  # type: ignore
                 subject="Router Error",
                 body=reason,
+                sender_swarm=self.local_swarm_name,
+                recipient_swarm=self.local_swarm_name,
+                routing_info={},
             ),
             msg_type="response",
         )

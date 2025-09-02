@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 import datetime
 from typing import Any
 from uuid import uuid4
@@ -15,7 +16,6 @@ from .message import (
     create_system_address,
     create_user_address,
 )
-from .factories.base import AgentToolCall
 
 MAIL_TOOL_NAMES = [
     "send_request",
@@ -24,6 +24,21 @@ MAIL_TOOL_NAMES = [
     "send_broadcast",
     "task_complete",
 ]
+
+
+class AgentToolCall(BaseModel):
+    tool_name: str
+    tool_args: dict[str, Any]
+    tool_call_id: str
+    completion: dict[str, Any]
+
+    def create_response_msg(self, content: str) -> dict[str, str]:
+        return {
+            "role": "tool",
+            "name": self.tool_name,
+            "content": content,
+            "tool_call_id": self.tool_call_id,
+        }
 
 
 def convert_call_to_mail_message(
@@ -45,6 +60,9 @@ def convert_call_to_mail_message(
                     recipient=create_agent_address(call.tool_args["target"]),
                     subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
+                    sender_swarm=None,
+                    recipient_swarm=None,
+                    routing_info=None,
                 ),
                 msg_type="request",
             )
@@ -59,6 +77,9 @@ def convert_call_to_mail_message(
                     recipient=create_agent_address(call.tool_args["target"]),
                     subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
+                    sender_swarm=None,
+                    recipient_swarm=None,
+                    routing_info=None,
                 ),
                 msg_type="response",
             )
@@ -73,6 +94,9 @@ def convert_call_to_mail_message(
                     recipients=[create_agent_address(call.tool_args["target"])],
                     subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
+                    sender_swarm=None,
+                    recipient_swarms=None,
+                    routing_info=None,
                 ),
                 msg_type="interrupt",
             )
@@ -87,6 +111,9 @@ def convert_call_to_mail_message(
                     recipients=[create_agent_address("all")],
                     subject=call.tool_args["subject"],
                     body=call.tool_args["message"],
+                    sender_swarm=None,
+                    recipient_swarms=None,
+                    routing_info=None,
                 ),
                 msg_type="broadcast",
             )
@@ -101,6 +128,9 @@ def convert_call_to_mail_message(
                     recipients=[create_agent_address("all")],
                     subject="Task complete",
                     body=call.tool_args["finish_message"],
+                    sender_swarm=None,
+                    recipient_swarms=None,
+                    routing_info=None,
                 ),
                 msg_type="broadcast_complete",
             )
@@ -123,6 +153,9 @@ def action_complete_broadcast(
             recipients=[create_agent_address(recipient)],
             subject=f"Action Complete: {result_message['name']}",
             body=f"The action {result_message['name']} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",
+            sender_swarm=None,
+            recipient_swarms=None,
+            routing_info=None,
         ),
         msg_type="broadcast",
     )
@@ -320,18 +353,26 @@ def create_task_complete_tool() -> dict[str, Any]:
     return convert_to_openai_tool(task_complete)
 
 
+def create_mail_tools(
+    targets: list[str], enable_interswarm: bool = False
+) -> list[dict[str, Any]]:
+    """Create MAIL tools. These should be used for all agents."""
+    return [
+        create_request_tool(targets, enable_interswarm),
+        create_response_tool(targets, enable_interswarm),
+        create_acknowledge_broadcast_tool(),
+        create_ignore_broadcast_tool(),
+    ]
+
+
 def create_supervisor_tools(
     targets: list[str], can_complete_tasks: bool = True, enable_interswarm: bool = False
 ) -> list[dict[str, Any]]:
     """Create MAIL supervisor tools. Targets are the agents that the supervisor can send messages to."""
 
     tools = [
-        create_request_tool(targets, enable_interswarm),
-        create_response_tool(targets, enable_interswarm),
         create_interrupt_tool(targets, enable_interswarm),
         create_broadcast_tool(),
-        create_acknowledge_broadcast_tool(),
-        create_ignore_broadcast_tool(),
     ]
 
     if enable_interswarm:

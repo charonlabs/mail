@@ -5,7 +5,7 @@ import logging
 import uuid
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Dict
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -22,9 +22,9 @@ init_logger()
 logger = logging.getLogger("mail")
 
 # Global variables to hold the persistent swarm and user-specific MAIL instances
-persistent_swarm = None
-user_mail_instances: Dict[str, dict] = {}
-user_mail_tasks: Dict[str, asyncio.Task] = {}
+persistent_swarm: dict[str, Any] | None = None
+user_mail_instances: dict[str, dict[str, Any]] = {}
+user_mail_tasks: dict[str, asyncio.Task] = {}
 
 app = FastAPI()
 
