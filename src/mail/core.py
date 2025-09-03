@@ -1,11 +1,13 @@
 import asyncio
+from collections.abc import AsyncGenerator
 import datetime
 import logging
 from typing import Any, Optional
 import uuid
 from asyncio import PriorityQueue, Task
 
-from .events import MAILEvent
+from sse_starlette import ServerSentEvent
+
 from .executor import execute_action_tool
 from .message import (
     MAILBroadcast,
@@ -59,7 +61,10 @@ class MAIL:
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
         self.user_token = user_token  # Track which user this MAIL instance belongs to
-        self.events: list[MAILEvent] = []
+        self.events: list[ServerSentEvent] = []
+        self.new_events: list[ServerSentEvent] = []
+        # Event notifier for streaming to avoid busy-waiting
+        self._events_available = asyncio.Event()
         # Interswarm messaging support
         self.swarm_name = swarm_name
         self.enable_interswarm = enable_interswarm
@@ -291,7 +296,7 @@ class MAIL:
             logger.info(
                 f"submitAndWait: got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
             )
-            self._submit_event(task_id, f"got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'")
+            self._submit_event("task_complete", task_id, f"response: '{response['message']['body']}'")
             return response
 
         except asyncio.TimeoutError:
@@ -308,7 +313,92 @@ class MAIL:
                 f"submitAndWait: exception for task '{task_id}' with error: '{e}'"
             )
             raise e
+        
+    async def submit_and_stream(
+        self, message: MAILMessage, timeout: float = 3600.0
+    ) -> AsyncGenerator[ServerSentEvent, None]:
+        """
+        Submit a message and stream the response.
+        This method is designed for handling individual task requests in a persistent MAIL instance.
+        """
+        task_id = message["message"]["task_id"]
 
+        logger.info(f"submitAndStream: creating future for task '{task_id}' for user '{self.user_id}'")
+
+        future: asyncio.Future[MAILMessage] = asyncio.Future()
+        self.pending_requests[task_id] = future
+
+        try:
+            # Submit the message for processing
+            await self.submit(message)
+
+            # Stream events as they become available, emitting periodic heartbeats
+            while not future.done():
+                try:
+                    # Wait up to 15s for new events; on timeout send a heartbeat
+                    await asyncio.wait_for(self._events_available.wait(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    # Heartbeat to keep the connection alive
+                    yield ServerSentEvent(
+                        data={
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "task_id": task_id,
+                        },
+                        event="ping",
+                    )
+                    continue
+
+                # Drain currently queued events
+                events_to_emit = self.new_events
+                self.new_events = []
+                # Reset the event flag (more events may arrive after this)
+                self._events_available.clear()
+
+                # Yield only events related to this task, but keep history of all
+                for ev in events_to_emit:
+                    try:
+                        self.events.append(ev)
+                    except Exception:
+                        # Never let history tracking break streaming
+                        pass
+                    try:
+                        if isinstance(ev.data, dict) and ev.data.get("task_id") == task_id:  # type: ignore
+                            yield ev
+                    except Exception:
+                        # Be tolerant to malformed event data
+                        continue
+
+            # Future completed; emit a final task_complete event with the response body
+            try:
+                response = future.result()
+                yield ServerSentEvent(
+                    data={
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "task_id": task_id,
+                        "response": response["message"]["body"],
+                    },
+                    event="task_complete",
+                )
+            except Exception:
+                # If retrieving the response fails, still signal completion
+                yield ServerSentEvent(
+                    data={
+                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "task_id": task_id,
+                    },
+                    event="task_complete",
+                )
+
+        except asyncio.TimeoutError:
+            self.pending_requests.pop(task_id, None)
+            logger.error(f"submitAndStream: timeout for task '{task_id}'")
+            raise TimeoutError(f"task '{task_id}' for user '{self.user_id}' timed out after {timeout} seconds")
+
+        except Exception as e:
+            self.pending_requests.pop(task_id, None)
+            logger.error(f"submitAndStream: exception for task '{task_id}' with error: '{e}'")
+            raise e
+        
     async def shutdown(self) -> None:
         """Request a graceful shutdown of the MAIL system."""
         logger.info(f"requesting shutdown for user '{self.user_id}'...")
@@ -500,7 +590,7 @@ class MAIL:
         logger.info(
             f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
         )
-        self._submit_event(message["message"]["task_id"], f"sending message: '{message["message"]["sender"]}' -> '{recipient}' with subject: '{message["message"]["subject"]}'")
+        self._submit_event("new_message", message["message"]["task_id"], f"sending message:\n{build_mail_xml(message)['content']}")
 
         async def schedule(message: MAILMessage) -> None:
             try:
@@ -634,11 +724,12 @@ class MAIL:
                                 )
                         case _:
                             logger.info(f"executing action tool: '{call.tool_name}'")
-                            self._submit_event(task_id, f"executing action tool: '{call.tool_name}'")
+                            self._submit_event("action_tool_call", task_id, f"executing action tool (caller = '{message['message']['recipient']}'):\n'{call}'") # type: ignore
                             result_message = await execute_action_tool(
                                 call, self.actions, _action_override
                             )
                             history.append(result_message)
+                            self._submit_event("action_tool_complete", task_id, f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_message['content']}'") # type: ignore
                             await self.submit(
                                 action_complete_broadcast(
                                     result_message, self.swarm_name, recipient, task_id
@@ -673,15 +764,23 @@ class MAIL:
             msg_type="response",
         )
 
-    def _submit_event(self, task_id: str, description: str) -> None:
-        self.events.append(
-            MAILEvent(
-                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                description=description,
-                task_id=task_id,
+    def _submit_event(self, event: str, task_id: str, description: str) -> None:
+        self.new_events.append(
+            ServerSentEvent(
+                data={
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "description": description,
+                    "task_id": task_id,
+                },
+                event=event,
             )
         )
+        # Signal that new events are available for streaming
+        try:
+            self._events_available.set()
+        except Exception:
+            pass
         return None
     
-    def get_events_by_task_id(self, task_id: str) -> list[MAILEvent]:
-        return [event for event in self.events if event["task_id"] == task_id]
+    def get_events_by_task_id(self, task_id: str) -> list[ServerSentEvent]:
+        return [event for event in self.events if event.data["task_id"] == task_id] # type: ignore

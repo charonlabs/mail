@@ -21,6 +21,7 @@ dependencies = [
     "langchain>=0.3.27",
     "types-toml>=0.10.8.20240310",
     "types-ujson>=5.10.0.20250822",
+    "sse-starlette>=3.0.2",
 ]
 
 [build-system]
