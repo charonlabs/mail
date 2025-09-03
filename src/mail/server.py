@@ -317,6 +317,7 @@ async def chat(request: Request):
             recipient_agent = entrypoint.strip()
         else:
             recipient_agent = default_entrypoint_agent
+        show_events = data.get("show_events", False)
         logger.info(f"received message from user '{user_id}': '{message[:50]}...'")
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
@@ -350,7 +351,10 @@ async def chat(request: Request):
         logger.info(f"submitting message to user MAIL and waiting for response...")
         response = await user_mail.submit_and_wait(new_message)
         logger.info(f"MAIL completed successfully for user '{user_id}'")
-        return {"response": response["message"]["body"]}
+        if show_events:
+            return {"response": response["message"]["body"], "events": user_mail.get_events_by_task_id(new_message["message"]["task_id"])}
+        else:
+            return {"response": response["message"]["body"]}
     except Exception as e:
         logger.error(f"error processing message for user '{user_id}' with error: '{e}'")
         raise HTTPException(

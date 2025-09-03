@@ -139,7 +139,7 @@ def convert_call_to_mail_message(
 
 
 def action_complete_broadcast(
-    result_message: dict[str, Any], recipient: str, task_id: str
+    result_message: dict[str, Any], system_name: str,recipient: str, task_id: str
 ) -> MAILMessage:
     """Create a MAIL broadcast message to indicate that an action has been completed."""
 
@@ -149,7 +149,7 @@ def action_complete_broadcast(
         message=MAILBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid4()),
-            sender=create_system_address("system"),
+            sender=create_system_address(system_name),
             recipients=[create_agent_address(recipient)],
             subject=f"Action Complete: {result_message['name']}",
             body=f"The action {result_message['name']} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",

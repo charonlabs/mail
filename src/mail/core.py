@@ -5,6 +5,7 @@ from typing import Any, Optional
 import uuid
 from asyncio import PriorityQueue, Task
 
+from .events import MAILEvent
 from .executor import execute_action_tool
 from .message import (
     MAILBroadcast,
@@ -41,6 +42,7 @@ class MAIL:
         swarm_name: str = "example",
         swarm_registry: Optional[SwarmRegistry] = None,
         enable_interswarm: bool = False,
+        entrypoint: str = "supervisor",
     ):
         self.message_queue: PriorityQueue[tuple[int, MAILMessage]] = PriorityQueue()
         self.response_queue: asyncio.Queue[tuple[str, MAILMessage]] = asyncio.Queue()
@@ -57,13 +59,13 @@ class MAIL:
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
         self.user_token = user_token  # Track which user this MAIL instance belongs to
-
+        self.events: list[MAILEvent] = []
         # Interswarm messaging support
         self.swarm_name = swarm_name
         self.enable_interswarm = enable_interswarm
         self.swarm_registry = swarm_registry
         self.interswarm_router: Optional[InterswarmRouter] = None
-
+        self.entrypoint = entrypoint
         if enable_interswarm and swarm_registry:
             self.interswarm_router = InterswarmRouter(swarm_registry, swarm_name)
             # Register local message handler
@@ -289,6 +291,7 @@ class MAIL:
             logger.info(
                 f"submitAndWait: got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
             )
+            self._submit_event(task_id, f"got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'")
             return response
 
         except asyncio.TimeoutError:
@@ -377,7 +380,7 @@ class MAIL:
             else [message["message"]["recipient"]]
         )
         logger.info(
-            f'submitting message: "{message["message"]["sender"]}" -> "{recipients}" with subject "{message["message"]["subject"]}"'
+            f'submitting message: "{message["message"]["sender"]}" -> "{[recipient["address"] for recipient in recipients]}" with subject "{message["message"]["subject"]}"'
         )
 
         priority = 0
@@ -497,6 +500,7 @@ class MAIL:
         logger.info(
             f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
         )
+        self._submit_event(message["message"]["task_id"], f"sending message: '{message["message"]["sender"]}' -> '{recipient}' with subject: '{message["message"]["subject"]}'")
 
         async def schedule(message: MAILMessage) -> None:
             try:
@@ -593,7 +597,7 @@ class MAIL:
                                     message=MAILBroadcast(
                                         task_id=task_id,
                                         broadcast_id=str(uuid.uuid4()),
-                                        sender=create_agent_address("supervisor"),
+                                        sender=create_agent_address(self.entrypoint),
                                         recipients=[create_agent_address("all")],
                                         subject="Task complete",
                                         body=call.tool_args.get(
@@ -630,13 +634,14 @@ class MAIL:
                                 )
                         case _:
                             logger.info(f"executing action tool: '{call.tool_name}'")
+                            self._submit_event(task_id, f"executing action tool: '{call.tool_name}'")
                             result_message = await execute_action_tool(
                                 call, self.actions, _action_override
                             )
                             history.append(result_message)
                             await self.submit(
                                 action_complete_broadcast(
-                                    result_message, recipient, task_id
+                                    result_message, self.swarm_name, recipient, task_id
                                 )
                             )
                 self.agent_histories[recipient] = history[1:]
@@ -667,3 +672,16 @@ class MAIL:
             ),
             msg_type="response",
         )
+
+    def _submit_event(self, task_id: str, description: str) -> None:
+        self.events.append(
+            MAILEvent(
+                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                description=description,
+                task_id=task_id,
+            )
+        )
+        return None
+    
+    def get_events_by_task_id(self, task_id: str) -> list[MAILEvent]:
+        return [event for event in self.events if event["task_id"] == task_id]

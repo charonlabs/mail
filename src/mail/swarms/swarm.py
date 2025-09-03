@@ -73,6 +73,7 @@ class Swarm(BaseModel):
             swarm_name=swarm_name,
             swarm_registry=swarm_registry,
             enable_interswarm=enable_interswarm,
+            entrypoint=self.default_entrypoint,
         )
 
     def _build_mail_dicts(
