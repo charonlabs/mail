@@ -1,7 +1,7 @@
 import importlib
 from typing import Any
 
-from langchain_core.utils.function_calling import convert_to_openai_tool
+from litellm.utils import function_to_dict
 
 
 def read_python_string(string: str) -> Any:
@@ -20,5 +20,8 @@ def create_tools_from_actions(actions: list[dict[str, Any]]) -> list[dict[str, A
     """
     tools = []
     for action in actions:
-        tools.append(convert_to_openai_tool(action))
+        # Get the actual function object from the module path
+        function_obj = read_python_string(action["function"])
+        # Convert the function to a tool dictionary
+        tools.append(function_to_dict(function_obj))
     return tools

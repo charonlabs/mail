@@ -1,9 +1,9 @@
 from collections.abc import Awaitable, Callable
 import datetime
-from typing import Any
+from typing import Any, Optional
 from uuid import uuid4
 
-from langchain_core.utils.function_calling import convert_to_openai_tool
+from litellm.utils import function_to_dict
 from pydantic import BaseModel, Field
 
 from .message import (
@@ -180,9 +180,9 @@ def create_request_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = convert_to_openai_tool(send_request)
+    tool_dict = function_to_dict(send_request)
 
-    target_param = tool_dict["function"]["parameters"]["properties"]["target"]
+    target_param = tool_dict["parameters"]["properties"]["target"]
     if enable_interswarm:
         # For interswarm messaging, we don't restrict to enum values
         # The validation will happen at runtime
@@ -215,9 +215,9 @@ def create_response_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = convert_to_openai_tool(send_response)
+    tool_dict = function_to_dict(send_response)
 
-    target_param = tool_dict["function"]["parameters"]["properties"]["target"]
+    target_param = tool_dict["parameters"]["properties"]["target"]
     if enable_interswarm:
         # For interswarm messaging, we don't restrict to enum values
         # The validation will happen at runtime
@@ -250,9 +250,9 @@ def create_interrupt_tool(
         subject: str = Field(description="The subject of the interrupt.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = convert_to_openai_tool(send_interrupt)
+    tool_dict = function_to_dict(send_interrupt)
 
-    target_param = tool_dict["function"]["parameters"]["properties"]["target"]
+    target_param = tool_dict["parameters"]["properties"]["target"]
     if enable_interswarm:
         target_param["description"] = (
             target_param["description"]
@@ -277,7 +277,7 @@ def create_interswarm_broadcast_tool() -> dict[str, Any]:
             default=[],
         )
 
-    return convert_to_openai_tool(send_interswarm_broadcast)
+    return function_to_dict(send_interswarm_broadcast)
 
 
 def create_swarm_discovery_tool() -> dict[str, Any]:
@@ -290,7 +290,7 @@ def create_swarm_discovery_tool() -> dict[str, Any]:
             description="List of URLs to discover swarms from."
         )
 
-    return convert_to_openai_tool(discover_swarms)
+    return function_to_dict(discover_swarms)
 
 
 def create_broadcast_tool() -> dict[str, Any]:
@@ -302,7 +302,7 @@ def create_broadcast_tool() -> dict[str, Any]:
         subject: str = Field(description="The subject of the broadcast.")
         message: str = Field(description="The message content to send.")
 
-    return convert_to_openai_tool(send_broadcast)
+    return function_to_dict(send_broadcast)
 
 
 def create_acknowledge_broadcast_tool() -> dict[str, Any]:
@@ -315,12 +315,13 @@ def create_acknowledge_broadcast_tool() -> dict[str, Any]:
     class acknowledge_broadcast(BaseModel):
         """Store the received broadcast in memory, do not respond."""
 
-        note: str | None = Field(
+        # Use Optional to avoid PEP 604 UnionType issues in some converters
+        note: Optional[str] = Field(
             default=None,
             description="Optional note to include in internal memory only.",
         )
 
-    return convert_to_openai_tool(acknowledge_broadcast)
+    return function_to_dict(acknowledge_broadcast)
 
 
 def create_ignore_broadcast_tool() -> dict[str, Any]:
@@ -332,12 +333,13 @@ def create_ignore_broadcast_tool() -> dict[str, Any]:
     class ignore_broadcast(BaseModel):
         """Ignore the received broadcast. No memory, no response."""
 
-        reason: str | None = Field(
+        # Use Optional to avoid PEP 604 UnionType issues in some converters
+        reason: Optional[str] = Field(
             default=None,
             description="Optional internal reason for ignoring (not sent).",
         )
 
-    return convert_to_openai_tool(ignore_broadcast)
+    return function_to_dict(ignore_broadcast)
 
 
 def create_task_complete_tool() -> dict[str, Any]:
@@ -350,7 +352,7 @@ def create_task_complete_tool() -> dict[str, Any]:
             description="The message to broadcast to all agents to indicate that the task has been completed."
         )
 
-    return convert_to_openai_tool(task_complete)
+    return function_to_dict(task_complete)
 
 
 def create_mail_tools(

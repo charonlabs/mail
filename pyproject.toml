@@ -13,7 +13,6 @@ dependencies = [
     "toml>=0.10.2",
     "ujson>=5.8.0",
     "langmem>=0.0.29",
-    "litellm>=1.0.0",
     "rich>=13.0.0",
     "langgraph>=0.6.3",
     "aiohttp>=3.9.0",
@@ -22,6 +21,8 @@ dependencies = [
     "types-toml>=0.10.8.20240310",
     "types-ujson>=5.10.0.20250822",
     "sse-starlette>=3.0.2",
+    "litellm>=1.76.2",
+    "numpydoc>=1.9.0",
 ]
 
 [build-system]

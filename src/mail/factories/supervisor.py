@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from .base import AgentFunction, base_agent_factory
+from .base import AgentFunction, base_agent_factory_with_responses
 from ..tools import create_supervisor_tools
 
 
@@ -20,7 +20,7 @@ def supervisor_factory(
     can_complete_tasks = agent_params.get("can_complete_tasks", True)
     enable_interswarm = agent_params.get("enable_interswarm", False)
     tools = create_supervisor_tools(comm_targets, can_complete_tasks, enable_interswarm)
-    agent = base_agent_factory(
+    agent = base_agent_factory_with_responses(
         user_token=user_token,
         llm=llm,
         comm_targets=comm_targets,
