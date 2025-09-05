@@ -198,8 +198,13 @@ def base_agent_factory_with_responses(
                 )
 
         # add the agent's tools to the list of tools
+        # normalize to the { type: "function", function: { ... } } format
         enable_interswarm = agent_params.get("enable_interswarm", False)
         agent_tools = create_mail_tools(comm_targets, enable_interswarm) + tools
+        for tool in agent_tools:
+            frozen_tool = tool.copy()
+            tool["function"] = frozen_tool
+            tool["type"] = "function"
 
         res = await aresponses(
             input=messages,
@@ -230,9 +235,30 @@ def base_agent_factory_with_responses(
 
         tool_calls: list[OutputFunctionToolCall | None] = [output if output.type == "function_call" else None for output in res.output]
         tool_calls = [tool_call for tool_call in tool_calls if tool_call is not None]
-        assert len(tool_calls) > 0, f"expected at least 1 tool call, got {len(tool_calls)}"
+        # It is valid for there to be zero tool calls if the model only replies with text
 
-        agent_tool_calls = []
+        # Build a chat-completions style assistant message so downstream history stays valid
+        assistant_message: dict[str, Any] = {
+            "role": "assistant",
+            "content": output_text,
+        }
+        if len(tool_calls) > 0:
+            assistant_tool_calls: list[dict[str, Any]] = []
+            for tc in tool_calls:
+                call_id = tc.id or f"call_{uuid4()}"
+                assistant_tool_calls.append(
+                    {
+                        "id": call_id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name or "",
+                            "arguments": tc.arguments or "",
+                        },
+                    }
+                )
+            assistant_message["tool_calls"] = assistant_tool_calls
+
+        agent_tool_calls: list[AgentToolCall] = []
         for tool_call in tool_calls:
             assert tool_call is not None
             assert tool_call.type == "function_call"
@@ -241,7 +267,9 @@ def base_agent_factory_with_responses(
                     tool_name=tool_call.name or "",
                     tool_args=ujson.loads(tool_call.arguments or ""),
                     tool_call_id=tool_call.id or f"call_{uuid4()}",
-                    completion=tool_call.model_dump() or {},
+                    # Store the assistant message (with tool_calls) as the completion
+                    # so the runtime can append a valid chat message to history.
+                    completion=assistant_message,
                 )
             )
 
