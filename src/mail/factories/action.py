@@ -1,11 +1,5 @@
 from typing import Awaitable, Callable, Literal, Any
 
-from ..tools import (
-    create_request_tool,
-    create_response_tool,
-    create_acknowledge_broadcast_tool,
-    create_ignore_broadcast_tool,
-)
 
 from .base import AgentFunction, base_agent_factory
 from ..swarms.utils import create_tools_from_actions
@@ -30,12 +24,6 @@ def action_agent_factory(
     # ensure that the action tools are in the correct format
     tools = create_tools_from_actions(tools)
 
-    tools = [
-        create_request_tool(comm_targets),
-        create_response_tool(comm_targets),
-        create_acknowledge_broadcast_tool(),
-        create_ignore_broadcast_tool(),
-    ] + tools
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,

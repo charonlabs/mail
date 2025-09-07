@@ -252,12 +252,12 @@ class InterswarmRouter:
         msg_content = original_message["message"].copy()
 
         if "recipients" in msg_content:
-            msg_content["recipients"] = [ # type: ignore
+            msg_content["recipients"] = [  # type: ignore
                 create_agent_address(agent) for agent in local_recipients
             ]
         elif "recipient" in msg_content:
             # Convert single recipient to list for local routing
-            msg_content["recipients"] = [ # type: ignore
+            msg_content["recipients"] = [  # type: ignore
                 create_agent_address(agent) for agent in local_recipients
             ]
             del msg_content["recipient"]  # type: ignore

@@ -1,7 +1,5 @@
 import importlib
-from typing import Any
-
-from litellm.utils import function_to_dict
+from typing import Any, Literal
 
 
 def read_python_string(string: str) -> Any:
@@ -14,14 +12,51 @@ def read_python_string(string: str) -> Any:
     return getattr(module, variable)
 
 
-def create_tools_from_actions(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def create_tools_from_actions(
+    actions: list[dict[str, Any]],
+    style: Literal["completions", "responses"] = "completions",
+) -> list[dict[str, Any]]:
+    """Create OpenAI function tools from action specs.
+
+    Uses the action's declared name/description/parameters instead of attempting
+    to infer schema from the Python function (which may be opaque/coroutine).
     """
-    Create tools from a list of actions.
-    """
-    tools = []
+    tools: list[dict[str, Any]] = []
     for action in actions:
-        # Get the actual function object from the module path
-        function_obj = read_python_string(action["function"])
-        # Convert the function to a tool dictionary
-        tools.append(function_to_dict(function_obj))
+        name = action.get("name", "").strip()
+        if not name:
+            # Skip unnamed actions to avoid invalid tool specs
+            continue
+        description = action.get("description", "")
+        parameters = action.get("parameters", {"type": "object", "properties": {}})
+
+        parameters["additionalProperties"] = False
+        parameters["required"] = [
+            property for property in parameters["properties"].keys()
+        ]
+
+        if style == "completions":
+            tools.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": description,
+                        "parameters": parameters,
+                        "strict": True,
+                    },
+                }
+            )
+        elif style == "responses":
+            tools.append(
+                {
+                    "type": "function",
+                    "name": name,
+                    "description": description,
+                    "parameters": parameters,
+                }
+            )
+        else:
+            raise ValueError(f"invalid style: {style}")
+
     return tools

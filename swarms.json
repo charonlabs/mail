@@ -49,7 +49,6 @@
     {
         "name": "swarm-alpha",
         "version": "1.0.0",
-        "description": "Alpha swarm for interswarm communication example",
         "base_url": "http://localhost:8000",
         "entrypoint": "supervisor",
         "agents": [
@@ -100,7 +99,6 @@
     {
         "name": "swarm-beta",
         "version": "1.0.0",
-        "description": "Beta swarm for interswarm communication example",
         "base_url": "http://localhost:8001",
         "entrypoint": "supervisor",
         "agents": [

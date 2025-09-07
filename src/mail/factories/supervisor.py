@@ -19,7 +19,9 @@ def supervisor_factory(
 ) -> AgentFunction:
     can_complete_tasks = agent_params.get("can_complete_tasks", True)
     enable_interswarm = agent_params.get("enable_interswarm", False)
-    tools = create_supervisor_tools(comm_targets, can_complete_tasks, enable_interswarm)
+    tools = create_supervisor_tools(
+        comm_targets, can_complete_tasks, enable_interswarm, style="responses"
+    )
     agent = base_agent_factory_with_responses(
         user_token=user_token,
         llm=llm,

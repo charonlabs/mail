@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable
+import json
 import logging
 from typing import Any, Literal
 from uuid import uuid4
@@ -6,7 +7,14 @@ from uuid import uuid4
 import ujson
 from langmem import create_memory_store_manager
 from langsmith import traceable
-from litellm import OutputFunctionToolCall, OutputText, ResponsesAPIResponse, acompletion, aresponses, ResponseOutputItem
+from litellm import (
+    OutputFunctionToolCall,
+    OutputText,
+    ResponsesAPIResponse,
+    acompletion,
+    aresponses,
+    ResponseOutputItem,
+)
 from openai.types.responses.response_output_message import ResponseOutputMessage
 from pydantic import BaseModel
 
@@ -19,6 +27,7 @@ AgentFunction = Callable[
 ]
 
 logger = logging.getLogger("mail")
+
 
 def base_agent_factory(
     user_token: str,
@@ -83,17 +92,70 @@ def base_agent_factory(
                     f"\n\n<internal_memories>\n{memories_str.strip()}\n</internal_memories>"
                 )
 
+        # Sanitize history so it never starts with or contains unmatched tool messages.
+        # Drop any tool message that is not preceded by an assistant message containing
+        # a matching tool_call id, as required by OpenAI/LiteLLM chat semantics.
+        def _sanitize_messages_for_tools(
+            history: list[dict[str, Any]],
+        ) -> list[dict[str, Any]]:
+            sanitized: list[dict[str, Any]] = []
+            seen_tool_ids: set[str] = set()
+
+            for m in history:
+                role = m.get("role")
+                if role == "assistant":
+                    # Collect tool_call ids from assistant messages, if any
+                    try:
+                        tcs = m.get("tool_calls") or []
+                        for tc in tcs:
+                            tc_id = tc.get("id")
+                            if isinstance(tc_id, str) and tc_id:
+                                seen_tool_ids.add(tc_id)
+                    except Exception:
+                        # Be tolerant to unexpected structures
+                        pass
+                    sanitized.append(m)
+                elif role == "tool":
+                    tc_id = m.get("tool_call_id")
+                    if isinstance(tc_id, str) and tc_id in seen_tool_ids:
+                        sanitized.append(m)
+                    else:
+                        # Unmatched tool message; drop it to satisfy API constraints
+                        try:
+                            logger.warning(
+                                "dropping unmatched tool message without preceding assistant tool_calls"
+                            )
+                        except Exception:
+                            pass
+                else:
+                    sanitized.append(m)
+
+            # Ensure history never starts with a tool message
+            while sanitized and sanitized[0].get("role") == "tool":
+                try:
+                    logger.warning(
+                        "dropping leading tool message with no preceding assistant"
+                    )
+                except Exception:
+                    pass
+                sanitized = sanitized[1:]
+
+            return sanitized
+
         # add the agent's tools to the list of tools
         enable_interswarm = agent_params.get("enable_interswarm", False)
-        agent_tools = create_mail_tools(comm_targets, enable_interswarm) + tools
-        for tool in agent_tools:
-            frozen_tool = tool.copy()
-            tool["function"] = frozen_tool
-            tool["type"] = "function"
+        agent_tools = (
+            create_mail_tools(comm_targets, enable_interswarm, style="completions")
+            + tools
+        )
+
+        sanitized_messages = _sanitize_messages_for_tools(messages)
+
+        # Message history sanitized; proceed to model call
 
         res = await acompletion(
             model=llm,
-            messages=messages,
+            messages=sanitized_messages,
             tools=agent_tools,
             thinking=thinking,
             reasoning_effort=reasoning_effort,
@@ -103,19 +165,36 @@ def base_agent_factory(
         )
 
         msg = res.choices[0].message
-        tool_calls = []
-        if msg.content:
-            pass
-        if msg.tool_calls:
-            for tool_call in msg.tool_calls:
+        tool_calls: list[AgentToolCall] = []
+        # Normalize assistant message to a dict so we can ensure consistent tool_call ids
+        assistant_dict = msg.to_dict()
+        # Prepare patched tool_calls list for assistant message
+        assistant_tool_calls: list[dict[str, Any]] = []
+        if getattr(msg, "tool_calls", None):
+            for tc in msg.tool_calls:
+                call_id = tc.id or f"call_{uuid4()}"
+                # Patch assistant tool_calls with consistent id
+                assistant_tool_calls.append(
+                    {
+                        "id": call_id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                )
                 tool_calls.append(
                     AgentToolCall(
-                        tool_name=tool_call.function.name,
-                        tool_args=ujson.loads(tool_call.function.arguments),
-                        tool_call_id=tool_call.id or f"call_{uuid4()}",
-                        completion=res.choices[0].message.to_dict(),
+                        tool_name=tc.function.name,
+                        tool_args=ujson.loads(tc.function.arguments),
+                        tool_call_id=call_id,
+                        completion=assistant_dict,
                     )
                 )
+        # If there were tool calls, ensure the assistant message reflects the ids we used
+        if assistant_tool_calls:
+            assistant_dict["tool_calls"] = assistant_tool_calls
 
         if memory:
             async with get_langmem_store() as store:
@@ -145,6 +224,7 @@ def base_agent_factory(
         return msg.content, tool_calls
 
     return run
+
 
 def base_agent_factory_with_responses(
     user_token: str,
@@ -200,14 +280,64 @@ def base_agent_factory_with_responses(
         # add the agent's tools to the list of tools
         # normalize to the { type: "function", function: { ... } } format
         enable_interswarm = agent_params.get("enable_interswarm", False)
-        agent_tools = create_mail_tools(comm_targets, enable_interswarm) + tools
-        for tool in agent_tools:
-            frozen_tool = tool.copy()
-            tool["function"] = frozen_tool
-            tool["type"] = "function"
+        agent_tools = (
+            create_mail_tools(comm_targets, enable_interswarm, style="responses")
+            + tools
+        )
+
+        # Sanitize history so it never starts with or contains unmatched tool messages.
+        # Drop any tool message that is not preceded by an assistant message containing
+        # a matching tool_call id, as required by OpenAI/LiteLLM chat semantics.
+        def _sanitize_messages_for_tools(
+            history: list[dict[str, Any]],
+        ) -> list[dict[str, Any]]:
+            sanitized: list[dict[str, Any]] = []
+            seen_tool_ids: set[str] = set()
+
+            for m in history:
+                role = m.get("role")
+                if role == "assistant":
+                    # Collect tool_call ids from assistant messages, if any
+                    try:
+                        tcs = m.get("tool_calls") or []
+                        for tc in tcs:
+                            tc_id = tc.get("id")
+                            if isinstance(tc_id, str) and tc_id:
+                                seen_tool_ids.add(tc_id)
+                    except Exception:
+                        # Be tolerant to unexpected structures
+                        pass
+                    sanitized.append(m)
+                elif role == "tool":
+                    tc_id = m.get("tool_call_id")
+                    if isinstance(tc_id, str) and tc_id in seen_tool_ids:
+                        sanitized.append(m)
+                    else:
+                        try:
+                            logger.warning(
+                                "dropping unmatched tool message without preceding assistant tool_calls"
+                            )
+                        except Exception:
+                            pass
+                else:
+                    sanitized.append(m)
+
+            # Ensure history never starts with a tool message
+            while sanitized and sanitized[0].get("role") == "tool":
+                try:
+                    logger.warning(
+                        "dropping leading tool message with no preceding assistant"
+                    )
+                except Exception:
+                    pass
+                sanitized = sanitized[1:]
+
+            return sanitized
+
+        sanitized_messages = _sanitize_messages_for_tools(messages)
 
         res = await aresponses(
-            input=messages,
+            input=sanitized_messages,
             model=llm,
             max_output_tokens=max_tokens,
             reasoning={
@@ -219,10 +349,14 @@ def base_agent_factory_with_responses(
             extra_headers={"Authorization": f"Bearer {user_token}"},
         )
 
-        output_messages: list[ResponseOutputMessage | None] = [output if output.type == "message" else None for output in res.output]
+        output_messages: list[ResponseOutputMessage | None] = [
+            output if output.type == "message" else None for output in res.output
+        ]
         output_messages = [msg for msg in output_messages if msg is not None]
 
-        assert len(output_messages) == 1, f"expected 1 output message, got {len(output_messages)}"
+        assert len(output_messages) == 1, (
+            f"expected 1 output message, got {len(output_messages)}"
+        )
         output_message = output_messages[0]
         assert output_message is not None
 
@@ -231,9 +365,13 @@ def base_agent_factory_with_responses(
         elif output_message.content[0].type == "refusal":
             output_text = output_message.content[0].refusal or ""
         else:
-            raise ValueError(f"unexpected output type: {output_message.content[0].type}")
+            raise ValueError(
+                f"unexpected output type: {output_message.content[0].type}"
+            )
 
-        tool_calls: list[OutputFunctionToolCall | None] = [output if output.type == "function_call" else None for output in res.output]
+        tool_calls: list[OutputFunctionToolCall | None] = [
+            output if output.type == "function_call" else None for output in res.output
+        ]
         tool_calls = [tool_call for tool_call in tool_calls if tool_call is not None]
         # It is valid for there to be zero tool calls if the model only replies with text
 
@@ -242,9 +380,12 @@ def base_agent_factory_with_responses(
             "role": "assistant",
             "content": output_text,
         }
+        agent_tool_calls: list[AgentToolCall] = []
         if len(tool_calls) > 0:
             assistant_tool_calls: list[dict[str, Any]] = []
+            # Build assistant.tool_calls and AgentToolCall objects with consistent ids
             for tc in tool_calls:
+                assert tc is not None
                 call_id = tc.id or f"call_{uuid4()}"
                 assistant_tool_calls.append(
                     {
@@ -256,22 +397,17 @@ def base_agent_factory_with_responses(
                         },
                     }
                 )
-            assistant_message["tool_calls"] = assistant_tool_calls
-
-        agent_tool_calls: list[AgentToolCall] = []
-        for tool_call in tool_calls:
-            assert tool_call is not None
-            assert tool_call.type == "function_call"
-            agent_tool_calls.append(
-                AgentToolCall(
-                    tool_name=tool_call.name or "",
-                    tool_args=ujson.loads(tool_call.arguments or ""),
-                    tool_call_id=tool_call.id or f"call_{uuid4()}",
-                    # Store the assistant message (with tool_calls) as the completion
-                    # so the runtime can append a valid chat message to history.
-                    completion=assistant_message,
+                agent_tool_calls.append(
+                    AgentToolCall(
+                        tool_name=tc.name or "",
+                        tool_args=ujson.loads(tc.arguments or ""),
+                        tool_call_id=call_id,
+                        # Store the assistant message (with tool_calls) as the completion
+                        # so the runtime can append a valid chat message to history.
+                        completion=assistant_message,
+                    )
                 )
-            )
+            assistant_message["tool_calls"] = assistant_tool_calls
 
         if memory:
             async with get_langmem_store() as store:

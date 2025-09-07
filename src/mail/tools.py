@@ -1,9 +1,8 @@
 from collections.abc import Awaitable, Callable
 import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
-from litellm.utils import function_to_dict
 from pydantic import BaseModel, Field
 
 from .message import (
@@ -17,6 +16,10 @@ from .message import (
     create_user_address,
 )
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 MAIL_TOOL_NAMES = [
     "send_request",
     "send_response",
@@ -24,6 +27,88 @@ MAIL_TOOL_NAMES = [
     "send_broadcast",
     "task_complete",
 ]
+
+
+def _pydantic_model_to_tool(
+    model_cls: type[BaseModel],
+    name: str | None = None,
+    description: str | None = None,
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
+    """Convert a Pydantic model class into an OpenAI function tool spec.
+
+    Returns a dict in the shape expected by Chat Completions and is compatible
+    with the Responses API (we later mirror parameters → input_schema when needed).
+    """
+    if style == "completions":
+        try:
+            properties = model_cls.model_json_schema()["properties"]
+        except Exception as e:
+            logger.warning(
+                f"error getting model json schema for {model_cls.__name__}: {e}"
+            )
+            properties = False
+        try:
+            required = [
+                property
+                for property in model_cls.model_json_schema()["properties"].keys()
+            ]
+        except Exception as e:
+            logger.warning(
+                f"error getting model json schema for {model_cls.__name__}: {e}"
+            )
+            required = []
+
+        tool_name = name or model_cls.__name__
+        tool_desc = description or (model_cls.__doc__ or "").strip()
+        return {
+            "type": "function",
+            "function": {
+                "name": tool_name,
+                "description": tool_desc,
+                "strict": True,
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required,
+                    "additionalProperties": False,
+                },
+            },
+        }
+    elif style == "responses":
+        try:
+            properties = model_cls.model_json_schema()["properties"]
+        except Exception as e:
+            logger.warning(
+                f"error getting model json schema for {model_cls.__name__}: {e}"
+            )
+            properties = False
+        try:
+            required = [
+                property
+                for property in model_cls.model_json_schema()["properties"].keys()
+            ]
+        except Exception as e:
+            logger.warning(
+                f"error getting model json schema for {model_cls.__name__}: {e}"
+            )
+            required = []
+
+        additionalProperties = False
+        return {
+            "type": "function",
+            "name": name or model_cls.__name__,
+            "description": description or (model_cls.__doc__ or "").strip(),
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": additionalProperties,
+            },
+            "strict": True,
+        }
+    else:
+        raise ValueError(f"invalid style: {style}")
 
 
 class AgentToolCall(BaseModel):
@@ -139,7 +224,7 @@ def convert_call_to_mail_message(
 
 
 def action_complete_broadcast(
-    result_message: dict[str, Any], system_name: str,recipient: str, task_id: str
+    result_message: dict[str, Any], system_name: str, recipient: str, task_id: str
 ) -> MAILMessage:
     """Create a MAIL broadcast message to indicate that an action has been completed."""
 
@@ -162,7 +247,9 @@ def action_complete_broadcast(
 
 
 def create_request_tool(
-    targets: list[str], enable_interswarm: bool = False
+    targets: list[str],
+    enable_interswarm: bool = False,
+    style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
     """Create a MAIL message tool to send messages to specific agents."""
 
@@ -180,9 +267,13 @@ def create_request_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = function_to_dict(send_request)
+    tool_dict = _pydantic_model_to_tool(send_request, name="send_request", style=style)
 
-    target_param = tool_dict["parameters"]["properties"]["target"]
+    target_param = (
+        tool_dict["function"]["parameters"]["properties"]["target"]
+        if style == "completions"
+        else tool_dict["parameters"]["properties"]["target"]
+    )
     if enable_interswarm:
         # For interswarm messaging, we don't restrict to enum values
         # The validation will happen at runtime
@@ -197,7 +288,9 @@ def create_request_tool(
 
 
 def create_response_tool(
-    targets: list[str], enable_interswarm: bool = False
+    targets: list[str],
+    enable_interswarm: bool = False,
+    style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
     """Create a MAIL message tool to send messages to specific agents."""
 
@@ -215,9 +308,15 @@ def create_response_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = function_to_dict(send_response)
+    tool_dict = _pydantic_model_to_tool(
+        send_response, name="send_response", style=style
+    )
 
-    target_param = tool_dict["parameters"]["properties"]["target"]
+    target_param = (
+        tool_dict["function"]["parameters"]["properties"]["target"]
+        if style == "completions"
+        else tool_dict["parameters"]["properties"]["target"]
+    )
     if enable_interswarm:
         # For interswarm messaging, we don't restrict to enum values
         # The validation will happen at runtime
@@ -232,7 +331,9 @@ def create_response_tool(
 
 
 def create_interrupt_tool(
-    targets: list[str], enable_interswarm: bool = False
+    targets: list[str],
+    enable_interswarm: bool = False,
+    style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
     """Create a MAIL interrupt tool to interrupt specific agents."""
 
@@ -250,9 +351,15 @@ def create_interrupt_tool(
         subject: str = Field(description="The subject of the interrupt.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = function_to_dict(send_interrupt)
+    tool_dict = _pydantic_model_to_tool(
+        send_interrupt, name="send_interrupt", style=style
+    )
 
-    target_param = tool_dict["parameters"]["properties"]["target"]
+    target_param = (
+        tool_dict["function"]["parameters"]["properties"]["target"]
+        if style == "completions"
+        else tool_dict["parameters"]["properties"]["target"]
+    )
     if enable_interswarm:
         target_param["description"] = (
             target_param["description"]
@@ -264,7 +371,9 @@ def create_interrupt_tool(
     return tool_dict
 
 
-def create_interswarm_broadcast_tool() -> dict[str, Any]:
+def create_interswarm_broadcast_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
     """Create a MAIL broadcast tool for interswarm communication."""
 
     class send_interswarm_broadcast(BaseModel):
@@ -277,10 +386,14 @@ def create_interswarm_broadcast_tool() -> dict[str, Any]:
             default=[],
         )
 
-    return function_to_dict(send_interswarm_broadcast)
+    return _pydantic_model_to_tool(
+        send_interswarm_broadcast, name="send_interswarm_broadcast", style=style
+    )
 
 
-def create_swarm_discovery_tool() -> dict[str, Any]:
+def create_swarm_discovery_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
     """Create a tool for discovering and registering swarms."""
 
     class discover_swarms(BaseModel):
@@ -290,10 +403,12 @@ def create_swarm_discovery_tool() -> dict[str, Any]:
             description="List of URLs to discover swarms from."
         )
 
-    return function_to_dict(discover_swarms)
+    return _pydantic_model_to_tool(discover_swarms, name="discover_swarms", style=style)
 
 
-def create_broadcast_tool() -> dict[str, Any]:
+def create_broadcast_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
     """Create a MAIL broadcast tool to broadcast messages to all agents."""
 
     class send_broadcast(BaseModel):
@@ -302,10 +417,12 @@ def create_broadcast_tool() -> dict[str, Any]:
         subject: str = Field(description="The subject of the broadcast.")
         message: str = Field(description="The message content to send.")
 
-    return function_to_dict(send_broadcast)
+    return _pydantic_model_to_tool(send_broadcast, name="send_broadcast", style=style)
 
 
-def create_acknowledge_broadcast_tool() -> dict[str, Any]:
+def create_acknowledge_broadcast_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
     """Create a tool for agents to acknowledge a broadcast without replying.
 
     When invoked, the runtime will store the incoming broadcast in the agent's
@@ -321,10 +438,14 @@ def create_acknowledge_broadcast_tool() -> dict[str, Any]:
             description="Optional note to include in internal memory only.",
         )
 
-    return function_to_dict(acknowledge_broadcast)
+    return _pydantic_model_to_tool(
+        acknowledge_broadcast, name="acknowledge_broadcast", style=style
+    )
 
 
-def create_ignore_broadcast_tool() -> dict[str, Any]:
+def create_ignore_broadcast_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
     """Create a tool for agents to ignore a broadcast entirely.
 
     When invoked, the runtime will neither store nor respond to the broadcast.
@@ -339,10 +460,14 @@ def create_ignore_broadcast_tool() -> dict[str, Any]:
             description="Optional internal reason for ignoring (not sent).",
         )
 
-    return function_to_dict(ignore_broadcast)
+    return _pydantic_model_to_tool(
+        ignore_broadcast, name="ignore_broadcast", style=style
+    )
 
 
-def create_task_complete_tool() -> dict[str, Any]:
+def create_task_complete_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
     """Create a MAIL task complete tool to indicate that a task has been completed."""
 
     class task_complete(BaseModel):
@@ -352,40 +477,45 @@ def create_task_complete_tool() -> dict[str, Any]:
             description="The message to broadcast to all agents to indicate that the task has been completed."
         )
 
-    return function_to_dict(task_complete)
+    return _pydantic_model_to_tool(task_complete, name="task_complete", style=style)
 
 
 def create_mail_tools(
-    targets: list[str], enable_interswarm: bool = False
+    targets: list[str],
+    enable_interswarm: bool = False,
+    style: Literal["completions", "responses"] = "completions",
 ) -> list[dict[str, Any]]:
     """Create MAIL tools. These should be used for all agents."""
     return [
-        create_request_tool(targets, enable_interswarm),
-        create_response_tool(targets, enable_interswarm),
-        create_acknowledge_broadcast_tool(),
-        create_ignore_broadcast_tool(),
+        create_request_tool(targets, enable_interswarm, style),
+        create_response_tool(targets, enable_interswarm, style),
+        create_acknowledge_broadcast_tool(style),
+        create_ignore_broadcast_tool(style),
     ]
 
 
 def create_supervisor_tools(
-    targets: list[str], can_complete_tasks: bool = True, enable_interswarm: bool = False
+    targets: list[str],
+    can_complete_tasks: bool = True,
+    enable_interswarm: bool = False,
+    style: Literal["completions", "responses"] = "completions",
 ) -> list[dict[str, Any]]:
     """Create MAIL supervisor tools. Targets are the agents that the supervisor can send messages to."""
 
     tools = [
-        create_interrupt_tool(targets, enable_interswarm),
-        create_broadcast_tool(),
+        create_interrupt_tool(targets, enable_interswarm, style),
+        create_broadcast_tool(style),
     ]
 
     if enable_interswarm:
         tools.extend(
             [
-                create_interswarm_broadcast_tool(),
-                create_swarm_discovery_tool(),
+                create_interswarm_broadcast_tool(style),
+                create_swarm_discovery_tool(style),
             ]
         )
 
     if can_complete_tasks:
-        tools.append(create_task_complete_tool())
+        tools.append(create_task_complete_tool(style))
 
     return tools

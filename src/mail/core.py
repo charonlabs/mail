@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 import datetime
+import json
 import logging
 from typing import Any, Optional
 import uuid
@@ -296,7 +297,9 @@ class MAIL:
             logger.info(
                 f"submitAndWait: got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
             )
-            self._submit_event("task_complete", task_id, f"response: '{response['message']['body']}'")
+            self._submit_event(
+                "task_complete", task_id, f"response: '{response['message']['body']}'"
+            )
             return response
 
         except asyncio.TimeoutError:
@@ -313,7 +316,7 @@ class MAIL:
                 f"submitAndWait: exception for task '{task_id}' with error: '{e}'"
             )
             raise e
-        
+
     async def submit_and_stream(
         self, message: MAILMessage, timeout: float = 3600.0
     ) -> AsyncGenerator[ServerSentEvent, None]:
@@ -323,7 +326,9 @@ class MAIL:
         """
         task_id = message["message"]["task_id"]
 
-        logger.info(f"submitAndStream: creating future for task '{task_id}' for user '{self.user_id}'")
+        logger.info(
+            f"submitAndStream: creating future for task '{task_id}' for user '{self.user_id}'"
+        )
 
         future: asyncio.Future[MAILMessage] = asyncio.Future()
         self.pending_requests[task_id] = future
@@ -341,7 +346,9 @@ class MAIL:
                     # Heartbeat to keep the connection alive
                     yield ServerSentEvent(
                         data={
-                            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "timestamp": datetime.datetime.now(
+                                datetime.timezone.utc
+                            ).isoformat(),
                             "task_id": task_id,
                         },
                         event="ping",
@@ -362,7 +369,10 @@ class MAIL:
                         # Never let history tracking break streaming
                         pass
                     try:
-                        if isinstance(ev.data, dict) and ev.data.get("task_id") == task_id:  # type: ignore
+                        if (
+                            isinstance(ev.data, dict)
+                            and ev.data.get("task_id") == task_id
+                        ):  # type: ignore
                             yield ev
                     except Exception:
                         # Be tolerant to malformed event data
@@ -373,7 +383,9 @@ class MAIL:
                 response = future.result()
                 yield ServerSentEvent(
                     data={
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "timestamp": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
                         "task_id": task_id,
                         "response": response["message"]["body"],
                     },
@@ -383,7 +395,9 @@ class MAIL:
                 # If retrieving the response fails, still signal completion
                 yield ServerSentEvent(
                     data={
-                        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "timestamp": datetime.datetime.now(
+                            datetime.timezone.utc
+                        ).isoformat(),
                         "task_id": task_id,
                     },
                     event="task_complete",
@@ -392,13 +406,17 @@ class MAIL:
         except asyncio.TimeoutError:
             self.pending_requests.pop(task_id, None)
             logger.error(f"submitAndStream: timeout for task '{task_id}'")
-            raise TimeoutError(f"task '{task_id}' for user '{self.user_id}' timed out after {timeout} seconds")
+            raise TimeoutError(
+                f"task '{task_id}' for user '{self.user_id}' timed out after {timeout} seconds"
+            )
 
         except Exception as e:
             self.pending_requests.pop(task_id, None)
-            logger.error(f"submitAndStream: exception for task '{task_id}' with error: '{e}'")
+            logger.error(
+                f"submitAndStream: exception for task '{task_id}' with error: '{e}'"
+            )
             raise e
-        
+
     async def shutdown(self) -> None:
         """Request a graceful shutdown of the MAIL system."""
         logger.info(f"requesting shutdown for user '{self.user_id}'...")
@@ -590,7 +608,11 @@ class MAIL:
         logger.info(
             f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
         )
-        self._submit_event("new_message", message["message"]["task_id"], f"sending message:\n{build_mail_xml(message)['content']}")
+        self._submit_event(
+            "new_message",
+            message["message"]["task_id"],
+            f"sending message:\n{build_mail_xml(message)['content']}",
+        )
 
         async def schedule(message: MAILMessage) -> None:
             try:
@@ -724,18 +746,33 @@ class MAIL:
                                 )
                         case _:
                             logger.info(f"executing action tool: '{call.tool_name}'")
-                            self._submit_event("action_tool_call", task_id, f"executing action tool (caller = '{message['message']['recipient']}'):\n'{call}'") # type: ignore
+                            self._submit_event(
+                                "action_tool_call",
+                                task_id,
+                                f"executing action tool (caller = '{message['message']['recipient']}'):\n'{call}'",
+                            )  # type: ignore
                             result_message = await execute_action_tool(
                                 call, self.actions, _action_override
                             )
                             history.append(result_message)
-                            self._submit_event("action_tool_complete", task_id, f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_message['content']}'") # type: ignore
+                            self._submit_event(
+                                "action_tool_complete",
+                                task_id,
+                                f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_message['content']}'",
+                            )  # type: ignore
                             await self.submit(
                                 action_complete_broadcast(
                                     result_message, self.swarm_name, recipient, task_id
                                 )
                             )
-                self.agent_histories[recipient] = history[1:]
+                # self.agent_histories[recipient] = history[1:]
+                last_user_idx = max(
+                    i for i, msg in enumerate(history) if msg.get("role") == "user"
+                )
+                trimmed = history[last_user_idx:] if last_user_idx >= 0 else history
+                while trimmed and trimmed[0].get("role") == "tool":
+                    trimmed = trimmed[1:]
+                self.agent_histories[recipient] = trimmed
             finally:
                 self.message_queue.task_done()
 
@@ -768,7 +805,9 @@ class MAIL:
         self.new_events.append(
             ServerSentEvent(
                 data={
-                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "timestamp": datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat(),
                     "description": description,
                     "task_id": task_id,
                 },
@@ -781,6 +820,6 @@ class MAIL:
         except Exception:
             pass
         return None
-    
+
     def get_events_by_task_id(self, task_id: str) -> list[ServerSentEvent]:
-        return [event for event in self.events if event.data["task_id"] == task_id] # type: ignore
+        return [event for event in self.events if event.data["task_id"] == task_id]  # type: ignore
