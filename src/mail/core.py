@@ -822,4 +822,20 @@ class MAIL:
         return None
 
     def get_events_by_task_id(self, task_id: str) -> list[ServerSentEvent]:
-        return [event for event in self.events if event.data["task_id"] == task_id]  # type: ignore
+        candidates = []
+        try:
+            candidates.extend(self.events)
+        except Exception:
+            pass
+        try:
+            candidates.extend(self.new_events)
+        except Exception:
+            pass
+        out = []
+        for ev in candidates:
+            try:
+                if isinstance(ev.data, dict) and ev.data.get("task_id") == task_id:
+                    out.append(ev)
+            except Exception:
+                continue
+        return out
