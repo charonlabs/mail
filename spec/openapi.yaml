@@ -65,11 +65,11 @@ paths:
                   active_users: { type: integer }
                   user_mail_ready: { type: boolean }
                   user_task_running: { type: boolean }
-  /chat:
+  /message:
     post:
-      summary: Chat with the swarm (supervisor entrypoint)
+      summary: Send a message to the swarm (supervisor entrypoint)
       description: Requires role=user or role=admin.
-      operationId: chat
+      operationId: message
       security:
         - bearerAuth: []
       requestBody:
@@ -82,6 +82,17 @@ paths:
               required: [message]
               properties:
                 message: { type: string }
+                entrypoint:
+                  type: string
+                  description: Optional agent entrypoint override (defaults to configured entrypoint)
+                show_events:
+                  type: boolean
+                  description: When true, include collected events alongside the response
+                  default: false
+                stream:
+                  type: boolean
+                  description: When true, server responds with text/event-stream (SSE)
+                  default: false
       responses:
         '200':
           description: Final response produced by supervisor after task completion
@@ -92,6 +103,21 @@ paths:
                 additionalProperties: false
                 properties:
                   response: { type: string }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      description: Server-sent event snapshot
+                      properties:
+                        data:
+                          type: object
+                        event:
+                          type: string
+                      additionalProperties: true
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream emitted when stream=true
         '401':
           description: Unauthorized
   /health:
@@ -247,4 +273,3 @@ paths:
           description: Bad request
         '401':
           description: Unauthorized
-

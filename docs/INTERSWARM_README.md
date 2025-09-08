@@ -10,7 +10,7 @@ When Swarm A sends a message to Swarm B, the response from Swarm B needs to be p
 
 ### 1. Swarm A → Swarm B (Request)
 
-1. **User in Swarm A** sends a message via `/chat` endpoint
+1. **User in Swarm A** sends a message via `/message`
 2. **Swarm A MAIL** creates a message with recipient `agent@swarm-b`
 3. **Interswarm Router** detects remote recipient and routes via HTTP
 4. **HTTP POST** to `swarm-b:8000/interswarm/message`

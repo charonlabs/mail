@@ -3,7 +3,7 @@
 - Usage: Inspect as documentation, and validate with `python spec/validate_samples.py`.
 
 ## **Files**
-- `mail_message_request.json`: Local request created by the server when a user calls `/chat`.
+- `mail_message_request.json`: Local request created by the server when a user calls `/message`.
   - Flow: User → MAILRequest to supervisor → local routing.
   - Schema: MAILMessage with msg_type="request".
 - `mail_message_response.json`: Local agent-to-agent response (e.g., weather → supervisor).
@@ -29,7 +29,7 @@
 - Core types: src/mail/message.py (TypedDicts and address helpers).
 - Local processing & lifecycle: src/mail/core.py (submit_and_wait, priorities, broadcast_complete).
 - Interswarm routing: src/mail/interswarm_router.py (HTTP wrapping, addressing, routing).
-- HTTP API: src/mail/server.py (endpoints /chat, /interswarm/*, /swarms/*).
+- HTTP API: src/mail/server.py (endpoints /message, /interswarm/*, /swarms/*).
 
 ## **Validation**
 - Run: python spec/validate_samples.py
@@ -40,4 +40,3 @@
 ## **OpenAPI**
 - API description: spec/openapi.yaml
 - Schemas are referenced via $ref to the JSON Schema files in spec/.
-

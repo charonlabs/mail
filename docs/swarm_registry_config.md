@@ -20,13 +20,13 @@ export SWARM_NAME="my-swarm"
 # Required: Base URL of the local swarm
 export BASE_URL="http://localhost:8000"
 
-# Optional: Path to the persistence file (default: swarm_registry.json)
-export SWARM_REGISTRY_FILE="/path/to/swarm_registry.json"
+# Optional: Path to the persistence file (default: registries/example.json)
+export SWARM_REGISTRY_FILE="/path/to/registries/example.json"
 ```
 
 ### Persistence File
 
-The registry automatically creates a JSON file to store persistent endpoints. The default location is `swarm_registry.json` in the current working directory.
+The registry automatically creates a JSON file to store persistent endpoints. The default location is `registries/example.json` (configurable via `SWARM_REGISTRY_FILE`).
 
 ## Usage Examples
 
@@ -112,7 +112,8 @@ curl -X POST http://localhost:8000/swarms/register \
 - Swarms with authentication tokens
 
 ### Security Considerations
-- Authentication tokens are stored in plain text in the persistence file
+- Persistent endpoints store authentication tokens as environment variable references (no plain text secrets are persisted)
+- Volatile endpoints never write tokens to disk (in-memory only)
 - Ensure the persistence file has appropriate file permissions
 - Consider encrypting sensitive metadata
 - Regularly rotate authentication tokens
@@ -122,11 +123,14 @@ curl -X POST http://localhost:8000/swarms/register \
 ### Check Registry Status
 
 ```bash
-# Get all registered endpoints
+# List known swarms/endpoints
+curl http://localhost:8000/swarms
+
+# Server status and active users
 curl http://localhost:8000/status
 
-# Check the persistence file
-cat swarm_registry.json
+# Inspect the persistence file
+cat registries/example.json
 ```
 
 ### Log Messages
@@ -165,7 +169,7 @@ The registry logs important events:
       "swarm_name": "production-swarm",
       "base_url": "https://prod-swarm.example.com",
       "health_check_url": "https://prod-swarm.example.com/health",
-      "auth_token": "secret-token",
+      "auth_token_ref": "${SWARM_AUTH_TOKEN_PRODUCTION_SWARM}",
       "last_seen": "2024-01-01T12:00:00",
       "is_active": true,
       "metadata": {"environment": "production"},
@@ -173,4 +177,4 @@ The registry logs important events:
     }
   }
 }
-``` 
+```

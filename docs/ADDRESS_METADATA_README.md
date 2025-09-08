@@ -45,7 +45,7 @@ For backward compatibility and data extraction:
 ### Creating Messages with Typed Addresses
 
 ```python
-from src.mail.message import (
+from mail.message import (
     MAILMessage, MAILRequest, create_agent_address, create_user_address
 )
 
@@ -68,7 +68,7 @@ request = MAILMessage(
 ### Extracting Address Information
 
 ```python
-from src.mail.message import get_address_string, get_address_type
+from mail.message import get_address_string, get_address_type
 
 # Extract information from addresses
 sender = request["message"]["sender"]
@@ -140,13 +140,6 @@ sender = create_system_address("system")
 recipients = [create_agent_address("supervisor"), create_agent_address("analyst")]
 ```
 
-## Testing
+## Validation
 
-Run the demonstration script to see the new system in action:
-
-```bash
-cd examples
-python address_demo.py
-```
-
-This will show examples of creating messages with different address types and demonstrate the XML output with metadata.
+See tests under `tests/mock` for examples using typed addresses (e.g., creation of `MAILRequest` with `create_user_address`/`create_agent_address`). To run all tests, follow `docs/TESTING.md`.

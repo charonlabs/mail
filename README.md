@@ -207,7 +207,7 @@ curl -H "Authorization: Bearer your-token" http://localhost:8000/status
 
 ##### Chat with Agents
 ```bash
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-token" \
   -d '{"message": "What is the weather like today?"}'
@@ -215,7 +215,7 @@ curl -X POST http://localhost:8000/chat \
 
 Optional: specify an entrypoint agent (defaults to the swarm's configured `entrypoint`, e.g. `supervisor`):
 ```bash
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your-token" \
   -d '{"message": "Summarize this.", "entrypoint": "weather"}'

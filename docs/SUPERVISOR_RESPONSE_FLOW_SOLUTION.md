@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-When using the `POST /chat` endpoint, the final response should be from Swarm A's supervisor completing the task, not from Swarm B's raw response. Currently, the user was getting the direct response from the remote agent instead of the supervisor's processed and finalized response.
+When using the `POST /message` endpoint, the final response should be from Swarm A's supervisor completing the task, not from Swarm B's raw response. Currently, the user was getting the direct response from the remote agent instead of the supervisor's processed and finalized response.
 
 ## Solution Overview
 
@@ -105,7 +105,7 @@ async def _route_interswarm_message(self, message: MAILMessage) -> None:
 
 ### 1. User Request Phase
 ```
-User → POST /chat → Swarm A MAIL → Supervisor Agent
+User → POST /message → Swarm A MAIL → Supervisor Agent
 ```
 
 ### 2. Interswarm Communication Phase
@@ -164,14 +164,14 @@ task_complete → User Receives Supervisor's Final Response
 3. **Error Handling Test**: Verify graceful handling of remote failures
 
 ### Expected Behavior
-- **`POST /chat`**: Returns supervisor's final response after processing remote agent response
+- **`POST /message`**: Returns supervisor's final response after processing remote agent response
 - **`POST /interswarm/send`**: Returns raw response from remote agent (for debugging/testing)
 
 ## Example Flow
 
 ### User Request
 ```bash
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:8000/message \
   -H "Authorization: Bearer user-token" \
   -H "Content-Type: application/json" \
   -d '{"message": "Ask consultant@swarm-b to analyze sales data"}'

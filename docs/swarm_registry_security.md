@@ -117,7 +117,7 @@ services:
       - SWARM_AUTH_TOKEN_PRODUCTION=${SWARM_AUTH_TOKEN_PRODUCTION}
       - SWARM_AUTH_TOKEN_STAGING=${SWARM_AUTH_TOKEN_STAGING}
     volumes:
-      - ./swarm_registry.json:/app/swarm_registry.json
+      - ./registries/example.json:/app/registries/example.json
 ```
 
 ### Kubernetes
@@ -239,7 +239,7 @@ validation_results = swarm_registry.validate_environment_variables()
 print(validation_results)
 
 # Check persistence file
-with open("swarm_registry.json", "r") as f:
+with open("registries/example.json", "r") as f:
     print(json.dumps(json.load(f), indent=2))
 ```
 
@@ -249,7 +249,7 @@ with open("swarm_registry.json", "r") as f:
 
 1. **Backup your current registry**:
    ```bash
-   cp swarm_registry.json swarm_registry.json.backup
+   cp registries/example.json registries/example.json.backup
    ```
 
 2. **Set environment variables** for your tokens:
@@ -274,7 +274,7 @@ with open("swarm_registry.json", "r") as f:
 5. **Test the new configuration**:
    ```python
    # Restart the registry to test loading
-   new_registry = SwarmRegistry("test", "http://localhost:8000", "swarm_registry.json")
+   new_registry = SwarmRegistry("test", "http://localhost:8000", "registries/example.json")
    ```
 
 ## Example Complete Configuration
@@ -283,7 +283,7 @@ with open("swarm_registry.json", "r") as f:
 ```bash
 export SWARM_NAME="main-swarm"
 export BASE_URL="https://mail.example.com"
-export SWARM_REGISTRY_FILE="/etc/mail/swarm_registry.json"
+export SWARM_REGISTRY_FILE="/etc/mail/registries/example.json"
 export SWARM_AUTH_TOKEN_PRODUCTION="prod-secret-12345"
 export SWARM_AUTH_TOKEN_STAGING="staging-secret-67890"
 export SWARM_AUTH_TOKEN_DEVELOPMENT="dev-secret-abcde"

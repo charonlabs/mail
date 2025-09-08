@@ -1,6 +1,6 @@
 # Multi-Agent Interface Layer (MAIL) — Draft Specification
 
-- **Version**: 0.1.0 (draft)
+- **Version**: 1.0.0 (draft)
 - **Status**: Draft for review
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -148,14 +148,14 @@ Authoritative contract: `spec/openapi.yaml` (OpenAPI 3.1[^openapi]).
 
 - HTTP Bearer[^rfc6750] authentication.
 - Roles:
-  - `user|admin`: initiate user chats and interswarm sends.
+  - `user|admin`: initiate user messages and interswarm sends.
   - `agent`: call interswarm receive/response endpoints.
 
 ### Endpoints (summary)
 
 - `GET /`: Health probe. Returns `{ name, status, version }`.
 - `GET /status` (bearer): Server status, including swarm and user-instance indicators.
-- `POST /chat` (user|admin): Body `{ message: string }`. Creates a MAIL request to `supervisor` and returns final `response.body` when `broadcast_complete` resolves.
+- `POST /message` (user|admin): Body `{ message: string, entrypoint?: string, show_events?: boolean, stream?: boolean }`. Creates a MAIL request to the configured entrypoint (or specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
 - `GET /swarms`: List known swarms from registry.
 - `POST /swarms/register` (admin): `{ name, base_url, auth_token?, volatile?, metadata? }`. Registers/updates remote swarm. Non-volatile entries persist.
 - `POST /interswarm/message` (agent): Body is `MAILInterswarmMessage`. Delivers wrapped payload into local MAIL; returns a `MAILMessage` response (for request/response flows).
