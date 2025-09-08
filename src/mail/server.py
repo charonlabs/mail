@@ -264,14 +264,14 @@ async def status(request: Request):
     }
 
 
-@app.post("/chat")
-async def chat(request: Request):
+@app.post("/message")
+async def message(request: Request):
     """
-    Handle chat requests from the client.
+    Handle message requests from the client.
     Uses a user-specific MAIL instance to process the request and returns the response.
 
     Args:
-        message: The string containing the chat message.
+        message: The string containing the message.
         entrypoint: The entrypoint to use for the message.
         show_events: Whether to return the events for the task.
         stream: Whether to stream the response.
@@ -279,7 +279,7 @@ async def chat(request: Request):
     Returns:
         A dictionary containing the response message.
     """
-    logger.info("chat endpoint accessed")
+    logger.info("message endpoint accessed")
 
     # auth process
     api_key = request.headers.get("Authorization")

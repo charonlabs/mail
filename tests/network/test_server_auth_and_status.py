@@ -10,22 +10,22 @@ def _async_return(value):
 
 
 @pytest.mark.usefixtures("patched_server")
-def test_chat_requires_auth_missing_header():
+def test_message_requires_auth_missing_header():
     from mail.server import app
 
     with TestClient(app) as client:
-        r = client.post("/chat", json={"message": "Hello"})
+        r = client.post("/message", json={"message": "Hello"})
         assert r.status_code == 401
         assert r.json()["detail"] in ("no API key provided", "invalid API key format")
 
 
 @pytest.mark.usefixtures("patched_server")
-def test_chat_invalid_auth_format():
+def test_message_invalid_auth_format():
     from mail.server import app
 
     with TestClient(app) as client:
         r = client.post(
-            "/chat",
+            "/message",
             headers={"Authorization": "invalid-token"},
             json={"message": "Hello"},
         )
@@ -34,7 +34,7 @@ def test_chat_invalid_auth_format():
 
 
 @pytest.mark.usefixtures("patched_server")
-def test_chat_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
+def test_message_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
     from mail.server import app
 
     # Override token info to mimic an agent (not a user/admin)
@@ -45,7 +45,7 @@ def test_chat_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
 
     with TestClient(app) as client:
         r = client.post(
-            "/chat",
+            "/message",
             headers={"Authorization": "Bearer test-key"},
             json={"message": "Hello"},
         )
@@ -54,7 +54,7 @@ def test_chat_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.mark.usefixtures("patched_server")
-def test_status_after_chat_shows_user_ready_true(monkeypatch: pytest.MonkeyPatch):
+def test_status_after_message_shows_user_ready_true(monkeypatch: pytest.MonkeyPatch):
     from mail.server import app
 
     with TestClient(app) as client:
@@ -65,7 +65,7 @@ def test_status_after_chat_shows_user_ready_true(monkeypatch: pytest.MonkeyPatch
 
         # Perform a successful chat (stubbed in fixture to complete tasks)
         rc = client.post(
-            "/chat",
+            "/message",
             headers={"Authorization": "Bearer test-key"},
             json={"message": "Hello"},
         )

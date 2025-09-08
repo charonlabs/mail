@@ -27,12 +27,12 @@ def test_status_without_auth():
 
 
 @pytest.mark.usefixtures("patched_server")
-def test_chat_flow_success():
+def test_message_flow_success():
     from mail.server import app
 
     with TestClient(app) as client:
         r = client.post(
-            "/chat",
+            "/message",
             headers={"Authorization": "Bearer test-key"},
             json={"message": "Hello"},
         )
