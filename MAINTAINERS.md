@@ -1,22 +1,22 @@
-# Contributors
+# MAIL Contributors and Maintainers
 
 ## Will Hahn
 - **Affiliation**: Charon Labs, LLC
 - **GitHub**: [wsfhahn](https://github.com/wsfhahn)
 - **Contributions**: Documentation diagrams and swarm endpoint work
-- **Status**: active
+- **Status**: occasional
 
 ## Ryan Heaton
 - **Affiliation**: Charon Labs, LLC
 - **GitHub**: [rheaton64](https://github.com/rheaton64)
 - **Contributions**: MAIL reference implementation runtime architecture work
-- **Status**: active
+- **Status**: occasional
 
 ## Jacob Hahn
 - **Affiliation**: Charon Labs, LLC
 - **GitHub**: [jacobtohahn](https://github.com/jacobtohahn)
 - **Contributions**: Help with protocol development
-- **Status**: active
+- **Status**: occasional
 
 ## Addison Kline
 - **Affiliation**: Charon Labs, LLC
