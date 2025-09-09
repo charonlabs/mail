@@ -64,11 +64,6 @@ With `uv`:
    uv sync
    ```
 
-3. Install `mail` package as editable:
-   ```bash
-   uv pip install -e .
-   ```
-
 Or with `pip`:
 ```bash
 pip install -e .
@@ -160,7 +155,6 @@ Example swarm configuration:
 
 ### Running the Server
 
-#### Option 1: Full Server with Interswarm Support
 ```bash
 # Set environment variables
 export SWARM_NAME=my-swarm
@@ -170,16 +164,10 @@ export AUTH_ENDPOINT=http://your-auth-server/auth/login
 export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 
 # Start the server
-uv run -m src.mail.server
+uv run mail
 
 # Or with Python
-python -m src.mail.server
-```
-
-#### Option 2: Direct Execution
-```bash
-# Run the server directly
-uv run python src/mail/server.py
+python -m mail.server
 ```
 
 The server will start on `http://localhost:8000` by default.
@@ -221,7 +209,7 @@ curl -X POST http://localhost:8000/message \
   -d '{"message": "Summarize this.", "entrypoint": "weather"}'
 ```
 
-#### Interswarm Communication (Advanced)
+#### Interswarm Communication
 
 ##### List Available Swarms
 ```bash
@@ -262,7 +250,7 @@ export BASE_URL=http://localhost:8000
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
 export AUTH_ENDPOINT=http://your-auth-server/auth/login
 export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
-uv run -m src.mail.server
+uv run mail
 ```
 
 #### Terminal 2: Start Second Swarm
@@ -272,7 +260,7 @@ export BASE_URL=http://localhost:8001
 export LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
 export AUTH_ENDPOINT=http://your-auth-server/auth/login
 export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
-uv run -m src.mail.server
+uv run mail
 ```
 
 #### Register Swarms with Each Other
@@ -324,15 +312,15 @@ The system requires a separate server for authentication. Specifically, the endp
 1. `AUTH_ENDPOINT`: Takes in an `Authorization: Bearer` header containing a swarm API key and returns a temporary token for the user (or agent) that called it in the following format:
 ```json
 {
-  "token": string
+  "token": "string"
 }
 ```
 2. `TOKEN_INFO_ENDPOINT`: Takes in an `Authorization: Bearer` header containing a temporary token and returns info for the calling user (or agent) in the following format:
 ```json
 {
   "role": "admin" | "user" | "agent",
-  "id": int,
-  "api_key": string
+  "id": "string",
+  "api_key": "string"
 }
 ```
 
