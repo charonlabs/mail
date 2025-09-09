@@ -1,36 +1,36 @@
 import asyncio
-from collections.abc import AsyncGenerator
 import datetime
 import json
 import logging
-from typing import Any, Optional
 import uuid
 from asyncio import PriorityQueue, Task
+from collections.abc import AsyncGenerator
+from typing import Any, Optional
 
+from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
 
 from .executor import execute_action_tool
+from .factories.action import ActionFunction, ActionOverrideFunction
+from .factories.base import AgentFunction
+from .interswarm_router import InterswarmRouter
 from .message import (
     MAILBroadcast,
     MAILMessage,
-    build_mail_xml,
     MAILResponse,
-    parse_agent_address,
+    build_mail_xml,
     create_agent_address,
     create_system_address,
     create_user_address,
+    parse_agent_address,
 )
+from .store import get_langmem_store
+from .swarm_registry import SwarmRegistry
 from .tools import (
     MAIL_TOOL_NAMES,
     action_complete_broadcast,
     convert_call_to_mail_message,
 )
-from .factories.action import ActionFunction, ActionOverrideFunction
-from .factories.base import AgentFunction
-from .interswarm_router import InterswarmRouter
-from .swarm_registry import SwarmRegistry
-from langmem import create_memory_store_manager
-from .store import get_langmem_store
 
 logger = logging.getLogger("mail")
 
@@ -43,7 +43,7 @@ class MAIL:
         user_id: str,
         user_token: str = "",
         swarm_name: str = "example",
-        swarm_registry: Optional[SwarmRegistry] = None,
+        swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
         entrypoint: str = "supervisor",
     ):
@@ -70,7 +70,7 @@ class MAIL:
         self.swarm_name = swarm_name
         self.enable_interswarm = enable_interswarm
         self.swarm_registry = swarm_registry
-        self.interswarm_router: Optional[InterswarmRouter] = None
+        self.interswarm_router: InterswarmRouter | None = None
         self.entrypoint = entrypoint
         if enable_interswarm and swarm_registry:
             self.interswarm_router = InterswarmRouter(swarm_registry, swarm_name)

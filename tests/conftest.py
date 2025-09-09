@@ -11,11 +11,14 @@ class FakeSwarmRegistry:
         self.local_swarm_name = local_swarm_name
         self.base_url = base_url
         self.persistence_file = persistence_file
+        # Shape mirrors real SwarmRegistry.get_all_endpoints entries
         self._endpoints: dict[str, dict[str, Any]] = {
             local_swarm_name: {
-                "name": local_swarm_name,
+                "swarm_name": local_swarm_name,
                 "base_url": base_url,
                 "is_active": True,
+                "last_seen": None,
+                "metadata": None,
             }
         }
 
@@ -29,7 +32,36 @@ class FakeSwarmRegistry:
         return None
 
     def get_swarm_endpoint(self, name: str) -> dict[str, Any] | None:
-        return self._endpoints.get(name)
+        # Accept either key by swarm name or lookup by swarm_name field
+        if name in self._endpoints:
+            return self._endpoints.get(name)
+        for key, ep in self._endpoints.items():
+            if ep.get("swarm_name") == name:
+                return ep
+        return None
+
+    # Helpers used by some server endpoints
+    def register_swarm(
+        self,
+        swarm_name: str,
+        base_url: str,
+        auth_token: str | None = None,  # noqa: ARG002
+        metadata: dict[str, Any] | None = None,
+        volatile: bool = True,  # noqa: FBT001, FBT002
+    ) -> None:
+        if swarm_name == self.local_swarm_name:
+            return
+        self._endpoints[swarm_name] = {
+            "swarm_name": swarm_name,
+            "base_url": base_url,
+            "is_active": True,
+            "last_seen": None,
+            "metadata": metadata,
+            "volatile": volatile,
+        }
+
+    def get_all_endpoints(self) -> dict[str, dict[str, Any]]:
+        return self._endpoints.copy()
 
 
 def make_stub_agent(

@@ -40,7 +40,15 @@ dev = [
     "mypy>=1.17.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.12.12",
 ]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+extend-select = ["TID252", "I", "UP"]
 
 [project.scripts]
 mail = "mail.server:run_server"

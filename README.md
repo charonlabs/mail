@@ -4,7 +4,7 @@
   <img src="assets/mail.png" alt="MAIL Example Diagram" width="400"/>
 </p>
 
-A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. MAIL facilitates complex multi-agent workflows, from simple task delegation within a single environment to sophisticated cross-organizational agent interactions spanning multiple networks and domains.
+A standardized protocol for enabling autonomous agents to communicate, coordinate, and collaborate across distributed systems. MAIL facilitates complex multi‑agent workflows, from simple task delegation within a single environment to sophisticated cross‑organizational agent interactions spanning multiple networks and domains.
 
 ## Multi-Agent Interface Layer
 
@@ -14,14 +14,15 @@ See the protocol specification in `spec/` for the normative definition of MAIL m
 
 ### Overview
 
-This reference implementation demonstrates a complete MAIL-compliant multi-agent system built with Python and FastAPI. It showcases how autonomous AI agents can be organized into swarms, communicate using the standardized MAIL message format, and coordinate to solve complex tasks both within individual swarms and across distributed networks.
+This reference implementation demonstrates a complete MAIL‑compliant multi‑agent system built with Python and FastAPI. It showcases how autonomous AI agents can be organized into swarms, communicate using the standardized MAIL message format, and coordinate to solve complex tasks both within individual swarms and across distributed networks.
 
-Key features of this implementation include:
-- **Persistent Swarm Management**: Long-running agent swarms that maintain state and context
-- **HTTP-based Communication**: RESTful API endpoints for external integration and interswarm messaging
-- **Service Discovery**: Automatic registration and health monitoring of distributed swarms
-- **Flexible Agent Architecture**: Configurable agents with specialized capabilities and communication patterns
-- **Example Swarm**: A working demonstration with supervisor, weather, and math agents
+Key features:
+- **Persistent swarms**: Long‑running agent swarms that maintain state and context
+- **HTTP APIs**: REST endpoints for client integration and inter‑swarm messaging
+- **Service discovery**: Built‑in registry with health monitoring for distributed swarms
+- **Flexible agents**: Configurable agents with tools, memory, and communication targets
+- **Streaming + events**: Server‑Sent Events for live streaming and optional task event logs
+- **Example swarms**: Supervisor, weather, math, and cross‑swarm examples
 
 The implementation serves as both a functional multi-agent system and a reference for building MAIL-compliant applications in various domains.
 
@@ -35,19 +36,18 @@ The implementation serves as both a functional multi-agent system and a referenc
 4. **Interswarm Router**: Enables communication between agents across different swarms via HTTP
 5. **Swarm Registry**: Service discovery system for managing multiple swarms
 
-#### Agent Types
+#### Agent Types (examples)
 
-The system comes with example agents:
 - **Supervisor**: Orchestrates tasks and coordinates with other agents
-- **Weather Agent**: Provides weather-related information and forecasts
-- **Math Agent**: Handles mathematical calculations and analysis
+- **Weather**: Provides weather‑related information and forecasts
+- **Math**: Performs mathematical calculations and analysis
 
 ### Prerequisites
 
-- Python 3.12 or higher
+- Python 3.12+
 - `uv` package manager (recommended) or `pip`
-- LiteLLM proxy server (for LLM access)
-- Authentication server with endpoints for logging in and getting user info from a token
+- LiteLLM proxy server (LLM access via `litellm`)
+- Authentication server implementing login + token‑info endpoints (see below)
 
 ### Installation
 
@@ -75,17 +75,19 @@ pip install -e .
 
 For basic operation:
 ```bash
+# LLM proxy (configure according to your LiteLLM deployment)
 LITELLM_PROXY_API_BASE=http://your-litellm-proxy-url
+
+# Auth service endpoints
 AUTH_ENDPOINT=http://your-auth-server/auth/login
 TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 
-# used by the LiteLLM proxy
+# Example provider keys used by the proxy and memory system
 OPENAI_API_KEY=sk-your-openai-api-key
-# used by the memory system (WIP)
 ANTHROPIC_API_KEY=sk-your-anthropic-api-key
 ```
 
-For interswarm messaging (optional):
+For inter‑swarm messaging and registry:
 ```bash
 # Swarm identification
 SWARM_NAME=my-swarm-name          # Default: "default"
@@ -93,13 +95,16 @@ BASE_URL=http://localhost:8000     # Default: "http://localhost:8000"
 
 # Optional database connection
 DATABASE_URL=your-database-url     # Default: "none"
+
+# Registry persistence file (created/used by server)
+SWARM_REGISTRY_FILE=registries/example.json  # Default: registries/example.json
 ```
 
 #### Swarm Configuration
 
 The system uses a single JSON configuration file to define swarms:
 
-- `swarms.json`: Contains all accessible swarm definitions, including configurations for both single-swarm operation and multi-swarm deployments
+- `swarms.json`: Contains all accessible swarm definitions, including configurations for both single‑swarm operation and multi‑swarm deployments.
 
 Example swarm configuration:
 ```json
@@ -107,20 +112,21 @@ Example swarm configuration:
     {
         "name": "example",
         "version": "1.0.0",
+        "entrypoint": "supervisor",
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "src.mail.factories.supervisor:supervisor_factory",
+                "factory": "mail.factories.supervisor:supervisor_factory",
                 "llm": "openai/o3-mini",
-                "system": "src.mail.examples.supervisor.prompts:SYSPROMPT",
+                "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math"],
                 "agent_params": { }
             },
             {
                 "name": "weather",
-                "factory": "src.mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "llm": "openai/o3-mini",
-                "system": "src.mail.examples.weather_dummy.prompts:SYSPROMPT",
+                "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
                     "actions": [
@@ -135,16 +141,16 @@ Example swarm configuration:
                                     "metric": { "type": "boolean", "description": "Whether to use metric units" }
                                 }
                             },
-                            "function": "src.mail.examples.weather_dummy.actions:get_weather_forecast"
+                            "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
                         }
                     ]
                  }
             },
             {
                 "name": "math",
-                "factory": "src.mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
                 "llm": "openai/o3-mini",
-                "system": "src.mail.examples.math_dummy.prompts:SYSPROMPT",
+                "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { }
             }
@@ -176,70 +182,87 @@ The server will start on `http://localhost:8000` by default.
 
 #### Authentication
 
-All requests require a Bearer token in the Authorization header:
+All requests use a Bearer token in the `Authorization` header:
 ```bash
-Authorization: Bearer your-api-token
+Authorization: Bearer YOUR_API_TOKEN
 ```
 
 #### Basic Endpoints
 
-##### Health Check
+- Health/root:
 ```bash
 curl http://localhost:8000/
 ```
 
-##### Server Status
+- Server status (shows active user instance state):
 ```bash
-curl -H "Authorization: Bearer your-token" http://localhost:8000/status
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/status
 ```
 
-##### Chat with Agents
+- Chat with agents (JSON body):
 ```bash
 curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-token" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"message": "What is the weather like today?"}'
 ```
 
-Optional: specify an entrypoint agent (defaults to the swarm's configured `entrypoint`, e.g. `supervisor`):
+Optional parameters for `/message`:
+- `entrypoint`: override default entrypoint agent (e.g., `"weather"`)
+- `show_events`: include task events in the response
+- `stream`: stream the response via SSE
+
+Examples:
 ```bash
+# Specify entrypoint
 curl -X POST http://localhost:8000/message \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-token" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"message": "Summarize this.", "entrypoint": "weather"}'
+
+# Stream response (SSE)
+curl -N http://localhost:8000/message \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"message": "Stream a response", "stream": true}'
 ```
 
 #### Interswarm Communication
 
-##### List Available Swarms
+- List available swarms:
 ```bash
 curl http://localhost:8000/swarms
 ```
 
-##### Register a New Swarm
+- Register a new swarm (admin token required):
 ```bash
 curl -X POST http://localhost:8000/swarms/register \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{
     "name": "remote-swarm",
     "base_url": "http://localhost:8001",
-    "auth_token": "optional-token"
+    "auth_token": "optional-token",
+    "volatile": true
   }'
 ```
 
-##### Send Interswarm Message
+- Send inter‑swarm message:
+
+The API expects a fully qualified `target_agent` in the form `agent@swarm` (e.g., `consultant@swarm-beta`). It also requires `user_token`, which is the internal user identifier used by the server (`{role}_{id}`). You can derive it by calling your `TOKEN_INFO_ENDPOINT` and composing `role` + `_` + `id`.
+
 ```bash
 curl -X POST http://localhost:8000/interswarm/send \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-token" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
-    "target_swarm": "remote-swarm",
+    "target_agent": "consultant@remote-swarm",
     "message": "Hello from local swarm!",
-    "user_token": "your-user-token"
+    "user_token": "user_12345"
   }'
 ```
 
-### Multi-Swarm Deployment
+### Multi‑Swarm Deployment
 
 To set up multiple communicating swarms:
 
@@ -263,16 +286,18 @@ export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 uv run mail
 ```
 
-#### Register Swarms with Each Other
+#### Register Swarms with Each Other (admin token required)
 ```bash
 # Register swarm-beta with swarm-alpha
 curl -X POST http://localhost:8000/swarms/register \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{"name": "swarm-beta", "base_url": "http://localhost:8001"}'
 
 # Register swarm-alpha with swarm-beta
 curl -X POST http://localhost:8001/swarms/register \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d '{"name": "swarm-alpha", "base_url": "http://localhost:8000"}'
 ```
 
@@ -282,20 +307,20 @@ curl -X POST http://localhost:8001/swarms/register \
 ```
 mail/
 ├── src/mail/
-│   ├── __init__.py
-│   ├── core.py              # Main MAIL orchestration engine
-│   ├── server.py            # Full FastAPI server with interswarm support
-│   ├── server_simple.py     # Simplified server for testing
-│   ├── auth.py              # Authentication module
-│   ├── message.py           # Message type definitions
+│   ├── core.py              # MAIL orchestration engine
+│   ├── server.py            # FastAPI server with inter‑swarm support + SSE
+│   ├── server_simple.py     # Minimal server for testing
+│   ├── auth.py              # Auth integration (login + token info)
+│   ├── message.py           # Message types + helpers
 │   ├── executor.py          # Action execution engine
-│   ├── interswarm_router.py # Interswarm message routing
-│   ├── swarm_registry.py    # Service discovery for swarms
-│   ├── examples/            # Example agents and prompts
+│   ├── interswarm_router.py # Inter‑swarm message routing
+│   ├── swarm_registry.py    # Service discovery + health checks
 │   ├── factories/           # Agent factory functions
+│   ├── examples/            # Example agents and prompts
 │   └── swarms/              # Swarm management utilities
 ├── swarms.json              # Swarm definitions and configuration
-└── pyproject.toml           # Project dependencies
+├── registries/              # Saved registry state (paths in env)
+└── pyproject.toml           # Project metadata + deps
 ```
 
 #### Adding New Agents
@@ -309,13 +334,13 @@ mail/
 
 The system requires a separate server for authentication. Specifically, the endpoints you need are as follows:
 
-1. `AUTH_ENDPOINT`: Takes in an `Authorization: Bearer` header containing a swarm API key and returns a temporary token for the user (or agent) that called it in the following format:
+1. `AUTH_ENDPOINT`: Accepts an `Authorization: Bearer` header containing a swarm API key and returns a temporary token for the caller (user/agent) in the following format:
 ```json
 {
   "token": "string"
 }
 ```
-2. `TOKEN_INFO_ENDPOINT`: Takes in an `Authorization: Bearer` header containing a temporary token and returns info for the calling user (or agent) in the following format:
+2. `TOKEN_INFO_ENDPOINT`: Accepts an `Authorization: Bearer` header containing a temporary token and returns info for the caller in the following format:
 ```json
 {
   "role": "admin" | "user" | "agent",
@@ -324,14 +349,16 @@ The system requires a separate server for authentication. Specifically, the endp
 }
 ```
 
+The server derives an internal `user_token` as `{role}_{id}`. When calling `/interswarm/send`, provide this value in the `user_token` field (or let agents initiate inter‑swarm messages via tools during a normal `/message` conversation).
+
 ### Troubleshooting
 
 #### Common Issues
 
-1. **Server won't start**: Check that all required environment variables are set and the LiteLLM proxy is accessible
-2. **Authentication errors**: Verify your API token is valid and the authentication server is configured correctly
-3. **Agent communication failures**: Check the swarm configuration in `swarms.json` and ensure all referenced agents exist
-4. **Interswarm messaging issues**: Verify network connectivity between swarms and check that swarms are properly registered
+1. **Server won't start**: Verify required environment variables and LiteLLM proxy configuration
+2. **Authentication errors**: Ensure your API token is valid and auth endpoints are reachable
+3. **Agent communication failures**: Check `swarms.json` for correct factory/system import paths (`mail...`) and agent names
+4. **Inter‑swarm issues**: Confirm swarms are registered (admin token), health checks passing, and targets use `agent@swarm` format
 
 #### Logs
 
@@ -344,10 +371,11 @@ python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
 ### Security Considerations
 
 - Use HTTPS in production deployments
-- Implement proper authentication tokens for interswarm communication
-- Consider rate limiting for public-facing endpoints
-- Validate all incoming messages and parameters
-- Use secure networks for swarm-to-swarm communication
+- Require admin tokens for registry mutations (`/swarms/register`, `/swarms/load`)
+- Use separate tokens/roles for users vs. agents
+- Consider rate limiting for public‑facing endpoints
+- Validate/limit tool execution and uploaded content
+- Use secure networks for swarm‑to‑swarm communication
 
 ### Contributing
 
@@ -368,7 +396,15 @@ Using the spec or code implies acceptance of their respective licenses.
 
 ### Additional Resources
 
-- See `docs/INTERSWARM_README.md` for detailed interswarm messaging docs
-- Check `src/mail/examples/` for agent implementation examples
-- Review `src/mail/factories/` for agent creation patterns
-- Read `docs/` for registry configuration and security notes
+- Inter‑swarm messaging overview: `docs/INTERSWARM_README.md`
+- Registry configuration: `docs/swarm_registry_config.md`
+- Registry security notes: `docs/swarm_registry_security.md`
+- Auth reference implementation notes: `docs/AUTH_TOKEN_REF_IMPLEMENTATION.md`
+- Agent examples: `src/mail/examples/`
+- Agent factories: `src/mail/factories/`
+
+### Development
+
+- Run server locally: `uv run mail` or `python -m mail.server`
+- Run tests: `uv run pytest -q`
+- Lint/format: `uv run ruff check --fix .`
