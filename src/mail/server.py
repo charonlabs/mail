@@ -7,48 +7,48 @@
 
 # FastAPI server for MAIL over HTTP
 
-import datetime
-import logging
-import uuid
 import asyncio
+import datetime
+import json
+import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
 
-from sse_starlette import EventSourceResponse
-import uvicorn
 import aiohttp
-from fastapi import FastAPI, HTTPException, Request, Depends
+import uvicorn
+from fastapi import Depends, FastAPI, HTTPException, Request
+from sse_starlette import EventSourceResponse
 from toml import load as load_toml
-import json
 
 from mail.swarms.swarm import Swarm
 
+from .api import MAILSwarm, MAILSwarmTemplate
+from .auth import generate_agent_id, generate_user_id, get_token_info, login
 from .core import MAIL
+from .logger import init_logger
 from .message import (
+    MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
-    MAILInterswarmMessage,
     MAILResponse,
-    create_user_address,
     create_agent_address,
+    create_user_address,
     format_agent_address,
 )
-from .logger import init_logger
-from .swarms.builder import build_swarm_from_name, build_swarm_from_json_str
-from .auth import generate_agent_id, generate_user_id, login, get_token_info
 from .swarm_registry import SwarmRegistry
-
+from .swarms.builder import build_swarm_from_json_str, build_swarm_from_name
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()
 logger = logging.getLogger("mail")
 
 # Global variables
-persistent_swarm: Swarm | None = None
-user_mail_instances: dict[str, MAIL] = {}
+persistent_swarm: MAILSwarmTemplate | None = None
+user_mail_instances: dict[str, MAILSwarm] = {}
 user_mail_tasks: dict[str, asyncio.Task] = {}
-swarm_mail_instances: dict[str, MAIL] = {}
+swarm_mail_instances: dict[str, MAILSwarm] = {}
 swarm_mail_tasks: dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
@@ -81,11 +81,11 @@ async def lifespan(app: FastAPI):
     global persistent_swarm
     try:
         logger.info("building persistent swarm...")
-        persistent_swarm = build_swarm_from_name(local_swarm_name)
+        persistent_swarm = MAILSwarmTemplate.from_swarm_json_file("swarms.json", local_swarm_name)
         logger.info("persistent swarm built successfully")
         # Load default entrypoint from config
         global default_entrypoint_agent
-        default_entrypoint_agent = persistent_swarm.default_entrypoint
+        default_entrypoint_agent = persistent_swarm.entrypoint
         logger.info(
             f"default entrypoint for swarm '{local_swarm_name}': '{default_entrypoint_agent}'"
         )
@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-async def get_or_create_user_mail(user_id: str, jwt: str) -> MAIL:
+async def get_or_create_user_mail(user_id: str, jwt: str) -> MAILSwarm:
     """
     Get or create a MAIL instance for a specific user.
     Each user gets their own isolated MAIL instance.
@@ -155,10 +155,6 @@ async def get_or_create_user_mail(user_id: str, jwt: str) -> MAIL:
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
                 user_id=user_id,
-                user_token=jwt,
-                swarm_name=local_swarm_name,
-                swarm_registry=swarm_registry,
-                enable_interswarm=True,
             )
             user_mail_instances[user_id] = mail_instance
 
@@ -181,7 +177,7 @@ async def get_or_create_user_mail(user_id: str, jwt: str) -> MAIL:
     return user_mail_instances[user_id]
 
 
-async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAIL:
+async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAILSwarm:
     """
     Get or create a MAIL instance for a specific swarm.
     Each swarm gets their own isolated MAIL instance.
@@ -198,10 +194,6 @@ async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAIL:
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
                 user_id=swarm_id,
-                user_token=jwt,
-                swarm_name=local_swarm_name,
-                swarm_registry=swarm_registry,
-                enable_interswarm=True,
             )
             swarm_mail_instances[swarm_id] = mail_instance
 
@@ -255,7 +247,7 @@ async def status(request: Request):
 
     return {
         "swarm": {
-            "name": persistent_swarm.name if persistent_swarm else None,
+            "name": persistent_swarm.swarm_name if persistent_swarm else None,
             "status": "ready",
         },
         "active_users": len(user_mail_instances),
@@ -301,9 +293,9 @@ async def message(request: Request):
         raise HTTPException(status_code=401, detail="invalid role")
     user_id = generate_user_id(token_info)
 
-    # Get or create user-specific MAIL instance
+    # Get or create user-specific MAIL instance (for readiness tracking/interswarm)
     try:
-        user_mail = await get_or_create_user_mail(user_id, jwt)
+        await get_or_create_user_mail(user_id, jwt)
     except Exception as e:
         logger.error(f"error getting user MAIL instance: '{e}'")
         raise HTTPException(
@@ -334,46 +326,34 @@ async def message(request: Request):
         logger.warning("no message provided")
         raise HTTPException(status_code=400, detail="no message provided")
 
-    # MAIL process
+    # MAIL process 
     try:
-        logger.info(f"creating MAIL message for user '{user_id}'...")
-        new_message = MAILMessage(
-            id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            message=MAILRequest(
-                task_id=str(uuid.uuid4()),
-                request_id=str(uuid.uuid4()),
-                sender=create_user_address(user_id),
-                recipient=create_agent_address(recipient_agent),
-                subject="New Message",
-                body=message,
-                sender_swarm=local_swarm_name,
-                recipient_swarm=local_swarm_name,
-                routing_info={},
-            ),
-            msg_type="request",
-        )
-        logger.info(f"submitting message to user MAIL and waiting for response...")
+        assert persistent_swarm is not None
+        
+        api_swarm = await get_or_create_user_mail(user_id, jwt)
+        
+        # If client provided an explicit entrypoint, pass it through; otherwise use default
+        chosen_entrypoint = recipient_agent
+
         if stream:
-            return EventSourceResponse(
-                user_mail.submit_and_stream(new_message),
-                ping=15000,
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                },
+            logger.info(
+                f"submitting streamed message via MAIL API for user '{user_id}'..."
+            )
+            return await api_swarm.post_message_stream(
+                subject="New Message", body=message, entrypoint=chosen_entrypoint
             )
         else:
-            response = await user_mail.submit_and_wait(new_message)
-            logger.info(f"MAIL completed successfully for user '{user_id}'")
+            logger.info(
+                f"submitting message via MAIL API for user '{user_id}' and waiting..."
+            )
+            response, events = await api_swarm.post_message(
+                subject="New Message",
+                body=message,
+                entrypoint=chosen_entrypoint,
+                show_events=show_events,
+            )
             if show_events:
-                return {
-                    "response": response["message"]["body"],
-                    "events": user_mail.get_events_by_task_id(
-                        new_message["message"]["task_id"]
-                    ),
-                }
+                return {"response": response["message"]["body"], "events": events}
             else:
                 return {"response": response["message"]["body"]}
 
@@ -391,7 +371,7 @@ async def health():
     return {
         "status": "healthy",
         "swarm_name": local_swarm_name,
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
     }
 
 
@@ -507,11 +487,11 @@ async def dump_swarm(request: Request):
 
     # log da swarm
     logger.info(
-        f"current persistent swarm: name='{persistent_swarm.name}', agents={[agent.name for agent in persistent_swarm.agents]}"
+        f"current persistent swarm: name='{persistent_swarm.swarm_name}', agents={[agent.name for agent in persistent_swarm.agents]}"
     )
 
     # all done!
-    return {"status": "dumped", "swarm_name": persistent_swarm.name}
+    return {"status": "dumped", "swarm_name": persistent_swarm.swarm_name}
 
 
 @app.post("/interswarm/message")
@@ -576,19 +556,19 @@ async def receive_interswarm_message(request: Request):
         logger.info(f"creating MAIL message for swarm '{source_swarm}'...")
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=message,
             msg_type=data.get("msg_type", "request"),
         )
         logger.info(
             f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
         )
-        task_response = await swarm_mail.submit_and_wait(new_message)
+        task_response = await swarm_mail.submit_message(new_message)
 
         # Create response message
         response_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILResponse(
                 task_id=task_response["message"]["task_id"],
                 request_id=task_response["message"].get(
@@ -884,9 +864,8 @@ async def load_swarm_from_json(request: Request):
 
     try:
         # try to load the swarm from string and set the persistent swarm
-        swarm = build_swarm_from_json_str(swarm_json)
-        persistent_swarm = swarm
-        return {"status": "success", "swarm_name": swarm.name}
+        persistent_swarm = MAILSwarmTemplate.from_swarm_json(swarm_json)
+        return {"status": "success", "swarm_name": persistent_swarm.swarm_name}
     except Exception as e:
         # shit hit the fan
         logger.error(f"error loading swarm from JSON: {e}")
