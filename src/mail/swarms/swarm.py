@@ -69,7 +69,6 @@ class Swarm(BaseModel):
             agents=agents,
             actions=actions,
             user_id=user_id,
-            user_token=user_token,
             swarm_name=swarm_name,
             swarm_registry=swarm_registry,
             enable_interswarm=enable_interswarm,

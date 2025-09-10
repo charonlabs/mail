@@ -41,7 +41,6 @@ class MAIL:
         agents: dict[str, AgentFunction],
         actions: dict[str, ActionFunction],
         user_id: str,
-        user_token: str = "",
         swarm_name: str = "example",
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
@@ -61,7 +60,6 @@ class MAIL:
         self.current_request_id: str | None = None
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
-        self.user_token = user_token  # Track which user this MAIL instance belongs to
         self.events: list[ServerSentEvent] = []
         self.new_events: list[ServerSentEvent] = []
         # Event notifier for streaming to avoid busy-waiting
@@ -166,7 +164,7 @@ class MAIL:
                         self.response_to_user = message
                         break
 
-                    self._process_message(self.user_token, message, _action_override)
+                    self._process_message(message, _action_override)
                     # Note: task_done() is called by the schedule function for regular messages
 
                 except asyncio.CancelledError:
@@ -252,7 +250,7 @@ class MAIL:
                         self.message_queue.task_done()
                         continue
 
-                self._process_message(self.user_token, message, _action_override)
+                self._process_message(message, _action_override)
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
@@ -506,7 +504,6 @@ class MAIL:
 
     def _process_message(
         self,
-        user_token: str,
         message: MAILMessage,
         _action_override: ActionOverrideFunction | None = None,
     ) -> None:
@@ -538,7 +535,7 @@ class MAIL:
                 return
 
         # Fall back to local processing
-        self._process_local_message(user_token, message, _action_override)
+        self._process_local_message(message, _action_override)
 
     async def _route_interswarm_message(self, message: MAILMessage) -> None:
         """Route a message via interswarm router."""
@@ -548,19 +545,18 @@ class MAIL:
                 logger.info(
                     f"received response from remote swarm, processing locally: '{response['id']}'"
                 )
-                self._process_local_message(self.user_token, response)
+                self._process_local_message(response)
             except Exception as e:
                 logger.error(f"error in interswarm routing: '{e}'")
                 # Fall back to local processing for failed interswarm messages
-                self._process_local_message(self.user_token, message)
+                self._process_local_message(message)
         else:
             logger.error("interswarm router not available")
             # Fall back to local processing
-            self._process_local_message(self.user_token, message)
+            self._process_local_message(message)
 
     def _process_local_message(
         self,
-        user_token: str,
         message: MAILMessage,
         _action_override: ActionOverrideFunction | None = None,
     ) -> None:
@@ -586,7 +582,7 @@ class MAIL:
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
                     self._send_message(
-                        user_token, recipient_agent, message, _action_override
+                        recipient_agent, message, _action_override
                     )
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
@@ -597,7 +593,6 @@ class MAIL:
 
     def _send_message(
         self,
-        user_token: str,
         recipient: str,
         message: MAILMessage,
         _action_override: ActionOverrideFunction | None = None,

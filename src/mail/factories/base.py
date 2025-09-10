@@ -1,6 +1,6 @@
-from collections.abc import Awaitable, Callable
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -10,10 +10,10 @@ from langsmith import traceable
 from litellm import (
     OutputFunctionToolCall,
     OutputText,
+    ResponseOutputItem,
     ResponsesAPIResponse,
     acompletion,
     aresponses,
-    ResponseOutputItem,
 )
 from openai.types.responses.response_output_message import ResponseOutputMessage
 from pydantic import BaseModel

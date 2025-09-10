@@ -28,7 +28,6 @@ async def test_submit_and_wait_resolves_on_task_complete():
         agents={"supervisor": stub_agent},
         actions={},
         user_id="user-1",
-        user_token="tok",
         swarm_name="example",
         swarm_registry=None,
         enable_interswarm=False,

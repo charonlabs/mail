@@ -7,18 +7,19 @@
             {
                 "name": "supervisor",
                 "factory": "src.mail.factories.supervisor:supervisor_factory",
-                "llm": "openai/o3-mini",
-                "system": "src.mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math"],
-                "agent_params": { }
+                "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "src.mail.examples.supervisor.prompts:SYSPROMPT"
+                }
             },
             {
                 "name": "weather",
                 "factory": "src.mail.examples.weather_dummy.agent:factory_weather_dummy",
-                "llm": "openai/o3-mini",
-                "system": "src.mail.examples.weather_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "src.mail.examples.weather_dummy.prompts:SYSPROMPT",
                     "actions": [
                         {
                             "name": "get_weather_forecast",
@@ -39,10 +40,11 @@
             {
                 "name": "math",
                 "factory": "src.mail.examples.math_dummy.agent:factory_math_dummy",
-                "llm": "openai/o3-mini",
-                "system": "src.mail.examples.math_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "weather"],
-                "agent_params": { }
+                "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "src.mail.examples.math_dummy.prompts:SYSPROMPT"
+                }
             }
         ]
     },
@@ -55,20 +57,20 @@
             {
                 "name": "supervisor",
                 "factory": "mail.factories.supervisor:supervisor_factory",
-                "llm": "openai/o3-mini",
-                "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["weather", "math", "consultant@swarm-beta"],
                 "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                     "enable_interswarm": true
                 }
             },
             {
                 "name": "weather",
                 "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
-                "llm": "openai/o3-mini",
-                "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
                     "actions": [
                         {
                             "name": "get_weather_forecast",
@@ -89,10 +91,11 @@
             {
                 "name": "math",
                 "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
-                "llm": "openai/o3-mini",
-                "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "weather"],
-                "agent_params": { }
+                "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
+                }
             }
         ]
     },
@@ -105,28 +108,30 @@
             {
                 "name": "supervisor",
                 "factory": "mail.factories.supervisor:supervisor_factory",
-                "llm": "openai/o3-mini",
-                "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                 "comm_targets": ["consultant", "analyst", "supervisor@swarm-alpha"],
                 "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
                     "enable_interswarm": true
                 }
             },
             {
                 "name": "consultant",
                 "factory": "mail.examples.consultant_dummy.agent:factory_consultant_dummy",
-                "llm": "openai/o3-mini",
-                "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "analyst"],
-                "agent_params": { }
+                "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT"
+                }
             },
             {
                 "name": "analyst",
                 "factory": "mail.examples.analyst_dummy.agent:factory_analyst_dummy",
-                "llm": "openai/o3-mini",
-                "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT",
                 "comm_targets": ["supervisor", "consultant"],
-                "agent_params": { }
+                "agent_params": { 
+                    "llm": "openai/o3-mini",
+                    "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT"
+                }
             }
         ]
     }
