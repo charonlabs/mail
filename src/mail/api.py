@@ -65,7 +65,9 @@ class MAILAgent:
 
         for field in REQUIRED_FIELDS:
             if not isinstance(data[field], REQUIRED_FIELDS[field]):
-                raise ValueError(f"agent JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'")
+                raise ValueError(
+                    f"agent JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
+                )
 
         return MAILAgent(
             name=name,
@@ -126,9 +128,9 @@ class MAILSwarm:
             "name": str,
             "agents": list[dict[str, Any]],
             "actions": list[dict[str, Any]],
-            "entrypoint": str
+            "entrypoint": str,
         }
-        
+
         data = json.loads(json_dump)
 
         if data is None:
@@ -144,7 +146,9 @@ class MAILSwarm:
 
         for field in REQUIRED_FIELDS:
             if not isinstance(data[field], REQUIRED_FIELDS[field]):
-                raise ValueError(f"swarm JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'")
+                raise ValueError(
+                    f"swarm JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
+                )
 
         return MAILSwarm(
             swarm_name=name,
@@ -187,7 +191,9 @@ class MAILSwarm:
         response = await self._runtime.submit_and_wait(message, timeout)
 
         if show_events:
-            return response, self._runtime.get_events_by_task_id(message["message"]["task_id"])
+            return response, self._runtime.get_events_by_task_id(
+                message["message"]["task_id"]
+            )
         else:
             return response, []
 
@@ -248,4 +254,6 @@ class MAILSwarm:
                     msg_type="request",
                 )
             case _:
-                raise NotImplementedError(f"type '{type}' not implemented for this method")
+                raise NotImplementedError(
+                    f"type '{type}' not implemented for this method"
+                )

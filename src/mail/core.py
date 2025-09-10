@@ -581,9 +581,7 @@ class MAIL:
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
-                    self._send_message(
-                        recipient_agent, message, _action_override
-                    )
+                    self._send_message(recipient_agent, message, _action_override)
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
             else:
@@ -616,7 +614,10 @@ class MAIL:
                 history = self.agent_histories[recipient]
                 history.append(incoming_message)
                 out, results = await self.agents[recipient](history, "required")
-                history.append(results[0].completion)
+                if results[0].completion:
+                    history.append(results[0].completion)
+                else:
+                    history.extend(results[0].responses)
                 for tc in results:
                     if tc.tool_name in MAIL_TOOL_NAMES:
                         result_message = tc.create_response_msg(
@@ -744,7 +745,7 @@ class MAIL:
                             self._submit_event(
                                 "action_tool_call",
                                 task_id,
-                                f"executing action tool (caller = '{message['message']['recipient']}'):\n'{call}'",
+                                f"executing action tool (caller = '{message['message']['recipient']}'):\n'{call}'",  # type: ignore
                             )  # type: ignore
                             result_message = await execute_action_tool(
                                 call, self.actions, _action_override
@@ -753,7 +754,7 @@ class MAIL:
                             self._submit_event(
                                 "action_tool_complete",
                                 task_id,
-                                f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_message['content']}'",
+                                f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_message['content']}'",  # type: ignore
                             )  # type: ignore
                             await self.submit(
                                 action_complete_broadcast(
