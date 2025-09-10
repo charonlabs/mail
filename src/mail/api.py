@@ -48,7 +48,10 @@ class MAILAgent:
         """
         Build the actions for the agent.
         """
-        return [MAILAction.from_swarm_json(json.dumps(action)) for action in self.agent_params.get("actions", [])]
+        return [
+            MAILAction.from_swarm_json(json.dumps(action))
+            for action in self.agent_params.get("actions", [])
+        ]
 
     @staticmethod
     def from_swarm_json(json_dump: str) -> "MAILAgent":
@@ -75,7 +78,9 @@ class MAILAgent:
             if field not in data:
                 raise ValueError(f"agent JSON dump missing required field: '{field}'")
             if not isinstance(data[field], REQUIRED_FIELDS[field]):
-                raise ValueError(f"agent JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'")
+                raise ValueError(
+                    f"agent JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
+                )
 
         name = data["name"]
         factory = data["factory"]
@@ -129,22 +134,24 @@ class MAILAction:
             "parameters": dict,
             "function": str,
         }
-        
+
         data = json.loads(json_dump)
-        
+
         if data is None:
             raise ValueError("action JSON dump must not be None")
         for field in REQUIRED_FIELDS:
             if field not in data:
                 raise ValueError(f"action JSON dump missing required field: '{field}'")
             if not isinstance(data[field], REQUIRED_FIELDS[field]):
-                raise ValueError(f"action JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'")
-        
+                raise ValueError(
+                    f"action JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
+                )
+
         name = data["name"]
         description = data["description"]
         parameters = data["parameters"]
         function = data["function"]
-                
+
         return MAILAction(
             name=name,
             description=description,
@@ -200,7 +207,6 @@ class MAILSwarm:
         message = self._build_message(subject, body, [entrypoint], "request")
 
         return await self.submit_message(message, timeout, show_events)
-
 
     async def post_message_stream(
         self,
@@ -280,7 +286,7 @@ class MAILSwarm:
         await self._runtime.run_continuous()
 
     async def submit_message(
-        self, 
+        self,
         message: MAILMessage,
         timeout: float = 3600.0,
         show_events: bool = False,
@@ -291,7 +297,9 @@ class MAILSwarm:
         response = await self._runtime.submit_and_wait(message, timeout)
 
         if show_events:
-            return response, self._runtime.get_events_by_task_id(message["message"]["task_id"])
+            return response, self._runtime.get_events_by_task_id(
+                message["message"]["task_id"]
+            )
         else:
             return response, []
 
@@ -371,31 +379,29 @@ class MAILSwarmTemplate:
         """
         Create a MAILAbstractSwarm from a JSON dump following the `swarms.json` format.
         """
-        REQUIRED_FIELDS = {
-            "name": str,
-            "agents": list,
-            "entrypoint": str
-        }
-        OPTIONAL_FIELDS = {
-            "enable_interswarm": bool
-        }
-        
+        REQUIRED_FIELDS = {"name": str, "agents": list, "entrypoint": str}
+        OPTIONAL_FIELDS = {"enable_interswarm": bool}
+
         data = json.loads(json_dump)
-        
+
         if data is None:
             raise ValueError("swarm JSON dump must not be None")
         for field in REQUIRED_FIELDS:
             if field not in data:
                 raise ValueError(f"swarm JSON dump missing required field: '{field}'")
             if not isinstance(data[field], REQUIRED_FIELDS[field]):
-                raise ValueError(f"swarm JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'")
-        
+                raise ValueError(
+                    f"swarm JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
+                )
+
         name = data["name"]
-        agents = [MAILAgent.from_swarm_json(json.dumps(agent)) for agent in data["agents"]]
+        agents = [
+            MAILAgent.from_swarm_json(json.dumps(agent)) for agent in data["agents"]
+        ]
         actions = MAILSwarmTemplate._build_actions(agents)
         entrypoint = data["entrypoint"]
         enable_interswarm = data.get("enable_interswarm", False)
-                
+
         return MAILSwarmTemplate(
             swarm_name=name,
             agents=agents,
@@ -405,7 +411,9 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarm_json_file(json_filepath: str, swarm_name: str) -> "MAILSwarmTemplate":
+    def from_swarm_json_file(
+        json_filepath: str, swarm_name: str
+    ) -> "MAILSwarmTemplate":
         """
         Create a MAILSwarmTemplate from a JSON file following the `swarms.json` format.
         """
@@ -416,4 +424,3 @@ class MAILSwarmTemplate:
                 if swarm["name"] == swarm_name:
                     return MAILSwarmTemplate.from_swarm_json(json.dumps(swarm))
             raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")
-

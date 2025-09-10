@@ -81,7 +81,9 @@ async def lifespan(app: FastAPI):
     global persistent_swarm
     try:
         logger.info("building persistent swarm...")
-        persistent_swarm = MAILSwarmTemplate.from_swarm_json_file("swarms.json", local_swarm_name)
+        persistent_swarm = MAILSwarmTemplate.from_swarm_json_file(
+            "swarms.json", local_swarm_name
+        )
         logger.info("persistent swarm built successfully")
         # Load default entrypoint from config
         global default_entrypoint_agent
@@ -326,12 +328,12 @@ async def message(request: Request):
         logger.warning("no message provided")
         raise HTTPException(status_code=400, detail="no message provided")
 
-    # MAIL process 
+    # MAIL process
     try:
         assert persistent_swarm is not None
-        
+
         api_swarm = await get_or_create_user_mail(user_id, jwt)
-        
+
         # If client provided an explicit entrypoint, pass it through; otherwise use default
         chosen_entrypoint = recipient_agent
 

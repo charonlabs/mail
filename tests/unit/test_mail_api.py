@@ -25,7 +25,9 @@ class FakeMAIL:
         self._events: dict[str, list[Any]] = {}
 
     @pytest.mark.asyncio
-    async def submit_and_wait(self, message: dict[str, Any], _timeout: float = 3600.0) -> dict[str, Any]:
+    async def submit_and_wait(
+        self, message: dict[str, Any], _timeout: float = 3600.0
+    ) -> dict[str, Any]:
         self.submitted.append(message)
         task_id = message["message"]["task_id"]
         self._events.setdefault(task_id, []).append({"event": "debug", "data": "ok"})
@@ -177,9 +179,7 @@ async def test_post_message_stream_headers_and_type() -> None:
         entrypoint="supervisor",
     )
 
-    stream_resp = await swarm.post_message_stream(
-        subject="hello", body="world"
-    )
+    stream_resp = await swarm.post_message_stream(subject="hello", body="world")
     assert isinstance(stream_resp, EventSourceResponse)
     for key in ("Cache-Control", "Connection", "X-Accel-Buffering"):
         assert key in stream_resp.headers
@@ -198,4 +198,3 @@ def test_build_message_request_validation() -> None:
     # _build_message should require exactly one target for requests
     with pytest.raises(ValueError):
         swarm._build_message("subj", "body", ["a", "b"], type="request")
-

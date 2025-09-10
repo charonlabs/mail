@@ -4,17 +4,18 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel
+import langsmith as ls
 import ujson
 from langmem import create_memory_store_manager
-import langsmith as ls
 from litellm import (
     OutputFunctionToolCall,
     acompletion,
     aresponses,
 )
-from openai.resources.responses.responses import _make_tools
 from openai import pydantic_function_tool
+from openai.resources.responses.response import _make_tools
+from openai.resources.responses.response_output_items import _make_tools
+from pydantic import BaseModel
 
 from mail.tools import AgentToolCall, create_mail_tools
 
