@@ -1,9 +1,11 @@
 from collections.abc import Awaitable, Callable
 import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from openai.resources.responses.responses import _make_tools
+from openai import pydantic_function_tool
 
 from .message import (
     MAILBroadcast,
@@ -38,91 +40,54 @@ def _pydantic_model_to_tool(
     """Convert a Pydantic model class into an OpenAI function tool spec.
 
     Returns a dict in the shape expected by Chat Completions and is compatible
-    with the Responses API (we later mirror parameters → input_schema when needed).
+    with the Responses API (we later mirror parameters → input_schema when needed).w
     """
+    completions_tool = pydantic_function_tool(
+        model_cls, name=name, description=description
+    )
     if style == "completions":
-        try:
-            properties = model_cls.model_json_schema()["properties"]
-        except Exception as e:
-            logger.warning(
-                f"error getting model json schema for {model_cls.__name__}: {e}"
-            )
-            properties = False
-        try:
-            required = [
-                property
-                for property in model_cls.model_json_schema()["properties"].keys()
-            ]
-        except Exception as e:
-            logger.warning(
-                f"error getting model json schema for {model_cls.__name__}: {e}"
-            )
-            required = []
-
-        tool_name = name or model_cls.__name__
-        tool_desc = description or (model_cls.__doc__ or "").strip()
-        return {
-            "type": "function",
-            "function": {
-                "name": tool_name,
-                "description": tool_desc,
-                "strict": True,
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                    "additionalProperties": False,
-                },
-            },
-        }
+        return cast(dict[str, Any], completions_tool)
     elif style == "responses":
-        try:
-            properties = model_cls.model_json_schema()["properties"]
-        except Exception as e:
-            logger.warning(
-                f"error getting model json schema for {model_cls.__name__}: {e}"
-            )
-            properties = False
-        try:
-            required = [
-                property
-                for property in model_cls.model_json_schema()["properties"].keys()
-            ]
-        except Exception as e:
-            logger.warning(
-                f"error getting model json schema for {model_cls.__name__}: {e}"
-            )
-            required = []
-
-        additionalProperties = False
-        return {
-            "type": "function",
-            "name": name or model_cls.__name__,
-            "description": description or (model_cls.__doc__ or "").strip(),
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-                "additionalProperties": additionalProperties,
-            },
-            "strict": True,
-        }
-    else:
-        raise ValueError(f"invalid style: {style}")
+        return _make_tools([completions_tool])[0]  # type: ignore
 
 
 class AgentToolCall(BaseModel):
+    """
+    A tool call from an agent.
+    Args:
+        tool_name: The name of the tool called.
+        tool_args: The arguments passed to the tool.
+        tool_call_id: The ID of the tool call.
+        completion: The full completion of the tool call, if using completions api.
+        responses: The full responses list of the tool call, if using responses api.
+    """
+
     tool_name: str
     tool_args: dict[str, Any]
     tool_call_id: str
-    completion: dict[str, Any]
+    completion: dict[str, Any] = Field(default_factory=dict)
+    responses: list[dict[str, Any]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def check_completion_or_responses(self):
+        if not self.completion and not self.responses:
+            raise ValueError(
+                "Either 'completion' or 'responses' must be defined (non-empty)."
+            )
+        return self
 
     def create_response_msg(self, content: str) -> dict[str, str]:
+        if self.completion:
+            return {
+                "role": "tool",
+                "name": self.tool_name,
+                "content": content,
+                "tool_call_id": self.tool_call_id,
+            }
         return {
-            "role": "tool",
-            "name": self.tool_name,
-            "content": content,
-            "tool_call_id": self.tool_call_id,
+            "type": "function_call_output",
+            "call_id": self.tool_call_id,
+            "output": content,
         }
 
 

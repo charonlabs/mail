@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from .base import AgentFunction, base_agent_factory_with_responses
+from .base import AgentFunction, base_agent_factory
 from ..tools import create_supervisor_tools
 
 
@@ -15,6 +15,8 @@ def supervisor_factory(
     thinking_budget: int | None = None,
     max_tokens: int | None = None,
     memory: bool = True,
+    use_proxy: bool = True,
+    inference_api: Literal["completions", "responses"] = "responses",
     name: str = "supervisor",
 ) -> AgentFunction:
     can_complete_tasks = agent_params.get("can_complete_tasks", True)
@@ -22,7 +24,7 @@ def supervisor_factory(
     tools = create_supervisor_tools(
         comm_targets, can_complete_tasks, enable_interswarm, style="responses"
     )
-    agent = base_agent_factory_with_responses(
+    agent = base_agent_factory(
         user_token=user_token,
         llm=llm,
         comm_targets=comm_targets,
@@ -33,6 +35,8 @@ def supervisor_factory(
         thinking_budget=thinking_budget,
         max_tokens=max_tokens,
         memory=memory,
+        use_proxy=use_proxy,
+        inference_api=inference_api,
         name=name,
     )
     return agent

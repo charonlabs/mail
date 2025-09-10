@@ -81,6 +81,7 @@ class MAILAgent:
         factory = data["factory"]
         comm_targets = data["comm_targets"]
         agent_params = data["agent_params"]
+
         enable_entrypoint = data.get("enable_entrypoint", False)
         enable_interswarm = data.get("enable_interswarm", False)
 
@@ -197,7 +198,9 @@ class MAILSwarm:
             entrypoint = self.entrypoint
 
         message = self._build_message(subject, body, [entrypoint], "request")
+
         return await self.submit_message(message, timeout, show_events)
+
 
     async def post_message_stream(
         self,
@@ -248,7 +251,9 @@ class MAILSwarm:
                     msg_type="request",
                 )
             case _:
-                raise NotImplementedError(f"type '{type}' not implemented for this method")
+                raise NotImplementedError(
+                    f"type '{type}' not implemented for this method"
+                )
 
     async def shutdown(self) -> None:
         """
@@ -411,3 +416,4 @@ class MAILSwarmTemplate:
                 if swarm["name"] == swarm_name:
                     return MAILSwarmTemplate.from_swarm_json(json.dumps(swarm))
             raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")
+
