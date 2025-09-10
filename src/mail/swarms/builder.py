@@ -27,10 +27,6 @@ def build_swarm_from_name(name: str) -> Swarm:
                 agent_params = agent.get("agent_params", {})
                 llm = agent_params.get("llm", agent.get("llm"))
                 system_ref = agent_params.get("system", agent.get("system"))
-                if llm is None or system_ref is None:
-                    raise KeyError(
-                        f"agent '{agent.get('name', '<unknown>')}' is missing 'llm' or 'system' in agent_params"
-                    )
 
                 actions = agent_params.get("actions", agent.get("actions", []))
                 tools = create_tools_from_actions(actions)
@@ -67,10 +63,6 @@ def build_swarm_from_json_str(json_swarm: str) -> Swarm:
             agent_params = agent.get("agent_params", {})
             llm = agent_params.get("llm", agent.get("llm"))
             system_ref = agent_params.get("system", agent.get("system"))
-            if llm is None or system_ref is None:
-                raise KeyError(
-                    f"agent '{agent.get('name', '<unknown>')}' is missing 'llm' or 'system' in agent_params"
-                )
 
             actions = agent_params.get("actions", agent.get("actions", []))
             tools = create_tools_from_actions(actions)
