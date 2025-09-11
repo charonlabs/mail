@@ -1,11 +1,12 @@
-from collections.abc import Awaitable, Callable
 import datetime
+import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal, Optional, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, model_validator
-from openai.resources.responses.responses import _make_tools
 from openai import pydantic_function_tool
+from openai.resources.responses.responses import _make_tools
+from pydantic import BaseModel, Field, model_validator
 
 from .message import (
     MAILBroadcast,
@@ -18,8 +19,6 @@ from .message import (
     create_user_address,
 )
 
-import logging
-
 logger = logging.getLogger(__name__)
 
 MAIL_TOOL_NAMES = [
@@ -31,7 +30,7 @@ MAIL_TOOL_NAMES = [
 ]
 
 
-def _pydantic_model_to_tool(
+def pydantic_model_to_tool(
     model_cls: type[BaseModel],
     name: str | None = None,
     description: str | None = None,
@@ -102,7 +101,7 @@ def convert_call_to_mail_message(
         case "send_request":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                 message=MAILRequest(
                     task_id=task_id,
                     request_id=str(uuid4()),
@@ -119,7 +118,7 @@ def convert_call_to_mail_message(
         case "send_response":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                 message=MAILResponse(
                     task_id=task_id,
                     request_id=str(uuid4()),
@@ -136,7 +135,7 @@ def convert_call_to_mail_message(
         case "send_interrupt":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                 message=MAILInterrupt(
                     task_id=task_id,
                     interrupt_id=str(uuid4()),
@@ -153,7 +152,7 @@ def convert_call_to_mail_message(
         case "send_broadcast":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                 message=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
@@ -170,7 +169,7 @@ def convert_call_to_mail_message(
         case "task_complete":
             return MAILMessage(
                 id=str(uuid4()),
-                timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                 message=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid4()),
@@ -189,20 +188,20 @@ def convert_call_to_mail_message(
 
 
 def action_complete_broadcast(
-    result_message: dict[str, Any], system_name: str, recipient: str, task_id: str
+    action_name: str,result_message: dict[str, Any], system_name: str, recipient: str, task_id: str
 ) -> MAILMessage:
     """Create a MAIL broadcast message to indicate that an action has been completed."""
 
     return MAILMessage(
         id=str(uuid4()),
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message=MAILBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid4()),
             sender=create_system_address(system_name),
             recipients=[create_agent_address(recipient)],
-            subject=f"Action Complete: {result_message['name']}",
-            body=f"The action {result_message['name']} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",
+            subject=f"Action Complete: {action_name}",
+            body=f"The action {action_name} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",
             sender_swarm=None,
             recipient_swarms=None,
             routing_info=None,
@@ -232,7 +231,7 @@ def create_request_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = _pydantic_model_to_tool(send_request, name="send_request", style=style)
+    tool_dict = pydantic_model_to_tool(send_request, name="send_request", style=style)
 
     target_param = (
         tool_dict["function"]["parameters"]["properties"]["target"]
@@ -273,7 +272,7 @@ def create_response_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = _pydantic_model_to_tool(
+    tool_dict = pydantic_model_to_tool(
         send_response, name="send_response", style=style
     )
 
@@ -316,7 +315,7 @@ def create_interrupt_tool(
         subject: str = Field(description="The subject of the interrupt.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = _pydantic_model_to_tool(
+    tool_dict = pydantic_model_to_tool(
         send_interrupt, name="send_interrupt", style=style
     )
 
@@ -351,7 +350,7 @@ def create_interswarm_broadcast_tool(
             default=[],
         )
 
-    return _pydantic_model_to_tool(
+    return pydantic_model_to_tool(
         send_interswarm_broadcast, name="send_interswarm_broadcast", style=style
     )
 
@@ -368,7 +367,7 @@ def create_swarm_discovery_tool(
             description="List of URLs to discover swarms from."
         )
 
-    return _pydantic_model_to_tool(discover_swarms, name="discover_swarms", style=style)
+    return pydantic_model_to_tool(discover_swarms, name="discover_swarms", style=style)
 
 
 def create_broadcast_tool(
@@ -382,7 +381,7 @@ def create_broadcast_tool(
         subject: str = Field(description="The subject of the broadcast.")
         message: str = Field(description="The message content to send.")
 
-    return _pydantic_model_to_tool(send_broadcast, name="send_broadcast", style=style)
+    return pydantic_model_to_tool(send_broadcast, name="send_broadcast", style=style)
 
 
 def create_acknowledge_broadcast_tool(
@@ -403,7 +402,7 @@ def create_acknowledge_broadcast_tool(
             description="Optional note to include in internal memory only.",
         )
 
-    return _pydantic_model_to_tool(
+    return pydantic_model_to_tool(
         acknowledge_broadcast, name="acknowledge_broadcast", style=style
     )
 
@@ -425,7 +424,7 @@ def create_ignore_broadcast_tool(
             description="Optional internal reason for ignoring (not sent).",
         )
 
-    return _pydantic_model_to_tool(
+    return pydantic_model_to_tool(
         ignore_broadcast, name="ignore_broadcast", style=style
     )
 
@@ -442,7 +441,7 @@ def create_task_complete_tool(
             description="The message to broadcast to all agents to indicate that the task has been completed."
         )
 
-    return _pydantic_model_to_tool(task_complete, name="task_complete", style=style)
+    return pydantic_model_to_tool(task_complete, name="task_complete", style=style)
 
 
 def create_mail_tools(

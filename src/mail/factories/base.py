@@ -37,6 +37,7 @@ def base_agent_factory(
     name: str = "base_agent",
     enable_entrypoint: bool = False,
     enable_interswarm: bool = False,
+    tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
     # internal params
@@ -45,7 +46,6 @@ def base_agent_factory(
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
-    inference_api: Literal["completions", "responses"] = "completions",
     _debug_include_mail_tools: bool = True,
 ) -> AgentFunction:
     extra_headers: dict[str, str] = {}
@@ -92,7 +92,7 @@ def base_agent_factory(
             agent_tools = tools
         return messages, agent_tools
 
-    if inference_api == "completions":
+    if tool_format == "completions":
 
         async def run_completions(
             messages: list[dict[str, Any]], tool_choice: str = "required"
@@ -163,7 +163,6 @@ def base_agent_factory(
         messages: list[dict[str, Any]], tool_choice: str = "required"
     ) -> tuple[str | None, list[AgentToolCall]]:
         messages, agent_tools = preprocess(messages, "responses")
-        print("agent_tools", agent_tools)
 
         with ls.trace(
             name=f"{name}_responses",

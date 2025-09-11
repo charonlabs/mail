@@ -86,7 +86,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
 
     tmpl = MAILSwarmTemplate.from_swarm_json(json.dumps(data))
     swarm = tmpl.instantiate(instance_params={}, user_id="u-1")
-    assert swarm.swarm_name == "myswarm"
+    assert swarm.name == "myswarm"
     assert swarm.entrypoint == "supervisor"
     # Ensure runtime was created with our stub
     assert isinstance(swarm._runtime, FakeMAIL)
@@ -142,7 +142,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     path.write_text(json.dumps(contents))
 
     tmpl = MAILSwarmTemplate.from_swarm_json_file(str(path), "target")
-    assert tmpl.swarm_name == "target"
+    assert tmpl.name == "target"
 
 
 @pytest.mark.asyncio
@@ -150,7 +150,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
     from mail.api import MAILSwarm
 
     swarm = MAILSwarm(
-        swarm_name="myswarm",
+        name="myswarm",
         agents=[],
         actions=[],
         entrypoint="supervisor",
@@ -176,7 +176,7 @@ async def test_post_message_stream_headers_and_type() -> None:
     from mail.api import MAILSwarm
 
     swarm = MAILSwarm(
-        swarm_name="myswarm",
+        name="myswarm",
         agents=[],
         actions=[],
         entrypoint="supervisor",
@@ -192,7 +192,7 @@ def test_build_message_request_validation() -> None:
     from mail.api import MAILSwarm
 
     swarm = MAILSwarm(
-        swarm_name="myswarm",
+        name="myswarm",
         agents=[],
         actions=[],
         entrypoint="supervisor",

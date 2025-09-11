@@ -21,8 +21,6 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from toml import load as load_toml
 
-from mail.swarms.swarm import Swarm
-
 from .api import MAILSwarm, MAILSwarmTemplate
 from .auth import generate_agent_id, generate_user_id, get_token_info, login
 from .core import MAIL
@@ -37,7 +35,6 @@ from .message import (
     format_agent_address,
 )
 from .swarm_registry import SwarmRegistry
-from .swarms.builder import build_swarm_from_json_str, build_swarm_from_name
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()
@@ -258,7 +255,7 @@ async def status(request: Request):
 
     return {
         "swarm": {
-            "name": persistent_swarm.swarm_name if persistent_swarm else None,
+            "name": persistent_swarm.name if persistent_swarm else None,
             "status": "ready",
         },
         "active_users": len(user_mail_instances),
@@ -498,11 +495,11 @@ async def dump_swarm(request: Request):
 
     # log da swarm
     logger.info(
-        f"current persistent swarm: name='{persistent_swarm.swarm_name}', agents={[agent.name for agent in persistent_swarm.agents]}"
+        f"current persistent swarm: name='{persistent_swarm.name}', agents={[agent.name for agent in persistent_swarm.agents]}"
     )
 
     # all done!
-    return {"status": "dumped", "swarm_name": persistent_swarm.swarm_name}
+    return {"status": "dumped", "swarm_name": persistent_swarm.name}
 
 
 @app.post("/interswarm/message")
@@ -876,7 +873,7 @@ async def load_swarm_from_json(request: Request):
     try:
         # try to load the swarm from string and set the persistent swarm
         persistent_swarm = MAILSwarmTemplate.from_swarm_json(swarm_json)
-        return {"status": "success", "swarm_name": persistent_swarm.swarm_name}
+        return {"status": "success", "swarm_name": persistent_swarm.name}
     except Exception as e:
         # shit hit the fan
         logger.error(f"error loading swarm from JSON: {e}")

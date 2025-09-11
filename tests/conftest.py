@@ -119,7 +119,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
         return make_stub_agent()
 
     stub_swarm = MAILSwarmTemplate(
-        swarm_name=os.getenv("SWARM_NAME", "example"),
+        name=os.getenv("SWARM_NAME", "example"),
         agents=[
             MAILAgentTemplate(
                 name="supervisor",

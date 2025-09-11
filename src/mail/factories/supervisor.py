@@ -19,6 +19,7 @@ def supervisor_factory(
     name: str = "supervisor",
     enable_entrypoint: bool = True,
     enable_interswarm: bool = False,
+    tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
     # internal params
@@ -28,10 +29,9 @@ def supervisor_factory(
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
-    inference_api: Literal["completions", "responses"] = "responses",
 ) -> AgentFunction:
     tools = create_supervisor_tools(
-        comm_targets, can_complete_tasks, enable_interswarm, inference_api
+        comm_targets, can_complete_tasks, enable_interswarm, style=tool_format
     )
     agent = base_agent_factory(
         user_token=user_token,
@@ -44,7 +44,7 @@ def supervisor_factory(
         max_tokens=max_tokens,
         memory=memory,
         use_proxy=use_proxy,
-        inference_api=inference_api,
+        tool_format=tool_format,
         name=name,
         enable_entrypoint=enable_entrypoint,
         enable_interswarm=enable_interswarm,

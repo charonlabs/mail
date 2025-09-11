@@ -1,12 +1,10 @@
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from openai import pydantic_function_tool
 from openai.resources.responses.responses import _make_tools
-from pydantic import BaseModel
 
 from mail.factories.base import AgentFunction, base_agent_factory
-from mail.swarms.utils import create_tools_from_actions
 
 ActionFunction = Callable[[dict[str, Any]], Awaitable[str]]
 ActionOverrideFunction = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | str]]
@@ -25,6 +23,9 @@ def action_agent_factory(
     # OPTIONAL
     # top-level params
     name: str = "action",
+    enable_entrypoint: bool = False,
+    enable_interswarm: bool = False,
+    tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
     # internal params
@@ -33,14 +34,13 @@ def action_agent_factory(
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
-    inference_api: Literal["completions", "responses"] = "responses",
     _debug_include_mail_tools: bool = True,
 ) -> AgentFunction:
     # ensure that the action tools are in the correct format
     parsed_tools: list[dict[str, Any]] = []
     if not isinstance(tools[0], dict):
         parsed_tools = [pydantic_function_tool(tool) for tool in tools]  # type: ignore
-        if inference_api == "responses":
+        if tool_format == "responses":
             parsed_tools = _make_tools(parsed_tools)  # type: ignore
 
     else:
@@ -57,8 +57,10 @@ def action_agent_factory(
         max_tokens=max_tokens,
         memory=memory,
         use_proxy=use_proxy,
-        inference_api=inference_api,
+        tool_format=tool_format,
         name=name,
+        enable_entrypoint=enable_entrypoint,
+        enable_interswarm=enable_interswarm,
         _debug_include_mail_tools=_debug_include_mail_tools,
     )
     return agent

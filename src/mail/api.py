@@ -1,8 +1,10 @@
 import datetime
 import json
+import logging
 import uuid
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
+from pydantic import BaseConfig, BaseModel, ConfigDict, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from mail.core import MAIL
@@ -10,8 +12,10 @@ from mail.factories.action import ActionFunction
 from mail.factories.base import AgentFunction
 from mail.message import MAILMessage, MAILRequest, create_agent_address
 from mail.swarm_registry import SwarmRegistry
-from mail.swarms.utils import read_python_string
-from mail.tools import AgentToolCall
+from mail.tools import AgentToolCall, pydantic_model_to_tool
+from mail.utils import read_python_string
+
+logger = logging.getLogger("mail")
 
 
 class MAILAgent:
@@ -27,6 +31,7 @@ class MAILAgent:
         agent_params: dict[str, Any],
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
+        tool_format: Literal["completions", "responses"] = "responses",
     ) -> None:
         self.name = name
         self.function = function
@@ -34,7 +39,8 @@ class MAILAgent:
         self.enable_entrypoint = enable_entrypoint
         self.enable_interswarm = enable_interswarm
         self.agent_params = agent_params
-    
+        self.tool_format = tool_format
+
     async def __call__(
         self,
         messages: list[dict[str, Any]],
@@ -57,6 +63,7 @@ class MAILAgentTemplate:
         agent_params: dict[str, Any],
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
+        tool_format: Literal["completions", "responses"] = "responses",
     ) -> None:
         self.name = name
         self.factory = factory
@@ -65,16 +72,16 @@ class MAILAgentTemplate:
         self.agent_params = agent_params
         self.enable_entrypoint = enable_entrypoint
         self.enable_interswarm = enable_interswarm
+        self.tool_format = tool_format
 
     def _top_level_params(self) -> dict[str, Any]:
         return {
             "name": self.name,
-            "factory": self.factory,
             "comm_targets": self.comm_targets,
-            "actions": self.actions,
-            "agent_params": self.agent_params,
+            "tools": [action.to_tool_dict(style=self.tool_format) for action in self.actions],
             "enable_entrypoint": self.enable_entrypoint,
             "enable_interswarm": self.enable_interswarm,
+            "tool_format": self.tool_format,
         }
 
     def instantiate(
@@ -92,6 +99,7 @@ class MAILAgentTemplate:
             agent_params=self.agent_params,
             enable_entrypoint=self.enable_entrypoint,
             enable_interswarm=self.enable_interswarm,
+            tool_format=self.tool_format,
         )
 
     @staticmethod
@@ -109,6 +117,7 @@ class MAILAgentTemplate:
             "actions": list,
             "enable_entrypoint": bool,
             "enable_interswarm": bool,
+            "tool_format": Literal["completions", "responses"],
         }
         
         data = json.loads(json_dump)
@@ -130,6 +139,7 @@ class MAILAgentTemplate:
         agent_params = data["agent_params"]
         enable_entrypoint = data.get("enable_entrypoint", False)
         enable_interswarm = data.get("enable_interswarm", False)
+        tool_format = data.get("tool_format", "responses")
 
         return MAILAgentTemplate(
             name=name,
@@ -139,6 +149,7 @@ class MAILAgentTemplate:
             agent_params=agent_params,
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
+            tool_format=tool_format,
         )
 
 class MAILAction:
@@ -200,6 +211,51 @@ class MAILAction:
             function=function,
         )
 
+    def to_tool_dict(
+        self,
+        style: Literal["completions", "responses"] = "responses",
+    ) -> dict[str, Any]:
+        """
+        Convert the MAILAction to a tool dictionary.
+        """
+        return pydantic_model_to_tool(self.to_pydantic_model(for_tools=True), name=self.name, description=self.description, style=style)
+
+    def to_pydantic_model(
+        self,
+        for_tools: bool = False,
+    ) -> type[BaseModel]:
+        """
+        Convert the MAILAction to a Pydantic model.
+        """
+        if for_tools:
+            parameters = self.parameters["properties"]
+            assert isinstance(parameters, dict)
+
+            fields = {key: Field(**parameters[key]) for key in parameters}
+            for key in parameters:
+                match parameters[key]["type"]:
+                    case "string":
+                        fields[key].annotation = str
+                    case "integer":
+                        fields[key].annotation = int
+                    case "boolean":
+                        fields[key].annotation = bool
+                    case _:
+                        raise ValueError(f"unsupported type: {parameters[key]['type']}")
+                fields[key].json_schema_extra = None
+
+            built_model = create_model("MAILActionBaseModelForTools", **{field_name: field.rebuild_annotation() for field_name, field in fields.items()})
+
+            return built_model
+        else:
+            class MAILActionBaseModel(BaseModel):
+                name: str = Field(description=self.name)
+                description: str = Field(description=self.description)
+                parameters: dict[str, Any] = Field()
+                function: str = Field(description=str(self.function))
+
+            return MAILActionBaseModel
+
 
 class MAILSwarm:
     """
@@ -208,7 +264,7 @@ class MAILSwarm:
 
     def __init__(
         self,
-        swarm_name: str,
+        name: str,
         agents: list[MAILAgent],
         actions: list[MAILAction],
         entrypoint: str,
@@ -216,7 +272,7 @@ class MAILSwarm:
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
     ) -> None:
-        self.swarm_name = swarm_name
+        self.name = name
         self.agents = agents
         self.actions = actions
         self.entrypoint = entrypoint
@@ -225,7 +281,7 @@ class MAILSwarm:
             agents={agent.name: agent.function for agent in agents},
             actions={action.name: action.function for action in actions},
             user_id=user_id,
-            swarm_name=swarm_name,
+            swarm_name=name,
             swarm_registry=swarm_registry,
             enable_interswarm=enable_interswarm,
             entrypoint=entrypoint,
@@ -266,6 +322,31 @@ class MAILSwarm:
 
         return await self.submit_message_stream(message, timeout)
 
+    async def post_message_and_run(
+        self,
+        subject: str,
+        body: str,
+        entrypoint: str | None = None,
+        show_events: bool = False,
+    ) -> tuple[MAILMessage, list[ServerSentEvent]]:
+        """
+        Post a message to the swarm and run the swarm.
+        """
+        if entrypoint is None:
+            entrypoint = self.entrypoint
+
+        message = self._build_message(subject, body, [entrypoint], "request")
+
+        await self._runtime.submit(message)
+        task_response = await self._runtime.run()
+
+        if show_events:
+            return task_response, self._runtime.get_events_by_task_id(
+                task_response["message"]["task_id"]
+            )
+        else:
+            return task_response, []
+
     def _build_message(
         self,
         subject: str,
@@ -291,8 +372,8 @@ class MAILSwarm:
                         recipient=create_agent_address(target),
                         subject=subject,
                         body=body,
-                        sender_swarm=self.swarm_name,
-                        recipient_swarm=self.swarm_name,
+                        sender_swarm=self.name,
+                        recipient_swarm=self.name,
                         routing_info={},
                     ),
                     msg_type="request",
@@ -373,13 +454,13 @@ class MAILSwarmTemplate:
 
     def __init__(
         self,
-        swarm_name: str,
+        name: str,
         agents: list[MAILAgentTemplate],
         actions: list[MAILAction],
         entrypoint: str,
         enable_interswarm: bool = False,
     ) -> None:
-        self.swarm_name = swarm_name
+        self.name = name
         self.agents = agents
         self.actions = actions
         self.entrypoint = entrypoint
@@ -396,14 +477,14 @@ class MAILSwarmTemplate:
         Instantiate a MAILSwarm from a MAILSwarmTemplate.
         """
         if self.enable_interswarm:
-            swarm_registry = SwarmRegistry(self.swarm_name, base_url, registry_file)
+            swarm_registry = SwarmRegistry(self.name, base_url, registry_file)
         else:
             swarm_registry = None
 
         agents = [agent.instantiate(instance_params) for agent in self.agents]
 
         return MAILSwarm(
-            swarm_name=self.swarm_name,
+            name=self.name,
             agents=agents,
             actions=self.actions,
             entrypoint=self.entrypoint,
@@ -441,7 +522,7 @@ class MAILSwarmTemplate:
         enable_interswarm = data.get("enable_interswarm", False)
 
         return MAILSwarmTemplate(
-            swarm_name=name,
+            name=name,
             agents=agents,
             actions=actions,
             entrypoint=entrypoint,

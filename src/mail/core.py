@@ -751,14 +751,15 @@ class MAIL:
                                 call, self.actions, _action_override
                             )
                             history.append(result_message)
+                            result_content = result_message.get("content") if call.completion else result_message.get("output")
                             self._submit_event(
                                 "action_tool_complete",
                                 task_id,
-                                f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_message['content']}'",  # type: ignore
+                                f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_content}'",  # type: ignore
                             )  # type: ignore
                             await self.submit(
                                 action_complete_broadcast(
-                                    result_message, self.swarm_name, recipient, task_id
+                                    call.tool_name, result_message, self.swarm_name, recipient, task_id
                                 )
                             )
                 # self.agent_histories[recipient] = history[1:]
