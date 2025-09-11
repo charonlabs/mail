@@ -36,7 +36,7 @@
                 "agent_params": { 
                     "llm": "openai/o3-mini",
                     "system": "src.mail.examples.weather_dummy.prompts:SYSPROMPT"
-                 }
+                }
             },
             {
                 "name": "math",

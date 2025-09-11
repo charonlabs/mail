@@ -1,5 +1,5 @@
-import uuid
 import datetime
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -57,7 +57,7 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
             message_id=str(uuid.uuid4()),
             source_swarm="remote",
             target_swarm="example",
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             payload=payload,
             msg_type="request",
             auth_token="token-123",
@@ -91,7 +91,7 @@ def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
     with TestClient(app) as client:
         response_msg: MAILMessage = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILResponse(
                 task_id="task-nope",
                 request_id="req-nope",

@@ -14,7 +14,6 @@ import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional
 
 import aiohttp
 import uvicorn
@@ -52,7 +51,7 @@ swarm_mail_instances: dict[str, MAILSwarm] = {}
 swarm_mail_tasks: dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
-swarm_registry: Optional[SwarmRegistry] = None
+swarm_registry: SwarmRegistry | None = None
 local_swarm_name: str = "example"
 local_base_url: str = "http://localhost:8000"
 default_entrypoint_agent: str = "supervisor"
@@ -156,7 +155,12 @@ async def get_or_create_user_mail(user_id: str, jwt: str) -> MAILSwarm:
 
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
+                instance_params={
+                    "user_token": jwt,
+                },
                 user_id=user_id,
+                base_url=local_base_url,
+                registry_file=swarm_registry.persistence_file,
             )
             user_mail_instances[user_id] = mail_instance
 
@@ -195,7 +199,12 @@ async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAILSwarm:
 
             # Create a new MAIL instance for this user with interswarm support
             mail_instance = persistent_swarm.instantiate(
+                instance_params={
+                    "user_token": jwt,
+                },
                 user_id=swarm_id,
+                base_url=local_base_url,
+                registry_file=swarm_registry.persistence_file,
             )
             swarm_mail_instances[swarm_id] = mail_instance
 

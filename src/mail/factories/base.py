@@ -12,10 +12,6 @@ from litellm import (
     acompletion,
     aresponses,
 )
-from openai import pydantic_function_tool
-from openai.resources.responses.response import _make_tools
-from openai.resources.responses.response_output_items import _make_tools
-from pydantic import BaseModel
 
 from mail.tools import AgentToolCall, create_mail_tools
 
@@ -27,12 +23,23 @@ logger = logging.getLogger("mail")
 
 
 def base_agent_factory(
-    user_token: str,
-    llm: str,
+    # REQUIRED
+    # top-level params
     comm_targets: list[str],
-    agent_params: dict[str, Any],
     tools: list[dict[str, Any]],
+    # instance params
+    user_token: str,
+    # internal params
+    llm: str,
     system: str,
+    # OPTIONAL
+    # top-level params
+    name: str = "base_agent",
+    enable_entrypoint: bool = False,
+    enable_interswarm: bool = False,
+    # instance params
+    # ...
+    # internal params
     reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,
@@ -40,7 +47,6 @@ def base_agent_factory(
     use_proxy: bool = True,
     inference_api: Literal["completions", "responses"] = "completions",
     _debug_include_mail_tools: bool = True,
-    name: str = "base_agent",
 ) -> AgentFunction:
     extra_headers: dict[str, str] = {}
     if use_proxy:
@@ -78,7 +84,6 @@ def base_agent_factory(
             messages.insert(0, {"role": "system", "content": system})
 
         # add the agent's tools to the list of tools
-        enable_interswarm = agent_params.get("enable_interswarm", False)
         if _debug_include_mail_tools:
             agent_tools = (
                 create_mail_tools(comm_targets, enable_interswarm, style=style) + tools

@@ -15,6 +15,8 @@ class FakeMAIL:
         user_id: str,
         swarm_name: str,
         entrypoint: str,
+        swarm_registry: Any | None = None,  # noqa: ARG002
+        enable_interswarm: bool | None = None,  # noqa: ARG002
     ) -> None:
         self.agents = agents
         self.actions = actions
@@ -72,7 +74,7 @@ def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_from_swarm_json_valid_creates_swarm() -> None:
-    from mail.api import MAILSwarm
+    from mail.api import MAILSwarmTemplate
 
     data = {
         "name": "myswarm",
@@ -82,7 +84,8 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
         "user_id": "u-1",
     }
 
-    swarm = MAILSwarm.from_swarm_json(json.dumps(data))
+    tmpl = MAILSwarmTemplate.from_swarm_json(json.dumps(data))
+    swarm = tmpl.instantiate(instance_params={}, user_id="u-1")
     assert swarm.swarm_name == "myswarm"
     assert swarm.entrypoint == "supervisor"
     # Ensure runtime was created with our stub
@@ -93,10 +96,10 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
 
 @pytest.mark.parametrize(
     "missing",
-    ["name", "agents", "actions", "entrypoint"],
+    ["name", "agents", "entrypoint"],
 )
 def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
-    from mail.api import MAILSwarm
+    from mail.api import MAILSwarmTemplate
 
     base = {
         "name": "x",
@@ -108,12 +111,12 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
     bad.pop(missing)
 
     with pytest.raises(ValueError) as exc:
-        MAILSwarm.from_swarm_json(json.dumps(bad))
+        MAILSwarmTemplate.from_swarm_json(json.dumps(bad))
     assert "missing required field" in str(exc.value)
 
 
 def test_from_swarm_json_wrong_types_raise() -> None:
-    from mail.api import MAILSwarm
+    from mail.api import MAILSwarmTemplate
 
     bad = {
         "name": 123,
@@ -123,13 +126,13 @@ def test_from_swarm_json_wrong_types_raise() -> None:
     }
 
     with pytest.raises(ValueError) as exc:
-        MAILSwarm.from_swarm_json(json.dumps(bad))
+        MAILSwarmTemplate.from_swarm_json(json.dumps(bad))
     # Message should note type mismatch
     assert "must be of type" in str(exc.value)
 
 
 def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
-    from mail.api import MAILSwarm
+    from mail.api import MAILSwarmTemplate
 
     contents = [
         {"name": "other", "agents": [], "actions": [], "entrypoint": "s"},
@@ -138,8 +141,8 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     path = tmp_path / "swarms.json"
     path.write_text(json.dumps(contents))
 
-    swarm = MAILSwarm.from_swarm_json_file(str(path), "target")
-    assert swarm.swarm_name == "target"
+    tmpl = MAILSwarmTemplate.from_swarm_json_file(str(path), "target")
+    assert tmpl.swarm_name == "target"
 
 
 @pytest.mark.asyncio

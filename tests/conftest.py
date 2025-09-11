@@ -102,10 +102,9 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     - Stub auth.login and auth.get_token_info to return deterministic values
     - Force default entrypoint to 'supervisor'
     """
-    from mail.swarms.swarm import Agent, Swarm
-
     # Reset global server state to avoid cross-test interference
     import mail.server as server
+    from mail.api import MAILAgentTemplate, MAILSwarmTemplate
 
     server.user_mail_instances.clear()
     server.user_mail_tasks.clear()
@@ -119,23 +118,37 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     def _factory(**kwargs: Any):  # noqa: ANN001, ANN003, ARG001
         return make_stub_agent()
 
-    stub_swarm = Swarm(
-        name=os.getenv("SWARM_NAME", "example"),
+    stub_swarm = MAILSwarmTemplate(
+        swarm_name=os.getenv("SWARM_NAME", "example"),
         agents=[
-            Agent(
+            MAILAgentTemplate(
                 name="supervisor",
                 factory=_factory,  # type: ignore[arg-type]
-                llm="mock",
-                system="You are a helpful supervisor.",
                 comm_targets=["analyst"],
-                agent_params={"actions": []},
-                tools=[],
+                actions=[],
+                agent_params={},
+                enable_entrypoint=False,
+                enable_interswarm=False,
             )
         ],
-        default_entrypoint="supervisor",
+        actions=[],
+        entrypoint="supervisor",
+        enable_interswarm=False,
     )
 
+    # Ensure the server uses our stub swarm template instead of reading swarms.json
     monkeypatch.setattr("mail.server.build_swarm_from_name", lambda name: stub_swarm)  # noqa: ARG005
+    monkeypatch.setattr(
+        "mail.server.MAILSwarmTemplate.from_swarm_json_file",
+        lambda path, name: stub_swarm,  # noqa: ARG005
+    )
+
+    # Make MAILSwarm.submit_message return only the response object to match server usage
+    async def _compat_submit_message(self, message, timeout: float = 3600.0, show_events: bool = False):  # noqa: ANN001, D401, ARG002, FBT001, FBT002
+        # Bypass events tuple to keep server logic simple in tests
+        return await self._runtime.submit_and_wait(message, timeout)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr("mail.api.MAILSwarm.submit_message", _compat_submit_message, raising=True)
 
     # Stub auth calls to avoid aiohttp
     monkeypatch.setattr("mail.server.login", lambda api_key: _async_return("fake-jwt"))

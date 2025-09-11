@@ -1,34 +1,42 @@
 from typing import Any, Literal
 
-from .base import AgentFunction, base_agent_factory
-from ..tools import create_supervisor_tools
+from mail.factories.base import AgentFunction, base_agent_factory
+from mail.tools import create_supervisor_tools
 
 
 def supervisor_factory(
-    user_token: str,
-    llm: str,
+    # REQUIRED
+    # top-level params
     comm_targets: list[str],
-    agent_params: dict[str, Any],
     tools: list[dict[str, Any]],
+    # instance params
+    user_token: str,
+    # internal params
+    llm: str,
     system: str,
+    # OPTIONAL
+    # top-level params
+    name: str = "supervisor",
+    enable_entrypoint: bool = True,
+    enable_interswarm: bool = False,
+    # instance params
+    # ...
+    # internal params
+    can_complete_tasks: bool = True,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
     inference_api: Literal["completions", "responses"] = "responses",
-    name: str = "supervisor",
 ) -> AgentFunction:
-    can_complete_tasks = agent_params.get("can_complete_tasks", True)
-    enable_interswarm = agent_params.get("enable_interswarm", False)
     tools = create_supervisor_tools(
-        comm_targets, can_complete_tasks, enable_interswarm, style="responses"
+        comm_targets, can_complete_tasks, enable_interswarm, inference_api
     )
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,
         comm_targets=comm_targets,
-        agent_params=agent_params,
         tools=tools,
         system=system,
         reasoning_effort=reasoning_effort,
@@ -38,5 +46,8 @@ def supervisor_factory(
         use_proxy=use_proxy,
         inference_api=inference_api,
         name=name,
+        enable_entrypoint=enable_entrypoint,
+        enable_interswarm=enable_interswarm,
+        _debug_include_mail_tools=True,
     )
     return agent

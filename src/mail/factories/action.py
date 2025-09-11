@@ -1,34 +1,42 @@
-from typing import Awaitable, Callable, Literal, Any, Sequence
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any, Literal
 
-
-from .base import AgentFunction, base_agent_factory
-from ..swarms.utils import create_tools_from_actions
-from openai.resources.responses.responses import _make_tools
 from openai import pydantic_function_tool
+from openai.resources.responses.responses import _make_tools
 from pydantic import BaseModel
+
+from mail.factories.base import AgentFunction, base_agent_factory
+from mail.swarms.utils import create_tools_from_actions
 
 ActionFunction = Callable[[dict[str, Any]], Awaitable[str]]
 ActionOverrideFunction = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | str]]
 
 
 def action_agent_factory(
-    user_token: str,
-    llm: str,
+    # REQUIRED
+    # top-level params
     comm_targets: list[str],
-    agent_params: dict[str, Any],
-    tools: list[dict[str, Any]] | Sequence[type[BaseModel]],
+    tools: list[dict[str, Any]],
+    # instance params
+    user_token: str,
+    # internal params
+    llm: str,
     system: str,
+    # OPTIONAL
+    # top-level params
+    name: str = "action",
+    # instance params
+    # ...
+    # internal params
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
     inference_api: Literal["completions", "responses"] = "responses",
-    name: str = "action",
     _debug_include_mail_tools: bool = True,
 ) -> AgentFunction:
     # ensure that the action tools are in the correct format
-    print("tools", tools)
     parsed_tools: list[dict[str, Any]] = []
     if not isinstance(tools[0], dict):
         parsed_tools = [pydantic_function_tool(tool) for tool in tools]  # type: ignore
@@ -37,13 +45,11 @@ def action_agent_factory(
 
     else:
         parsed_tools = tools  # type: ignore
-    print("parsed_tools", parsed_tools)
 
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,
         comm_targets=comm_targets,
-        agent_params=agent_params,
         tools=parsed_tools,
         system=system,
         reasoning_effort=reasoning_effort,

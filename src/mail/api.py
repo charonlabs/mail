@@ -1,7 +1,6 @@
 import datetime
 import json
 import uuid
-from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
 from sse_starlette import EventSourceResponse, ServerSentEvent
@@ -12,11 +11,41 @@ from mail.factories.base import AgentFunction
 from mail.message import MAILMessage, MAILRequest, create_agent_address
 from mail.swarm_registry import SwarmRegistry
 from mail.swarms.utils import read_python_string
+from mail.tools import AgentToolCall
 
 
 class MAILAgent:
     """
-    Agent class exposed via the MAIL API.
+    Instance of an agent (including factory-built function) exposed via the MAIL API.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        function: AgentFunction,
+        comm_targets: list[str],
+        agent_params: dict[str, Any],
+        enable_entrypoint: bool = False,
+        enable_interswarm: bool = False,
+    ) -> None:
+        self.name = name
+        self.function = function
+        self.comm_targets = comm_targets
+        self.enable_entrypoint = enable_entrypoint
+        self.enable_interswarm = enable_interswarm
+        self.agent_params = agent_params
+    
+    async def __call__(
+        self,
+        messages: list[dict[str, Any]],
+        tool_choice: str = "required",
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        return await self.function(messages, tool_choice)
+
+
+class MAILAgentTemplate:
+    """
+    Template class for an agent in the MAIL API.
     """
 
     def __init__(
@@ -24,6 +53,7 @@ class MAILAgent:
         name: str,
         factory: str,
         comm_targets: list[str],
+        actions: list["MAILAction"],
         agent_params: dict[str, Any],
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
@@ -31,32 +61,43 @@ class MAILAgent:
         self.name = name
         self.factory = factory
         self.comm_targets = comm_targets
+        self.actions = actions
+        self.agent_params = agent_params
         self.enable_entrypoint = enable_entrypoint
         self.enable_interswarm = enable_interswarm
-        self.agent_params = agent_params
-        self.actions = self._build_actions()
-        self.agent_function = self._build_agent_function(factory, agent_params)
 
-    def _build_agent_function(
+    def _top_level_params(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "factory": self.factory,
+            "comm_targets": self.comm_targets,
+            "actions": self.actions,
+            "agent_params": self.agent_params,
+            "enable_entrypoint": self.enable_entrypoint,
+            "enable_interswarm": self.enable_interswarm,
+        }
+
+    def instantiate(
         self,
-        factory: str,
-        params: dict[str, Any],
-    ) -> AgentFunction:
-        return read_python_string(factory)(**params)
+        instance_params: dict[str, Any],
+    ) -> MAILAgent:
+        full_params = {**self._top_level_params(), **self.agent_params, **instance_params}
+        factory = read_python_string(self.factory)
+        agent_function = factory(**full_params)
 
-    def _build_actions(self) -> list["MAILAction"]:
-        """
-        Build the actions for the agent.
-        """
-        return [
-            MAILAction.from_swarm_json(json.dumps(action))
-            for action in self.agent_params.get("actions", [])
-        ]
+        return MAILAgent(
+            name=self.name,
+            function=agent_function,
+            comm_targets=self.comm_targets,
+            agent_params=self.agent_params,
+            enable_entrypoint=self.enable_entrypoint,
+            enable_interswarm=self.enable_interswarm,
+        )
 
     @staticmethod
-    def from_swarm_json(json_dump: str) -> "MAILAgent":
+    def from_swarm_json(json_dump: str) -> "MAILAgentTemplate":
         """
-        Create a MAILAgent from a JSON dump following the `swarms.json` format.
+        Create a MAILAgentTemplate from a JSON dump following the `swarms.json` format.
         """
         REQUIRED_FIELDS = {
             "name": str,
@@ -69,7 +110,7 @@ class MAILAgent:
             "enable_entrypoint": bool,
             "enable_interswarm": bool,
         }
-
+        
         data = json.loads(json_dump)
 
         if data is None:
@@ -85,20 +126,20 @@ class MAILAgent:
         name = data["name"]
         factory = data["factory"]
         comm_targets = data["comm_targets"]
+        actions = [MAILAction.from_swarm_json(json.dumps(action)) for action in data.get("actions", [])]
         agent_params = data["agent_params"]
-
         enable_entrypoint = data.get("enable_entrypoint", False)
         enable_interswarm = data.get("enable_interswarm", False)
 
-        return MAILAgent(
+        return MAILAgentTemplate(
             name=name,
             factory=factory,
             comm_targets=comm_targets,
+            actions=actions,
+            agent_params=agent_params,
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
-            agent_params=agent_params,
         )
-
 
 class MAILAction:
     """
@@ -181,7 +222,7 @@ class MAILSwarm:
         self.entrypoint = entrypoint
         self.user_id = user_id
         self._runtime = MAIL(
-            agents={agent.name: agent.agent_function for agent in agents},
+            agents={agent.name: agent.function for agent in agents},
             actions={action.name: action.function for action in actions},
             user_id=user_id,
             swarm_name=swarm_name,
@@ -333,7 +374,7 @@ class MAILSwarmTemplate:
     def __init__(
         self,
         swarm_name: str,
-        agents: list[MAILAgent],
+        agents: list[MAILAgentTemplate],
         actions: list[MAILAction],
         entrypoint: str,
         enable_interswarm: bool = False,
@@ -344,15 +385,9 @@ class MAILSwarmTemplate:
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
 
-    @staticmethod
-    def _build_actions(agents: list[MAILAgent]) -> list[MAILAction]:
-        """
-        Build the actions for the swarm.
-        """
-        return [action for agent in agents for action in agent.actions]
-
     def instantiate(
         self,
+        instance_params: dict[str, Any],
         user_id: str = "default_user",
         base_url: str = "http://localhost:8000",
         registry_file: str | None = None,
@@ -364,9 +399,12 @@ class MAILSwarmTemplate:
             swarm_registry = SwarmRegistry(self.swarm_name, base_url, registry_file)
         else:
             swarm_registry = None
+
+        agents = [agent.instantiate(instance_params) for agent in self.agents]
+
         return MAILSwarm(
             swarm_name=self.swarm_name,
-            agents=self.agents,
+            agents=agents,
             actions=self.actions,
             entrypoint=self.entrypoint,
             user_id=user_id,
@@ -396,9 +434,9 @@ class MAILSwarmTemplate:
 
         name = data["name"]
         agents = [
-            MAILAgent.from_swarm_json(json.dumps(agent)) for agent in data["agents"]
+            MAILAgentTemplate.from_swarm_json(json.dumps(agent)) for agent in data["agents"]
         ]
-        actions = MAILSwarmTemplate._build_actions(agents)
+        actions = [action for agent in agents for action in agent.actions]
         entrypoint = data["entrypoint"]
         enable_interswarm = data.get("enable_interswarm", False)
 
