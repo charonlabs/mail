@@ -10,7 +10,12 @@ from sse_starlette import EventSourceResponse, ServerSentEvent
 from mail.core import MAIL
 from mail.factories.action import ActionFunction
 from mail.factories.base import AgentFunction
-from mail.message import MAILMessage, MAILRequest, create_agent_address
+from mail.message import (
+    MAILMessage,
+    MAILRequest,
+    create_agent_address,
+    create_user_address,
+)
 from mail.swarm_registry import SwarmRegistry
 from mail.tools import AgentToolCall, pydantic_model_to_tool
 from mail.utils import read_python_string
@@ -301,7 +306,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self._build_message(subject, body, [entrypoint], "request")
+        message = self._build_message(subject, body, [entrypoint], "user", "request")
 
         return await self.submit_message(message, timeout, show_events)
 
@@ -318,7 +323,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self._build_message(subject, body, [entrypoint], "request")
+        message = self._build_message(subject, body, [entrypoint], "user", "request")
 
         return await self.submit_message_stream(message, timeout)
 
@@ -335,7 +340,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self._build_message(subject, body, [entrypoint], "request")
+        message = self._build_message(subject, body, [entrypoint], "user", "request")
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run()
@@ -352,6 +357,7 @@ class MAILSwarm:
         subject: str,
         body: str,
         targets: list[str],
+        sender_type: Literal["user", "agent"] = "user",
         type: Literal["request", "response", "broadcast", "interrupt"] = "request",
     ) -> MAILMessage:
         """
@@ -368,7 +374,7 @@ class MAILSwarm:
                     message=MAILRequest(
                         task_id=str(uuid.uuid4()),
                         request_id=str(uuid.uuid4()),
-                        sender=create_agent_address(self.user_id),
+                        sender=create_user_address(self.user_id) if sender_type == "user" else create_agent_address(self.user_id),
                         recipient=create_agent_address(target),
                         subject=subject,
                         body=body,

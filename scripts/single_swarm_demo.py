@@ -12,7 +12,7 @@ async def main():
     swarm = swarm_template.instantiate(instance_params={"user_token": ""})
     task_response, events = await swarm.post_message_and_run(
         subject="New Message", 
-        body="what will the weather be in San Francisco tomorrow?",
+        body="what will the temperature (in degrees Fahrenheit) be in San Francisco tomorrow? one number is enough",
         show_events=True,
     )
     print(task_response)

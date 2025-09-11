@@ -46,7 +46,10 @@ class MAIL:
         enable_interswarm: bool = False,
         entrypoint: str = "supervisor",
     ):
-        self.message_queue: PriorityQueue[tuple[int, MAILMessage]] = PriorityQueue()
+        # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
+        # Structure: (priority, seq, message)
+        self.message_queue: PriorityQueue[tuple[int, int, MAILMessage]] = PriorityQueue()
+        self._message_seq: int = 0
         self.response_queue: asyncio.Queue[tuple[str, MAILMessage]] = asyncio.Queue()
         self.agents = agents
         self.actions = actions
@@ -153,7 +156,8 @@ class MAIL:
 
                     # Process the message
                     message_tuple = get_message_task.result()
-                    message = message_tuple[1]
+                    # message_tuple structure: (priority, seq, message)
+                    message = message_tuple[2]
                     logger.info(
                         f"processing message for user '{self.user_id}' with message: '{message}'"
                     )
@@ -226,7 +230,8 @@ class MAIL:
 
                 # Process the message
                 message_tuple = get_message_task.result()
-                message = message_tuple[1]
+                # message_tuple structure: (priority, seq, message)
+                message = message_tuple[2]
                 logger.info(
                     f"processing message in continuous mode for user '{self.user_id}' with message: '{message}'"
                 )
@@ -478,7 +483,8 @@ class MAIL:
         1. Interrupt
         2. Broadcast
         3. Request/response
-        Within each category, the priority is determined by the timestamp of the message
+        Within each category, messages are processed in FIFO order using a
+        monotonically increasing sequence number to avoid dict comparisons.
         """
         recipients = (
             message["message"]["recipients"]  # type: ignore
@@ -498,7 +504,11 @@ class MAIL:
             case "request" | "response":
                 priority = 3
 
-        await self.message_queue.put((priority, message))
+        # Monotonic sequence to break ties for same priority
+        self._message_seq += 1
+        seq = self._message_seq
+
+        await self.message_queue.put((priority, seq, message))
 
         return
 
@@ -700,7 +710,7 @@ class MAIL:
                                 response_message = MAILMessage(
                                     id=str(uuid.uuid4()),
                                     timestamp=datetime.datetime.now(
-                                        datetime.timezone.utc
+                                        datetime.UTC
                                     ).isoformat(),
                                     message=MAILBroadcast(
                                         task_id=task_id,
@@ -745,7 +755,7 @@ class MAIL:
                             self._submit_event(
                                 "action_tool_call",
                                 task_id,
-                                f"executing action tool (caller = '{message['message']['recipient']}'):\n'{call}'",  # type: ignore
+                                f"executing action tool (caller = '{recipient}'):\n'{call}'",  # type: ignore
                             )  # type: ignore
                             result_message = await execute_action_tool(
                                 call, self.actions, _action_override
@@ -755,7 +765,7 @@ class MAIL:
                             self._submit_event(
                                 "action_tool_complete",
                                 task_id,
-                                f"action tool complete (caller = '{message['message']['recipient']}'):\n'{result_content}'",  # type: ignore
+                                f"action tool complete (caller = '{recipient}'):\n'{result_content}'",  # type: ignore
                             )  # type: ignore
                             await self.submit(
                                 action_complete_broadcast(
