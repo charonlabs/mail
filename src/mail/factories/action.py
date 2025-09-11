@@ -28,7 +28,6 @@ def action_agent_factory(
     _debug_include_mail_tools: bool = True,
 ) -> AgentFunction:
     # ensure that the action tools are in the correct format
-    print("tools", tools)
     parsed_tools: list[dict[str, Any]] = []
     if not isinstance(tools[0], dict):
         parsed_tools = [pydantic_function_tool(tool) for tool in tools]  # type: ignore
@@ -37,7 +36,6 @@ def action_agent_factory(
 
     else:
         parsed_tools = tools  # type: ignore
-    print("parsed_tools", parsed_tools)
 
     agent = base_agent_factory(
         user_token=user_token,
