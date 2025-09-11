@@ -4,12 +4,13 @@ This module provides service discovery and endpoint management for MAIL swarms.
 """
 
 import asyncio
+import datetime
+import json
 import logging
 import os
-import json
-import datetime
-from typing import Any, TypedDict
 from dataclasses import dataclass
+from typing import Any, TypedDict
+
 import aiohttp
 
 logger = logging.getLogger("mail.swarm_registry")
@@ -75,7 +76,7 @@ class SwarmRegistry:
             base_url=base_url,
             health_check_url=f"{base_url}/health",
             auth_token_ref=None,
-            last_seen=datetime.datetime.now(datetime.timezone.utc),
+            last_seen=datetime.datetime.now(datetime.UTC),
             is_active=True,
             metadata=None,
             volatile=False,  # Local swarm is never volatile
@@ -110,7 +111,7 @@ class SwarmRegistry:
             base_url=base_url,
             health_check_url=f"{base_url}/health",
             auth_token_ref=auth_token_ref,
-            last_seen=datetime.datetime.now(datetime.timezone.utc),
+            last_seen=datetime.datetime.now(datetime.UTC),
             is_active=True,
             metadata=metadata,
             volatile=volatile,
@@ -430,7 +431,7 @@ class SwarmRegistry:
                 endpoint["health_check_url"], timeout=timeout
             ) as response:
                 if response.status == 200:
-                    endpoint["last_seen"] = datetime.datetime.now(datetime.timezone.utc)
+                    endpoint["last_seen"] = datetime.datetime.now(datetime.UTC)
                     if not endpoint["is_active"]:
                         endpoint["is_active"] = True
                         logger.info(f"swarm '{swarm_name}' is now active")
