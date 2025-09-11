@@ -191,10 +191,14 @@ def base_agent_factory(
             )
             rt.end(outputs={"output": res})
 
-        tool_calls: list[OutputFunctionToolCall | None] = [
-            output if output.type == "function_call" else None for output in res.output
-        ]
-        tool_calls = [tool_call for tool_call in tool_calls if tool_call is not None]
+        tool_calls: list[OutputFunctionToolCall] = []
+        message: str = ""
+
+        for output in res.output:
+            if output.type == "function_call":
+                tool_calls.append(output)
+            elif output.type == "message":
+                message = output.content[0].text
 
         agent_tool_calls: list[AgentToolCall] = []
         res_dict = res.model_dump()
@@ -203,10 +207,10 @@ def base_agent_factory(
             # Build assistant.tool_calls and AgentToolCall objects with consistent ids
             for tc in tool_calls:
                 assert tc is not None
-                assert tc.id is not None
+                assert tc.call_id is not None
                 assert tc.name is not None
                 assert tc.arguments is not None
-                call_id = tc.id
+                call_id = tc.call_id
                 agent_tool_calls.append(
                     AgentToolCall(
                         tool_name=tc.name,
@@ -218,6 +222,6 @@ def base_agent_factory(
                     )
                 )
 
-        return "", agent_tool_calls
+        return message, agent_tool_calls
 
     return run_responses
