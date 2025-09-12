@@ -67,8 +67,8 @@ class FakeMAIL:
 
 @pytest.fixture(autouse=True)
 def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Patch the MAIL symbol used inside mail.api to avoid heavy runtime behavior
-    import mail as api
+    # Patch the MAILRuntime used inside mail.api to avoid heavy runtime behavior
+    import mail.api as api
 
     monkeypatch.setattr(api, "MAILRuntime", FakeMAIL)
 
@@ -201,4 +201,4 @@ def test_build_message_request_validation() -> None:
 
     # _build_message should require exactly one target for requests
     with pytest.raises(ValueError):
-        swarm._build_message("subj", "body", ["a", "b"], type="request")
+        swarm.build_message("subj", "body", ["a", "b"], type="request")

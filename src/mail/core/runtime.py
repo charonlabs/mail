@@ -14,21 +14,19 @@ from mail.factories import (
     ActionOverrideFunction,
     AgentFunction,
 )
+from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.store import get_langmem_store
 
 from .executor import execute_action_tool
 from .message import (
     MAILBroadcast,
     MAILMessage,
-    MAILResponse,
     build_mail_xml,
     create_agent_address,
     create_system_address,
     create_user_address,
     parse_agent_address,
 )
-from .registry import SwarmRegistry
-from .router import InterswarmRouter
 from .tools import (
     MAIL_TOOL_NAMES,
     action_complete_broadcast,
@@ -39,6 +37,11 @@ logger = logging.getLogger("mail.runtime")
 
 
 class MAILRuntime:
+    """
+    Runtime for an individual MAIL swarm instance.
+    Handles the local message queue and provides an action executor for tools.
+    """
+
     def __init__(
         self,
         agents: dict[str, AgentFunction],
@@ -51,7 +54,9 @@ class MAILRuntime:
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
         # Structure: (priority, seq, message)
-        self.message_queue: PriorityQueue[tuple[int, int, MAILMessage]] = PriorityQueue()
+        self.message_queue: PriorityQueue[tuple[int, int, MAILMessage]] = (
+            PriorityQueue()
+        )
         self._message_seq: int = 0
         self.response_queue: asyncio.Queue[tuple[str, MAILMessage]] = asyncio.Queue()
         self.agents = agents
@@ -84,23 +89,39 @@ class MAILRuntime:
             )
 
     async def start_interswarm(self) -> None:
-        """Start interswarm messaging capabilities."""
+        """
+        Start interswarm messaging capabilities.
+        """
         if self.enable_interswarm and self.interswarm_router:
             await self.interswarm_router.start()
             logger.info(f"started interswarm messaging for swarm: '{self.swarm_name}'")
 
     async def stop_interswarm(self) -> None:
-        """Stop interswarm messaging capabilities."""
+        """
+        Stop interswarm messaging capabilities.
+        """
         if self.interswarm_router:
             await self.interswarm_router.stop()
             logger.info(f"stopped interswarm messaging for swarm: '{self.swarm_name}'")
 
+    async def is_interswarm_running(self) -> bool:
+        """
+        Check if interswarm messaging is running.
+        """
+        if self.interswarm_router:
+            return await self.interswarm_router.is_running()
+        return False
+
     async def _handle_local_message(self, message: MAILMessage) -> None:
-        """Handle a message that should be processed locally."""
+        """
+        Handle a message that should be processed locally.
+        """
         await self.submit(message)
 
     async def handle_interswarm_response(self, response_message: MAILMessage) -> None:
-        """Handle an incoming response from a remote swarm."""
+        """
+        Handle an incoming response from a remote swarm.
+        """
         logger.info(f"handling interswarm response: '{response_message['id']}'")
 
         # Submit the response to the local message queue for processing
@@ -308,7 +329,7 @@ class MAILRuntime:
             )
             return response
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
             logger.error(f"submitAndWait: timeout for task '{task_id}'")
@@ -348,12 +369,12 @@ class MAILRuntime:
                 try:
                     # Wait up to 15s for new events; on timeout send a heartbeat
                     await asyncio.wait_for(self._events_available.wait(), timeout=15.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Heartbeat to keep the connection alive
                     yield ServerSentEvent(
                         data={
                             "timestamp": datetime.datetime.now(
-                                datetime.timezone.utc
+                                datetime.UTC
                             ).isoformat(),
                             "task_id": task_id,
                         },
@@ -390,7 +411,7 @@ class MAILRuntime:
                 yield ServerSentEvent(
                     data={
                         "timestamp": datetime.datetime.now(
-                            datetime.timezone.utc
+                            datetime.UTC
                         ).isoformat(),
                         "task_id": task_id,
                         "response": response["message"]["body"],
@@ -402,14 +423,14 @@ class MAILRuntime:
                 yield ServerSentEvent(
                     data={
                         "timestamp": datetime.datetime.now(
-                            datetime.timezone.utc
+                            datetime.UTC
                         ).isoformat(),
                         "task_id": task_id,
                     },
                     event="task_complete",
                 )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.pending_requests.pop(task_id, None)
             logger.error(f"submitAndStream: timeout for task '{task_id}'")
             raise TimeoutError(
@@ -424,7 +445,9 @@ class MAILRuntime:
             raise e
 
     async def shutdown(self) -> None:
-        """Request a graceful shutdown of the MAIL system."""
+        """
+        Request a graceful shutdown of the MAIL system.
+        """
         logger.info(f"requesting shutdown for user '{self.user_id}'...")
 
         # Stop interswarm messaging first
@@ -434,7 +457,9 @@ class MAILRuntime:
         self.shutdown_event.set()
 
     async def _graceful_shutdown(self) -> None:
-        """Perform graceful shutdown operations."""
+        """
+        Perform graceful shutdown operations.
+        """
         logger.info("starting graceful shutdown...")
 
         # Graceful shutdown: wait for all active tasks to complete
@@ -518,7 +543,7 @@ class MAILRuntime:
     def _process_message(
         self,
         message: MAILMessage,
-        _action_override: ActionOverrideFunction | None = None,
+        action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         The internal process for sending a message to the recipient agent(s)
@@ -548,10 +573,12 @@ class MAILRuntime:
                 return
 
         # Fall back to local processing
-        self._process_local_message(message, _action_override)
+        self._process_local_message(message, action_override)
 
     async def _route_interswarm_message(self, message: MAILMessage) -> None:
-        """Route a message via interswarm router."""
+        """
+        Route a message via interswarm router.
+        """
         if self.interswarm_router:
             try:
                 response = await self.interswarm_router.route_message(message)
@@ -571,7 +598,7 @@ class MAILRuntime:
     def _process_local_message(
         self,
         message: MAILMessage,
-        _action_override: ActionOverrideFunction | None = None,
+        action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         Process a message locally (original _process_message logic)
@@ -594,7 +621,7 @@ class MAILRuntime:
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
-                    self._send_message(recipient_agent, message, _action_override)
+                    self._send_message(recipient_agent, message, action_override)
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
             else:
@@ -606,7 +633,7 @@ class MAILRuntime:
         self,
         recipient: str,
         message: MAILMessage,
-        _action_override: ActionOverrideFunction | None = None,
+        action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         Send a message to a recipient
@@ -761,10 +788,14 @@ class MAILRuntime:
                                 f"executing action tool (caller = '{recipient}'):\n'{call}'",  # type: ignore
                             )  # type: ignore
                             result_message = await execute_action_tool(
-                                call, self.actions, _action_override
+                                call, self.actions, action_override
                             )
                             history.append(result_message)
-                            result_content = result_message.get("content") if call.completion else result_message.get("output")
+                            result_content = (
+                                result_message.get("content")
+                                if call.completion
+                                else result_message.get("output")
+                            )
                             self._submit_event(
                                 "action_tool_complete",
                                 task_id,
@@ -772,7 +803,11 @@ class MAILRuntime:
                             )  # type: ignore
                             await self.submit(
                                 action_complete_broadcast(
-                                    call.tool_name, result_message, self.swarm_name, recipient, task_id
+                                    call.tool_name,
+                                    result_message,
+                                    self.swarm_name,
+                                    recipient,
+                                    task_id,
                                 )
                             )
                 # self.agent_histories[recipient] = history[1:]
@@ -794,9 +829,12 @@ class MAILRuntime:
         return None
 
     def _system_shutdown_message(self, reason: str) -> MAILMessage:
+        """
+        Create a system shutdown message.
+        """
         return MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILBroadcast(
                 task_id=str(uuid.uuid4()),
                 broadcast_id=str(uuid.uuid4()),
@@ -812,11 +850,14 @@ class MAILRuntime:
         )
 
     def _submit_event(self, event: str, task_id: str, description: str) -> None:
+        """
+        Submit an event to the event queue.
+        """
         self.new_events.append(
             ServerSentEvent(
                 data={
                     "timestamp": datetime.datetime.now(
-                        datetime.timezone.utc
+                        datetime.UTC
                     ).isoformat(),
                     "description": description,
                     "task_id": task_id,
@@ -832,6 +873,9 @@ class MAILRuntime:
         return None
 
     def get_events_by_task_id(self, task_id: str) -> list[ServerSentEvent]:
+        """
+        Get events by task ID.
+        """
         candidates = []
         try:
             candidates.extend(self.events)

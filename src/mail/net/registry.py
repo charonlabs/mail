@@ -8,39 +8,13 @@ import datetime
 import json
 import logging
 import os
-from typing import Any, TypedDict
+from typing import Any
 
 import aiohttp
 
+from .types import SwarmEndpoint
+
 logger = logging.getLogger("mail.registry")
-
-
-class SwarmEndpoint(TypedDict):
-    """Represents a swarm endpoint for interswarm communication."""
-
-    swarm_name: str
-    """The name of the swarm."""
-
-    base_url: str
-    """The base URL of the swarm (e.g., https://swarm1.example.com)."""
-
-    health_check_url: str
-    """The health check endpoint URL."""
-
-    auth_token_ref: str | None
-    """Authentication token reference (environment variable or actual token)."""
-
-    last_seen: datetime.datetime | None
-    """When this swarm was last seen/heard from."""
-
-    is_active: bool
-    """Whether this swarm is currently active."""
-
-    metadata: dict[str, Any] | None
-    """Additional metadata about the swarm."""
-
-    volatile: bool
-    """Whether this swarm is volatile (will be removed from the registry when the server shuts down)."""
 
 
 class SwarmRegistry:
@@ -60,7 +34,7 @@ class SwarmRegistry:
         self.health_check_interval = 30  # seconds
         self.health_check_task: asyncio.Task | None = None
         self.session: aiohttp.ClientSession | None = None
-        self.persistence_file = persistence_file or "swarm_registry.json"
+        self.persistence_file = persistence_file or f"registries/{local_swarm_name}.json"
 
         # Register self
         self.register_local_swarm(local_base_url)
@@ -69,7 +43,9 @@ class SwarmRegistry:
         self.load_persistent_endpoints()
 
     def register_local_swarm(self, base_url: str) -> None:
-        """Register the local swarm in the registry."""
+        """
+        Register the local swarm in the registry.
+        """
         self.endpoints[self.local_swarm_name] = SwarmEndpoint(
             swarm_name=self.local_swarm_name,
             base_url=base_url,
@@ -92,7 +68,9 @@ class SwarmRegistry:
         metadata: dict[str, Any] | None = None,
         volatile: bool = True,
     ) -> None:
-        """Register a remote swarm in the registry."""
+        """
+        Register a remote swarm in the registry.
+        """
         if swarm_name == self.local_swarm_name:
             logger.warning(
                 f"attempted to register local swarm '{swarm_name}' as remote"
@@ -124,7 +102,9 @@ class SwarmRegistry:
             self.save_persistent_endpoints()
 
     def unregister_swarm(self, swarm_name: str) -> None:
-        """Unregister a swarm from the registry."""
+        """
+        Unregister a swarm from the registry.
+        """
         if swarm_name in self.endpoints:
             # Check if this was a persistent swarm
             was_persistent = not self.endpoints[swarm_name].get("volatile", True)
@@ -137,11 +117,15 @@ class SwarmRegistry:
                 self.save_persistent_endpoints()
 
     def get_swarm_endpoint(self, swarm_name: str) -> SwarmEndpoint | None:
-        """Get the endpoint for a specific swarm."""
+        """
+        Get the endpoint for a specific swarm.
+        """
         return self.endpoints.get(swarm_name)
 
     def get_resolved_auth_token(self, swarm_name: str) -> str | None:
-        """Get the resolved authentication token for a swarm (resolves environment variable references)."""
+        """
+        Get the resolved authentication token for a swarm (resolves environment variable references).
+        """
         endpoint = self.endpoints.get(swarm_name)
         if not endpoint:
             return None
@@ -149,11 +133,15 @@ class SwarmRegistry:
         return self._resolve_auth_token_ref(endpoint.get("auth_token_ref"))
 
     def get_all_endpoints(self) -> dict[str, SwarmEndpoint]:
-        """Get all registered endpoints."""
+        """
+        Get all registered endpoints.
+        """
         return self.endpoints.copy()
 
     def get_active_endpoints(self) -> dict[str, SwarmEndpoint]:
-        """Get all active endpoints."""
+        """
+        Get all active endpoints.
+        """
         return {
             name: endpoint
             for name, endpoint in self.endpoints.items()
@@ -161,7 +149,9 @@ class SwarmRegistry:
         }
 
     def get_persistent_endpoints(self) -> dict[str, SwarmEndpoint]:
-        """Get all non-volatile (persistent) endpoints."""
+        """
+        Get all non-volatile (persistent) endpoints.
+        """
         return {
             name: endpoint
             for name, endpoint in self.endpoints.items()
@@ -169,7 +159,9 @@ class SwarmRegistry:
         }
 
     def save_persistent_endpoints(self) -> None:
-        """Save non-volatile endpoints to the persistence file."""
+        """
+        Save non-volatile endpoints to the persistence file.
+        """
         try:
             persistent_endpoints = self.get_persistent_endpoints()
 
@@ -210,7 +202,9 @@ class SwarmRegistry:
     def _get_auth_token_ref(
         self, swarm_name: str, auth_token: str | None
     ) -> str | None:
-        """Convert an auth token to an environment variable reference if it exists."""
+        """
+        Convert an auth token to an environment variable reference if it exists.
+        """
         if not auth_token:
             return None
 
@@ -232,7 +226,9 @@ class SwarmRegistry:
         return f"${{{env_var_name}}}"
 
     def _resolve_auth_token_ref(self, auth_token_ref: str | None) -> str | None:
-        """Resolve an auth token reference to its actual value."""
+        """
+        Resolve an auth token reference to its actual value.
+        """
         if not auth_token_ref:
             return None
 
@@ -257,7 +253,9 @@ class SwarmRegistry:
     def migrate_auth_tokens_to_env_refs(
         self, env_var_prefix: str = "SWARM_AUTH_TOKEN"
     ) -> None:
-        """Migrate existing auth tokens to environment variable references."""
+        """
+        Migrate existing auth tokens to environment variable references.
+        """
         migrated_count = 0
 
         for name, endpoint in self.endpoints.items():
@@ -290,7 +288,9 @@ class SwarmRegistry:
             logger.info("no auth tokens to migrate")
 
     def validate_environment_variables(self) -> dict[str, bool]:
-        """Validate that all required environment variables for auth tokens are set."""
+        """
+        Validate that all required environment variables for auth tokens are set.
+        """
         validation_results = {}
 
         for name, endpoint in self.endpoints.items():
@@ -311,7 +311,9 @@ class SwarmRegistry:
         return validation_results
 
     def load_persistent_endpoints(self) -> None:
-        """Load non-volatile endpoints from the persistence file."""
+        """
+        Load non-volatile endpoints from the persistence file.
+        """
         try:
             if not os.path.exists(self.persistence_file):
                 logger.info(f"no persistence file found at '{self.persistence_file}'")
@@ -354,7 +356,9 @@ class SwarmRegistry:
             logger.error(f"failed to load persistent endpoints: '{e}'")
 
     def cleanup_volatile_endpoints(self) -> None:
-        """Remove all volatile endpoints from the registry."""
+        """
+        Remove all volatile endpoints from the registry.
+        """
         volatile_endpoints = [
             name
             for name, endpoint in self.endpoints.items()
@@ -370,7 +374,9 @@ class SwarmRegistry:
         self.save_persistent_endpoints()
 
     async def start_health_checks(self) -> None:
-        """Start periodic health checks for all registered swarms."""
+        """
+        Start periodic health checks for all registered swarms.
+        """
         if self.health_check_task is not None:
             return
 
@@ -379,7 +385,9 @@ class SwarmRegistry:
         logger.info("started swarm health check loop")
 
     async def stop_health_checks(self) -> None:
-        """Stop periodic health checks."""
+        """
+        Stop periodic health checks.
+        """
         if self.health_check_task:
             self.health_check_task.cancel()
             try:
@@ -395,7 +403,9 @@ class SwarmRegistry:
         logger.info("stopped swarm health check loop")
 
     async def _health_check_loop(self) -> None:
-        """Main health check loop."""
+        """
+        Main health check loop.
+        """
         while True:
             try:
                 await self._perform_health_checks()
@@ -407,7 +417,9 @@ class SwarmRegistry:
                 await asyncio.sleep(self.health_check_interval)
 
     async def _perform_health_checks(self) -> None:
-        """Perform health checks on all remote swarms."""
+        """
+        Perform health checks on all remote swarms.
+        """
         if not self.session:
             return
 
@@ -422,7 +434,9 @@ class SwarmRegistry:
     async def _check_swarm_health(
         self, swarm_name: str, endpoint: SwarmEndpoint
     ) -> None:
-        """Check the health of a specific swarm."""
+        """
+        Check the health of a specific swarm.
+        """
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             assert self.session is not None
@@ -446,7 +460,9 @@ class SwarmRegistry:
                 logger.warning(f"swarm '{swarm_name}' is now inactive (error: '{e}')")
 
     async def discover_swarms(self, discovery_urls: list[str]) -> None:
-        """Discover swarms from a list of discovery endpoints."""
+        """
+        Discover swarms from a list of discovery endpoints.
+        """
         if not self.session:
             self.session = aiohttp.ClientSession()
 
@@ -461,7 +477,9 @@ class SwarmRegistry:
                     logger.error(f"discovery error: '{result}'")
 
     async def _discover_from_endpoint(self, url: str) -> None:
-        """Discover swarms from a specific endpoint."""
+        """
+        Discover swarms from a specific endpoint.
+        """
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             assert self.session is not None
@@ -486,7 +504,9 @@ class SwarmRegistry:
             logger.error(f"failed to discover from '{url}' with error: '{e}'")
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert registry to dictionary for serialization."""
+        """
+        Convert registry to dictionary for serialization.
+        """
         return {
             "local_swarm_name": self.local_swarm_name,
             "local_base_url": self.local_base_url,
@@ -511,7 +531,9 @@ class SwarmRegistry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SwarmRegistry":
-        """Create registry from dictionary."""
+        """
+        Create registry from dictionary.
+        """
         registry = cls(data["local_swarm_name"], data["local_base_url"])
 
         for name, endpoint_data in data["endpoints"].items():

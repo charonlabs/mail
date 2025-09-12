@@ -113,7 +113,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     server.swarm_mail_tasks.clear()
 
     # Fake registry prevents network
-    monkeypatch.setattr("mail.core.registry.SwarmRegistry", FakeSwarmRegistry)
+    monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
 
     # Build a minimal swarm with a stub supervisor agent
     def _factory(**kwargs: Any):  # noqa: ANN001, ANN003, ARG001
@@ -124,7 +124,8 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
         agents=[
             MAILAgentTemplate(
                 name="supervisor",
-                factory=_factory,  # type: ignore[arg-type]
+                # Use importable path for read_python_string
+                factory="tests.conftest:_factory",
                 comm_targets=["analyst"],
                 actions=[],
                 agent_params={},
@@ -144,11 +145,15 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     )
 
     # Make MAILSwarm.submit_message return only the response object to match server usage
-    async def _compat_submit_message(self, message, timeout: float = 3600.0, show_events: bool = False):  # noqa: ANN001, D401, ARG002, FBT001, FBT002
+    async def _compat_submit_message(
+        self, message, timeout: float = 3600.0, show_events: bool = False
+    ):  # noqa: ANN001, D401, ARG002, FBT001, FBT002
         # Bypass events tuple to keep server logic simple in tests
         return await self._runtime.submit_and_wait(message, timeout)  # type: ignore[attr-defined]
 
-    monkeypatch.setattr("mail.MAILSwarm.submit_message", _compat_submit_message, raising=True)
+    monkeypatch.setattr(
+        "mail.MAILSwarm.submit_message", _compat_submit_message, raising=True
+    )
 
     # Stub auth calls to avoid aiohttp
     monkeypatch.setattr("mail.utils.login", lambda api_key: _async_return("fake-jwt"))

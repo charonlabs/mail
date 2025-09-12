@@ -2,6 +2,11 @@ from typing import Any, Literal
 
 from mail.factories.base import AgentFunction, base_agent_factory
 
+math_agent_params = {
+    "llm": "openai/gpt-5-mini",
+    "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
+}
+
 
 def factory_math_dummy(
     # REQUIRED

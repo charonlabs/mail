@@ -10,14 +10,14 @@ from mail.core.message import (
     create_agent_address,
     format_agent_address,
 )
-from mail.core.registry import SwarmRegistry
-from mail.core.router import InterswarmRouter
+from mail.net.registry import SwarmRegistry
+from mail.net.router import InterswarmRouter
 
 
 def make_request_to(agent: str) -> MAILMessage:
     return MAILMessage(
         id=str(uuid.uuid4()),
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message=MAILRequest(
             task_id="t1",
             request_id="r1",

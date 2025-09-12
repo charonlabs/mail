@@ -10,6 +10,9 @@ async def execute_action_tool(
     actions: dict[str, ActionFunction],
     _action_override: ActionOverrideFunction | None = None,
 ) -> dict[str, str]:
+    """
+    Execute an action tool and return the response within a MAIL runtime.
+    """
     if not _action_override:
         action = actions[call.tool_name]
         content = await action(call.tool_args)

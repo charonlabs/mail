@@ -10,6 +10,7 @@ from .logger import (
 )
 from .parsing import (
     read_python_string,
+    target_address_is_interswarm,
 )
 from .store import (
     get_langmem_store,
@@ -23,5 +24,6 @@ __all__ = [
     "get_loggers",
     "init_logger",
     "read_python_string",
+    "target_address_is_interswarm",
     "get_langmem_store",
 ]

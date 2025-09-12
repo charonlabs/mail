@@ -15,7 +15,6 @@ from .message import (
     MAILResponse,
     create_agent_address,
     create_system_address,
-    create_user_address,
 )
 
 logger = logging.getLogger("mail.tools")
@@ -35,10 +34,11 @@ def pydantic_model_to_tool(
     description: str | None = None,
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Convert a Pydantic model class into an OpenAI function tool spec.
+    """
+    Convert a Pydantic model class into an OpenAI function tool spec.
 
     Returns a dict in the shape expected by Chat Completions and is compatible
-    with the Responses API (we later mirror parameters → input_schema when needed).w
+    with the Responses API (we later mirror parameters → input_schema when needed).
     """
     completions_tool = pydantic_function_tool(
         model_cls, name=name, description=description
@@ -52,6 +52,7 @@ def pydantic_model_to_tool(
 class AgentToolCall(BaseModel):
     """
     A tool call from an agent.
+
     Args:
         tool_name: The name of the tool called.
         tool_args: The arguments passed to the tool.
@@ -92,7 +93,9 @@ class AgentToolCall(BaseModel):
 def convert_call_to_mail_message(
     call: AgentToolCall, sender: str, task_id: str
 ) -> MAILMessage:
-    """Convert a MAIL tool call to a MAIL message."""
+    """
+    Convert a MAIL tool call to a MAIL message.
+    """
     # Convert sender string to MAILAddress (assuming it's an agent)
     sender_address = create_agent_address(sender)
 
@@ -187,9 +190,15 @@ def convert_call_to_mail_message(
 
 
 def action_complete_broadcast(
-    action_name: str, result_message: dict[str, Any], system_name: str, recipient: str, task_id: str
+    action_name: str,
+    result_message: dict[str, Any],
+    system_name: str,
+    recipient: str,
+    task_id: str,
 ) -> MAILMessage:
-    """Create a MAIL broadcast message to indicate that an action has been completed."""
+    """
+    Create a MAIL broadcast message to indicate that an action has been completed.
+    """
 
     return MAILMessage(
         id=str(uuid4()),
@@ -214,7 +223,9 @@ def create_request_tool(
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a MAIL message tool to send messages to specific agents."""
+    """
+    Create a MAIL message tool to send messages to specific agents.
+    """
 
     class send_request(BaseModel):
         """Send a message to a specific target recipient agent."""
@@ -255,7 +266,9 @@ def create_response_tool(
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a MAIL message tool to send messages to specific agents."""
+    """
+    Create a MAIL message tool to send messages to specific agents.
+    """
 
     class send_response(BaseModel):
         """Send a message to a specific target recipient agent."""
@@ -271,9 +284,7 @@ def create_response_tool(
         subject: str = Field(description="The subject of the message.")
         message: str = Field(description="The message content to send.")
 
-    tool_dict = pydantic_model_to_tool(
-        send_response, name="send_response", style=style
-    )
+    tool_dict = pydantic_model_to_tool(send_response, name="send_response", style=style)
 
     target_param = (
         tool_dict["function"]["parameters"]["properties"]["target"]
@@ -298,7 +309,9 @@ def create_interrupt_tool(
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a MAIL interrupt tool to interrupt specific agents."""
+    """
+    Create a MAIL interrupt tool to interrupt specific agents.
+    """
 
     class send_interrupt(BaseModel):
         """Interrupt a specific target recipient agent."""
@@ -337,7 +350,9 @@ def create_interrupt_tool(
 def create_interswarm_broadcast_tool(
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a MAIL broadcast tool for interswarm communication."""
+    """
+    Create a MAIL broadcast tool for interswarm communication.
+    """
 
     class send_interswarm_broadcast(BaseModel):
         """Broadcast a message to all known swarms."""
@@ -357,7 +372,9 @@ def create_interswarm_broadcast_tool(
 def create_swarm_discovery_tool(
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a tool for discovering and registering swarms."""
+    """
+    Create a tool for discovering and registering swarms.
+    """
 
     class discover_swarms(BaseModel):
         """Discover and register new swarms from discovery endpoints."""
@@ -372,7 +389,9 @@ def create_swarm_discovery_tool(
 def create_broadcast_tool(
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a MAIL broadcast tool to broadcast messages to all agents."""
+    """
+    Create a MAIL broadcast tool to broadcast messages to all agents.
+    """
 
     class send_broadcast(BaseModel):
         """Broadcast a message to all possible recipient agents."""
@@ -386,8 +405,8 @@ def create_broadcast_tool(
 def create_acknowledge_broadcast_tool(
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a tool for agents to acknowledge a broadcast without replying.
-
+    """
+    Create a tool for agents to acknowledge a broadcast without replying.
     When invoked, the runtime will store the incoming broadcast in the agent's
     memory and will not emit any outgoing MAIL message.
     """
@@ -409,8 +428,8 @@ def create_acknowledge_broadcast_tool(
 def create_ignore_broadcast_tool(
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a tool for agents to ignore a broadcast entirely.
-
+    """
+    Create a tool for agents to ignore a broadcast entirely.
     When invoked, the runtime will neither store nor respond to the broadcast.
     """
 
@@ -431,7 +450,9 @@ def create_ignore_broadcast_tool(
 def create_task_complete_tool(
     style: Literal["completions", "responses"] = "completions",
 ) -> dict[str, Any]:
-    """Create a MAIL task complete tool to indicate that a task has been completed."""
+    """
+    Create a MAIL task complete tool to indicate that a task has been completed.
+    """
 
     class task_complete(BaseModel):
         """Indicate that a task has been completed. This will end the current loop, and should always be the last tool called."""
@@ -448,7 +469,14 @@ def create_mail_tools(
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
 ) -> list[dict[str, Any]]:
-    """Create MAIL tools. These should be used for all agents."""
+    """
+    Create MAIL tools. These should be used for all agents.
+
+    Args:
+        targets: The agents that the agent can send messages to.
+        enable_interswarm: Whether the agent can send interswarm messages.
+        style: The style of the tools to create.
+    """
     return [
         create_request_tool(targets, enable_interswarm, style),
         create_response_tool(targets, enable_interswarm, style),
@@ -463,7 +491,15 @@ def create_supervisor_tools(
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
 ) -> list[dict[str, Any]]:
-    """Create MAIL supervisor tools. Targets are the agents that the supervisor can send messages to."""
+    """
+    Create MAIL supervisor-exclusive tools.
+
+    Args:
+        targets: The agents that the supervisor can send messages to.
+        can_complete_tasks: Whether the supervisor can complete tasks.
+        enable_interswarm: Whether the supervisor can send interswarm messages.
+        style: The style of the tools to create.
+    """
 
     tools = [
         create_interrupt_tool(targets, enable_interswarm, style),

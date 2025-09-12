@@ -3,6 +3,11 @@ from typing import Any, Literal
 from mail.factories.action import action_agent_factory
 from mail.factories.base import AgentFunction
 
+weather_agent_params = {
+    "llm": "openai/gpt-5-mini",
+    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
+}
+
 
 def factory_weather_dummy(
     # REQUIRED

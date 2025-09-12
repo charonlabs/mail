@@ -5,6 +5,11 @@ from mail.factories import (
     base_agent_factory,
 )
 
+analyst_agent_params = {
+    "llm": "openai/gpt-5-mini",
+    "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT",
+}
+
 
 def factory_analyst_dummy(
     # REQUIRED

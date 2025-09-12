@@ -13,8 +13,6 @@ from .message import (
     format_agent_address,
     parse_agent_address,
 )
-from .registry import SwarmRegistry
-from .router import InterswarmRouter
 from .runtime import MAILRuntime
 from .tools import (
     MAIL_TOOL_NAMES,
@@ -49,8 +47,6 @@ __all__ = [
     "create_user_address",
     "format_agent_address",
     "parse_agent_address",
-    "SwarmRegistry",
-    "InterswarmRouter",
     "MAILRuntime",
     "MAIL_TOOL_NAMES",
     "AgentToolCall",

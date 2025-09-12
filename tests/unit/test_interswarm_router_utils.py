@@ -7,7 +7,7 @@ from mail.core.message import (
     create_agent_address,
     format_agent_address,
 )
-from mail.core.router import InterswarmRouter
+from mail.net.router import InterswarmRouter
 
 
 class _DummyRegistry:
@@ -21,7 +21,7 @@ class _DummyRegistry:
 def _base_request():
     return MAILMessage(
         id=str(uuid.uuid4()),
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message=MAILRequest(
             task_id="t1",
             request_id="r1",
@@ -56,7 +56,7 @@ def test_create_local_and_remote_message_shapes():
 
     original = MAILMessage(
         id=str(uuid.uuid4()),
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message={
             "task_id": "t1",
             "broadcast_id": "b1",

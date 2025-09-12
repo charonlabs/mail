@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from toml import load as load_toml
 
+import mail.utils as utils
 from mail.core.message import (
     MAILInterswarmMessage,
     MAILMessage,
@@ -30,8 +31,7 @@ from mail.core.message import (
     create_user_address,
     format_agent_address,
 )
-from mail.core.registry import SwarmRegistry
-from mail.utils import generate_agent_id, generate_user_id, get_token_info, login
+from mail.net.registry import SwarmRegistry
 from mail.utils.logger import init_logger
 
 from .api import MAILSwarm, MAILSwarmTemplate
@@ -239,9 +239,9 @@ async def status(request: Request):
     # Get user token from request
     api_key = request.headers.get("Authorization")
     if api_key and api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" ")[1])
-        token_info = await get_token_info(jwt)
-        user_id = generate_user_id(token_info)
+        jwt = await utils.login(api_key.split(" ")[1])
+        token_info = await utils.get_token_info(jwt)
+        user_id = utils.generate_user_id(token_info)
 
         user_mail_status = user_id in user_mail_instances
         user_task_running = (
@@ -288,18 +288,18 @@ async def message(request: Request):
         raise HTTPException(status_code=401, detail="no API key provided")
 
     if api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" ")[1])
+        jwt = await utils.login(api_key.split(" ")[1])
         logger.info(f"user authenticated with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
-    token_info = await get_token_info(jwt)
+    token_info = await utils.get_token_info(jwt)
     role = token_info["role"]
     if (role != "user") and (role != "admin"):
         logger.warning("invalid role")
         raise HTTPException(status_code=401, detail="invalid role")
-    user_id = generate_user_id(token_info)
+    user_id = utils.generate_user_id(token_info)
 
     # Get or create user-specific MAIL instance (for readiness tracking/interswarm)
     try:
@@ -409,7 +409,7 @@ async def list_swarms():
     return {"swarms": swarms}
 
 
-@app.post("/swarms/register")
+@app.post("/swarms")
 async def register_swarm(request: Request):
     """
     Register a new swarm in the registry.
@@ -428,13 +428,13 @@ async def register_swarm(request: Request):
             raise HTTPException(status_code=401, detail="no API key provided")
 
         if api_key.startswith("Bearer "):
-            jwt = await login(api_key.split(" ")[1])
+            jwt = await utils.login(api_key.split(" ")[1])
             logger.info(f"swarm registered with token: '{jwt[:8]}...'...")
         else:
             logger.warning("invalid API key format")
             raise HTTPException(status_code=401, detail="invalid API key format")
 
-        token_info = await get_token_info(jwt)
+        token_info = await utils.get_token_info(jwt)
         role = token_info["role"]
         if role != "admin":
             logger.warning("invalid role")
@@ -480,14 +480,14 @@ async def dump_swarm(request: Request):
         raise HTTPException(status_code=401, detail="no API key provided")
 
     if api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" ")[1])
+        jwt = await utils.login(api_key.split(" ")[1])
         logger.info("successfully authenticated")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
     # make sure the endpoint was hit by an admin
-    token_info = await get_token_info(jwt)
+    token_info = await utils.get_token_info(jwt)
     role = token_info["role"]
     if role != "admin":
         logger.warning("invalid role for dumping swarm")
@@ -514,18 +514,18 @@ async def receive_interswarm_message(request: Request):
         raise HTTPException(status_code=401, detail="no API key provided")
 
     if api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" ")[1])
+        jwt = await utils.login(api_key.split(" ")[1])
         logger.info(f"agent authenticated with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
-    token_info = await get_token_info(jwt)
+    token_info = await utils.get_token_info(jwt)
     role = token_info["role"]
     if role != "agent":
         logger.warning("invalid role")
         raise HTTPException(status_code=401, detail="invalid role")
-    swarm_id = generate_agent_id(token_info)
+    swarm_id = utils.generate_agent_id(token_info)
 
     # Get or create swarm-specific MAIL instance
     try:
@@ -623,13 +623,13 @@ async def receive_interswarm_response(request: Request):
         raise HTTPException(status_code=401, detail="no API key provided")
 
     if api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" ")[1])
+        jwt = await utils.login(api_key.split(" ")[1])
         logger.info(f"response received with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
-    token_info = await get_token_info(jwt)
+    token_info = await utils.get_token_info(jwt)
     role = token_info["role"]
     if role != "agent":
         logger.warning("invalid role")
@@ -659,13 +659,13 @@ async def receive_interswarm_response(request: Request):
     # Look through all MAIL instances to find one with pending requests
     mail_instance = None
     for user_id, user_mail in user_mail_instances.items():
-        if task_id in user_mail.pending_requests:
+        if task_id in user_mail.get_pending_requests():
             mail_instance = user_mail
             break
 
     if not mail_instance:
         for swarm_id, swarm_mail in swarm_mail_instances.items():
-            if task_id in swarm_mail.pending_requests:
+            if task_id in swarm_mail.get_pending_requests():
                 mail_instance = swarm_mail
                 break
 
@@ -775,18 +775,18 @@ async def send_interswarm_message(request: Request):
             raise HTTPException(status_code=401, detail="no API key provided")
 
         if api_key.startswith("Bearer "):
-            jwt = await login(api_key.split(" ")[1])
+            jwt = await utils.login(api_key.split(" ")[1])
             logger.info(f"response received with token: '{jwt[:8]}...'...")
         else:
             logger.warning("invalid API key format")
             raise HTTPException(status_code=401, detail="invalid API key format")
 
-        token_info = await get_token_info(jwt)
+        token_info = await utils.get_token_info(jwt)
         role = token_info["role"]
         if (role != "user") and (role != "admin"):
             logger.warning("invalid role")
             raise HTTPException(status_code=401, detail="invalid role")
-        user_id = generate_user_id(token_info)
+        user_id = utils.generate_user_id(token_info)
 
         # parse request
         data = await request.json()
@@ -823,8 +823,8 @@ async def send_interswarm_message(request: Request):
         )
 
         # Route the message
-        if mail_instance.interswarm_router:
-            response = await mail_instance.interswarm_router.route_message(mail_message)
+        if mail_instance.enable_interswarm:
+            response = await mail_instance.route_interswarm_message(mail_message)
             return response
         else:
             raise HTTPException(
@@ -853,14 +853,14 @@ async def load_swarm_from_json(request: Request):
 
     # check that the key matches the bearer pattern
     if api_key.startswith("Bearer "):
-        jwt = await login(api_key.split(" ")[1])
+        jwt = await utils.login(api_key.split(" ")[1])
         logger.info(f"load swarm accessed with token: '{jwt[:8]}...'...")
     else:
         logger.warning("invalid API key format")
         raise HTTPException(status_code=401, detail="invalid API key format")
 
     # make sure the load endpoint was hit by an admin
-    token_info = await get_token_info(jwt)
+    token_info = await utils.get_token_info(jwt)
     role = token_info["role"]
     if role != "admin":
         logger.warning("invalid role for building swarm")

@@ -107,6 +107,7 @@
         "version": "1.0.0",
         "base_url": "http://localhost:8000",
         "entrypoint": "supervisor",
+        "enable_interswarm": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -159,6 +160,7 @@
         "version": "1.0.0",
         "base_url": "http://localhost:8001",
         "entrypoint": "supervisor",
+        "enable_interswarm": true,
         "agents": [
             {
                 "name": "supervisor",
