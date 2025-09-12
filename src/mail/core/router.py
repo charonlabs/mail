@@ -3,23 +3,23 @@ Interswarm Router for MAIL.
 This module handles routing messages between different MAIL swarms via HTTP.
 """
 
-import asyncio
+import datetime
 import logging
 import uuid
-import datetime
-from typing import Optional, Dict, Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 import aiohttp
-import json
 
 from .message import (
-    MAILMessage,
     MAILInterswarmMessage,
+    MAILMessage,
     MAILResponse,
     create_agent_address,
-    parse_agent_address,
     format_agent_address,
+    parse_agent_address,
 )
-from .swarm_registry import SwarmRegistry, SwarmEndpoint
+from .registry import SwarmRegistry
 
 logger = logging.getLogger("mail.interswarm_router")
 
@@ -32,8 +32,8 @@ class InterswarmRouter:
     def __init__(self, swarm_registry: SwarmRegistry, local_swarm_name: str):
         self.swarm_registry = swarm_registry
         self.local_swarm_name = local_swarm_name
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.message_handlers: Dict[str, Callable[[MAILMessage], Awaitable[None]]] = {}
+        self.session: aiohttp.ClientSession | None = None
+        self.message_handlers: dict[str, Callable[[MAILMessage], Awaitable[None]]] = {}
 
     async def start(self) -> None:
         """Start the interswarm router."""
@@ -336,7 +336,7 @@ class InterswarmRouter:
             logger.error(f"error handling incoming interswarm message: '{e}'")
             return False
 
-    def _determine_message_type(self, payload: Dict[str, Any]) -> str:
+    def _determine_message_type(self, payload: dict[str, Any]) -> str:
         """Determine the message type from the payload."""
         if "request_id" in payload and "recipient" in payload:
             return "request"

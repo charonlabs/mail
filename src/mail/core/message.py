@@ -1,5 +1,5 @@
 import datetime
-from typing import Any, Literal, TypedDict, Optional
+from typing import Any, Literal, TypedDict
 
 from dict2xml import dict2xml
 
@@ -36,13 +36,13 @@ class MAILRequest(TypedDict):
     """The body of the request."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarm: Optional[str]
+    recipient_swarm: str | None
     """The swarm name of the recipient (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
@@ -68,13 +68,13 @@ class MAILResponse(TypedDict):
     """The body of the response."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarm: Optional[str]
+    recipient_swarm: str | None
     """The swarm name of the recipient (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
@@ -100,13 +100,13 @@ class MAILBroadcast(TypedDict):
     """The full details of the broadcast."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarms: Optional[list[str]]
+    recipient_swarms: list[str] | None
     """The swarm names of the recipients (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
@@ -132,13 +132,13 @@ class MAILInterrupt(TypedDict):
     """The full details of the interrupt, including what tasks to halt, conditions for resuming, and if interrupted tasks should be discarded."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarms: Optional[list[str]]
+    recipient_swarms: list[str] | None
     """The swarm names of the recipients (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
@@ -163,14 +163,14 @@ class MAILInterswarmMessage(TypedDict):
     msg_type: Literal["request", "response", "broadcast", "interrupt"]
     """The type of the message."""
 
-    auth_token: Optional[str]
+    auth_token: str | None
     """Authentication token for interswarm communication."""
 
-    metadata: Optional[dict[str, Any]]
+    metadata: dict[str, Any] | None
     """Additional metadata for routing and processing."""
 
 
-def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
+def parse_agent_address(address: str) -> tuple[str, str | None]:
     """
     Parse an agent address in the format 'agent-name' or 'agent-name@swarm-name'.
 
@@ -185,7 +185,7 @@ def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
 
 
 def format_agent_address(
-    agent_name: str, swarm_name: Optional[str] = None
+    agent_name: str, swarm_name: str | None = None
 ) -> MAILAddress:
     """
     Format an agent address from agent name and optional swarm name.

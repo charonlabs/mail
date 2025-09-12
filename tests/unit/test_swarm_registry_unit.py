@@ -1,4 +1,4 @@
-from mail.swarm_registry import SwarmRegistry
+from mail.core.registry import SwarmRegistry
 
 
 def test_register_persist_and_resolve_token(tmp_path, monkeypatch):

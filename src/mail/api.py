@@ -2,22 +2,23 @@ import datetime
 import json
 import logging
 import uuid
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from pydantic import BaseConfig, BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
-from mail.core import MAIL
-from mail.factories.action import ActionFunction
-from mail.factories.base import AgentFunction
-from mail.message import (
+from mail.core import (
+    AgentToolCall,
     MAILMessage,
     MAILRequest,
+    MAILRuntime,
+    SwarmRegistry,
     create_agent_address,
     create_user_address,
+    pydantic_model_to_tool,
 )
-from mail.swarm_registry import SwarmRegistry
-from mail.tools import AgentToolCall, pydantic_model_to_tool
+from mail.factories.action import ActionFunction
+from mail.factories.base import AgentFunction
 from mail.utils import read_python_string
 
 logger = logging.getLogger("mail")
@@ -282,7 +283,7 @@ class MAILSwarm:
         self.actions = actions
         self.entrypoint = entrypoint
         self.user_id = user_id
-        self._runtime = MAIL(
+        self._runtime = MAILRuntime(
             agents={agent.name: agent.function for agent in agents},
             actions={action.name: action.function for action in actions},
             user_id=user_id,

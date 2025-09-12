@@ -1,5 +1,8 @@
-from .factories.action import ActionFunction, ActionOverrideFunction
-from .factories.base import AgentToolCall
+from mail.core.tools import AgentToolCall
+from mail.factories import (
+    ActionFunction,
+    ActionOverrideFunction,
+)
 
 
 async def execute_action_tool(

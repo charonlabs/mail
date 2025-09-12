@@ -1,6 +1,9 @@
 from typing import Any, Literal
 
-from mail.factories.base import AgentFunction, base_agent_factory
+from mail.factories import (
+    AgentFunction,
+    base_agent_factory,
+)
 
 
 def factory_consultant_dummy(

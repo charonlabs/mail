@@ -4,7 +4,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from mail.message import (
+from mail.core.message import (
     MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,

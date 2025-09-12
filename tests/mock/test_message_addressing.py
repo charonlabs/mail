@@ -1,9 +1,9 @@
-from mail.message import (
-    parse_agent_address,
+from mail.core.message import (
+    create_agent_address,
     format_agent_address,
     get_address_string,
     get_address_type,
-    create_agent_address,
+    parse_agent_address,
 )
 
 

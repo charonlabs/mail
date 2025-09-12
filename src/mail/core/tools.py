@@ -1,6 +1,5 @@
 import datetime
 import logging
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal, Optional, cast
 from uuid import uuid4
 
@@ -188,7 +187,7 @@ def convert_call_to_mail_message(
 
 
 def action_complete_broadcast(
-    action_name: str,result_message: dict[str, Any], system_name: str, recipient: str, task_id: str
+    action_name: str, result_message: dict[str, Any], system_name: str, recipient: str, task_id: str
 ) -> MAILMessage:
     """Create a MAIL broadcast message to indicate that an action has been completed."""
 

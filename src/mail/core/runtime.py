@@ -1,19 +1,22 @@
 import asyncio
 import datetime
-import json
 import logging
 import uuid
 from asyncio import PriorityQueue, Task
 from collections.abc import AsyncGenerator
-from typing import Any, Optional
+from typing import Any
 
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
 
+from mail.factories import (
+    ActionFunction,
+    ActionOverrideFunction,
+    AgentFunction,
+)
+from mail.utils.store import get_langmem_store
+
 from .executor import execute_action_tool
-from .factories.action import ActionFunction, ActionOverrideFunction
-from .factories.base import AgentFunction
-from .interswarm_router import InterswarmRouter
 from .message import (
     MAILBroadcast,
     MAILMessage,
@@ -24,8 +27,8 @@ from .message import (
     create_user_address,
     parse_agent_address,
 )
-from .store import get_langmem_store
-from .swarm_registry import SwarmRegistry
+from .registry import SwarmRegistry
+from .router import InterswarmRouter
 from .tools import (
     MAIL_TOOL_NAMES,
     action_complete_broadcast,
@@ -35,7 +38,7 @@ from .tools import (
 logger = logging.getLogger("mail")
 
 
-class MAIL:
+class MAILRuntime:
     def __init__(
         self,
         agents: dict[str, AgentFunction],

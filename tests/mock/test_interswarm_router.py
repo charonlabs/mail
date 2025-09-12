@@ -4,14 +4,14 @@ import uuid
 
 import pytest
 
-from mail.interswarm_router import InterswarmRouter
-from mail.message import (
+from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
     format_agent_address,
 )
-from mail.swarm_registry import SwarmRegistry
+from mail.core.registry import SwarmRegistry
+from mail.core.router import InterswarmRouter
 
 
 def make_request_to(agent: str) -> MAILMessage:

@@ -13,7 +13,7 @@ from litellm import (
     aresponses,
 )
 
-from mail.tools import AgentToolCall, create_mail_tools
+from mail.core.tools import AgentToolCall, create_mail_tools
 
 AgentFunction = Callable[
     [list[dict[str, Any]], str], Awaitable[tuple[str | None, list[AgentToolCall]]]

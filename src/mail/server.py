@@ -21,11 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from toml import load as load_toml
 
-from .api import MAILSwarm, MAILSwarmTemplate
-from .auth import generate_agent_id, generate_user_id, get_token_info, login
-from .core import MAIL
-from .logger import init_logger
-from .message import (
+from mail.core.message import (
     MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
@@ -34,7 +30,11 @@ from .message import (
     create_user_address,
     format_agent_address,
 )
-from .swarm_registry import SwarmRegistry
+from mail.core.registry import SwarmRegistry
+from mail.utils import generate_agent_id, generate_user_id, get_token_info, login
+from mail.utils.logger import init_logger
+
+from .api import MAILSwarm, MAILSwarmTemplate
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()

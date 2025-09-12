@@ -1,6 +1,6 @@
 import asyncio
 
-from mail.executor import execute_action_tool
+from mail.core.executor import execute_action_tool
 from mail.factories.base import AgentToolCall
 
 

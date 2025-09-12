@@ -1,13 +1,13 @@
 import datetime
 import uuid
 
-from mail.interswarm_router import InterswarmRouter
-from mail.message import (
+from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
     format_agent_address,
 )
+from mail.core.router import InterswarmRouter
 
 
 class _DummyRegistry:

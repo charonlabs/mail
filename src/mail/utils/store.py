@@ -6,7 +6,6 @@ used by LangGraph components.
 
 import contextlib
 import os
-from collections.abc import AsyncGenerator
 
 try:
     from langgraph.store.postgres.aio import (  # type: ignore

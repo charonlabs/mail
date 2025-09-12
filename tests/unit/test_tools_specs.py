@@ -2,8 +2,7 @@ from typing import Any
 
 import pytest
 
-from mail.factories.base import AgentToolCall
-from mail.tools import (
+from mail.core.tools import (
     action_complete_broadcast,
     convert_call_to_mail_message,
     create_mail_tools,
@@ -11,6 +10,7 @@ from mail.tools import (
     create_supervisor_tools,
     create_task_complete_tool,
 )
+from mail.factories.base import AgentToolCall
 
 
 def _call(name: str, args: dict[str, Any]) -> AgentToolCall:
