@@ -38,7 +38,7 @@ from .api import MAILSwarm, MAILSwarmTemplate
 
 # Initialize logger at module level so it runs regardless of how the server is started
 init_logger()
-logger = logging.getLogger("mail")
+logger = logging.getLogger("mail.server")
 
 # Global variables
 persistent_swarm: MAILSwarmTemplate | None = None
@@ -571,7 +571,7 @@ async def receive_interswarm_message(request: Request):
         logger.info(
             f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
         )
-        task_response = await swarm_mail.submit_message(new_message)
+        task_response, events = await swarm_mail.submit_message(new_message)
 
         # Create response message
         response_message = MAILMessage(
@@ -681,7 +681,7 @@ async def receive_interswarm_response(request: Request):
         # Create a new message that the supervisor can process
         supervisor_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILResponse(
                 task_id=response_message["message"]["task_id"],
                 request_id=response_message["message"].get(
@@ -807,7 +807,7 @@ async def send_interswarm_message(request: Request):
         # Create MAIL message
         mail_message = MAILMessage(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILRequest(
                 task_id=str(uuid.uuid4()),
                 request_id=str(uuid.uuid4()),

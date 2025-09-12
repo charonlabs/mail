@@ -35,7 +35,7 @@ from .tools import (
     convert_call_to_mail_message,
 )
 
-logger = logging.getLogger("mail")
+logger = logging.getLogger("mail.runtime")
 
 
 class MAILRuntime:

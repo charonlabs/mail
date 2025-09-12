@@ -12,7 +12,7 @@ from typing import Any, TypedDict
 
 import aiohttp
 
-logger = logging.getLogger("mail.swarm_registry")
+logger = logging.getLogger("mail.registry")
 
 
 class SwarmEndpoint(TypedDict):

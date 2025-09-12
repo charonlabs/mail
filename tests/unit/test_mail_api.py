@@ -68,13 +68,13 @@ class FakeMAIL:
 @pytest.fixture(autouse=True)
 def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
     # Patch the MAIL symbol used inside mail.api to avoid heavy runtime behavior
-    import mail.api as api
+    import mail as api
 
-    monkeypatch.setattr(api, "MAIL", FakeMAIL)
+    monkeypatch.setattr(api, "MAILRuntime", FakeMAIL)
 
 
 def test_from_swarm_json_valid_creates_swarm() -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     data = {
         "name": "myswarm",
@@ -99,7 +99,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     ["name", "agents", "entrypoint"],
 )
 def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     base = {
         "name": "x",
@@ -116,7 +116,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
 
 def test_from_swarm_json_wrong_types_raise() -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     bad = {
         "name": 123,
@@ -132,7 +132,7 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 
 
 def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     contents = [
         {"name": "other", "agents": [], "actions": [], "entrypoint": "s"},
@@ -147,7 +147,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_post_message_uses_default_entrypoint_and_returns_events() -> None:
-    from mail.api import MAILSwarm
+    from mail import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
@@ -173,7 +173,8 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
 @pytest.mark.asyncio
 async def test_post_message_stream_headers_and_type() -> None:
     from sse_starlette import EventSourceResponse
-    from mail.api import MAILSwarm
+
+    from mail import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
@@ -189,7 +190,7 @@ async def test_post_message_stream_headers_and_type() -> None:
 
 
 def test_build_message_request_validation() -> None:
-    from mail.api import MAILSwarm
+    from mail import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",

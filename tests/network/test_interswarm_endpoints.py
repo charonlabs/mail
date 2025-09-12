@@ -27,7 +27,7 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
 
     # Make auth treat caller as agent for interswarm paths
     monkeypatch.setattr(
-        "mail.server.get_token_info",
+        "mail.utils.get_token_info",
         lambda token: _async_return({"role": "agent", "id": "ag-123"}),
     )
 
@@ -84,7 +84,7 @@ def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
 
     # Treat caller as agent
     monkeypatch.setattr(
-        "mail.server.get_token_info",
+        "mail.utils.get_token_info",
         lambda token: _async_return({"role": "agent", "id": "ag-999"}),
     )
 

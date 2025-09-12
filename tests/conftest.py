@@ -113,7 +113,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     server.swarm_mail_tasks.clear()
 
     # Fake registry prevents network
-    monkeypatch.setattr("mail.server.SwarmRegistry", FakeSwarmRegistry)
+    monkeypatch.setattr("mail.core.registry.SwarmRegistry", FakeSwarmRegistry)
 
     # Build a minimal swarm with a stub supervisor agent
     def _factory(**kwargs: Any):  # noqa: ANN001, ANN003, ARG001
@@ -138,9 +138,8 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     )
 
     # Ensure the server uses our stub swarm template instead of reading swarms.json
-    monkeypatch.setattr("mail.server.build_swarm_from_name", lambda name: stub_swarm)  # noqa: ARG005
     monkeypatch.setattr(
-        "mail.server.MAILSwarmTemplate.from_swarm_json_file",
+        "mail.MAILSwarmTemplate.from_swarm_json_file",
         lambda path, name: stub_swarm,  # noqa: ARG005
     )
 
@@ -149,12 +148,12 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
         # Bypass events tuple to keep server logic simple in tests
         return await self._runtime.submit_and_wait(message, timeout)  # type: ignore[attr-defined]
 
-    monkeypatch.setattr("mail.api.MAILSwarm.submit_message", _compat_submit_message, raising=True)
+    monkeypatch.setattr("mail.MAILSwarm.submit_message", _compat_submit_message, raising=True)
 
     # Stub auth calls to avoid aiohttp
-    monkeypatch.setattr("mail.server.login", lambda api_key: _async_return("fake-jwt"))
+    monkeypatch.setattr("mail.utils.login", lambda api_key: _async_return("fake-jwt"))
     monkeypatch.setattr(
-        "mail.server.get_token_info",
+        "mail.utils.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),
     )
 

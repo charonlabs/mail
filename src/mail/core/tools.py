@@ -18,7 +18,7 @@ from .message import (
     create_user_address,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("mail.tools")
 
 MAIL_TOOL_NAMES = [
     "send_request",

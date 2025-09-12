@@ -21,7 +21,7 @@ from .message import (
 )
 from .registry import SwarmRegistry
 
-logger = logging.getLogger("mail.interswarm_router")
+logger = logging.getLogger("mail.router")
 
 
 class InterswarmRouter:
