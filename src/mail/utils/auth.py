@@ -1,14 +1,8 @@
-"""
-Authentication module for MAIL server.
-"""
-
-import os
 import logging
+import os
 from typing import Any
 
 import aiohttp
-import jwt
-from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 AUTH_ENDPOINT = os.getenv("AUTH_ENDPOINT")
 TOKEN_INFO_ENDPOINT = os.getenv("TOKEN_INFO_ENDPOINT")

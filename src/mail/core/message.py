@@ -1,11 +1,13 @@
 import datetime
-from typing import Any, Literal, TypedDict, Optional
+from typing import Any, Literal, TypedDict
 
 from dict2xml import dict2xml
 
 
 class MAILAddress(TypedDict):
-    """An address representing the sender or recipient of a MAIL message."""
+    """
+    An address representing the sender or recipient of a MAIL message.
+    """
 
     address_type: Literal["agent", "user", "system"]
     """The type of address."""
@@ -15,7 +17,9 @@ class MAILAddress(TypedDict):
 
 
 class MAILRequest(TypedDict):
-    """A request to an agent using the MAIL protocol."""
+    """
+    A request to an agent using the MAIL protocol.
+    """
 
     task_id: str
     """The unique identifier for the task."""
@@ -36,18 +40,20 @@ class MAILRequest(TypedDict):
     """The body of the request."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarm: Optional[str]
+    recipient_swarm: str | None
     """The swarm name of the recipient (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
 class MAILResponse(TypedDict):
-    """A response from an agent using the MAIL protocol."""
+    """
+    A response from an agent using the MAIL protocol.
+    """
 
     task_id: str
     """The unique identifier for the task."""
@@ -68,18 +74,20 @@ class MAILResponse(TypedDict):
     """The body of the response."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarm: Optional[str]
+    recipient_swarm: str | None
     """The swarm name of the recipient (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
 class MAILBroadcast(TypedDict):
-    """A broadcast message using the MAIL protocol."""
+    """
+    A broadcast message using the MAIL protocol.
+    """
 
     task_id: str
     """The unique identifier for the task."""
@@ -100,18 +108,20 @@ class MAILBroadcast(TypedDict):
     """The full details of the broadcast."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarms: Optional[list[str]]
+    recipient_swarms: list[str] | None
     """The swarm names of the recipients (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
 class MAILInterrupt(TypedDict):
-    """An interrupt using the MAIL protocol."""
+    """
+    An interrupt using the MAIL protocol.
+    """
 
     task_id: str
     """The unique identifier for the task."""
@@ -132,18 +142,20 @@ class MAILInterrupt(TypedDict):
     """The full details of the interrupt, including what tasks to halt, conditions for resuming, and if interrupted tasks should be discarded."""
 
     # Interswarm fields
-    sender_swarm: Optional[str]
+    sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
 
-    recipient_swarms: Optional[list[str]]
+    recipient_swarms: list[str] | None
     """The swarm names of the recipients (for interswarm messages)."""
 
-    routing_info: Optional[dict[str, Any]]
+    routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
 
 class MAILInterswarmMessage(TypedDict):
-    """An interswarm message wrapper for HTTP transport."""
+    """
+    An interswarm message wrapper for HTTP transport.
+    """
 
     message_id: str
     """The unique identifier for the interswarm message."""
@@ -163,14 +175,14 @@ class MAILInterswarmMessage(TypedDict):
     msg_type: Literal["request", "response", "broadcast", "interrupt"]
     """The type of the message."""
 
-    auth_token: Optional[str]
+    auth_token: str | None
     """Authentication token for interswarm communication."""
 
-    metadata: Optional[dict[str, Any]]
+    metadata: dict[str, Any] | None
     """Additional metadata for routing and processing."""
 
 
-def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
+def parse_agent_address(address: str) -> tuple[str, str | None]:
     """
     Parse an agent address in the format 'agent-name' or 'agent-name@swarm-name'.
 
@@ -184,9 +196,7 @@ def parse_agent_address(address: str) -> tuple[str, Optional[str]]:
         return address.strip(), None
 
 
-def format_agent_address(
-    agent_name: str, swarm_name: Optional[str] = None
-) -> MAILAddress:
+def format_agent_address(agent_name: str, swarm_name: str | None = None) -> MAILAddress:
     """
     Format an agent address from agent name and optional swarm name.
 
@@ -216,59 +226,51 @@ def create_address(
 
 
 def create_agent_address(address: str) -> MAILAddress:
-    """Create a MAILAddress for an AI agent."""
+    """
+    Create a MAILAddress for an AI agent.
+    """
     return create_address(address, "agent")
 
 
 def create_user_address(address: str) -> MAILAddress:
-    """Create a MAILAddress for a human user."""
+    """
+    Create a MAILAddress for a human user.
+    """
     return create_address(address, "user")
 
 
 def create_system_address(address: str) -> MAILAddress:
-    """Create a MAILAddress for the system."""
+    """
+    Create a MAILAddress for the system.
+    """
     return create_address(address, "system")
 
 
-def get_address_string(address: MAILAddress | str) -> str:
+def get_address_string(address: MAILAddress) -> str:
     """
-    Extract the address string from either a MAILAddress object or a plain string.
-    This provides backward compatibility during the transition.
-
-    Args:
-        address: Either a MAILAddress object or a plain string
-
-    Returns:
-        str: The address string
+    Extract the address string from a MAILAddress.
     """
-    if isinstance(address, dict) and "address" in address:
-        return address["address"]
-    return str(address)
+    return address["address"]
 
 
-def get_address_type(address: MAILAddress | str) -> Literal["agent", "user", "system"]:
+def get_address_type(address: MAILAddress) -> Literal["agent", "user", "system"]:
     """
-    Extract the address type from either a MAILAddress object or a plain string.
-    Defaults to "agent" for backward compatibility.
-
-    Args:
-        address: Either a MAILAddress object or a plain string
-
-    Returns:
-        Literal["agent", "user", "system"]: The address type
+    Extract the address type from a MAILAddress.
     """
-    if isinstance(address, dict) and "address_type" in address:
-        return address["address_type"]
-    return "agent"  # Default assumption for backward compatibility
+    return address["address_type"]
 
 
 def build_body_xml(content: dict[str, Any]) -> str:
-    """Build the XML representation a MAIL body section."""
+    """
+    Build the XML representation a MAIL body section.
+    """
     return str(dict2xml(content, wrap="body", indent=""))
 
 
 def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
-    """Build the XML representation of a MAIL message."""
+    """
+    Build the XML representation of a MAIL message.
+    """
     to = (
         message["message"]["recipient"]  # type: ignore
         if "recipient" in message["message"]
@@ -285,10 +287,10 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
         "role": "user",
         "content": f"""
 <incoming_message>
-<timestamp>{datetime.datetime.fromisoformat(message["timestamp"]).astimezone(datetime.timezone.utc).isoformat()}</timestamp>
+<timestamp>{datetime.datetime.fromisoformat(message["timestamp"]).astimezone(datetime.UTC).isoformat()}</timestamp>
 <from type="{sender_type}">{sender_str}</from>
 <to>
-{['<address type="{}">{}</address>'.format(get_address_type(recipient), get_address_string(recipient)) for recipient in to]}
+{[f'<address type="{get_address_type(recipient)}">{get_address_string(recipient)}</address>' for recipient in to]}
 </to>
 <subject>{message["message"]["subject"]}</subject>
 <body>{message["message"]["body"]}</body>
@@ -298,7 +300,9 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
 
 
 class MAILMessage(TypedDict):
-    """A message using the MAIL protocol."""
+    """
+    A message using the MAIL protocol.
+    """
 
     id: str
     """The unique identifier for the message."""

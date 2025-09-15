@@ -19,7 +19,7 @@ async def get_weather_forecast(args: dict[str, Any]) -> str:
     forecast = {
         "location": location,
         "date": str(
-            datetime.datetime.now(datetime.timezone.utc)
+            datetime.datetime.now(datetime.UTC)
             + datetime.timedelta(days=days_ahead)
         ),
         "condition": random.choice(

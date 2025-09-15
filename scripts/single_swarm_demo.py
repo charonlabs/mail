@@ -1,22 +1,24 @@
 import asyncio
+import json
 import logging
 
 from mail.api import MAILSwarmTemplate
-from mail.logger import init_logger
+from mail.utils import init_logger
 
 init_logger()
 logger = logging.getLogger("mail")
 
+
 async def main():
-    swarm_template = MAILSwarmTemplate.from_swarm_json_file("swarms.json", "example-no-proxy")
+    swarm_template = MAILSwarmTemplate.from_swarm_json_file("example-no-proxy")
     swarm = swarm_template.instantiate(instance_params={"user_token": ""})
     task_response, events = await swarm.post_message_and_run(
-        subject="New Message", 
-        body="what will the temperature (in degrees Fahrenheit) be in San Francisco tomorrow? one number is enough",
+        "can you get the weather agent to get the weather forecast for San Francisco tomorrow and return the first result?",
         show_events=True,
     )
-    print(task_response)
-    print(events)
+    print(json.dumps(task_response, indent=2))
+    print(json.dumps(events, indent=2))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

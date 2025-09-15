@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
+from mail.core.tools import create_supervisor_tools
 from mail.factories.base import AgentFunction, base_agent_factory
-from mail.tools import create_supervisor_tools
 
 
 def supervisor_factory(

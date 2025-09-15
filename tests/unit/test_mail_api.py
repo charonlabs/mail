@@ -4,6 +4,9 @@ from typing import Any
 
 import pytest
 
+from mail.api import MAILAgent
+from tests.conftest import make_stub_agent
+
 
 class FakeMAIL:
     """Lightweight stub for mail.core.MAIL used by MAILSwarm tests."""
@@ -67,21 +70,36 @@ class FakeMAIL:
 
 @pytest.fixture(autouse=True)
 def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Patch the MAIL symbol used inside mail.api to avoid heavy runtime behavior
+    # Patch the MAILRuntime used inside mail.api to avoid heavy runtime behavior
     import mail.api as api
 
-    monkeypatch.setattr(api, "MAIL", FakeMAIL)
+    monkeypatch.setattr(api, "MAILRuntime", FakeMAIL)
 
 
 def test_from_swarm_json_valid_creates_swarm() -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     data = {
         "name": "myswarm",
-        "agents": [],
+        "agents": [
+            {
+                "name": "supervisor",
+                "factory": "tests.conftest:make_stub_agent", 
+                "comm_targets": ["analyst"],
+                "actions": [],
+                "enable_entrypoint": True,
+                "agent_params": {},
+            },
+            {
+                "name": "analyst",
+                "factory": "tests.conftest:make_stub_agent",
+                "comm_targets": ["supervisor"],
+                "actions": [],
+                "agent_params": {},
+            },
+        ],
         "actions": [],
         "entrypoint": "supervisor",
-        "user_id": "u-1",
     }
 
     tmpl = MAILSwarmTemplate.from_swarm_json(json.dumps(data))
@@ -99,7 +117,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     ["name", "agents", "entrypoint"],
 )
 def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     base = {
         "name": "x",
@@ -116,7 +134,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
 
 def test_from_swarm_json_wrong_types_raise() -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     bad = {
         "name": 123,
@@ -132,26 +150,67 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 
 
 def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
-    from mail.api import MAILSwarmTemplate
+    from mail import MAILSwarmTemplate
 
     contents = [
-        {"name": "other", "agents": [], "actions": [], "entrypoint": "s"},
-        {"name": "target", "agents": [], "actions": [], "entrypoint": "s"},
+        {
+            "name": "other",
+            "agents": [],
+            "actions": [],
+            "entrypoint": "s",
+        },
+        {
+            "name": "target",
+            "agents": [
+                {
+                    "name": "supervisor",
+                    "factory": "tests.conftest:make_stub_agent",
+                    "comm_targets": ["analyst"],
+                    "actions": [],
+                    "enable_entrypoint": True,
+                    "agent_params": {},
+                },
+                {
+                    "name": "analyst",
+                    "factory": "tests.conftest:make_stub_agent",
+                    "comm_targets": ["supervisor"],
+                    "actions": [],
+                    "agent_params": {},
+                }
+            ],
+            "actions": [],
+            "entrypoint": "supervisor",
+        },
     ]
     path = tmp_path / "swarms.json"
     path.write_text(json.dumps(contents))
 
-    tmpl = MAILSwarmTemplate.from_swarm_json_file(str(path), "target")
+    tmpl = MAILSwarmTemplate.from_swarm_json_file("target", str(path))
     assert tmpl.name == "target"
 
 
 @pytest.mark.asyncio
 async def test_post_message_uses_default_entrypoint_and_returns_events() -> None:
-    from mail.api import MAILSwarm
+    from mail import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
-        agents=[],
+        agents=[
+            MAILAgent(
+                name="supervisor",
+                function=make_stub_agent,
+                comm_targets=["analyst"],
+                enable_entrypoint=True,
+                agent_params={},
+            ),
+            MAILAgent(
+                name="analyst",
+                function=make_stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=False,
+                agent_params={},
+            ),
+        ],
         actions=[],
         entrypoint="supervisor",
     )
@@ -173,11 +232,27 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
 @pytest.mark.asyncio
 async def test_post_message_stream_headers_and_type() -> None:
     from sse_starlette import EventSourceResponse
-    from mail.api import MAILSwarm
+
+    from mail import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
-        agents=[],
+        agents=[
+            MAILAgent(
+                name="supervisor",
+                function=make_stub_agent,
+                comm_targets=["analyst"],
+                enable_entrypoint=True,
+                agent_params={},
+            ),
+            MAILAgent(
+                name="analyst",
+                function=make_stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=False,
+                agent_params={},
+            ),
+        ],
         actions=[],
         entrypoint="supervisor",
     )
@@ -189,15 +264,30 @@ async def test_post_message_stream_headers_and_type() -> None:
 
 
 def test_build_message_request_validation() -> None:
-    from mail.api import MAILSwarm
+    from mail import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
-        agents=[],
+        agents=[
+            MAILAgent(
+                name="supervisor",
+                function=make_stub_agent,
+                comm_targets=["analyst"],
+                enable_entrypoint=True,
+                agent_params={},
+            ),
+            MAILAgent(
+                name="analyst",
+                function=make_stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=False,
+                agent_params={},
+            ),
+        ],
         actions=[],
         entrypoint="supervisor",
     )
 
     # _build_message should require exactly one target for requests
     with pytest.raises(ValueError):
-        swarm._build_message("subj", "body", ["a", "b"], type="request")
+        swarm.build_message("subj", "body", ["a", "b"], type="request")

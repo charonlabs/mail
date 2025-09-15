@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from mail.core import MAIL
-from mail.message import (
+from mail.core import MAILRuntime
+from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
@@ -24,7 +24,7 @@ async def test_submit_and_wait_resolves_on_task_complete():
         )
         return None, [call]
 
-    mail = MAIL(
+    mail = MAILRuntime(
         agents={"supervisor": stub_agent},
         actions={},
         user_id="user-1",

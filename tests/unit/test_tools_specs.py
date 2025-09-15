@@ -2,8 +2,7 @@ from typing import Any
 
 import pytest
 
-from mail.factories.base import AgentToolCall
-from mail.tools import (
+from mail.core.tools import (
     action_complete_broadcast,
     convert_call_to_mail_message,
     create_mail_tools,
@@ -11,6 +10,7 @@ from mail.tools import (
     create_supervisor_tools,
     create_task_complete_tool,
 )
+from mail.factories.base import AgentToolCall
 
 
 def _call(name: str, args: dict[str, Any]) -> AgentToolCall:
@@ -76,8 +76,11 @@ def test_create_task_complete_tool_shape():
 
 
 def test_action_complete_broadcast_message_shape():
+    # action_complete_broadcast(action_name, result_message, system_name, recipient, task_id)
     result_message = {"name": "my_action", "content": "done"}
-    msg = action_complete_broadcast(result_message, "example", "supervisor", "task-1")
+    msg = action_complete_broadcast(
+        "my_action", result_message, "example", "supervisor", "task-1"
+    )
     assert msg["msg_type"] == "broadcast"
     assert msg["message"]["sender"]["address"] == "example"
     assert msg["message"]["recipients"][0]["address"] == "supervisor"

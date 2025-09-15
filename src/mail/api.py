@@ -1,23 +1,27 @@
+import asyncio
 import datetime
 import json
 import logging
 import uuid
-from typing import Annotated, Any, Literal
+import inspect
+from typing import Any, Literal
 
-from pydantic import BaseConfig, BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
-from mail.core import MAIL
-from mail.factories.action import ActionFunction
-from mail.factories.base import AgentFunction
-from mail.message import (
+from mail import utils
+from mail.core import (
+    AgentToolCall,
     MAILMessage,
     MAILRequest,
+    MAILRuntime,
     create_agent_address,
     create_user_address,
+    pydantic_model_to_tool,
 )
-from mail.swarm_registry import SwarmRegistry
-from mail.tools import AgentToolCall, pydantic_model_to_tool
+from mail.factories.action import ActionFunction, ActionOverrideFunction
+from mail.factories.base import AgentFunction
+from mail.net import SwarmRegistry
 from mail.utils import read_python_string
 
 logger = logging.getLogger("mail")
@@ -45,6 +49,17 @@ class MAILAgent:
         self.enable_interswarm = enable_interswarm
         self.agent_params = agent_params
         self.tool_format = tool_format
+        self._validate()
+
+    def _validate(self) -> None:
+        if len(self.name) < 1:
+            raise ValueError(
+                f"agent name must be at least 1 character long, got {len(self.name)}"
+            )
+        if len(self.comm_targets) < 1:
+            raise ValueError(
+                f"agent must have at least one communication target, got {len(self.comm_targets)}"
+            )
 
     async def __call__(
         self,
@@ -78,12 +93,25 @@ class MAILAgentTemplate:
         self.enable_entrypoint = enable_entrypoint
         self.enable_interswarm = enable_interswarm
         self.tool_format = tool_format
+        self._validate()
+
+    def _validate(self) -> None:
+        if len(self.name) < 1:
+            raise ValueError(
+                f"agent name must be at least 1 character long, got {len(self.name)}"
+            )
+        if len(self.comm_targets) < 1:
+            raise ValueError(
+                f"agent must have at least one communication target, got {len(self.comm_targets)}"
+            )
 
     def _top_level_params(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "comm_targets": self.comm_targets,
-            "tools": [action.to_tool_dict(style=self.tool_format) for action in self.actions],
+            "tools": [
+                action.to_tool_dict(style=self.tool_format) for action in self.actions
+            ],
             "enable_entrypoint": self.enable_entrypoint,
             "enable_interswarm": self.enable_interswarm,
             "tool_format": self.tool_format,
@@ -93,7 +121,11 @@ class MAILAgentTemplate:
         self,
         instance_params: dict[str, Any],
     ) -> MAILAgent:
-        full_params = {**self._top_level_params(), **self.agent_params, **instance_params}
+        full_params = {
+            **self._top_level_params(),
+            **self.agent_params,
+            **instance_params,
+        }
         factory = read_python_string(self.factory)
         agent_function = factory(**full_params)
 
@@ -124,7 +156,7 @@ class MAILAgentTemplate:
             "enable_interswarm": bool,
             "tool_format": Literal["completions", "responses"],
         }
-        
+
         data = json.loads(json_dump)
 
         if data is None:
@@ -140,7 +172,10 @@ class MAILAgentTemplate:
         name = data["name"]
         factory = data["factory"]
         comm_targets = data["comm_targets"]
-        actions = [MAILAction.from_swarm_json(json.dumps(action)) for action in data.get("actions", [])]
+        actions = [
+            MAILAction.from_swarm_json(json.dumps(action))
+            for action in data.get("actions", [])
+        ]
         agent_params = data["agent_params"]
         enable_entrypoint = data.get("enable_entrypoint", False)
         enable_interswarm = data.get("enable_interswarm", False)
@@ -156,6 +191,96 @@ class MAILAgentTemplate:
             enable_interswarm=enable_interswarm,
             tool_format=tool_format,
         )
+
+    @staticmethod
+    def from_example(
+        name: Literal["supervisor", "weather", "math", "consultant", "analyst"],
+        comm_targets: list[str],
+    ) -> "MAILAgentTemplate":
+        """
+        Create a MAILAgent from an example in `mail.examples`.
+        """
+        match name:
+            case "supervisor":
+                from mail.examples import supervisor
+                from mail.factories import supervisor_factory
+
+                agent_params = supervisor.supervisor_agent_params
+
+                return MAILAgentTemplate(
+                    name=name,
+                    factory=supervisor_factory.__name__,
+                    comm_targets=comm_targets,
+                    actions=[],
+                    agent_params=agent_params,
+                    enable_entrypoint=True,
+                    enable_interswarm=False,
+                    tool_format="responses",
+                )
+            case "weather":
+                from mail.examples import weather_dummy as weather
+
+                agent_params = weather.weather_agent_params
+                actions = [weather.action_get_weather_forecast]
+
+                return MAILAgentTemplate(
+                    name=name,
+                    factory=weather.factory_weather_dummy.__name__,
+                    comm_targets=comm_targets,
+                    actions=actions,
+                    agent_params=agent_params,
+                    enable_entrypoint=False,
+                    enable_interswarm=False,
+                    tool_format="responses",
+                )
+            case "math":
+                from mail.examples import math_dummy as math
+
+                agent_params = math.math_agent_params
+
+                return MAILAgentTemplate(
+                    name=name,
+                    factory=math.factory_math_dummy.__name__,
+                    comm_targets=comm_targets,
+                    actions=[],
+                    agent_params=agent_params,
+                    enable_entrypoint=False,
+                    enable_interswarm=False,
+                    tool_format="responses",
+                )
+            case "consultant":
+                from mail.examples import consultant_dummy as consultant
+
+                agent_params = consultant.consultant_agent_params
+
+                return MAILAgentTemplate(
+                    name=name,
+                    factory=consultant.factory_consultant_dummy.__name__,
+                    comm_targets=comm_targets,
+                    actions=[],
+                    agent_params=agent_params,
+                    enable_entrypoint=False,
+                    enable_interswarm=False,
+                    tool_format="responses",
+                )
+            case "analyst":
+                from mail.examples import analyst_dummy as analyst
+
+                agent_params = analyst.analyst_agent_params
+
+                return MAILAgentTemplate(
+                    name=name,
+                    factory=analyst.factory_analyst_dummy.__name__,
+                    comm_targets=comm_targets,
+                    actions=[],
+                    agent_params=agent_params,
+                    enable_entrypoint=False,
+                    enable_interswarm=False,
+                    tool_format="responses",
+                )
+            case _:
+                raise ValueError(f"invalid agent name: {name}")
+
 
 class MAILAction:
     """
@@ -173,6 +298,17 @@ class MAILAction:
         self.description = description
         self.parameters = parameters
         self.function = self._build_action_function(function)
+        self._validate()
+
+    def _validate(self) -> None:
+        if len(self.name) < 1:
+            raise ValueError(
+                f"action name must be at least 1 character long, got {len(self.name)}"
+            )
+        if len(self.description) < 1:
+            raise ValueError(
+                f"action description must be at least 1 character long, got {len(self.description)}"
+            )
 
     def _build_action_function(
         self,
@@ -223,7 +359,12 @@ class MAILAction:
         """
         Convert the MAILAction to a tool dictionary.
         """
-        return pydantic_model_to_tool(self.to_pydantic_model(for_tools=True), name=self.name, description=self.description, style=style)
+        return pydantic_model_to_tool(
+            self.to_pydantic_model(for_tools=True),
+            name=self.name,
+            description=self.description,
+            style=style,
+        )
 
     def to_pydantic_model(
         self,
@@ -249,10 +390,17 @@ class MAILAction:
                         raise ValueError(f"unsupported type: {parameters[key]['type']}")
                 fields[key].json_schema_extra = None
 
-            built_model = create_model("MAILActionBaseModelForTools", **{field_name: field.rebuild_annotation() for field_name, field in fields.items()})
+            built_model = create_model(
+                "MAILActionBaseModelForTools",
+                **{
+                    field_name: field.rebuild_annotation()
+                    for field_name, field in fields.items()
+                },
+            )
 
             return built_model
         else:
+
             class MAILActionBaseModel(BaseModel):
                 name: str = Field(description=self.name)
                 description: str = Field(description=self.description)
@@ -282,7 +430,10 @@ class MAILSwarm:
         self.actions = actions
         self.entrypoint = entrypoint
         self.user_id = user_id
-        self._runtime = MAIL(
+        self.swarm_registry = swarm_registry
+        self.enable_interswarm = enable_interswarm
+        self.adjacency_matrix = self._build_adjacency_matrix()
+        self._runtime = MAILRuntime(
             agents={agent.name: agent.function for agent in agents},
             actions={action.name: action.function for action in actions},
             user_id=user_id,
@@ -291,11 +442,65 @@ class MAILSwarm:
             enable_interswarm=enable_interswarm,
             entrypoint=entrypoint,
         )
+        self._validate()
+
+    def _validate(self) -> None:
+        if len(self.name) < 1:
+            raise ValueError(
+                f"swarm name must be at least 1 character long, got {len(self.name)}"
+            )
+        if len(self.agents) < 1:
+            raise ValueError(
+                f"swarm must have at least one agent, got {len(self.agents)}"
+            )
+        if len(self.user_id) < 1:
+            raise ValueError(
+                f"user ID must be at least 1 character long, got {len(self.user_id)}"
+            )
+
+        # is the entrypoint valid?
+        entrypoints = [agent.name for agent in self.agents if agent.enable_entrypoint]
+        if len(entrypoints) < 1:
+            raise ValueError(
+                f"swarm must have at least one entrypoint agent, got {len(entrypoints)}"
+            )
+        if self.entrypoint not in entrypoints:
+            raise ValueError(f"entrypoint agent '{self.entrypoint}' not found in swarm")
+
+        # are agent comm targets valid?
+        for agent in self.agents:
+            for target in agent.comm_targets:
+                interswarm_target = utils.target_address_is_interswarm(target)
+                if interswarm_target and not self.enable_interswarm:
+                    raise ValueError(
+                        f"agent '{agent.name}' has interswarm communication target '{target}' but interswarm messaging is not enabled for this swarm"
+                    )
+                if not interswarm_target and target not in [
+                    agent.name for agent in self.agents
+                ]:
+                    raise ValueError(
+                        f"agent '{agent.name}' has invalid communication target '{target}'"
+                    )
+
+        if self.swarm_registry is None and self.enable_interswarm:
+            raise ValueError(
+                "swarm registry must be provided if interswarm messaging is enabled"
+            )
+
+    def _build_adjacency_matrix(self) -> dict[str, list[str]]:
+        """
+        Build an adjacency matrix for the swarm.
+        """
+        adjacency_matrix = {}
+        for agent in self.agents:
+            adjacency_matrix[agent.name] = [target for target in agent.comm_targets]
+
+        return adjacency_matrix
 
     async def post_message(
         self,
-        subject: str,
         body: str,
+        subject: str = "New Message",
         entrypoint: str | None = None,
         show_events: bool = False,
         timeout: float = 3600.0,
@@ -306,14 +511,14 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self._build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(subject, body, [entrypoint], "user", "request")
 
         return await self.submit_message(message, timeout, show_events)
 
     async def post_message_stream(
         self,
-        subject: str,
         body: str,
+        subject: str = "New Message",
         entrypoint: str | None = None,
         timeout: float = 3600.0,
     ) -> EventSourceResponse:
@@ -323,14 +528,14 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self._build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(subject, body, [entrypoint], "user", "request")
 
         return await self.submit_message_stream(message, timeout)
 
     async def post_message_and_run(
         self,
-        subject: str,
         body: str,
+        subject: str = "New Message",
         entrypoint: str | None = None,
         show_events: bool = False,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
@@ -340,7 +545,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self._build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(subject, body, [entrypoint], "user", "request")
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run()
@@ -352,7 +557,7 @@ class MAILSwarm:
         else:
             return task_response, []
 
-    def _build_message(
+    def build_message(
         self,
         subject: str,
         body: str,
@@ -374,7 +579,9 @@ class MAILSwarm:
                     message=MAILRequest(
                         task_id=str(uuid.uuid4()),
                         request_id=str(uuid.uuid4()),
-                        sender=create_user_address(self.user_id) if sender_type == "user" else create_agent_address(self.user_id),
+                        sender=create_user_address(self.user_id)
+                        if sender_type == "user"
+                        else create_agent_address(self.user_id),
                         recipient=create_agent_address(target),
                         subject=subject,
                         body=body,
@@ -399,19 +606,47 @@ class MAILSwarm:
         """
         Start interswarm messaging.
         """
+        if not self.enable_interswarm:
+            raise ValueError("interswarm messaging is not enabled for this swarm")
+        if self.swarm_registry is None:
+            raise ValueError(
+                "swarm registry must be provided if interswarm messaging is enabled"
+            )
+
         await self._runtime.start_interswarm()
 
     async def stop_interswarm(self) -> None:
         """
         Stop interswarm messaging.
         """
+        if not self.enable_interswarm:
+            raise ValueError("interswarm messaging is not enabled for this swarm")
+        if self.swarm_registry is None:
+            raise ValueError(
+                "swarm registry must be provided if interswarm messaging is enabled"
+            )
+
         await self._runtime.stop_interswarm()
 
-    async def run_continuous(self) -> None:
+    async def is_interswarm_running(self) -> bool:
+        """
+        Check if interswarm messaging is running.
+        """
+        if not self.enable_interswarm:
+            return False
+        if self.swarm_registry is None:
+            return False
+
+        return await self._runtime.is_interswarm_running()
+
+    async def run_continuous(
+        self,
+        action_override: ActionOverrideFunction | None = None,
+    ) -> None:
         """
         Run the MAILSwarm in continuous mode.
         """
-        await self._runtime.run_continuous()
+        await self._runtime.run_continuous(action_override)
 
     async def submit_message(
         self,
@@ -439,8 +674,17 @@ class MAILSwarm:
         """
         Submit a fully-formed MAILMessage to the swarm and stream the response.
         """
+        # Support runtimes that either return an async generator directly
+        # or coroutines that resolve to an async generator.
+        maybe_stream = self._runtime.submit_and_stream(message, timeout)
+        stream = (
+            await maybe_stream  # type: ignore[func-returns-value]
+            if inspect.isawaitable(maybe_stream)
+            else maybe_stream
+        )
+
         return EventSourceResponse(
-            self._runtime.submit_and_stream(message, timeout),
+            stream,
             ping=15000,
             headers={
                 "Cache-Control": "no-cache",
@@ -448,6 +692,28 @@ class MAILSwarm:
                 "X-Accel-Buffering": "no",
             },
         )
+
+    async def handle_interswarm_response(self, response_message: MAILMessage) -> None:
+        """
+        Handle an incoming response from a remote swarm.
+        """
+        await self._runtime.handle_interswarm_response(response_message)
+
+    def get_pending_requests(self) -> dict[str, asyncio.Future[MAILMessage]]:
+        """
+        Get the pending requests for the swarm.
+        """
+        return self._runtime.pending_requests
+
+    async def route_interswarm_message(self, message: MAILMessage) -> MAILMessage:
+        """
+        Route an interswarm message to the appropriate destination.
+        """
+        router = self._runtime.interswarm_router
+        if router is None:
+            raise ValueError("interswarm router not available")
+            
+        return await router.route_message(message)
 
 
 class MAILSwarmTemplate:
@@ -471,6 +737,51 @@ class MAILSwarmTemplate:
         self.actions = actions
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
+        self.adjacency_matrix = self._build_adjacency_matrix()
+        self._validate()
+
+    def _validate(self) -> None:
+        if len(self.name) < 1:
+            raise ValueError(
+                f"swarm name must be at least 1 character long, got {len(self.name)}"
+            )
+        if len(self.agents) < 1:
+            raise ValueError(
+                f"swarm must have at least one agent, got {len(self.agents)}"
+            )
+
+        # is the entrypoint valid?
+        entrypoints = [agent.name for agent in self.agents if agent.enable_entrypoint]
+        if len(entrypoints) < 1:
+            raise ValueError(
+                f"swarm must have at least one entrypoint agent, got {len(entrypoints)}"
+            )
+        if self.entrypoint not in entrypoints:
+            raise ValueError(f"entrypoint agent '{self.entrypoint}' not found in swarm")
+
+        # are agent comm targets valid?
+        agent_names = [agent.name for agent in self.agents]
+        for agent in self.agents:
+            for target in agent.comm_targets:
+                interswarm_target = utils.target_address_is_interswarm(target)
+                if interswarm_target and not self.enable_interswarm:
+                    raise ValueError(
+                        f"agent '{agent.name}' has interswarm communication target '{target}' but interswarm messaging is not enabled for this swarm"
+                    )
+                if not interswarm_target and target not in agent_names:
+                    raise ValueError(
+                        f"agent '{agent.name}' has invalid communication target '{target}'"
+                    )
+
+    def _build_adjacency_matrix(self) -> dict[str, list[str]]:
+        """
+        Build an adjacency matrix for the swarm.
+        """
+        adjacency_matrix = {}
+        for agent in self.agents:
+            adjacency_matrix[agent.name] = [target for target in agent.comm_targets]
+
+        return adjacency_matrix
 
     def instantiate(
         self,
@@ -521,7 +832,8 @@ class MAILSwarmTemplate:
 
         name = data["name"]
         agents = [
-            MAILAgentTemplate.from_swarm_json(json.dumps(agent)) for agent in data["agents"]
+            MAILAgentTemplate.from_swarm_json(json.dumps(agent))
+            for agent in data["agents"]
         ]
         actions = [action for agent in agents for action in agent.actions]
         entrypoint = data["entrypoint"]
@@ -536,8 +848,9 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarm_json_file(
-        json_filepath: str, swarm_name: str
+    def from_swarm_json_file( 
+        swarm_name: str,
+        json_filepath: str = "swarms.json",
     ) -> "MAILSwarmTemplate":
         """
         Create a MAILSwarmTemplate from a JSON file following the `swarms.json` format.

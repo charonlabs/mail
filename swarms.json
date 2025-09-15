@@ -3,6 +3,7 @@
         "name": "example",
         "version": "1.0.0",
         "entrypoint": "supervisor",
+        "enable_interswarm": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -10,7 +11,7 @@
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "agent_params": { 
-                    "llm": "openai/o3-mini",
+                    "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.supervisor.prompts:SYSPROMPT"
                 }
             },
@@ -34,7 +35,7 @@
                     }
                 ],
                 "agent_params": { 
-                    "llm": "openai/o3-mini",
+                    "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
                 }
             },
@@ -43,7 +44,7 @@
                 "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { 
-                    "llm": "openai/o3-mini",
+                    "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
                 }
             }
@@ -107,6 +108,7 @@
         "version": "1.0.0",
         "base_url": "http://localhost:8000",
         "entrypoint": "supervisor",
+        "enable_interswarm": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -159,6 +161,7 @@
         "version": "1.0.0",
         "base_url": "http://localhost:8001",
         "entrypoint": "supervisor",
+        "enable_interswarm": true,
         "agents": [
             {
                 "name": "supervisor",

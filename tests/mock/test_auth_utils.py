@@ -1,4 +1,4 @@
-from mail.auth import generate_agent_id, generate_user_id
+from mail.utils.auth import generate_agent_id, generate_user_id
 
 
 def test_generate_user_id():

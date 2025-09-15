@@ -1,6 +1,6 @@
 import datetime
 
-from mail.message import (
+from mail.core.message import (
     MAILMessage,
     MAILRequest,
     build_body_xml,

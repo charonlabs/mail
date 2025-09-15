@@ -1,5 +1,6 @@
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any, Literal
 
 import pytest
 
@@ -65,17 +66,40 @@ class FakeSwarmRegistry:
 
 
 def make_stub_agent(
-    tool_name: str = "task_complete", tool_args: dict[str, Any] | None = None
+    # REQUIRED
+    # top-level params
+    comm_targets: list[str],
+    tools: list[dict[str, Any]],
+    # instance params
+    user_token: str = "secret-token",
+    # internal params
+    llm: str = "openai/gpt-5-mini",
+    system: str = "mail.examples.analyst_dummy.prompts:SYSPROMPT",
+    # OPTIONAL
+    # top-level params
+    name: str = "base_agent",
+    enable_entrypoint: bool = False,
+    enable_interswarm: bool = False,
+    tool_format: Literal["completions", "responses"] = "responses",
+    # instance params
+    # ...
+    # internal params
+    reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None,
+    thinking_budget: int | None = None,
+    max_tokens: int | None = None,
+    memory: bool = True,
+    use_proxy: bool = True,
+    _debug_include_mail_tools: bool = True,
 ) -> Callable:
-    if tool_args is None:
-        tool_args = {"finish_message": "Task finished"}
+    if len(tools) == 0:
+        tools = [{"name": "task_complete", "args": {"finish_message": "Task finished"}}]
 
     async def agent(history: list[dict[str, Any]], tool_choice: str):  # noqa: ARG001
         from mail.factories.base import AgentToolCall
 
         call = AgentToolCall(
-            tool_name=tool_name,
-            tool_args=tool_args,
+            tool_name=tools[0]["name"],
+            tool_args=tools[0]["args"],
             tool_call_id="call-1",
             completion={"role": "assistant", "content": "ok"},
         )
@@ -112,48 +136,62 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     server.swarm_mail_tasks.clear()
 
     # Fake registry prevents network
-    monkeypatch.setattr("mail.server.SwarmRegistry", FakeSwarmRegistry)
+    monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
 
     # Build a minimal swarm with a stub supervisor agent
     def _factory(**kwargs: Any):  # noqa: ANN001, ANN003, ARG001
-        return make_stub_agent()
+        return make_stub_agent(
+            comm_targets=["analyst"],
+            tools=[{"name": "task_complete", "args": {"finish_message": "Task finished"}}],
+        )
 
     stub_swarm = MAILSwarmTemplate(
         name=os.getenv("SWARM_NAME", "example"),
         agents=[
             MAILAgentTemplate(
                 name="supervisor",
-                factory=_factory,  # type: ignore[arg-type]
+                # Use importable path for read_python_string
+                factory="tests.conftest:make_stub_agent",
                 comm_targets=["analyst"],
                 actions=[],
                 agent_params={},
-                enable_entrypoint=False,
+                enable_entrypoint=True,
                 enable_interswarm=False,
-            )
+            ),
+            MAILAgentTemplate(
+                name="analyst",
+                factory="tests.conftest:make_stub_agent",
+                comm_targets=["supervisor"],
+                actions=[],
+                agent_params={},
+            ),
         ],
         actions=[],
         entrypoint="supervisor",
-        enable_interswarm=False,
+        enable_interswarm=True,
     )
 
     # Ensure the server uses our stub swarm template instead of reading swarms.json
-    monkeypatch.setattr("mail.server.build_swarm_from_name", lambda name: stub_swarm)  # noqa: ARG005
     monkeypatch.setattr(
-        "mail.server.MAILSwarmTemplate.from_swarm_json_file",
+        "mail.MAILSwarmTemplate.from_swarm_json_file",
         lambda path, name: stub_swarm,  # noqa: ARG005
     )
 
     # Make MAILSwarm.submit_message return only the response object to match server usage
-    async def _compat_submit_message(self, message, timeout: float = 3600.0, show_events: bool = False):  # noqa: ANN001, D401, ARG002, FBT001, FBT002
+    async def _compat_submit_message(
+        self, message, timeout: float = 3600.0, show_events: bool = False
+    ):  # noqa: ANN001, D401, ARG002, FBT001, FBT002
         # Bypass events tuple to keep server logic simple in tests
         return await self._runtime.submit_and_wait(message, timeout)  # type: ignore[attr-defined]
 
-    monkeypatch.setattr("mail.api.MAILSwarm.submit_message", _compat_submit_message, raising=True)
+    monkeypatch.setattr(
+        "mail.MAILSwarm.submit_message", _compat_submit_message, raising=True
+    )
 
     # Stub auth calls to avoid aiohttp
-    monkeypatch.setattr("mail.server.login", lambda api_key: _async_return("fake-jwt"))
+    monkeypatch.setattr("mail.utils.login", lambda api_key: _async_return("fake-jwt"))
     monkeypatch.setattr(
-        "mail.server.get_token_info",
+        "mail.utils.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),
     )
 

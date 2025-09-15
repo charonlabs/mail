@@ -1,5 +1,5 @@
+from mail.core.tools import convert_call_to_mail_message
 from mail.factories.base import AgentToolCall
-from mail.tools import convert_call_to_mail_message
 
 
 def _call(name: str, args: dict) -> AgentToolCall:
