@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("building persistent swarm...")
         persistent_swarm = MAILSwarmTemplate.from_swarm_json_file(
-            "swarms.json", local_swarm_name
+            local_swarm_name, "swarms.json"
         )
         logger.info("persistent swarm built successfully")
         # Load default entrypoint from config
@@ -354,12 +354,17 @@ async def message(request: Request):
             logger.info(
                 f"submitting message via MAIL API for user '{user_id}' and waiting..."
             )
-            response, events = await api_swarm.post_message(
+            result = await api_swarm.post_message(
                 subject="New Message",
                 body=message,
                 entrypoint=chosen_entrypoint,
                 show_events=show_events,
             )
+            # Support both (response, events) and response-only returns
+            if isinstance(result, tuple) and len(result) == 2:
+                response, events = result
+            else:
+                response, events = result, []  # type: ignore[misc]
             if show_events:
                 return {"response": response["message"]["body"], "events": events}
             else:
@@ -571,7 +576,12 @@ async def receive_interswarm_message(request: Request):
         logger.info(
             f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
         )
-        task_response, events = await swarm_mail.submit_message(new_message)
+        submit_result = await swarm_mail.submit_message(new_message)
+        # Support both (response, events) and response-only returns
+        if isinstance(submit_result, tuple) and len(submit_result) == 2:
+            task_response = submit_result[0]
+        else:
+            task_response = submit_result  # type: ignore[assignment]
 
         # Create response message
         response_message = MAILMessage(
@@ -597,13 +607,13 @@ async def receive_interswarm_message(request: Request):
         await _send_response_to_swarm(source_swarm, response_message)
 
         logger.info(
-            f"MAIL completed successfully for swarm '{source_swarm}' with response '{response_message}'"
+            f"MAIL completed successfully for swarm '{source_swarm}'"
         )
         return response_message
 
     except Exception as e:
         logger.error(
-            f"error processing message for swarm '{source_swarm}' with response '{response_message}' with error: '{e}'"
+            f"error processing message for swarm '{source_swarm}' with error: '{e}'"
         )
         raise HTTPException(
             status_code=500,

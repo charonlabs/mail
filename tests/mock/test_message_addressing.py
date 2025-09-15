@@ -1,5 +1,7 @@
 from mail.core.message import (
     create_agent_address,
+    create_system_address,
+    create_user_address,
     format_agent_address,
     get_address_string,
     get_address_type,
@@ -25,6 +27,10 @@ def test_get_address_helpers():
     assert get_address_string(addr) == "analyst"
     assert get_address_type(addr) == "agent"
 
-    # Backward-compat with plain strings
-    assert get_address_string("user-1") == "user-1"
-    assert get_address_type("user-1") == "agent"
+    addr = create_user_address("user-1")
+    assert get_address_string(addr) == "user-1"
+    assert get_address_type(addr) == "user"
+
+    addr = create_system_address("example-swarm")
+    assert get_address_string(addr) == "example-swarm"
+    assert get_address_type(addr) == "system"

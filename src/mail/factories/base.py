@@ -80,6 +80,7 @@ def base_agent_factory(
     def preprocess(
         messages: list[dict[str, Any]], style: Literal["completions", "responses"]
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        # set up system prompt
         if not messages[0]["role"] == "system" and not system == "":
             messages.insert(0, {"role": "system", "content": system})
 
@@ -90,6 +91,7 @@ def base_agent_factory(
             )
         else:
             agent_tools = tools
+
         return messages, agent_tools
 
     if tool_format == "completions":
@@ -203,6 +205,14 @@ def base_agent_factory(
         agent_tool_calls: list[AgentToolCall] = []
         res_dict = res.model_dump()
         outputs = res_dict["output"]
+
+        # make sure outputs with type "output_text" have type "text"
+        # logger.debug(f"outputs: {json.dumps(outputs, indent=2)}")
+        for output in outputs:
+            if output["type"] == "message":
+                if output["content"][0]["type"] == "output_text":
+                    output["content"][0]["type"] = "text"
+
         if len(tool_calls) > 0:
             # Build assistant.tool_calls and AgentToolCall objects with consistent ids
             for tc in tool_calls:

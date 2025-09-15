@@ -4,6 +4,9 @@ from typing import Any
 
 import pytest
 
+from mail.api import MAILAgent
+from tests.conftest import make_stub_agent
+
 
 class FakeMAIL:
     """Lightweight stub for mail.core.MAIL used by MAILSwarm tests."""
@@ -78,10 +81,25 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
 
     data = {
         "name": "myswarm",
-        "agents": [],
+        "agents": [
+            {
+                "name": "supervisor",
+                "factory": "tests.conftest:make_stub_agent", 
+                "comm_targets": ["analyst"],
+                "actions": [],
+                "enable_entrypoint": True,
+                "agent_params": {},
+            },
+            {
+                "name": "analyst",
+                "factory": "tests.conftest:make_stub_agent",
+                "comm_targets": ["supervisor"],
+                "actions": [],
+                "agent_params": {},
+            },
+        ],
         "actions": [],
         "entrypoint": "supervisor",
-        "user_id": "u-1",
     }
 
     tmpl = MAILSwarmTemplate.from_swarm_json(json.dumps(data))
@@ -135,13 +153,39 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     from mail import MAILSwarmTemplate
 
     contents = [
-        {"name": "other", "agents": [], "actions": [], "entrypoint": "s"},
-        {"name": "target", "agents": [], "actions": [], "entrypoint": "s"},
+        {
+            "name": "other",
+            "agents": [],
+            "actions": [],
+            "entrypoint": "s",
+        },
+        {
+            "name": "target",
+            "agents": [
+                {
+                    "name": "supervisor",
+                    "factory": "tests.conftest:make_stub_agent",
+                    "comm_targets": ["analyst"],
+                    "actions": [],
+                    "enable_entrypoint": True,
+                    "agent_params": {},
+                },
+                {
+                    "name": "analyst",
+                    "factory": "tests.conftest:make_stub_agent",
+                    "comm_targets": ["supervisor"],
+                    "actions": [],
+                    "agent_params": {},
+                }
+            ],
+            "actions": [],
+            "entrypoint": "supervisor",
+        },
     ]
     path = tmp_path / "swarms.json"
     path.write_text(json.dumps(contents))
 
-    tmpl = MAILSwarmTemplate.from_swarm_json_file(str(path), "target")
+    tmpl = MAILSwarmTemplate.from_swarm_json_file("target", str(path))
     assert tmpl.name == "target"
 
 
@@ -151,7 +195,22 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
 
     swarm = MAILSwarm(
         name="myswarm",
-        agents=[],
+        agents=[
+            MAILAgent(
+                name="supervisor",
+                function=make_stub_agent,
+                comm_targets=["analyst"],
+                enable_entrypoint=True,
+                agent_params={},
+            ),
+            MAILAgent(
+                name="analyst",
+                function=make_stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=False,
+                agent_params={},
+            ),
+        ],
         actions=[],
         entrypoint="supervisor",
     )
@@ -178,7 +237,22 @@ async def test_post_message_stream_headers_and_type() -> None:
 
     swarm = MAILSwarm(
         name="myswarm",
-        agents=[],
+        agents=[
+            MAILAgent(
+                name="supervisor",
+                function=make_stub_agent,
+                comm_targets=["analyst"],
+                enable_entrypoint=True,
+                agent_params={},
+            ),
+            MAILAgent(
+                name="analyst",
+                function=make_stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=False,
+                agent_params={},
+            ),
+        ],
         actions=[],
         entrypoint="supervisor",
     )
@@ -194,7 +268,22 @@ def test_build_message_request_validation() -> None:
 
     swarm = MAILSwarm(
         name="myswarm",
-        agents=[],
+        agents=[
+            MAILAgent(
+                name="supervisor",
+                function=make_stub_agent,
+                comm_targets=["analyst"],
+                enable_entrypoint=True,
+                agent_params={},
+            ),
+            MAILAgent(
+                name="analyst",
+                function=make_stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=False,
+                agent_params={},
+            ),
+        ],
         actions=[],
         entrypoint="supervisor",
     )

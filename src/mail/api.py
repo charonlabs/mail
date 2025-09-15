@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import uuid
+import inspect
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model
@@ -673,8 +674,17 @@ class MAILSwarm:
         """
         Submit a fully-formed MAILMessage to the swarm and stream the response.
         """
+        # Support runtimes that either return an async generator directly
+        # or coroutines that resolve to an async generator.
+        maybe_stream = self._runtime.submit_and_stream(message, timeout)
+        stream = (
+            await maybe_stream  # type: ignore[func-returns-value]
+            if inspect.isawaitable(maybe_stream)
+            else maybe_stream
+        )
+
         return EventSourceResponse(
-            self._runtime.submit_and_stream(message, timeout),
+            stream,
             ping=15000,
             headers={
                 "Cache-Control": "no-cache",
