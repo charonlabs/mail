@@ -7,8 +7,18 @@
       "base_url": "http://localhost:8000",
       "health_check_url": "http://localhost:8000/health",
       "auth_token_ref": null,
-      "last_seen": "2025-09-15T21:05:35.059547+00:00",
+      "last_seen": "2025-09-15T21:28:21.890301+00:00",
       "is_active": true,
+      "metadata": null,
+      "volatile": false
+    },
+    "example-no-proxy": {
+      "swarm_name": "example-no-proxy",
+      "base_url": "http://localhost:8000",
+      "health_check_url": "http://localhost:8000/health",
+      "auth_token_ref": null,
+      "last_seen": "2025-09-15T21:13:33.515386+00:00",
+      "is_active": false,
       "metadata": null,
       "volatile": false
     }

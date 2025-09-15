@@ -446,7 +446,7 @@ class MAILSwarm:
         self.user_id = user_id
         self.swarm_registry = swarm_registry
         self.enable_interswarm = enable_interswarm
-        self.adjacency_matrix = self._build_adjacency_matrix()
+        self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._runtime = MAILRuntime(
             agents={agent.name: agent.function for agent in agents},
@@ -511,7 +511,7 @@ class MAILSwarm:
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
         Build an adjacency matrix for the swarm. 
-        Returns a tuple of the adjacency matrix and the map of agent names to indices.
+        Returns a tuple of the adjacency matrix and the map of indices to agent names.
         """
         adj = []
         map = []
@@ -763,7 +763,7 @@ class MAILSwarmTemplate:
         self.actions = actions
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
-        self.adjacency_matrix = self._build_adjacency_matrix()
+        self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
 

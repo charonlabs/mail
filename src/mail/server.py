@@ -49,7 +49,7 @@ swarm_mail_tasks: dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
 swarm_registry: SwarmRegistry | None = None
-local_swarm_name: str = "example"
+local_swarm_name: str = "example-no-proxy"
 local_base_url: str = "http://localhost:8000"
 default_entrypoint_agent: str = "supervisor"
 
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
     global swarm_registry, local_swarm_name, local_base_url
 
     # Get configuration from environment
-    local_swarm_name = os.getenv("SWARM_NAME", "example")
+    local_swarm_name = os.getenv("SWARM_NAME", "example-no-proxy")
     local_base_url = os.getenv("BASE_URL", "http://localhost:8000")
     persistence_file = os.getenv("SWARM_REGISTRY_FILE", "registries/example.json")
 

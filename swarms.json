@@ -55,12 +55,14 @@
         "name": "example-no-proxy",
         "version": "1.0.0",
         "entrypoint": "supervisor",
+        "enable_interswarm": true,
         "agents": [
             {
                 "name": "supervisor",
                 "factory": "mail.factories.supervisor:supervisor_factory",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
+                "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
@@ -121,7 +123,8 @@
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/o3-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT"
+                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
+                    "use_proxy": false
                 }
             },
             {
@@ -130,7 +133,8 @@
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
                     "llm": "openai/o3-mini",
-                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
+                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
+                    "use_proxy": false
                 },
                 "actions": [
                     {
@@ -154,7 +158,8 @@
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { 
                     "llm": "openai/o3-mini",
-                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
+                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
+                    "use_proxy": false
                 }
             }
         ]
@@ -175,7 +180,8 @@
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/o3-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT"
+                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
+                    "use_proxy": false
                 }
             },
             {
@@ -184,7 +190,8 @@
                 "comm_targets": ["supervisor", "analyst"],
                 "agent_params": { 
                     "llm": "openai/o3-mini",
-                    "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT"
+                    "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT",
+                    "use_proxy": false
                 }
             },
             {
@@ -193,7 +200,8 @@
                 "comm_targets": ["supervisor", "consultant"],
                 "agent_params": { 
                     "llm": "openai/o3-mini",
-                    "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT"
+                    "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT",
+                    "use_proxy": false
                 }
             }
         ]

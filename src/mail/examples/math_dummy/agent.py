@@ -23,6 +23,7 @@ def factory_math_dummy(
     name: str = "math",
     enable_entrypoint: bool = False,
     enable_interswarm: bool = False,
+    can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
@@ -46,6 +47,7 @@ def factory_math_dummy(
         name=name,
         enable_entrypoint=enable_entrypoint,
         enable_interswarm=enable_interswarm,
+        can_complete_tasks=can_complete_tasks,
         tool_format=tool_format,
         use_proxy=use_proxy,
     )
