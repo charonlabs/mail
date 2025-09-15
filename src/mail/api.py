@@ -432,7 +432,7 @@ class MAILSwarm:
         self.user_id = user_id
         self.swarm_registry = swarm_registry
         self.enable_interswarm = enable_interswarm
-        self.adjacency_matrix = self._build_adjacency_matrix()
+        self.adjacency_matrix, self.adj_index_to_name = self._build_adjacency_matrix()
         self._runtime = MAILRuntime(
             agents={agent.name: agent.function for agent in agents},
             actions={action.name: action.function for action in actions},
@@ -487,15 +487,19 @@ class MAILSwarm:
                 "swarm registry must be provided if interswarm messaging is enabled"
             )
 
-    def _build_adjacency_matrix(self) -> dict[str, list[str]]:
+    def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
-        Build an adjacency matrix for the swarm.
+        Build an adjacency matrix for the swarm. Returns a tuple of the adjacency matrix and the map of agent names to indices.
         """
-        adjacency_matrix = {}
+        adj = []
+        map = []
         for agent in self.agents:
-            adjacency_matrix[agent.name] = [target for target in agent.comm_targets]
+            map.append(agent.name)
+            adj.append(
+                [1 if target in agent.comm_targets else 0 for target in self.agents]
+            )
 
-        return adjacency_matrix
+        return adj, map
 
     async def post_message(
         self,
@@ -712,7 +716,7 @@ class MAILSwarm:
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
-            
+
         return await router.route_message(message)
 
 
@@ -848,7 +852,7 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarm_json_file( 
+    def from_swarm_json_file(
         swarm_name: str,
         json_filepath: str = "swarms.json",
     ) -> "MAILSwarmTemplate":
