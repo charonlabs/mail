@@ -19,11 +19,11 @@ def supervisor_factory(
     name: str = "supervisor",
     enable_entrypoint: bool = True,
     enable_interswarm: bool = False,
+    can_complete_tasks: bool = True,
     tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
     # internal params
-    can_complete_tasks: bool = True,
     reasoning_effort: Literal["low", "medium", "high"] | None = None,
     thinking_budget: int | None = None,
     max_tokens: int | None = None,

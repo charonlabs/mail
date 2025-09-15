@@ -37,6 +37,7 @@ def base_agent_factory(
     name: str = "base_agent",
     enable_entrypoint: bool = False,
     enable_interswarm: bool = False,
+    can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...

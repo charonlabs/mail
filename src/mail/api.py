@@ -1,9 +1,9 @@
 import asyncio
 import datetime
+import inspect
 import json
 import logging
 import uuid
-import inspect
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model
@@ -40,6 +40,7 @@ class MAILAgent:
         agent_params: dict[str, Any],
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
+        can_complete_tasks: bool = False,
         tool_format: Literal["completions", "responses"] = "responses",
     ) -> None:
         self.name = name
@@ -49,6 +50,7 @@ class MAILAgent:
         self.enable_interswarm = enable_interswarm
         self.agent_params = agent_params
         self.tool_format = tool_format
+        self.can_complete_tasks = can_complete_tasks
         self._validate()
 
     def _validate(self) -> None:
@@ -83,6 +85,7 @@ class MAILAgentTemplate:
         agent_params: dict[str, Any],
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
+        can_complete_tasks: bool = False,
         tool_format: Literal["completions", "responses"] = "responses",
     ) -> None:
         self.name = name
@@ -93,6 +96,7 @@ class MAILAgentTemplate:
         self.enable_entrypoint = enable_entrypoint
         self.enable_interswarm = enable_interswarm
         self.tool_format = tool_format
+        self.can_complete_tasks = can_complete_tasks
         self._validate()
 
     def _validate(self) -> None:
@@ -115,6 +119,7 @@ class MAILAgentTemplate:
             "enable_entrypoint": self.enable_entrypoint,
             "enable_interswarm": self.enable_interswarm,
             "tool_format": self.tool_format,
+            "can_complete_tasks": self.can_complete_tasks,
         }
 
     def instantiate(
@@ -137,6 +142,7 @@ class MAILAgentTemplate:
             enable_entrypoint=self.enable_entrypoint,
             enable_interswarm=self.enable_interswarm,
             tool_format=self.tool_format,
+            can_complete_tasks=self.can_complete_tasks,
         )
 
     @staticmethod
@@ -155,6 +161,7 @@ class MAILAgentTemplate:
             "enable_entrypoint": bool,
             "enable_interswarm": bool,
             "tool_format": Literal["completions", "responses"],
+            "can_complete_tasks": bool,
         }
 
         data = json.loads(json_dump)
@@ -180,6 +187,7 @@ class MAILAgentTemplate:
         enable_entrypoint = data.get("enable_entrypoint", False)
         enable_interswarm = data.get("enable_interswarm", False)
         tool_format = data.get("tool_format", "responses")
+        can_complete_tasks = data.get("can_complete_tasks", False)
 
         return MAILAgentTemplate(
             name=name,
@@ -190,6 +198,7 @@ class MAILAgentTemplate:
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
             tool_format=tool_format,
+            can_complete_tasks=can_complete_tasks,
         )
 
     @staticmethod
@@ -216,6 +225,7 @@ class MAILAgentTemplate:
                     enable_entrypoint=True,
                     enable_interswarm=False,
                     tool_format="responses",
+                    can_complete_tasks=True,
                 )
             case "weather":
                 from mail.examples import weather_dummy as weather
@@ -232,6 +242,7 @@ class MAILAgentTemplate:
                     enable_entrypoint=False,
                     enable_interswarm=False,
                     tool_format="responses",
+                    can_complete_tasks=False,
                 )
             case "math":
                 from mail.examples import math_dummy as math
@@ -247,6 +258,7 @@ class MAILAgentTemplate:
                     enable_entrypoint=False,
                     enable_interswarm=False,
                     tool_format="responses",
+                    can_complete_tasks=False,
                 )
             case "consultant":
                 from mail.examples import consultant_dummy as consultant
@@ -262,6 +274,7 @@ class MAILAgentTemplate:
                     enable_entrypoint=False,
                     enable_interswarm=False,
                     tool_format="responses",
+                    can_complete_tasks=False,
                 )
             case "analyst":
                 from mail.examples import analyst_dummy as analyst
@@ -277,6 +290,7 @@ class MAILAgentTemplate:
                     enable_entrypoint=False,
                     enable_interswarm=False,
                     tool_format="responses",
+                    can_complete_tasks=False,
                 )
             case _:
                 raise ValueError(f"invalid agent name: {name}")
@@ -432,7 +446,8 @@ class MAILSwarm:
         self.user_id = user_id
         self.swarm_registry = swarm_registry
         self.enable_interswarm = enable_interswarm
-        self.adjacency_matrix, self.adj_index_to_name = self._build_adjacency_matrix()
+        self.adjacency_matrix = self._build_adjacency_matrix()
+        self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._runtime = MAILRuntime(
             agents={agent.name: agent.function for agent in agents},
             actions={action.name: action.function for action in actions},
@@ -486,10 +501,17 @@ class MAILSwarm:
             raise ValueError(
                 "swarm registry must be provided if interswarm messaging is enabled"
             )
+        
+        # is there at least one supervisor?
+        if len(self.supervisors) < 1:
+            raise ValueError(
+                f"swarm must have at least one supervisor, got {len(self.supervisors)}"
+            )
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
-        Build an adjacency matrix for the swarm. Returns a tuple of the adjacency matrix and the map of agent names to indices.
+        Build an adjacency matrix for the swarm. 
+        Returns a tuple of the adjacency matrix and the map of agent names to indices.
         """
         adj = []
         map = []
@@ -716,7 +738,7 @@ class MAILSwarm:
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
-
+            
         return await router.route_message(message)
 
 
@@ -742,6 +764,7 @@ class MAILSwarmTemplate:
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
         self.adjacency_matrix = self._build_adjacency_matrix()
+        self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
 
     def _validate(self) -> None:
@@ -777,15 +800,26 @@ class MAILSwarmTemplate:
                         f"agent '{agent.name}' has invalid communication target '{target}'"
                     )
 
-    def _build_adjacency_matrix(self) -> dict[str, list[str]]:
-        """
-        Build an adjacency matrix for the swarm.
-        """
-        adjacency_matrix = {}
-        for agent in self.agents:
-            adjacency_matrix[agent.name] = [target for target in agent.comm_targets]
+        # is there at least one supervisor?
+        if len(self.supervisors) < 1:
+            raise ValueError(
+                f"swarm must have at least one supervisor, got {len(self.supervisors)}"
+            )
 
-        return adjacency_matrix
+    def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
+        """
+        Build an adjacency matrix for the swarm. 
+        Returns a tuple of the adjacency matrix and the map of agent names to indices.
+        """
+        adj = []
+        map = []
+        for agent in self.agents:
+            map.append(agent.name)
+            adj.append(
+                [1 if target in agent.comm_targets else 0 for target in self.agents]
+            )
+
+        return adj, map
 
     def instantiate(
         self,
@@ -842,7 +876,7 @@ class MAILSwarmTemplate:
         actions = [action for agent in agents for action in agent.actions]
         entrypoint = data["entrypoint"]
         enable_interswarm = data.get("enable_interswarm", False)
-
+        
         return MAILSwarmTemplate(
             name=name,
             agents=agents,
@@ -852,7 +886,7 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarm_json_file(
+    def from_swarm_json_file( 
         swarm_name: str,
         json_filepath: str = "swarms.json",
     ) -> "MAILSwarmTemplate":

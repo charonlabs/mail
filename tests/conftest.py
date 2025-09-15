@@ -80,6 +80,7 @@ def make_stub_agent(
     name: str = "base_agent",
     enable_entrypoint: bool = False,
     enable_interswarm: bool = False,
+    can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
@@ -155,6 +156,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
                 comm_targets=["analyst"],
                 actions=[],
                 agent_params={},
+                can_complete_tasks=True,
                 enable_entrypoint=True,
                 enable_interswarm=False,
             ),

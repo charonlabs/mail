@@ -25,6 +25,7 @@ def action_agent_factory(
     name: str = "action",
     enable_entrypoint: bool = False,
     enable_interswarm: bool = False,
+    can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
     # instance params
     # ...
@@ -57,6 +58,7 @@ def action_agent_factory(
         max_tokens=max_tokens,
         memory=memory,
         use_proxy=use_proxy,
+        can_complete_tasks=can_complete_tasks,
         tool_format=tool_format,
         name=name,
         enable_entrypoint=enable_entrypoint,
