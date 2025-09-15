@@ -12,6 +12,7 @@ from typing import Any
 import aiohttp
 
 from mail.core.message import (
+    MAILAddress,
     MAILInterswarmMessage,
     MAILMessage,
     MAILResponse,
@@ -412,8 +413,11 @@ class InterswarmRouter:
             message=MAILResponse(
                 task_id=message["message"]["task_id"],
                 request_id=message["message"]["request_id"],  # type: ignore
-                sender=message["message"]["sender"],
-                recipient=message["message"]["recipient"],  # type: ignore
+                sender=MAILAddress(
+                    address_type="system",
+                    address=self.local_swarm_name,
+                ),
+                recipient=message["message"]["sender"],  # type: ignore
                 subject="Router Error",
                 body=reason,
                 sender_swarm=self.local_swarm_name,

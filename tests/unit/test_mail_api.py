@@ -200,6 +200,8 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
         agents=[
             MAILAgent(
                 name="supervisor",
+                factory="tests.conftest:make_stub_agent",
+                actions=[],
                 function=make_stub_agent,
                 comm_targets=["analyst"],
                 can_complete_tasks=True,
@@ -208,6 +210,8 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
             ),
             MAILAgent(
                 name="analyst",
+                factory="tests.conftest:make_stub_agent",
+                actions=[],
                 function=make_stub_agent,
                 comm_targets=["supervisor"],
                 enable_entrypoint=False,
@@ -243,6 +247,8 @@ async def test_post_message_stream_headers_and_type() -> None:
         agents=[
             MAILAgent(
                 name="supervisor",
+                factory="tests.conftest:make_stub_agent",
+                actions=[],
                 function=make_stub_agent,
                 comm_targets=["analyst"],
                 can_complete_tasks=True,
@@ -251,6 +257,8 @@ async def test_post_message_stream_headers_and_type() -> None:
             ),
             MAILAgent(
                 name="analyst",
+                factory="tests.conftest:make_stub_agent",
+                actions=[],
                 function=make_stub_agent,
                 comm_targets=["supervisor"],
                 enable_entrypoint=False,
@@ -275,6 +283,8 @@ def test_build_message_request_validation() -> None:
         agents=[
             MAILAgent(
                 name="supervisor",
+                factory="tests.conftest:make_stub_agent",
+                actions=[],
                 function=make_stub_agent,
                 comm_targets=["analyst"],
                 can_complete_tasks=True,
@@ -283,6 +293,8 @@ def test_build_message_request_validation() -> None:
             ),
             MAILAgent(
                 name="analyst",
+                factory="tests.conftest:make_stub_agent",
+                actions=[],
                 function=make_stub_agent,
                 comm_targets=["supervisor"],
                 enable_entrypoint=False,

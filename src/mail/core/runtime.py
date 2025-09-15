@@ -625,29 +625,31 @@ class MAILRuntime:
                     self._send_message(recipient_agent, message, action_override)
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
+                    sender_agent = message["message"]["sender"]["address"]
 
                     # if the recipient is actually the user, indicate that
                     if recipient_agent == self.user_id:
                         self._send_message(
-                            recipient_agent,
+                            sender_agent,
                             self._system_response(
                                 message,
                                 "Improper response to user",
-                                f"The user ('{self.user_id}') is not allowed to respond to this message.",
+                                f"""The user ('{self.user_id}') is unable to respond to this message. 
+To respond to the user once their requested task is complete, use the 'task_complete' tool.""",
                             ),
                             action_override,
                         )
-
-                    # otherwise, just a normal unknown agent
-                    self._send_message(
-                        recipient_agent,
-                        self._system_response(
-                            message,
-                            f"Unknown Agent: '{recipient_agent}'",
-                            f"The agent '{recipient_agent}' is not known to this swarm.",
-                        ),
-                        action_override,
-                    )
+                    else:
+                        # otherwise, just a normal unknown agent
+                        self._send_message(
+                            sender_agent,
+                            self._system_response(
+                                message,
+                                f"Unknown Agent: '{recipient_agent}'",
+                                f"The agent '{recipient_agent}' is not known to this swarm.",
+                            ),
+                            action_override,
+                        )
             else:
                 logger.debug(f"skipping remote agent '{recipient}' in local processing")
 

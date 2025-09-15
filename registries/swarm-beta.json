@@ -7,7 +7,7 @@
       "base_url": "http://localhost:8001",
       "health_check_url": "http://localhost:8001/health",
       "auth_token_ref": null,
-      "last_seen": "2025-09-15T21:55:38.294920+00:00",
+      "last_seen": "2025-09-15T22:43:43.147850+00:00",
       "is_active": true,
       "metadata": null,
       "volatile": false
@@ -17,8 +17,8 @@
       "base_url": "http://localhost:8000",
       "health_check_url": "http://localhost:8000/health",
       "auth_token_ref": "${SWARM_AUTH_TOKEN_SWARM_ALPHA}",
-      "last_seen": "2025-09-15T21:56:08.303040+00:00",
-      "is_active": false,
+      "last_seen": "2025-09-15T22:44:43.162747+00:00",
+      "is_active": true,
       "metadata": {
         "environment": "development"
       },

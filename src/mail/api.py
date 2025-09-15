@@ -786,8 +786,6 @@ class MAILSwarm:
             agents=[self.agents[names_to_og_idx[n]]._to_template(names) for n in names],
             actions=self.actions,
             entrypoint=self.entrypoint,
-            user_id=self.user_id,
-            swarm_registry=self.swarm_registry,
             enable_interswarm=self.enable_interswarm,
         )
 
