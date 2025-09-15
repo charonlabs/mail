@@ -35,6 +35,8 @@ class MAILAgent:
     def __init__(
         self,
         name: str,
+        factory: str,
+        actions: list["MAILAction"],
         function: AgentFunction,
         comm_targets: list[str],
         agent_params: dict[str, Any],
@@ -44,6 +46,8 @@ class MAILAgent:
         tool_format: Literal["completions", "responses"] = "responses",
     ) -> None:
         self.name = name
+        self.factory = factory
+        self.actions = actions
         self.function = function
         self.comm_targets = comm_targets
         self.enable_entrypoint = enable_entrypoint
@@ -65,6 +69,23 @@ class MAILAgent:
             raise ValueError(
                 f"agent must have at least one communication target, got {len(self.comm_targets)}"
             )
+
+    def _to_template(self, names: list[str]) -> "MAILAgentTemplate":
+        """
+        Convert the MAILAgent to a MAILAgentTemplate.
+        The names parameter is used to filter comm targets.
+        """
+        return MAILAgentTemplate(
+            name=self.name,
+            factory=self.factory,
+            comm_targets=[target for target in self.comm_targets if target in names],
+            actions=self.actions,
+            agent_params=self.agent_params,
+            enable_entrypoint=self.enable_entrypoint,
+            enable_interswarm=self.enable_interswarm,
+            tool_format=self.tool_format,
+            can_complete_tasks=self.can_complete_tasks,
+        )
 
     async def __call__(
         self,
@@ -134,11 +155,13 @@ class MAILAgentTemplate:
             **self.agent_params,
             **instance_params,
         }
-        factory = read_python_string(self.factory)
-        agent_function = factory(**full_params)
+        factory_func = read_python_string(self.factory)
+        agent_function = factory_func(**full_params)
 
         return MAILAgent(
             name=self.name,
+            factory=self.factory,
+            actions=self.actions,
             function=agent_function,
             comm_targets=self.comm_targets,
             agent_params=self.agent_params,
@@ -510,7 +533,7 @@ class MAILSwarm:
             raise ValueError(
                 "swarm registry must be provided if interswarm messaging is enabled"
             )
-        
+
         # is there at least one supervisor?
         if len(self.supervisors) < 1:
             raise ValueError(
@@ -519,7 +542,7 @@ class MAILSwarm:
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
-        Build an adjacency matrix for the swarm. 
+        Build an adjacency matrix for the swarm.
         Returns a tuple of the adjacency matrix and the map of indices to agent names.
         """
         adj = []
@@ -747,8 +770,26 @@ class MAILSwarm:
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
-            
+
         return await router.route_message(message)
+
+    def get_subswarm(self, swarm_name: str, names: list[str]) -> "MAILSwarmTemplate":
+        """
+        Get a subswarm of the MAILSwarm.
+        """
+        for n in names:
+            if n not in self.agent_names:
+                raise ValueError(f"agent '{n}' not found in swarm")
+        names_to_og_idx = {n: i for i, n in enumerate(self.agent_names)}
+        return MAILSwarmTemplate(
+            name=swarm_name,
+            agents=[self.agents[names_to_og_idx[n]]._to_template(names) for n in names],
+            actions=self.actions,
+            entrypoint=self.entrypoint,
+            user_id=self.user_id,
+            swarm_registry=self.swarm_registry,
+            enable_interswarm=self.enable_interswarm,
+        )
 
 
 class MAILSwarmTemplate:
@@ -820,7 +861,7 @@ class MAILSwarmTemplate:
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
-        Build an adjacency matrix for the swarm. 
+        Build an adjacency matrix for the swarm.
         Returns a tuple of the adjacency matrix and the map of agent names to indices.
         """
         adj = []
@@ -888,7 +929,7 @@ class MAILSwarmTemplate:
         actions = [action for agent in agents for action in agent.actions]
         entrypoint = data["entrypoint"]
         enable_interswarm = data.get("enable_interswarm", False)
-        
+
         return MAILSwarmTemplate(
             name=name,
             agents=agents,
@@ -898,7 +939,7 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarm_json_file( 
+    def from_swarm_json_file(
         swarm_name: str,
         json_filepath: str = "swarms.json",
     ) -> "MAILSwarmTemplate":
