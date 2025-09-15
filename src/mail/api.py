@@ -54,6 +54,9 @@ class MAILAgent:
         self._validate()
 
     def _validate(self) -> None:
+        """
+        Validate an instance of the `MAILAgent` class.
+        """
         if len(self.name) < 1:
             raise ValueError(
                 f"agent name must be at least 1 character long, got {len(self.name)}"
@@ -315,6 +318,9 @@ class MAILAction:
         self._validate()
 
     def _validate(self) -> None:
+        """
+        Validate an instance of the `MAILAction` class.
+        """
         if len(self.name) < 1:
             raise ValueError(
                 f"action name must be at least 1 character long, got {len(self.name)}"
@@ -460,6 +466,9 @@ class MAILSwarm:
         self._validate()
 
     def _validate(self) -> None:
+        """
+        Validate an instance of the `MAILSwarm` class.
+        """
         if len(self.name) < 1:
             raise ValueError(
                 f"swarm name must be at least 1 character long, got {len(self.name)}"
@@ -768,6 +777,9 @@ class MAILSwarmTemplate:
         self._validate()
 
     def _validate(self) -> None:
+        """
+        Validate an instance of the `MAILSwarmTemplate` class.
+        """
         if len(self.name) < 1:
             raise ValueError(
                 f"swarm name must be at least 1 character long, got {len(self.name)}"
