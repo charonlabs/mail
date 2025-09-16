@@ -814,14 +814,15 @@ class MAILSwarm:
         entrypoint_agent = next(
             (agent for agent in selected_agents if agent.enable_entrypoint), None
         )
-        if entrypoint_agent is None and selected_agents:
-            selected_agents[0].enable_entrypoint = True
-            entrypoint_agent = selected_agents[0]
         if entrypoint_agent is None:
-            raise ValueError("Subswarm must contain an entrypoint agent")
+            raise ValueError(
+                "Subswarm must contain at least one entrypoint agent from the original swarm"
+            )
 
         if not any(agent.can_complete_tasks for agent in selected_agents):
-            selected_agents[0].can_complete_tasks = True
+            raise ValueError(
+                "Subswarm must contain at least one supervisor (can_complete_tasks=True)"
+            )
 
         actions: list[MAILAction] = []
         seen_actions: dict[str, MAILAction] = {}
@@ -989,14 +990,11 @@ class MAILSwarmTemplate:
         entrypoint_agent = next(
             (agent for agent in selected_agents if agent.enable_entrypoint), None
         )
-        if entrypoint_agent is None and selected_agents:
-            selected_agents[0].enable_entrypoint = True
-            entrypoint_agent = selected_agents[0]
         if entrypoint_agent is None:
             raise ValueError("Subswarm must contain an entrypoint agent")
 
         if not any(agent.can_complete_tasks for agent in selected_agents):
-            selected_agents[0].can_complete_tasks = True
+            raise ValueError("Subswarm must contain at least one supervisor")
 
         actions: list[MAILAction] = []
         seen_actions: dict[str, MAILAction] = {}
