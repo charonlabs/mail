@@ -209,7 +209,7 @@ def action_complete_broadcast(
             sender=create_system_address(system_name),
             recipients=[create_agent_address(recipient)],
             subject=f"Action Complete: {action_name}",
-            body=f"The action {action_name} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output",
+            body=f"The action {action_name} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output>",
             sender_swarm=None,
             recipient_swarms=None,
             routing_info=None,

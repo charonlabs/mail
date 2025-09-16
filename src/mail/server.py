@@ -53,6 +53,9 @@ local_swarm_name: str = "example-no-proxy"
 local_base_url: str = "http://localhost:8000"
 default_entrypoint_agent: str = "supervisor"
 
+# Shared HTTP session for any server-initiated interswarm calls
+_http_session: aiohttp.ClientSession | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -131,6 +134,15 @@ async def lifespan(app: FastAPI):
                 await mail_task
             except asyncio.CancelledError:
                 pass
+
+    # Close shared HTTP session if opened
+    global _http_session
+    if _http_session is not None:
+        try:
+            await _http_session.close()
+        except Exception:
+            pass
+        _http_session = None
 
 
 app = FastAPI(lifespan=lifespan)
@@ -603,9 +615,8 @@ async def receive_interswarm_message(request: Request):
             msg_type="response",
         )
 
-        # Send response back to the source swarm via HTTP
-        await _send_response_to_swarm(source_swarm, response_message)
-
+        # Return response directly to the caller (remote router).
+        # Avoid sending a duplicate response via callback HTTP to prevent races.
         logger.info(
             f"MAIL completed successfully for swarm '{source_swarm}'"
         )
@@ -680,36 +691,9 @@ async def receive_interswarm_response(request: Request):
                 break
 
     if mail_instance:
-        # Modify the response message to ensure it gets routed to the supervisor
-        # The supervisor needs to process this response and generate a final response for the user
-
-        # Extract the original sender (which should be the supervisor)
-        original_sender = response_message["message"].get("recipient", "supervisor")
-        if "@" in original_sender:
-            original_sender = original_sender.split("@")[0]
-
-        # Create a new message that the supervisor can process
-        supervisor_message = MAILMessage(
-            id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-            message=MAILResponse(
-                task_id=response_message["message"]["task_id"],
-                request_id=response_message["message"].get(
-                    "request_id", response_message["message"]["task_id"]
-                ),
-                sender=response_message["message"]["sender"],
-                recipient=original_sender,  # Route back to the original sender (supervisor)
-                subject=f"Response from {response_message['message']['sender']}: {response_message['message']['subject']}",
-                body=response_message["message"]["body"],
-                sender_swarm=response_message["message"].get("sender_swarm"),
-                recipient_swarm=local_swarm_name,
-                routing_info={},
-            ),
-            msg_type="response",
-        )
-
-        # Submit the modified response to the MAIL instance
-        await mail_instance.handle_interswarm_response(supervisor_message)
+        # The incoming response already targets the original requester (often supervisor)
+        # with a proper MAILAddress. Route it into the runtime as-is.
+        await mail_instance.handle_interswarm_response(response_message)
         logger.info(f"response submitted to MAIL instance for task '{task_id}'")
         return {"status": "response_processed", "task_id": task_id}
     else:
@@ -753,18 +737,20 @@ async def _send_response_to_swarm(
             headers["Authorization"] = f"Bearer {auth_token}"
 
         timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json=response_message, headers=headers, timeout=timeout
-            ) as response:
-                if response.status == 200:
-                    logger.info(
-                        f"successfully sent response to swarm: '{target_swarm}'"
-                    )
-                else:
-                    logger.error(
-                        f"failed to send response to swarm '{target_swarm}' with status: '{response.status}'"
-                    )
+        global _http_session
+        if _http_session is None:
+            _http_session = aiohttp.ClientSession()
+        async with _http_session.post(
+            url, json=response_message, headers=headers, timeout=timeout
+        ) as response:
+            if response.status == 200:
+                logger.info(
+                    f"successfully sent response to swarm: '{target_swarm}'"
+                )
+            else:
+                logger.error(
+                    f"failed to send response to swarm '{target_swarm}' with status: '{response.status}'"
+                )
 
     except Exception as e:
         logger.error(

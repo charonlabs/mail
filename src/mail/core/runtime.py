@@ -569,8 +569,14 @@ class MAILRuntime:
                     has_interswarm_recipients = True
 
             if has_interswarm_recipients:
-                # Route via interswarm router
+                # Route via interswarm router. Mark this queue item as handled
+                # here; the routed response (or local copy) will be re-submitted
+                # via the normal submit() path and accounted for separately.
                 asyncio.create_task(self._route_interswarm_message(message))
+                try:
+                    self.message_queue.task_done()
+                except Exception:
+                    pass
                 return
 
         # Fall back to local processing
@@ -584,9 +590,9 @@ class MAILRuntime:
             try:
                 response = await self.interswarm_router.route_message(message)
                 logger.info(
-                    f"received response from remote swarm, processing locally: '{response['id']}'"
+                    f"received response from remote swarm, enqueuing for local processing: '{response['id']}'"
                 )
-                self._process_local_message(response)
+                await self.submit(response)
             except Exception as e:
                 logger.error(f"error in interswarm routing: '{e}'")
                 # Fall back to local processing for failed interswarm messages

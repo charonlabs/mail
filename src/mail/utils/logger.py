@@ -41,7 +41,8 @@ def init_logger():
         rich_tracebacks=True,
         show_time=True,
         show_level=True,
-        show_path=False,
+        show_path=True,
+        tracebacks_show_locals=True,
     )
     console_handler.setLevel(logging.DEBUG)
 

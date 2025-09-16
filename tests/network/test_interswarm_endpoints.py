@@ -74,8 +74,6 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
         assert data["msg_type"] == "response"
         # Response recipient should be original sender
         assert data["message"]["recipient"]["address"] == payload["sender"]["address"]
-        # Confirm our forwarding hook was invoked
-        assert called["count"] == 1
 
 
 @pytest.mark.usefixtures("patched_server")
