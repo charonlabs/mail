@@ -777,7 +777,9 @@ class MAILSwarm:
 
         return await router.route_message(message)
 
-    def get_subswarm(self, names: list[str], name_suffix: str) -> "MAILSwarmTemplate":
+    def get_subswarm(
+        self, names: list[str], name_suffix: str, entrypoint: str | None = None
+    ) -> "MAILSwarmTemplate":
         """
         Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
         Returns a MAILSwarmTemplate.
@@ -811,18 +813,22 @@ class MAILSwarm:
                 )
             )
 
-        entrypoint_agent = next(
-            (agent for agent in selected_agents if agent.enable_entrypoint), None
-        )
-        if entrypoint_agent is None:
-            raise ValueError(
-                "Subswarm must contain at least one entrypoint agent from the original swarm"
+        if entrypoint is None:
+            entrypoint_agent = next(
+                (agent for agent in selected_agents if agent.enable_entrypoint), None
             )
+            if entrypoint_agent is None:
+                raise ValueError("Subswarm must contain an entrypoint agent")
+        else:
+            entrypoint_agent = next(
+                (agent for agent in selected_agents if agent.name == entrypoint), None
+            )
+            if entrypoint_agent is None:
+                raise ValueError(f"entrypoint agent '{entrypoint}' not found in swarm")
+            entrypoint_agent.enable_entrypoint = True
 
         if not any(agent.can_complete_tasks for agent in selected_agents):
-            raise ValueError(
-                "Subswarm must contain at least one supervisor (can_complete_tasks=True)"
-            )
+            raise ValueError("Subswarm must contain at least one supervisor")
 
         actions: list[MAILAction] = []
         seen_actions: dict[str, MAILAction] = {}
