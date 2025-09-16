@@ -545,15 +545,18 @@ class MAILSwarm:
         Build an adjacency matrix for the swarm.
         Returns a tuple of the adjacency matrix and the map of indices to agent names.
         """
-        adj = []
-        map = []
-        for agent in self.agents:
-            map.append(agent.name)
-            adj.append(
-                [1 if target in agent.comm_targets else 0 for target in self.agents]
-            )
+        agent_names = [agent.name for agent in self.agents]
+        name_to_index = {name: idx for idx, name in enumerate(agent_names)}
+        adj = [[0 for _ in agent_names] for _ in agent_names]
 
-        return adj, map
+        for agent in self.agents:
+            row_idx = name_to_index[agent.name]
+            for target_name in agent.comm_targets:
+                target_idx = name_to_index.get(target_name)
+                if target_idx is not None:
+                    adj[row_idx][target_idx] = 1
+
+        return adj, agent_names
 
     async def post_message(
         self,
@@ -862,15 +865,18 @@ class MAILSwarmTemplate:
         Build an adjacency matrix for the swarm.
         Returns a tuple of the adjacency matrix and the map of agent names to indices.
         """
-        adj = []
-        map = []
-        for agent in self.agents:
-            map.append(agent.name)
-            adj.append(
-                [1 if target in agent.comm_targets else 0 for target in self.agents]
-            )
+        agent_names = [agent.name for agent in self.agents]
+        name_to_index = {name: idx for idx, name in enumerate(agent_names)}
+        adj = [[0 for _ in agent_names] for _ in agent_names]
 
-        return adj, map
+        for agent in self.agents:
+            row_idx = name_to_index[agent.name]
+            for target_name in agent.comm_targets:
+                target_idx = name_to_index.get(target_name)
+                if target_idx is not None:
+                    adj[row_idx][target_idx] = 1
+
+        return adj, agent_names
 
     def instantiate(
         self,
