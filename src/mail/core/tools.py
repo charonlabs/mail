@@ -189,35 +189,6 @@ def convert_call_to_mail_message(
             raise ValueError(f"Unknown tool name: {call.tool_name}")
 
 
-def action_complete_broadcast(
-    action_name: str,
-    result_message: dict[str, Any],
-    system_name: str,
-    recipient: str,
-    task_id: str,
-) -> MAILMessage:
-    """
-    Create a MAIL broadcast message to indicate that an action has been completed.
-    """
-
-    return MAILMessage(
-        id=str(uuid4()),
-        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-        message=MAILBroadcast(
-            task_id=task_id,
-            broadcast_id=str(uuid4()),
-            sender=create_system_address(system_name),
-            recipients=[create_agent_address(recipient)],
-            subject=f"Action Complete: {action_name}",
-            body=f"The action {action_name} has been completed. The result is as follows:\n\n<output>\n{result_message}\n</output>",
-            sender_swarm=None,
-            recipient_swarms=None,
-            routing_info=None,
-        ),
-        msg_type="broadcast",
-    )
-
-
 def create_request_tool(
     targets: list[str],
     enable_interswarm: bool = False,
@@ -276,7 +247,7 @@ def create_response_tool(
         target: str = Field(
             description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}"
             + (
-                f", or use 'agent-name@swarm-name' format for interswarm messaging"
+                ", or use 'agent-name@swarm-name' format for interswarm messaging"
                 if enable_interswarm
                 else ""
             )
@@ -319,7 +290,7 @@ def create_interrupt_tool(
         target: str = Field(
             description=f"The target recipient agent for the interrupt. Must be one of: {', '.join(targets)}"
             + (
-                f", or use 'agent-name@swarm-name' format for interswarm messaging"
+                ", or use 'agent-name@swarm-name' format for interswarm messaging"
                 if enable_interswarm
                 else ""
             )
@@ -458,7 +429,10 @@ def create_task_complete_tool(
         """Indicate that a task has been completed. This will end the current loop, and should always be the last tool called."""
 
         finish_message: str = Field(
-            description="The message to broadcast to all agents to indicate that the task has been completed."
+            description="""The final response to the user's task.
+Since the user cannot see the swarm's communication, you MUST include the full answer to the user's task.
+Furthermore, this broadcast will be sent to all agents in the swarm to notify them that the task has been completed.
+"""
         )
 
     return pydantic_model_to_tool(task_complete, name="task_complete", style=style)

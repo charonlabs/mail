@@ -35,6 +35,7 @@ class SwarmEndpoint(TypedDict):
     volatile: bool
     """Whether this swarm is volatile (will be removed from the registry when the server shuts down)."""
 
+
 class SwarmStatus(TypedDict):
     """
     The status of a swarm.
@@ -45,6 +46,7 @@ class SwarmStatus(TypedDict):
 
     status: str
     """The status of the swarm."""
+
 
 class GetRootResponse(TypedDict):
     """
@@ -59,6 +61,7 @@ class GetRootResponse(TypedDict):
 
     version: str
     """The version of MAIL that is running."""
+
 
 class GetStatusResponse(TypedDict):
     """
@@ -77,6 +80,7 @@ class GetStatusResponse(TypedDict):
     user_task_running: bool
     """Whether the user MAIL instance task is running."""
 
+
 class PostMessageResponse(TypedDict):
     """
     Response for the MAIL server endpoint `POST /message`.
@@ -87,6 +91,7 @@ class PostMessageResponse(TypedDict):
 
     events: list[ServerSentEvent]
     """The events from the MAIL instance."""
+
 
 class GetHealthResponse(TypedDict):
     """
@@ -102,6 +107,7 @@ class GetHealthResponse(TypedDict):
     timestamp: str
     """The timestamp of the response."""
 
+
 class GetSwarmsResponse(TypedDict):
     """
     Response for the MAIL server endpoint `GET /swarms`.
@@ -109,6 +115,7 @@ class GetSwarmsResponse(TypedDict):
 
     swarms: list[SwarmEndpoint]
     """The swarms that are running."""
+
 
 class PostSwarmsResponse(TypedDict):
     """
@@ -121,6 +128,7 @@ class PostSwarmsResponse(TypedDict):
     swarm_name: str
     """The name of the swarm."""
 
+
 class GetSwarmsDumpResponse(TypedDict):
     """
     Response for the MAIL server endpoint `GET /swarms/dump`.
@@ -131,6 +139,7 @@ class GetSwarmsDumpResponse(TypedDict):
 
     swarm_name: str
     """The name of the swarm."""
+
 
 class PostInterswarmMessageResponse(TypedDict):
     """
@@ -143,6 +152,7 @@ class PostInterswarmMessageResponse(TypedDict):
     events: list[ServerSentEvent]
     """The events from the MAIL instance."""
 
+
 class PostInterswarmResponseResponse(TypedDict):
     """
     Response for the MAIL server endpoint `POST /interswarm/response`.
@@ -154,6 +164,7 @@ class PostInterswarmResponseResponse(TypedDict):
     task_id: str
     """The task ID of the response."""
 
+
 class PostInterswarmSendResponse(TypedDict):
     """
     Response for the MAIL server endpoint `POST /interswarm/send`.
@@ -164,6 +175,7 @@ class PostInterswarmSendResponse(TypedDict):
 
     events: list[ServerSentEvent]
     """The events from the MAIL instance."""
+
 
 class PostSwarmsLoadResponse(TypedDict):
     """

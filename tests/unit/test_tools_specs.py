@@ -3,7 +3,6 @@ from typing import Any
 import pytest
 
 from mail.core.tools import (
-    action_complete_broadcast,
     convert_call_to_mail_message,
     create_mail_tools,
     create_request_tool,
@@ -73,18 +72,6 @@ def test_create_task_complete_tool_shape():
     assert tool["name"] == "task_complete"
     props = tool["parameters"]["properties"]
     assert list(props.keys()) == ["finish_message"]
-
-
-def test_action_complete_broadcast_message_shape():
-    # action_complete_broadcast(action_name, result_message, system_name, recipient, task_id)
-    result_message = {"name": "my_action", "content": "done"}
-    msg = action_complete_broadcast(
-        "my_action", result_message, "example", "supervisor", "task-1"
-    )
-    assert msg["msg_type"] == "broadcast"
-    assert msg["message"]["sender"]["address"] == "example"
-    assert msg["message"]["recipients"][0]["address"] == "supervisor"
-    assert "my_action" in msg["message"]["subject"]
 
 
 def test_convert_call_unknown_tool_raises():

@@ -34,7 +34,9 @@ class SwarmRegistry:
         self.health_check_interval = 30  # seconds
         self.health_check_task: asyncio.Task | None = None
         self.session: aiohttp.ClientSession | None = None
-        self.persistence_file = persistence_file or f"registries/{local_swarm_name}.json"
+        self.persistence_file = (
+            persistence_file or f"registries/{local_swarm_name}.json"
+        )
 
         # Register self
         self.register_local_swarm(local_base_url)
