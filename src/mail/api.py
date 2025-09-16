@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 import datetime
 import inspect
 import json
@@ -776,19 +777,65 @@ class MAILSwarm:
 
         return await router.route_message(message)
 
-    def get_subswarm(self, swarm_name: str, names: list[str]) -> "MAILSwarmTemplate":
+    def get_subswarm(self, names: list[str], name_suffix: str) -> "MAILSwarmTemplate":
         """
-        Get a subswarm of the MAILSwarm.
+        Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
+        Returns a MAILSwarmTemplate.
         """
-        for n in names:
-            if n not in self.agent_names:
-                raise ValueError(f"agent '{n}' not found in swarm")
-        names_to_og_idx = {n: i for i, n in enumerate(self.agent_names)}
+        agent_lookup = {agent.name: agent for agent in self.agents}
+        selected_agents: list[MAILAgentTemplate] = []
+        for agent_name in names:
+            if agent_name not in agent_lookup:
+                raise ValueError(f"agent '{agent_name}' not found in swarm")
+            agent = agent_lookup[agent_name]
+            filtered_targets = [
+                target for target in agent.comm_targets if target in names
+            ]
+            if not filtered_targets:
+                fallback_candidates = [n for n in names if n != agent.name]
+                if fallback_candidates:
+                    filtered_targets = [fallback_candidates[0]]
+                else:
+                    filtered_targets = [agent.name]
+            selected_agents.append(
+                MAILAgentTemplate(
+                    name=agent.name,
+                    factory=agent.factory,
+                    comm_targets=filtered_targets,
+                    actions=agent.actions,
+                    agent_params=deepcopy(agent.agent_params),
+                    enable_entrypoint=agent.enable_entrypoint,
+                    enable_interswarm=agent.enable_interswarm,
+                    can_complete_tasks=agent.can_complete_tasks,
+                    tool_format=agent.tool_format,
+                )
+            )
+
+        entrypoint_agent = next(
+            (agent for agent in selected_agents if agent.enable_entrypoint), None
+        )
+        if entrypoint_agent is None and selected_agents:
+            selected_agents[0].enable_entrypoint = True
+            entrypoint_agent = selected_agents[0]
+        if entrypoint_agent is None:
+            raise ValueError("Subswarm must contain an entrypoint agent")
+
+        if not any(agent.can_complete_tasks for agent in selected_agents):
+            selected_agents[0].can_complete_tasks = True
+
+        actions: list[MAILAction] = []
+        seen_actions: dict[str, MAILAction] = {}
+        for agent in selected_agents:
+            for action in agent.actions:
+                if action.name not in seen_actions:
+                    seen_actions[action.name] = action
+        actions = list(seen_actions.values())
+
         return MAILSwarmTemplate(
-            name=swarm_name,
-            agents=[self.agents[names_to_og_idx[n]]._to_template(names) for n in names],
-            actions=self.actions,
-            entrypoint=self.entrypoint,
+            name=f"{self.name}-{name_suffix}",
+            agents=selected_agents,
+            actions=actions,
+            entrypoint=entrypoint_agent.name,
             enable_interswarm=self.enable_interswarm,
         )
 
@@ -902,6 +949,68 @@ class MAILSwarmTemplate:
             entrypoint=self.entrypoint,
             user_id=user_id,
             swarm_registry=swarm_registry,
+            enable_interswarm=self.enable_interswarm,
+        )
+
+    def get_subswarm(self, names: list[str], name_suffix: str) -> "MAILSwarmTemplate":
+        """
+        Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
+        Returns a MAILSwarmTemplate.
+        """
+        agent_lookup = {agent.name: agent for agent in self.agents}
+        selected_agents: list[MAILAgentTemplate] = []
+        for agent_name in names:
+            if agent_name not in agent_lookup:
+                raise ValueError(f"agent '{agent_name}' not found in swarm")
+            agent = agent_lookup[agent_name]
+            filtered_targets = [
+                target for target in agent.comm_targets if target in names
+            ]
+            if not filtered_targets:
+                fallback_candidates = [n for n in names if n != agent.name]
+                if fallback_candidates:
+                    filtered_targets = [fallback_candidates[0]]
+                else:
+                    filtered_targets = [agent.name]
+            selected_agents.append(
+                MAILAgentTemplate(
+                    name=agent.name,
+                    factory=agent.factory,
+                    comm_targets=filtered_targets,
+                    actions=agent.actions,
+                    agent_params=deepcopy(agent.agent_params),
+                    enable_entrypoint=agent.enable_entrypoint,
+                    enable_interswarm=agent.enable_interswarm,
+                    can_complete_tasks=agent.can_complete_tasks,
+                    tool_format=agent.tool_format,
+                )
+            )
+
+        entrypoint_agent = next(
+            (agent for agent in selected_agents if agent.enable_entrypoint), None
+        )
+        if entrypoint_agent is None and selected_agents:
+            selected_agents[0].enable_entrypoint = True
+            entrypoint_agent = selected_agents[0]
+        if entrypoint_agent is None:
+            raise ValueError("Subswarm must contain an entrypoint agent")
+
+        if not any(agent.can_complete_tasks for agent in selected_agents):
+            selected_agents[0].can_complete_tasks = True
+
+        actions: list[MAILAction] = []
+        seen_actions: dict[str, MAILAction] = {}
+        for agent in selected_agents:
+            for action in agent.actions:
+                if action.name not in seen_actions:
+                    seen_actions[action.name] = action
+        actions = list(seen_actions.values())
+
+        return MAILSwarmTemplate(
+            name=f"{self.name}-{name_suffix}",
+            agents=selected_agents,
+            actions=actions,
+            entrypoint=entrypoint_agent.name,
             enable_interswarm=self.enable_interswarm,
         )
 
