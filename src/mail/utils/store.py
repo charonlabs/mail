@@ -1,8 +1,5 @@
-"""
-Store management for LangGraph.
-This module provides a central location for managing the store connections
-used by LangGraph components.
-"""
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) Jacob Hahn
 
 import contextlib
 import os

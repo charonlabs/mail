@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 from mail.core.tools import convert_call_to_mail_message
 from mail.factories.base import AgentToolCall
 
@@ -12,6 +15,9 @@ def _call(name: str, args: dict) -> AgentToolCall:
 
 
 def test_convert_send_request():
+    """
+    Test that `convert_call_to_mail_message` works as expected for `send_request`.
+    """
     msg = convert_call_to_mail_message(
         _call("send_request", {"target": "analyst", "subject": "S", "message": "M"}),
         sender="supervisor",
@@ -22,6 +28,9 @@ def test_convert_send_request():
 
 
 def test_convert_send_response():
+    """
+    Test that `convert_call_to_mail_message` works as expected for `send_response`.
+    """
     msg = convert_call_to_mail_message(
         _call("send_response", {"target": "analyst", "subject": "S", "message": "M"}),
         sender="supervisor",
@@ -32,6 +41,9 @@ def test_convert_send_response():
 
 
 def test_convert_send_interrupt():
+    """
+    Test that `convert_call_to_mail_message` works as expected for `send_interrupt`.
+    """
     msg = convert_call_to_mail_message(
         _call("send_interrupt", {"target": "analyst", "subject": "S", "message": "M"}),
         sender="supervisor",
@@ -42,6 +54,9 @@ def test_convert_send_interrupt():
 
 
 def test_convert_send_broadcast():
+    """
+    Test that `convert_call_to_mail_message` works as expected for `send_broadcast`.
+    """
     msg = convert_call_to_mail_message(
         _call("send_broadcast", {"subject": "S", "message": "M"}),
         sender="supervisor",
@@ -52,6 +67,9 @@ def test_convert_send_broadcast():
 
 
 def test_convert_task_complete():
+    """
+    Test that `convert_call_to_mail_message` works as expected for `task_complete`.
+    """
     msg = convert_call_to_mail_message(
         _call("task_complete", {"finish_message": "done"}),
         sender="supervisor",

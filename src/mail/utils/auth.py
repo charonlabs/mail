@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import logging
 import os
 from typing import Any
@@ -120,7 +123,7 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
     Extract the token info from the request.
     """
     token = request.headers.get("Authorization")
-    
+
     if token is None:
         logger.warning("no API key provided")
         raise HTTPException(status_code=401, detail="no API key provided")

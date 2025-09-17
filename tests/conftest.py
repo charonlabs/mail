@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import os
 from collections.abc import Callable
 from typing import Any, Literal
@@ -6,6 +9,10 @@ import pytest
 
 
 class FakeSwarmRegistry:
+    """
+    Fake `SwarmRegistry` for testing.
+    """
+
     def __init__(
         self, local_swarm_name: str, base_url: str, persistence_file: str
     ) -> None:  # noqa: ARG002
@@ -33,6 +40,9 @@ class FakeSwarmRegistry:
         return None
 
     def get_swarm_endpoint(self, name: str) -> dict[str, Any] | None:
+        """
+        Get a swarm endpoint by name.
+        """
         # Accept either key by swarm name or lookup by swarm_name field
         if name in self._endpoints:
             return self._endpoints.get(name)
@@ -50,6 +60,9 @@ class FakeSwarmRegistry:
         metadata: dict[str, Any] | None = None,
         volatile: bool = True,  # noqa: FBT001, FBT002
     ) -> None:
+        """
+        Register a swarm endpoint.
+        """
         if swarm_name == self.local_swarm_name:
             return
         self._endpoints[swarm_name] = {
@@ -62,6 +75,9 @@ class FakeSwarmRegistry:
         }
 
     def get_all_endpoints(self) -> dict[str, dict[str, Any]]:
+        """
+        Get all swarm endpoints.
+        """
         return self._endpoints.copy()
 
 
@@ -92,6 +108,9 @@ def make_stub_agent(
     use_proxy: bool = True,
     _debug_include_mail_tools: bool = True,
 ) -> Callable:
+    """
+    Make a stub agent for testing.
+    """
     if len(tools) == 0:
         tools = [{"name": "task_complete", "args": {"finish_message": "Task finished"}}]
 
@@ -111,6 +130,9 @@ def make_stub_agent(
 
 @pytest.fixture(autouse=True)
 def set_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Set the authentication environment variables.
+    """
     # Prevent accidental external calls by ensuring endpoints are set to dummy
     monkeypatch.setenv("AUTH_ENDPOINT", "http://test-auth.local/login")
     monkeypatch.setenv("TOKEN_INFO_ENDPOINT", "http://test-auth.local/token-info")
@@ -122,6 +144,8 @@ def set_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def patched_server(monkeypatch: pytest.MonkeyPatch):
     """
     Patch server dependencies to avoid network and heavy LLM calls.
+
+    This fixture patches the `SwarmRegistry`, `MAILSwarmTemplate.from_swarm_json_file`, and `MAILSwarm.submit_message` to avoid network and heavy LLM calls.
     """
     # Reset global server state to avoid cross-test interference
     import mail.server as server
@@ -180,7 +204,9 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     )
 
     # Stub auth calls to avoid aiohttp
-    monkeypatch.setattr("mail.utils.auth.login", lambda api_key: _async_return("fake-jwt"))
+    monkeypatch.setattr(
+        "mail.utils.auth.login", lambda api_key: _async_return("fake-jwt")
+    )
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),

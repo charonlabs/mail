@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 from typing import Any, Literal
 
 from mail.factories.action import action_agent_factory

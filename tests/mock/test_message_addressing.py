@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 from mail.core.message import (
     create_agent_address,
     create_system_address,
@@ -10,6 +13,9 @@ from mail.core.message import (
 
 
 def test_parse_and_format_agent_address():
+    """
+    Test that `parse_agent_address` and `format_agent_address` work as expected.
+    """
     a, s = parse_agent_address("helper")
     assert a == "helper" and s is None
 
@@ -23,6 +29,9 @@ def test_parse_and_format_agent_address():
 
 
 def test_get_address_helpers():
+    """
+    Test that `get_address_string` and `get_address_type` work as expected.
+    """
     addr = create_agent_address("analyst")
     assert get_address_string(addr) == "analyst"
     assert get_address_type(addr) == "agent"

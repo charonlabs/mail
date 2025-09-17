@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 from typing import Any
 
 import pytest
@@ -22,6 +25,9 @@ def _call(name: str, args: dict[str, Any]) -> AgentToolCall:
 
 
 def test_create_request_tool_completions_enforces_enum():
+    """
+    Test that `create_request_tool` works as expected for completions.
+    """
     tool = create_request_tool(
         ["analyst", "helper"], enable_interswarm=False, style="completions"
     )
@@ -33,6 +39,9 @@ def test_create_request_tool_completions_enforces_enum():
 
 
 def test_create_request_tool_responses_interswarm_description():
+    """
+    Test that `create_request_tool` works as expected for responses.
+    """
     tool = create_request_tool(["analyst"], enable_interswarm=True, style="responses")
     assert tool["type"] == "function"
     assert tool["name"] == "send_request"
@@ -43,6 +52,9 @@ def test_create_request_tool_responses_interswarm_description():
 
 
 def test_create_supervisor_tools_contains_task_complete_conditionally():
+    """
+    Test that `create_supervisor_tools` works as expected.
+    """
     tools_without_complete = create_supervisor_tools(
         ["analyst"], can_complete_tasks=False
     )
@@ -55,6 +67,9 @@ def test_create_supervisor_tools_contains_task_complete_conditionally():
 
 
 def test_create_mail_tools_set():
+    """
+    Test that `create_mail_tools` works as expected.
+    """
     tools = create_mail_tools(["analyst", "helper"])  # default style: completions
     names = [t["function"]["name"] for t in tools]
     # Expected tools for standard agents
@@ -67,6 +82,9 @@ def test_create_mail_tools_set():
 
 
 def test_create_task_complete_tool_shape():
+    """
+    Test that `create_task_complete_tool` works as expected.
+    """
     tool = create_task_complete_tool(style="responses")
     assert tool["type"] == "function"
     assert tool["name"] == "task_complete"
@@ -75,5 +93,8 @@ def test_create_task_complete_tool_shape():
 
 
 def test_convert_call_unknown_tool_raises():
+    """
+    Test that `convert_call_to_mail_message` raises an error for an unknown tool.
+    """
     with pytest.raises(ValueError):
         convert_call_to_mail_message(_call("not_a_tool", {}), sender="a", task_id="t")

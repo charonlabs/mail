@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import datetime
 import uuid
 
@@ -23,6 +26,9 @@ def _async_return(value):
 
 @pytest.mark.usefixtures("patched_server")
 def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that `POST /interswarm/message` works as expected.
+    """
     from mail.server import app
 
     # Make auth treat caller as agent for interswarm paths
@@ -68,6 +74,9 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.usefixtures("patched_server")
 def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that `POST /interswarm/response` works as expected when there is no MAIL instance.
+    """
     from mail.server import app
 
     # Treat caller as agent
@@ -107,6 +116,9 @@ def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.usefixtures("patched_server")
 def test_interswarm_message_requires_agent_role():
+    """
+    Test that `POST /interswarm/message` requires the `agent` role.
+    """
     from mail.server import app
 
     with TestClient(app) as client:

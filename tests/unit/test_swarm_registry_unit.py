@@ -1,7 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 from mail.net.registry import SwarmRegistry
 
 
 def test_register_persist_and_resolve_token(tmp_path, monkeypatch):
+    """
+    Test that `SwarmRegistry.register_swarm`, `SwarmRegistry.get_swarm_endpoint`, and `SwarmRegistry.get_resolved_auth_token` work as expected.
+    """
     reg_file = tmp_path / "reg.json"
     # Ensure environment has the expected variable for resolving
     monkeypatch.setenv("SWARM_AUTH_TOKEN_REMOTE", "secret-token")
@@ -27,6 +33,9 @@ def test_register_persist_and_resolve_token(tmp_path, monkeypatch):
 
 
 def test_migrate_and_validate_env_vars(tmp_path, monkeypatch):
+    """
+    Test that `SwarmRegistry.migrate_auth_tokens_to_env_refs` and `SwarmRegistry.validate_environment_variables` work as expected.
+    """
     reg = SwarmRegistry("example", "http://localhost:8000", str(tmp_path / "r.json"))
     # Register a volatile swarm so the raw token is kept directly
     reg.register_swarm("other", "http://other", auth_token="abc", volatile=True)

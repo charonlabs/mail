@@ -5,13 +5,13 @@
 # ]
 # ///
 
-# FastAPI server for MAIL over HTTP
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline, Will Hahn
 
 import asyncio
 import datetime
 import logging
 import os
-from typing import Annotated
 import uuid
 from contextlib import asynccontextmanager
 
@@ -248,16 +248,9 @@ async def root():
         version = load_toml("pyproject.toml")["project"]["version"]
     except Exception as e:
         logger.error(f"error loading version: '{e}'")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"error loading version: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"error loading version: {e}")
 
-    return types.GetRootResponse(
-        name="mail", 
-        status="ok", 
-        version=version
-    )
+    return types.GetRootResponse(name="mail", status="ok", version=version)
 
 
 @app.get("/status", dependencies=[Depends(utils.caller_is_admin_or_user)])
@@ -335,7 +328,9 @@ async def message(request: Request):
             recipient_agent = default_entrypoint_agent
         show_events = data.get("show_events", False)
         stream = data.get("stream", False)
-        logger.info(f"received message from user or admin '{caller_id}': '{message[:50]}...'")
+        logger.info(
+            f"received message from user or admin '{caller_id}': '{message[:50]}...'"
+        )
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
         raise HTTPException(
@@ -350,7 +345,7 @@ async def message(request: Request):
     try:
         assert persistent_swarm is not None
 
-        api_swarm = await get_or_create_user_mail(caller_id, jwt) 
+        api_swarm = await get_or_create_user_mail(caller_id, jwt)
 
         # If client provided an explicit entrypoint, pass it through; otherwise use default
         chosen_entrypoint = recipient_agent
@@ -377,14 +372,16 @@ async def message(request: Request):
                 response, events = result
             else:
                 response, events = result, []  # type: ignore[misc]
-            
+
             return types.PostMessageResponse(
                 response=response["message"]["body"],
                 events=events if show_events else None,
             )
 
     except Exception as e:
-        logger.error(f"error processing message for user or admin '{caller_id}' with error: '{e}'")
+        logger.error(
+            f"error processing message for user or admin '{caller_id}' with error: '{e}'"
+        )
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",

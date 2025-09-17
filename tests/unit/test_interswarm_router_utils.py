@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import datetime
 import uuid
 
@@ -38,6 +41,9 @@ def _base_request():
 
 
 def test_determine_message_type_mapping():
+    """
+    Test that `_determine_message_type` works as expected.
+    """
     router = InterswarmRouter(_DummyRegistry(), "example")
     assert (
         router._determine_message_type({"request_id": "r", "recipient": {}})
@@ -52,6 +58,9 @@ def test_determine_message_type_mapping():
 
 
 def test_create_local_and_remote_message_shapes():
+    """
+    Test that `_create_local_message` and `_create_remote_message` work as expected.
+    """
     router = InterswarmRouter(_DummyRegistry(), "example")
 
     original = MAILMessage(
@@ -87,6 +96,9 @@ def test_create_local_and_remote_message_shapes():
 
 
 def test_system_router_message_is_response():
+    """
+    Test that `_system_router_message` works as expected.
+    """
     router = InterswarmRouter(_DummyRegistry(), "example")
     original = _base_request()
     out = router._system_router_message(original, "oops")

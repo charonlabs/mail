@@ -1,4 +1,6 @@
-import json
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline, Ryan Heaton
+
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
@@ -6,7 +8,6 @@ from uuid import uuid4
 
 import langsmith as ls
 import ujson
-from langmem import create_memory_store_manager
 from litellm import (
     OutputFunctionToolCall,
     acompletion,

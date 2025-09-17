@@ -1,11 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline, Ryan Heaton
+
 import asyncio
-from copy import deepcopy
 import datetime
 import inspect
 import json
 import logging
-from random import choice
 import uuid
+from copy import deepcopy
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model

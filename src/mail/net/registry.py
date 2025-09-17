@@ -1,7 +1,5 @@
-"""
-Swarm Registry for interswarm communication.
-This module provides service discovery and endpoint management for MAIL swarms.
-"""
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
 
 import asyncio
 import datetime

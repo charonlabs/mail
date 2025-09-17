@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import asyncio
 import os
 import signal
@@ -29,14 +32,19 @@ async def _auth_check(request: web.Request) -> web.Response:
         role, user_id = "user", token
     if role not in ("admin", "user", "agent"):
         return web.json_response({"error": "invalid role"}, status=401)
-    return web.json_response({
-        "role": role,
-        "id": user_id,
-        "api_key": "demo",
-    })
+    return web.json_response(
+        {
+            "role": role,
+            "id": user_id,
+            "api_key": "demo",
+        }
+    )
 
 
 async def _start_auth_stub(app: web.Application) -> web.AppRunner:
+    """
+    Start the auth stub.
+    """
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", AUTH_PORT)
@@ -45,6 +53,9 @@ async def _start_auth_stub(app: web.Application) -> web.AppRunner:
 
 
 async def _wait_for_health(url: str, timeout_s: float = 20.0) -> None:
+    """
+    Wait for the health check to return 200.
+    """
     deadline = asyncio.get_event_loop().time() + timeout_s
     async with aiohttp.ClientSession() as session:
         while True:
@@ -59,7 +70,12 @@ async def _wait_for_health(url: str, timeout_s: float = 20.0) -> None:
             await asyncio.sleep(0.25)
 
 
-def _launch_mail_server(name: str, base_url: str, registry_file: str, extra_env: dict[str, str]) -> subprocess.Popen:
+def _launch_mail_server(
+    name: str, base_url: str, registry_file: str, extra_env: dict[str, str]
+) -> subprocess.Popen:
+    """
+    Launch the mail server.
+    """
     env = os.environ.copy()
     env.update(
         {
@@ -98,6 +114,9 @@ def _launch_mail_server(name: str, base_url: str, registry_file: str, extra_env:
 
 
 def _terminate(proc: subprocess.Popen | None, timeout: float = 5.0) -> None:
+    """
+    Terminate the process.
+    """
     if not proc:
         return
     try:
@@ -135,6 +154,9 @@ def _terminate(proc: subprocess.Popen | None, timeout: float = 5.0) -> None:
 
 
 async def main():
+    """
+    Main function.
+    """
     init_logger()
 
     # Start minimal auth stub used by both swarms
@@ -206,4 +228,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    

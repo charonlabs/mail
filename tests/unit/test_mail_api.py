@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import json
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -9,7 +12,9 @@ from tests.conftest import make_stub_agent
 
 
 class FakeMAIL:
-    """Lightweight stub for mail.core.MAIL used by MAILSwarm tests."""
+    """
+    Lightweight stub for mail.core.MAIL used by MAILSwarm tests.
+    """
 
     def __init__(
         self,
@@ -33,6 +38,9 @@ class FakeMAIL:
     async def submit_and_wait(
         self, message: dict[str, Any], _timeout: float = 3600.0
     ) -> dict[str, Any]:
+        """
+        Replacement for `MAILRuntime.submit_and_wait`.
+        """
         self.submitted.append(message)
         task_id = message["message"]["task_id"]
         self._events.setdefault(task_id, []).append({"event": "debug", "data": "ok"})
@@ -55,12 +63,18 @@ class FakeMAIL:
         }
 
     def get_events_by_task_id(self, task_id: str) -> list[Any]:
+        """
+        Replacement for `MAILRuntime.get_events_by_task_id`.
+        """
         return self._events.get(task_id, [])
 
     @pytest.mark.asyncio
     async def submit_and_stream(
         self, _message: dict[str, Any], _timeout: float = 3600.0
     ) -> AsyncGenerator[dict[str, Any], None]:
+        """
+        Replacement for `MAILRuntime.submit_and_stream`.
+        """
         async def _stream() -> AsyncGenerator[dict[str, Any], None]:
             yield {"event": "message", "data": "chunk1"}
             yield {"event": "message", "data": "chunk2"}
@@ -70,6 +84,9 @@ class FakeMAIL:
 
 @pytest.fixture(autouse=True)
 def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Patch the `MAILRuntime` used inside `mail.api` to avoid heavy runtime behavior.
+    """
     # Patch the MAILRuntime used inside mail.api to avoid heavy runtime behavior
     import mail.api as api
 
@@ -77,6 +94,9 @@ def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_from_swarm_json_valid_creates_swarm() -> None:
+    """
+    Test that `MAILSwarmTemplate.from_swarm_json` works as expected.
+    """
     from mail import MAILSwarmTemplate
 
     data = {
@@ -118,6 +138,9 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     ["name", "agents", "entrypoint"],
 )
 def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
+    """
+    Test that `MAILSwarmTemplate.from_swarm_json` raises an error if a required field is missing.
+    """
     from mail import MAILSwarmTemplate
 
     base = {
@@ -135,6 +158,9 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
 
 def test_from_swarm_json_wrong_types_raise() -> None:
+    """
+    Test that `MAILSwarmTemplate.from_swarm_json` raises an error if a field is the wrong type.
+    """
     from mail import MAILSwarmTemplate
 
     bad = {
@@ -151,6 +177,9 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 
 
 def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
+    """
+    Test that `MAILSwarmTemplate.from_swarm_json_file` works as expected.
+    """
     from mail import MAILSwarmTemplate
 
     contents = [
@@ -193,6 +222,9 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_post_message_uses_default_entrypoint_and_returns_events() -> None:
+    """
+    Test that `MAILSwarm.post_message` works as expected.
+    """
     from mail import MAILSwarm
 
     swarm = MAILSwarm(
@@ -238,6 +270,9 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
 
 @pytest.mark.asyncio
 async def test_post_message_stream_headers_and_type() -> None:
+    """
+    Test that `MAILSwarm.post_message_stream` works as expected.
+    """
     from sse_starlette import EventSourceResponse
 
     from mail import MAILSwarm
@@ -276,6 +311,9 @@ async def test_post_message_stream_headers_and_type() -> None:
 
 
 def test_build_message_request_validation() -> None:
+    """
+    Test that `MAILSwarm.build_message` works as expected.
+    """
     from mail import MAILSwarm
 
     swarm = MAILSwarm(

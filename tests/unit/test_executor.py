@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import asyncio
 
 from mail.core.executor import execute_action_tool
@@ -22,6 +25,9 @@ async def _override_upper(args: dict):  # noqa: ANN001
 
 
 def test_execute_action_tool_normal_and_override():
+    """
+    Test that `execute_action_tool` works as expected.
+    """
     async def run():
         # Normal path: resolves through actions mapping and wraps as tool response
         res1 = await execute_action_tool(

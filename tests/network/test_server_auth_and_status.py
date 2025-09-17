@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,6 +14,9 @@ def _async_return(value):
 
 @pytest.mark.usefixtures("patched_server")
 def test_message_requires_auth_missing_header():
+    """
+    Test that `POST /message` requires an authorization header.
+    """
     from mail.server import app
 
     with TestClient(app) as client:
@@ -21,6 +27,9 @@ def test_message_requires_auth_missing_header():
 
 @pytest.mark.usefixtures("patched_server")
 def test_message_invalid_auth_format():
+    """
+    Test that `POST /message` requires a valid authorization header.
+    """
     from mail.server import app
 
     with TestClient(app) as client:
@@ -35,6 +44,9 @@ def test_message_invalid_auth_format():
 
 @pytest.mark.usefixtures("patched_server")
 def test_message_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that `POST /message` requires a non-`agent` role.
+    """
     from mail.server import app
 
     # Override token info to mimic an agent (not a user/admin)
@@ -55,6 +67,9 @@ def test_message_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.usefixtures("patched_server")
 def test_status_after_message_shows_user_ready_true(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that `GET /status` shows the user as ready after a message is sent.
+    """
     from mail.server import app
 
     with TestClient(app) as client:

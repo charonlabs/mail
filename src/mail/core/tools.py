@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline, Ryan Heaton
+
 import datetime
 import logging
 from typing import Any, Literal, Optional, cast
@@ -14,7 +17,6 @@ from .message import (
     MAILRequest,
     MAILResponse,
     create_agent_address,
-    create_system_address,
 )
 
 logger = logging.getLogger("mail.tools")

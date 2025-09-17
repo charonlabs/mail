@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import datetime
 
 from mail.core.message import (
@@ -11,15 +14,21 @@ from mail.core.message import (
 
 
 def test_build_body_xml_wraps_body_tag():
+    """
+    Test that `build_body_xml` wraps the body tag.
+    """
     xml = build_body_xml({"foo": "bar"})
     assert xml.startswith("<body>") and xml.endswith("</body>")
     assert "<foo>bar</foo>" in xml
 
 
 def test_build_mail_xml_single_recipient_contains_basic_fields():
+    """
+    Test that `build_mail_xml` works as expected for a single recipient.
+    """
     msg: MAILMessage = MAILMessage(
         id="m1",
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message=MAILRequest(
             task_id="t1",
             request_id="r1",
@@ -41,9 +50,12 @@ def test_build_mail_xml_single_recipient_contains_basic_fields():
 
 
 def test_build_mail_xml_multiple_recipients_contains_addresses():
+    """
+    Test that `build_mail_xml` works as expected for multiple recipients.
+    """
     msg: MAILMessage = MAILMessage(
         id="m2",
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message={
             "task_id": "t2",
             "request_id": "r2",

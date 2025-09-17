@@ -1,4 +1,6 @@
-import asyncio
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
+
 import datetime
 import uuid
 
@@ -15,6 +17,9 @@ from mail.net.router import InterswarmRouter
 
 
 def make_request_to(agent: str) -> MAILMessage:
+    """
+    Make a formatted `MAILMessage` request to an agent.
+    """
     return MAILMessage(
         id=str(uuid.uuid4()),
         timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
@@ -35,6 +40,9 @@ def make_request_to(agent: str) -> MAILMessage:
 
 @pytest.mark.asyncio
 async def test_route_message_local(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that a message is routed to the local handler when the recipient is in the local swarm.
+    """
     registry = SwarmRegistry("example", "http://localhost:8000")
     router = InterswarmRouter(registry, "example")
 
@@ -58,6 +66,9 @@ async def test_route_message_local(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.mark.asyncio
 async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that a message is routed to the remote handler when the recipient is in a remote swarm.
+    """
     registry = SwarmRegistry("example", "http://localhost:8000")
     # Register a remote swarm endpoint
     registry.register_swarm("remote", "http://remote:9999")
@@ -82,7 +93,7 @@ async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPa
     # Build a broadcast to both local and remote agents
     msg = MAILMessage(
         id=str(uuid.uuid4()),
-        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         message={
             "task_id": "t1",
             "broadcast_id": "b1",

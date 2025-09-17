@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline, Ryan Heaton
+
 from typing import Any, Literal
 
 from mail.core.tools import create_supervisor_tools
