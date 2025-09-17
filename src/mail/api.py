@@ -4,6 +4,7 @@ import datetime
 import inspect
 import json
 import logging
+from random import choice
 import uuid
 from typing import Any, Literal
 
@@ -793,10 +794,12 @@ class MAILSwarm:
             filtered_targets = [
                 target for target in agent.comm_targets if target in names
             ]
+            if agent.name in filtered_targets:
+                filtered_targets.remove(agent.name)
             if not filtered_targets:
                 fallback_candidates = [n for n in names if n != agent.name]
                 if fallback_candidates:
-                    filtered_targets = [fallback_candidates[0]]
+                    filtered_targets = [choice(fallback_candidates)]
                 else:
                     filtered_targets = [agent.name]
             selected_agents.append(
@@ -975,10 +978,12 @@ class MAILSwarmTemplate:
             filtered_targets = [
                 target for target in agent.comm_targets if target in names
             ]
+            if agent.name in filtered_targets:
+                filtered_targets.remove(agent.name)
             if not filtered_targets:
                 fallback_candidates = [n for n in names if n != agent.name]
                 if fallback_candidates:
-                    filtered_targets = [fallback_candidates[0]]
+                    filtered_targets = [choice(fallback_candidates)]
                 else:
                     filtered_targets = [agent.name]
             selected_agents.append(
