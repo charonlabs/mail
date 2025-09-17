@@ -799,7 +799,7 @@ class MAILSwarm:
             if not filtered_targets:
                 fallback_candidates = [n for n in names if n != agent.name]
                 if fallback_candidates:
-                    filtered_targets = [choice(fallback_candidates)]
+                    filtered_targets = [fallback_candidates[0]]
                 else:
                     filtered_targets = [agent.name]
             selected_agents.append(
@@ -983,7 +983,7 @@ class MAILSwarmTemplate:
             if not filtered_targets:
                 fallback_candidates = [n for n in names if n != agent.name]
                 if fallback_candidates:
-                    filtered_targets = [choice(fallback_candidates)]
+                    filtered_targets = [fallback_candidates[0]]
                 else:
                     filtered_targets = [agent.name]
             selected_agents.append(
