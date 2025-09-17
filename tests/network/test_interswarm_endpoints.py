@@ -27,19 +27,9 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
 
     # Make auth treat caller as agent for interswarm paths
     monkeypatch.setattr(
-        "mail.utils.get_token_info",
+        "mail.utils.auth.get_token_info",
         lambda token: _async_return({"role": "agent", "id": "ag-123"}),
     )
-
-    # Avoid actual HTTP in response forwarding
-    called = {"count": 0, "args": None}
-
-    async def _noop_send(target_swarm, response_message):  # noqa: ANN001
-        called["count"] += 1
-        called["args"] = (target_swarm, response_message)
-        return None
-
-    monkeypatch.setattr("mail.server._send_response_to_swarm", _noop_send)
 
     with TestClient(app) as client:
         payload: MAILRequest = MAILRequest(
@@ -82,7 +72,7 @@ def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
 
     # Treat caller as agent
     monkeypatch.setattr(
-        "mail.utils.get_token_info",
+        "mail.utils.auth.get_token_info",
         lambda token: _async_return({"role": "agent", "id": "ag-999"}),
     )
 

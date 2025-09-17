@@ -1,6 +1,6 @@
 # Multi-Agent Interface Layer (MAIL) — Draft Specification
 
-- **Version**: 1.0.0 (draft)
+- **Version**: 1.0
 - **Status**: Draft for review
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))

@@ -89,7 +89,7 @@ class PostMessageResponse(TypedDict):
     response: str
     """The response from the MAIL instance."""
 
-    events: list[ServerSentEvent]
+    events: list[ServerSentEvent] | None
     """The events from the MAIL instance."""
 
 
@@ -149,7 +149,7 @@ class PostInterswarmMessageResponse(TypedDict):
     response: MAILMessage
     """The response from the MAIL instance."""
 
-    events: list[ServerSentEvent]
+    events: list[ServerSentEvent] | None
     """The events from the MAIL instance."""
 
 
@@ -173,7 +173,7 @@ class PostInterswarmSendResponse(TypedDict):
     response: MAILMessage
     """The response from the MAIL instance."""
 
-    events: list[ServerSentEvent]
+    events: list[ServerSentEvent] | None
     """The events from the MAIL instance."""
 
 

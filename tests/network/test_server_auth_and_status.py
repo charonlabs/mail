@@ -30,7 +30,7 @@ def test_message_invalid_auth_format():
             json={"message": "Hello"},
         )
         assert r.status_code == 401
-        assert r.json()["detail"] == "invalid API key format"
+        assert r.json()["detail"] == "invalid role"
 
 
 @pytest.mark.usefixtures("patched_server")
@@ -39,7 +39,7 @@ def test_message_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
 
     # Override token info to mimic an agent (not a user/admin)
     monkeypatch.setattr(
-        "mail.utils.get_token_info",
+        "mail.utils.auth.get_token_info",
         lambda token: _async_return({"role": "agent", "id": "a-1"}),
     )
 

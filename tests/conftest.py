@@ -120,12 +120,8 @@ def set_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture()
 def patched_server(monkeypatch: pytest.MonkeyPatch):
-    """Patch server dependencies to avoid network and heavy LLM calls.
-
-    - Replace SwarmRegistry with a fake no-op implementation
-    - Stub build_swarm_from_name to a minimal swarm with one agent 'supervisor'
-    - Stub auth.login and auth.get_token_info to return deterministic values
-    - Force default entrypoint to 'supervisor'
+    """
+    Patch server dependencies to avoid network and heavy LLM calls.
     """
     # Reset global server state to avoid cross-test interference
     import mail.server as server
@@ -138,15 +134,6 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
 
     # Fake registry prevents network
     monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
-
-    # Build a minimal swarm with a stub supervisor agent
-    def _factory(**kwargs: Any):  # noqa: ANN001, ANN003, ARG001
-        return make_stub_agent(
-            comm_targets=["analyst"],
-            tools=[
-                {"name": "task_complete", "args": {"finish_message": "Task finished"}}
-            ],
-        )
 
     stub_swarm = MAILSwarmTemplate(
         name=os.getenv("SWARM_NAME", "example"),
@@ -193,9 +180,9 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     )
 
     # Stub auth calls to avoid aiohttp
-    monkeypatch.setattr("mail.utils.login", lambda api_key: _async_return("fake-jwt"))
+    monkeypatch.setattr("mail.utils.auth.login", lambda api_key: _async_return("fake-jwt"))
     monkeypatch.setattr(
-        "mail.utils.get_token_info",
+        "mail.utils.auth.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),
     )
 

@@ -9,16 +9,15 @@
 
 import asyncio
 import datetime
-import json
 import logging
 import os
+from typing import Annotated
 import uuid
 from contextlib import asynccontextmanager
 
 import aiohttp
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request
-from sse_starlette import EventSourceResponse
 from toml import load as load_toml
 
 import mail.utils as utils
@@ -29,8 +28,8 @@ from mail.core.message import (
     MAILResponse,
     create_agent_address,
     create_user_address,
-    format_agent_address,
 )
+from mail.net import types as types
 from mail.net.registry import SwarmRegistry
 from mail.utils.logger import init_logger
 
@@ -59,7 +58,9 @@ _http_session: aiohttp.ClientSession | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Handle startup and shutdown events."""
+    """
+    Handle startup and shutdown events.
+    """
     # Startup
     logger.info("MAIL server starting up...")
 
@@ -238,45 +239,57 @@ async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAILSwarm:
 
 @app.get("/")
 async def root():
-    logger.info("root endpoint accessed")
-    version = load_toml("pyproject.toml")["project"]["version"]
-    return {"name": "mail", "status": "ok", "version": version}
+    """
+    Return basic info about the server.
+    """
+    logger.info("endpoint accessed: 'GET /'")
+
+    try:
+        version = load_toml("pyproject.toml")["project"]["version"]
+    except Exception as e:
+        logger.error(f"error loading version: '{e}'")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"error loading version: {e}"
+        )
+
+    return types.GetRootResponse(
+        name="mail", 
+        status="ok", 
+        version=version
+    )
 
 
-@app.get("/status")
+@app.get("/status", dependencies=[Depends(utils.caller_is_admin_or_user)])
 async def status(request: Request):
-    """Get the status of the persistent swarm and user-specific MAIL instances."""
+    """
+    Get the status of the persistent swarm and user-specific MAIL instances.
+    """
+    logger.info("endpoint accessed: 'GET /status'")
+
     global persistent_swarm, user_mail_instances, user_mail_tasks
 
-    # Get user token from request
-    api_key = request.headers.get("Authorization")
-    if api_key and api_key.startswith("Bearer "):
-        jwt = await utils.login(api_key.split(" ")[1])
-        token_info = await utils.get_token_info(jwt)
-        user_id = utils.generate_user_id(token_info)
+    caller_info = await utils.extract_token_info(request)
+    caller_id = utils.generate_user_id(caller_info)
+    user_mail_status = caller_id in user_mail_instances
+    user_task_running = (
+        caller_id in user_mail_tasks and not user_mail_tasks[caller_id].done()
+        if caller_id in user_mail_tasks
+        else False
+    )
 
-        user_mail_status = user_id in user_mail_instances
-        user_task_running = (
-            user_id in user_mail_tasks and not user_mail_tasks[user_id].done()
-            if user_id in user_mail_tasks
-            else False
-        )
-    else:
-        user_mail_status = False
-        user_task_running = False
-
-    return {
-        "swarm": {
+    return types.GetStatusResponse(
+        swarm={
             "name": persistent_swarm.name if persistent_swarm else None,
             "status": "ready",
         },
-        "active_users": len(user_mail_instances),
-        "user_mail_ready": user_mail_status,
-        "user_task_running": user_task_running,
-    }
+        active_users=len(user_mail_instances),
+        user_mail_ready=user_mail_status,
+        user_task_running=user_task_running,
+    )
 
 
-@app.post("/message")
+@app.post("/message", dependencies=[Depends(utils.caller_is_admin_or_user)])
 async def message(request: Request):
     """
     Handle message requests from the client.
@@ -291,31 +304,18 @@ async def message(request: Request):
     Returns:
         A dictionary containing the response message.
     """
-    logger.info("message endpoint accessed")
+    logger.info("endpoint accessed: 'POST /message'")
 
-    # auth process
-    api_key = request.headers.get("Authorization")
-    if api_key is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
+    caller_info = await utils.extract_token_info(request)
+    caller_id = utils.generate_user_id(caller_info)
 
-    if api_key.startswith("Bearer "):
-        jwt = await utils.login(api_key.split(" ")[1])
-        logger.info(f"user authenticated with token: '{jwt[:8]}...'...")
-    else:
-        logger.warning("invalid API key format")
-        raise HTTPException(status_code=401, detail="invalid API key format")
-
-    token_info = await utils.get_token_info(jwt)
-    role = token_info["role"]
-    if (role != "user") and (role != "admin"):
-        logger.warning("invalid role")
-        raise HTTPException(status_code=401, detail="invalid role")
-    user_id = utils.generate_user_id(token_info)
+    # Extract bearer token from header for runtime instance params
+    auth_header = request.headers.get("Authorization", "")
+    jwt = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else ""
 
     # Get or create user-specific MAIL instance (for readiness tracking/interswarm)
     try:
-        await get_or_create_user_mail(user_id, jwt)
+        await get_or_create_user_mail(caller_id, jwt)
     except Exception as e:
         logger.error(f"error getting user MAIL instance: '{e}'")
         raise HTTPException(
@@ -335,7 +335,7 @@ async def message(request: Request):
             recipient_agent = default_entrypoint_agent
         show_events = data.get("show_events", False)
         stream = data.get("stream", False)
-        logger.info(f"received message from user '{user_id}': '{message[:50]}...'")
+        logger.info(f"received message from user or admin '{caller_id}': '{message[:50]}...'")
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
         raise HTTPException(
@@ -350,21 +350,21 @@ async def message(request: Request):
     try:
         assert persistent_swarm is not None
 
-        api_swarm = await get_or_create_user_mail(user_id, jwt)
+        api_swarm = await get_or_create_user_mail(caller_id, jwt) 
 
         # If client provided an explicit entrypoint, pass it through; otherwise use default
         chosen_entrypoint = recipient_agent
 
         if stream:
             logger.info(
-                f"submitting streamed message via MAIL API for user '{user_id}'..."
+                f"submitting streamed message via MAIL API for user or admin '{caller_id}'..."
             )
             return await api_swarm.post_message_stream(
                 subject="New Message", body=message, entrypoint=chosen_entrypoint
             )
         else:
             logger.info(
-                f"submitting message via MAIL API for user '{user_id}' and waiting..."
+                f"submitting message via MAIL API for user or admin '{caller_id}' and waiting..."
             )
             result = await api_swarm.post_message(
                 subject="New Message",
@@ -377,13 +377,14 @@ async def message(request: Request):
                 response, events = result
             else:
                 response, events = result, []  # type: ignore[misc]
-            if show_events:
-                return {"response": response["message"]["body"], "events": events}
-            else:
-                return {"response": response["message"]["body"]}
+            
+            return types.PostMessageResponse(
+                response=response["message"]["body"],
+                events=events if show_events else None,
+            )
 
     except Exception as e:
-        logger.error(f"error processing message for user '{user_id}' with error: '{e}'")
+        logger.error(f"error processing message for user or admin '{caller_id}' with error: '{e}'")
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
@@ -392,71 +393,52 @@ async def message(request: Request):
 
 @app.get("/health")
 async def health():
-    """Health check endpoint for interswarm communication."""
-    return {
-        "status": "healthy",
-        "swarm_name": local_swarm_name,
-        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-    }
+    """
+    Health check endpoint for interswarm communication.
+    """
+    logger.info("endpoint accessed: 'GET /health'")
+
+    return types.GetHealthResponse(
+        status="healthy",
+        swarm_name=local_swarm_name,
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+    )
 
 
 @app.get("/swarms")
 async def list_swarms():
-    """List all known swarms for service discovery."""
+    """
+    List all known swarms for service discovery.
+    """
+    logger.info("endpoint accessed: 'GET /swarms'")
+
     global swarm_registry
     if not swarm_registry:
         raise HTTPException(status_code=503, detail="swarm registry not available")
 
     endpoints = swarm_registry.get_all_endpoints()
-    swarms = []
 
-    for name, endpoint in endpoints.items():
-        swarms.append(
-            {
-                "name": endpoint["swarm_name"],
-                "base_url": endpoint["base_url"],
-                "is_active": endpoint["is_active"],
-                "last_seen": endpoint["last_seen"].isoformat()
-                if endpoint["last_seen"]
-                else None,
-                "metadata": endpoint["metadata"],
-            }
-        )
+    swarms = [types.SwarmEndpoint(**endpoint) for endpoint in endpoints.values()]
 
-    return {"swarms": swarms}
+    return types.GetSwarmsResponse(
+        swarms=swarms,
+    )
 
 
-@app.post("/swarms")
+@app.post("/swarms", dependencies=[Depends(utils.caller_is_admin)])
 async def register_swarm(request: Request):
     """
     Register a new swarm in the registry.
     Only admins can register new swarms.
     If "volatile" is False, the swarm will be persistent and will not be removed from the registry when the server shuts down.
     """
+    logger.info("endpoint accessed: 'POST /swarms'")
+
     global swarm_registry
     if not swarm_registry:
         raise HTTPException(status_code=503, detail="swarm registry not available")
 
     try:
-        # auth process
-        api_key = request.headers.get("Authorization")
-        if api_key is None:
-            logger.warning("no API key provided")
-            raise HTTPException(status_code=401, detail="no API key provided")
-
-        if api_key.startswith("Bearer "):
-            jwt = await utils.login(api_key.split(" ")[1])
-            logger.info(f"swarm registered with token: '{jwt[:8]}...'...")
-        else:
-            logger.warning("invalid API key format")
-            raise HTTPException(status_code=401, detail="invalid API key format")
-
-        token_info = await utils.get_token_info(jwt)
-        role = token_info["role"]
-        if role != "admin":
-            logger.warning("invalid role")
-            raise HTTPException(status_code=401, detail="invalid role")
-
         # parse request
         data = await request.json()
         swarm_name = data.get("name")
@@ -473,7 +455,10 @@ async def register_swarm(request: Request):
         swarm_registry.register_swarm(
             swarm_name, base_url, auth_token, metadata, volatile
         )
-        return {"status": "registered", "swarm_name": swarm_name}
+        return types.PostSwarmsResponse(
+            status="registered",
+            swarm_name=swarm_name,
+        )
 
     except Exception as e:
         logger.error(f"error registering swarm: '{e}'")
@@ -482,33 +467,16 @@ async def register_swarm(request: Request):
         )
 
 
-@app.get("/swarms/dump")
+@app.get("/swarms/dump", dependencies=[Depends(utils.caller_is_admin)])
 async def dump_swarm(request: Request):
+    """
+    Dump the persistent swarm to the console.
+    """
+    logger.info("endpoint accessed: 'GET /swarms/dump'")
+
     global persistent_swarm
 
     assert persistent_swarm is not None
-
-    logger.info("dump swarm endpoint accessed")
-
-    # auth
-    api_key = request.headers.get("Authorization")
-    if api_key is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
-
-    if api_key.startswith("Bearer "):
-        jwt = await utils.login(api_key.split(" ")[1])
-        logger.info("successfully authenticated")
-    else:
-        logger.warning("invalid API key format")
-        raise HTTPException(status_code=401, detail="invalid API key format")
-
-    # make sure the endpoint was hit by an admin
-    token_info = await utils.get_token_info(jwt)
-    role = token_info["role"]
-    if role != "admin":
-        logger.warning("invalid role for dumping swarm")
-        raise HTTPException(status_code=401, detail="invalid role for dumping swarm")
 
     # log da swarm
     logger.info(
@@ -516,37 +484,27 @@ async def dump_swarm(request: Request):
     )
 
     # all done!
-    return {"status": "dumped", "swarm_name": persistent_swarm.name}
+    return types.GetSwarmsDumpResponse(
+        status="dumped",
+        swarm_name=persistent_swarm.name,
+    )
 
 
-@app.post("/interswarm/message")
+@app.post("/interswarm/message", dependencies=[Depends(utils.caller_is_agent)])
 async def receive_interswarm_message(request: Request):
-    """Receive an interswarm message from another swarm."""
-    logger.info("interswarm message endpoint accessed")
+    """
+    Receive an interswarm message from another swarm.
+    """
+    logger.info("endpoint accessed: 'POST /interswarm/message'")
 
-    # auth process
-    api_key = request.headers.get("Authorization")
-    if api_key is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
-
-    if api_key.startswith("Bearer "):
-        jwt = await utils.login(api_key.split(" ")[1])
-        logger.info(f"agent authenticated with token: '{jwt[:8]}...'...")
-    else:
-        logger.warning("invalid API key format")
-        raise HTTPException(status_code=401, detail="invalid API key format")
-
-    token_info = await utils.get_token_info(jwt)
-    role = token_info["role"]
-    if role != "agent":
-        logger.warning("invalid role")
-        raise HTTPException(status_code=401, detail="invalid role")
-    swarm_id = utils.generate_agent_id(token_info)
+    caller_info = await utils.extract_token_info(request)
+    caller_id = utils.generate_agent_id(caller_info)
+    auth_header = request.headers.get("Authorization", "")
+    jwt = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else ""
 
     # Get or create swarm-specific MAIL instance
     try:
-        swarm_mail = await get_or_create_swarm_mail(swarm_id, jwt)
+        swarm_mail = await get_or_create_swarm_mail(caller_id, jwt)
     except Exception as e:
         logger.error(f"error getting swarm MAIL instance: '{e}'")
         raise HTTPException(
@@ -564,7 +522,7 @@ async def receive_interswarm_message(request: Request):
         target_agent = message.get("recipient", {})
 
         logger.info(
-            f"Received message from {source_agent} to {target_agent}: {message.get('subject', 'unknown')}..."
+            f"received message from {source_agent} to {target_agent}: {message.get('subject', 'unknown')}..."
         )
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
@@ -615,8 +573,7 @@ async def receive_interswarm_message(request: Request):
             msg_type="response",
         )
 
-        # Return response directly to the caller (remote router).
-        # Avoid sending a duplicate response via callback HTTP to prevent races.
+        # Return the MAILMessage directly to match expected shape.
         logger.info(f"MAIL completed successfully for swarm '{source_swarm}'")
         return response_message
 
@@ -630,29 +587,12 @@ async def receive_interswarm_message(request: Request):
         )
 
 
-@app.post("/interswarm/response")
+@app.post("/interswarm/response", dependencies=[Depends(utils.caller_is_agent)])
 async def receive_interswarm_response(request: Request):
-    """Receive an interswarm response from another swarm."""
-    logger.info("interswarm response endpoint accessed")
-
-    # auth process
-    api_key = request.headers.get("Authorization")
-    if api_key is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
-
-    if api_key.startswith("Bearer "):
-        jwt = await utils.login(api_key.split(" ")[1])
-        logger.info(f"response received with token: '{jwt[:8]}...'...")
-    else:
-        logger.warning("invalid API key format")
-        raise HTTPException(status_code=401, detail="invalid API key format")
-
-    token_info = await utils.get_token_info(jwt)
-    role = token_info["role"]
-    if role != "agent":
-        logger.warning("invalid role")
-        raise HTTPException(status_code=401, detail="invalid role")
+    """
+    Receive an interswarm response from another swarm.
+    """
+    logger.info("endpoint accessed: 'POST /interswarm/response'")
 
     # parse request
     try:
@@ -673,17 +613,16 @@ async def receive_interswarm_response(request: Request):
 
     # Try to find the MAIL instance that sent the original request
     task_id = response_message["message"]["task_id"]
-    request_id = response_message["message"].get("request_id", "")
 
     # Look through all MAIL instances to find one with pending requests
     mail_instance = None
-    for user_id, user_mail in user_mail_instances.items():
+    for _user_id, user_mail in user_mail_instances.items():
         if task_id in user_mail.get_pending_requests():
             mail_instance = user_mail
             break
 
     if not mail_instance:
-        for swarm_id, swarm_mail in swarm_mail_instances.items():
+        for _swarm_id, swarm_mail in swarm_mail_instances.items():
             if task_id in swarm_mail.get_pending_requests():
                 mail_instance = swarm_mail
                 break
@@ -693,92 +632,31 @@ async def receive_interswarm_response(request: Request):
         # with a proper MAILAddress. Route it into the runtime as-is.
         await mail_instance.handle_interswarm_response(response_message)
         logger.info(f"response submitted to MAIL instance for task '{task_id}'")
-        return {"status": "response_processed", "task_id": task_id}
+        return types.PostInterswarmResponseResponse(
+            status="response_processed",
+            task_id=task_id,
+        )
     else:
         logger.warning(f"no MAIL instance found for task '{task_id}'")
-        return {"status": "no_mail_instance", "task_id": task_id}
-
-
-async def _send_response_to_swarm(
-    target_swarm: str, response_message: MAILMessage
-) -> None:
-    """Send a response message to a specific swarm via HTTP."""
-    global swarm_registry
-
-    assert swarm_registry is not None
-
-    try:
-        endpoint = swarm_registry.get_swarm_endpoint(target_swarm)
-        if not endpoint:
-            logger.error(f"unknown swarm endpoint: '{target_swarm}'")
-            return
-
-        if not endpoint["is_active"]:
-            logger.warning(f"swarm '{target_swarm}' is not active")
-            return
-
-        # ensure both the sender and recipient are in the format of "agent@swarm"
-        response_message["message"]["sender"] = format_agent_address(
-            response_message["message"]["sender"]["address"], local_swarm_name
-        )
-        # response_message["message"]["recipient"] = format_agent_address(response_message["message"]["recipient"]["address"], target_swarm)
-
-        # Send response via HTTP
-        url = f"{endpoint['base_url']}/interswarm/response"
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": f"MAIL-Interswarm-Router/{local_swarm_name}",
-        }
-
-        auth_token = swarm_registry.get_resolved_auth_token(target_swarm)
-        if auth_token:
-            headers["Authorization"] = f"Bearer {auth_token}"
-
-        timeout = aiohttp.ClientTimeout(total=30)
-        global _http_session
-        if _http_session is None:
-            _http_session = aiohttp.ClientSession()
-        async with _http_session.post(
-            url, json=response_message, headers=headers, timeout=timeout
-        ) as response:
-            if response.status == 200:
-                logger.info(f"successfully sent response to swarm: '{target_swarm}'")
-            else:
-                logger.error(
-                    f"failed to send response to swarm '{target_swarm}' with status: '{response.status}'"
-                )
-
-    except Exception as e:
-        logger.error(
-            f"error sending response to swarm '{target_swarm}' with error: '{e}'"
+        return types.PostInterswarmResponseResponse(
+            status="no_mail_instance",
+            task_id=task_id,
         )
 
 
-@app.post("/interswarm/send")
+@app.post("/interswarm/send", dependencies=[Depends(utils.caller_is_admin_or_user)])
 async def send_interswarm_message(request: Request):
-    """Send an interswarm message to another swarm."""
+    """
+    Send an interswarm message to another swarm.
+    Intended for users and admins.
+    """
+    logger.info("endpoint accessed: 'POST /interswarm/send'")
+
     global swarm_registry, user_mail_instances
 
     try:
-        # auth process
-        api_key = request.headers.get("Authorization")
-        if api_key is None:
-            logger.warning("no API key provided")
-            raise HTTPException(status_code=401, detail="no API key provided")
-
-        if api_key.startswith("Bearer "):
-            jwt = await utils.login(api_key.split(" ")[1])
-            logger.info(f"response received with token: '{jwt[:8]}...'...")
-        else:
-            logger.warning("invalid API key format")
-            raise HTTPException(status_code=401, detail="invalid API key format")
-
-        token_info = await utils.get_token_info(jwt)
-        role = token_info["role"]
-        if (role != "user") and (role != "admin"):
-            logger.warning("invalid role")
-            raise HTTPException(status_code=401, detail="invalid role")
-        user_id = utils.generate_user_id(token_info)
+        caller_info = await utils.extract_token_info(request)
+        user_id = utils.generate_user_id(caller_info)
 
         # parse request
         data = await request.json()
@@ -817,7 +695,10 @@ async def send_interswarm_message(request: Request):
         # Route the message
         if mail_instance.enable_interswarm:
             response = await mail_instance.route_interswarm_message(mail_message)
-            return response
+            return types.PostInterswarmSendResponse(
+                response=response,
+                events=None,
+            )
         else:
             raise HTTPException(
                 status_code=503, detail="Interswarm router not available"
@@ -830,33 +711,15 @@ async def send_interswarm_message(request: Request):
         )
 
 
-@app.post("/swarms/load")
+@app.post("/swarms/load", dependencies=[Depends(utils.caller_is_admin)])
 async def load_swarm_from_json(request: Request):
-    global persistent_swarm
-
+    """
+    Load a swarm from a JSON string.
+    """
     # got to let them know (shouting emoji)
-    logger.info("send swarm endpoint accessed")
+    logger.info("endpoint accessed: 'POST /swarms/load'")
 
-    # verify that we have a key
-    api_key = request.headers.get("Authorization")
-    if api_key is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
-
-    # check that the key matches the bearer pattern
-    if api_key.startswith("Bearer "):
-        jwt = await utils.login(api_key.split(" ")[1])
-        logger.info(f"load swarm accessed with token: '{jwt[:8]}...'...")
-    else:
-        logger.warning("invalid API key format")
-        raise HTTPException(status_code=401, detail="invalid API key format")
-
-    # make sure the load endpoint was hit by an admin
-    token_info = await utils.get_token_info(jwt)
-    role = token_info["role"]
-    if role != "admin":
-        logger.warning("invalid role for building swarm")
-        raise HTTPException(status_code=401, detail="invalid role for building swarm")
+    global persistent_swarm
 
     # get the json string from the request
     data = await request.json()
@@ -865,7 +728,10 @@ async def load_swarm_from_json(request: Request):
     try:
         # try to load the swarm from string and set the persistent swarm
         persistent_swarm = MAILSwarmTemplate.from_swarm_json(swarm_json)
-        return {"status": "success", "swarm_name": persistent_swarm.name}
+        return types.PostSwarmsLoadResponse(
+            status="success",
+            swarm_name=persistent_swarm.name,
+        )
     except Exception as e:
         # shit hit the fan
         logger.error(f"error loading swarm from JSON: {e}")

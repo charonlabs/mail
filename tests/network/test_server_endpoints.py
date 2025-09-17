@@ -20,11 +20,20 @@ def test_status_without_auth():
 
     with TestClient(app) as client:
         r = client.get("/status")
+        assert r.status_code == 401
+
+
+@pytest.mark.usefixtures("patched_server")
+def test_status_with_auth():
+    from mail.server import app
+
+    with TestClient(app) as client:
+        r = client.get("/status", headers={"Authorization": "Bearer test-key"})
         assert r.status_code == 200
         data = r.json()
         assert data["swarm"]["status"] == "ready"
         assert data["user_mail_ready"] is False
-
+        
 
 @pytest.mark.usefixtures("patched_server")
 def test_message_flow_success():
