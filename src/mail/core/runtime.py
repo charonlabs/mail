@@ -19,18 +19,17 @@ from mail.utils.store import get_langmem_store
 
 from .executor import execute_action_tool
 from .message import (
+    MAILAddress,
     MAILBroadcast,
     MAILMessage,
     MAILResponse,
     build_mail_xml,
     create_agent_address,
     create_system_address,
-    create_user_address,
     parse_agent_address,
 )
 from .tools import (
     MAIL_TOOL_NAMES,
-    action_complete_broadcast,
     convert_call_to_mail_message,
 )
 
@@ -149,7 +148,6 @@ class MAILRuntime:
             return self._system_shutdown_message("MAIL already running")
 
         self.is_running = True
-        self.response_to_user = None
 
         try:
             while True:
@@ -174,10 +172,12 @@ class MAILRuntime:
                     # Check if shutdown was requested
                     if shutdown_task in done:
                         logger.info(f"shutdown requested for user '{self.user_id}'...")
-                        self.response_to_user = self._system_shutdown_message(
-                            "shutdown requested"
+                        return self._system_broadcast(
+                            task_id="null",
+                            subject="Shutdown Requested",
+                            body="The shutdown was requested.",
+                            task_complete=True,
                         )
-                        break
 
                     # Process the message
                     message_tuple = get_message_task.result()
@@ -190,31 +190,43 @@ class MAILRuntime:
                     if message["msg_type"] == "broadcast_complete":
                         # Mark this message as done before breaking
                         self.message_queue.task_done()
-                        self.response_to_user = message
-                        break
+                        return message
 
-                    self._process_message(message, _action_override)
+                    await self._process_message(message, _action_override)
                     # Note: task_done() is called by the schedule function for regular messages
 
                 except asyncio.CancelledError:
                     logger.info(
                         f"run loop cancelled for user '{self.user_id}', initiating shutdown..."
                     )
-                    self.response_to_user = self._system_shutdown_message(
-                        "run loop cancelled"
+                    self._submit_event(
+                        "run_loop_cancelled",
+                        message["message"]["task_id"],
+                        f"run loop for user '{self.user_id}' cancelled",
                     )
-                    break
+                    return self._system_broadcast(
+                        task_id=message["message"]["task_id"],
+                        subject="Run Loop Cancelled",
+                        body="The run loop was cancelled.",
+                        task_complete=True,
+                    )
                 except Exception as e:
                     logger.error(
                         f"error in run loop for user '{self.user_id}' with error: '{e}'"
                     )
-                    self.response_to_user = self._system_shutdown_message(
-                        f"error in run loop: {e}"
+                    self._submit_event(
+                        "run_loop_error",
+                        message["message"]["task_id"],
+                        f"error in run loop for user '{self.user_id}' with error: '{e}'",
                     )
-                    break
+                    return self._system_broadcast(
+                        task_id=message["message"]["task_id"],
+                        subject="Error in run loop",
+                        body=f"An error occurred while running the MAIL system: '{e}'",
+                        task_complete=True,
+                    )
         finally:
             self.is_running = False
-            return self.response_to_user  # type: ignore
 
     async def run_continuous(
         self, _action_override: ActionOverrideFunction | None = None
@@ -251,6 +263,11 @@ class MAILRuntime:
                     logger.info(
                         f"shutdown requested in continuous mode for user '{self.user_id}'..."
                     )
+                    self._submit_event(
+                        "shutdown_requested",
+                        f"* for user '{self.user_id}'",
+                        "shutdown requested in continuous mode",
+                    )
                     break
 
                 # Process the message
@@ -280,17 +297,27 @@ class MAILRuntime:
                         self.message_queue.task_done()
                         continue
 
-                self._process_message(message, _action_override)
+                await self._process_message(message, _action_override)
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
                 logger.info(
                     f"continuous run loop cancelled for user '{self.user_id}'..."
                 )
+                self._submit_event(
+                    "run_loop_cancelled",
+                    f"* for user '{self.user_id}'",
+                    "continuous run loop cancelled",
+                )
                 break
             except Exception as e:
                 logger.error(
                     f"error in continuous run loop for user '{self.user_id}' with error: '{e}'"
+                )
+                self._submit_event(
+                    "run_loop_error",
+                    f"* for user '{self.user_id}'",
+                    f"continuous run loop error: '{e}'",
                 )
                 # Continue processing other messages instead of shutting down
                 continue
@@ -307,7 +334,7 @@ class MAILRuntime:
         task_id = message["message"]["task_id"]
 
         logger.info(
-            f"submitAndWait: creating future for task '{task_id}' for user '{self.user_id}'"
+            f"'submit_and_wait': creating future for task '{task_id}' for user '{self.user_id}'"
         )
 
         # Create a future to wait for the response
@@ -316,14 +343,14 @@ class MAILRuntime:
 
         try:
             # Submit the message
-            logger.info(f"submitAndWait: submitting message for task '{task_id}'")
+            logger.info(f"'submit_and_wait': submitting message for task '{task_id}'")
             await self.submit(message)
 
             # Wait for the response with timeout
-            logger.info(f"submitAndWait: waiting for future for task '{task_id}'")
+            logger.info(f"'submit_and_wait': waiting for future for task '{task_id}'")
             response = await asyncio.wait_for(future, timeout=timeout)
             logger.info(
-                f"submitAndWait: got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
+                f"'submit_and_wait': got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
             )
             self._submit_event(
                 "task_complete", task_id, f"response: '{response['message']['body']}'"
@@ -333,17 +360,27 @@ class MAILRuntime:
         except TimeoutError:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
-            logger.error(f"submitAndWait: timeout for task '{task_id}'")
-            raise TimeoutError(
-                f"task '{task_id}' for user '{self.user_id}' timed out after {timeout} seconds"
+            logger.error(f"'submit_and_wait': timeout for task '{task_id}'")
+            self._submit_event("task_error", task_id, f"timeout for task '{task_id}'")
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="Task Timeout",
+                body="The task timed out.",
+                task_complete=True,
             )
         except Exception as e:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
             logger.error(
-                f"submitAndWait: exception for task '{task_id}' with error: '{e}'"
+                f"'submit_and_wait': exception for task '{task_id}' with error: '{e}'"
             )
-            raise e
+            self._submit_event("task_error", task_id, f"error for task: '{e}'")
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="Task Error",
+                body=f"The task encountered an error: '{e}'.",
+                task_complete=True,
+            )
 
     async def submit_and_stream(
         self, message: MAILMessage, timeout: float = 3600.0
@@ -355,7 +392,7 @@ class MAILRuntime:
         task_id = message["message"]["task_id"]
 
         logger.info(
-            f"submitAndStream: creating future for task '{task_id}' for user '{self.user_id}'"
+            f"'submit_and_stream': creating future for task '{task_id}' for user '{self.user_id}'"
         )
 
         future: asyncio.Future[MAILMessage] = asyncio.Future()
@@ -393,8 +430,11 @@ class MAILRuntime:
                 for ev in events_to_emit:
                     try:
                         self.events.append(ev)
-                    except Exception:
+                    except Exception as e:
                         # Never let history tracking break streaming
+                        logger.error(
+                            f"'submit_and_stream': exception for task '{task_id}' with error: '{e}'"
+                        )
                         pass
                     try:
                         if (
@@ -402,8 +442,11 @@ class MAILRuntime:
                             and ev.data.get("task_id") == task_id
                         ):  # type: ignore
                             yield ev
-                    except Exception:
+                    except Exception as e:
                         # Be tolerant to malformed event data
+                        logger.error(
+                            f"'submit_and_stream': exception for task '{task_id}' with error: '{e}'"
+                        )
                         continue
 
             # Future completed; emit a final task_complete event with the response body
@@ -411,39 +454,51 @@ class MAILRuntime:
                 response = future.result()
                 yield ServerSentEvent(
                     data={
-                        "timestamp": datetime.datetime.now(
-                            datetime.UTC
-                        ).isoformat(),
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": response["message"]["body"],
                     },
                     event="task_complete",
                 )
-            except Exception:
+            except Exception as e:
                 # If retrieving the response fails, still signal completion
+                logger.error(
+                    f"'submit_and_stream': exception for task '{task_id}' with error: '{e}'"
+                )
                 yield ServerSentEvent(
                     data={
-                        "timestamp": datetime.datetime.now(
-                            datetime.UTC
-                        ).isoformat(),
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
+                        "response": f"{e}",
                     },
-                    event="task_complete",
+                    event="task_error",
                 )
 
         except TimeoutError:
             self.pending_requests.pop(task_id, None)
-            logger.error(f"submitAndStream: timeout for task '{task_id}'")
-            raise TimeoutError(
-                f"task '{task_id}' for user '{self.user_id}' timed out after {timeout} seconds"
+            logger.error(f"'submit_and_stream': timeout for task '{task_id}'")
+            yield ServerSentEvent(
+                data={
+                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                    "task_id": task_id,
+                    "response": "timeout",
+                },
+                event="task_error",
             )
 
         except Exception as e:
             self.pending_requests.pop(task_id, None)
             logger.error(
-                f"submitAndStream: exception for task '{task_id}' with error: '{e}'"
+                f"'submit_and_stream': exception for task '{task_id}' with error: '{e}'"
             )
-            raise e
+            yield ServerSentEvent(
+                data={
+                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                    "task_id": task_id,
+                    "response": f"{e}",
+                },
+                event="task_error",
+            )
 
     async def shutdown(self) -> None:
         """
@@ -466,12 +521,12 @@ class MAILRuntime:
         # Graceful shutdown: wait for all active tasks to complete
         if self.active_tasks:
             logger.info(
-                f"waiting for {len(self.active_tasks)} active tasks to complete..."
+                f"waiting for {len(self.active_tasks)} active tasks to complete for user '{self.user_id}'..."
             )
             # Copy the set to avoid modification during iteration
             tasks_to_wait = list(self.active_tasks)
             logger.info(
-                f"tasks to wait for: {[task.get_name() if hasattr(task, 'get_name') else str(task) for task in tasks_to_wait]}"
+                f"tasks to wait for for user '{self.user_id}': {[task.get_name() if hasattr(task, 'get_name') else str(task) for task in tasks_to_wait]}"
             )
 
             try:
@@ -479,15 +534,17 @@ class MAILRuntime:
                 await asyncio.wait_for(
                     asyncio.gather(*tasks_to_wait, return_exceptions=True), timeout=30.0
                 )
-                logger.info("all active tasks completed.")
+                logger.info(f"all active tasks completed for user '{self.user_id}'")
             except TimeoutError:
                 logger.info(
-                    "timeout waiting for tasks to complete. cancelling remaining tasks..."
+                    f"timeout waiting for tasks to complete for user '{self.user_id}'. cancelling remaining tasks..."
                 )
                 # Cancel any remaining tasks
                 for task in tasks_to_wait:
                     if not task.done():
-                        logger.info(f"cancelling task: {task}")
+                        logger.info(
+                            f"cancelling task for user '{self.user_id}': {task}"
+                        )
                         task.cancel()
                 # Wait a bit more for cancellation to complete
                 try:
@@ -496,22 +553,25 @@ class MAILRuntime:
                         timeout=5.0,
                     )
                 except TimeoutError:
-                    logger.info("some tasks could not be cancelled cleanly.")
-                logger.info("task cancellation completed.")
+                    logger.info(
+                        f"some tasks could not be cancelled cleanly for user '{self.user_id}'"
+                    )
+                logger.info(f"task cancellation completed for user '{self.user_id}'")
             except Exception as e:
-                logger.error(f"error during shutdown: {e}")
+                logger.error(f"error during shutdown for user '{self.user_id}': {e}")
         else:
-            logger.info("no active tasks to wait for.")
+            logger.info(f"user '{self.user_id}' has no active tasks to wait for")
 
-        logger.info("graceful shutdown completed.")
+        logger.info(f"graceful shutdown completed for user '{self.user_id}'")
 
     async def submit(self, message: MAILMessage) -> None:
         """
         Add a message to the priority queue
         Priority order:
-        1. Interrupt
-        2. Broadcast
-        3. Request/response
+        1. System message of any type
+        2. Interrupt, broadcast_complete
+        3. Broadcast
+        4. Request, response
         Within each category, messages are processed in FIFO order using a
         monotonically increasing sequence number to avoid dict comparisons.
         """
@@ -541,7 +601,7 @@ class MAILRuntime:
 
         return
 
-    def _process_message(
+    async def _process_message(
         self,
         message: MAILMessage,
         action_override: ActionOverrideFunction | None = None,
@@ -580,7 +640,7 @@ class MAILRuntime:
                 return
 
         # Fall back to local processing
-        self._process_local_message(message, action_override)
+        await self._process_local_message(message, action_override)
 
     async def _route_interswarm_message(self, message: MAILMessage) -> None:
         """
@@ -590,19 +650,134 @@ class MAILRuntime:
             try:
                 response = await self.interswarm_router.route_message(message)
                 logger.info(
-                    f"received response from remote swarm, enqueuing for local processing: '{response['id']}'"
+                    f"received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
                 )
+
+                # If this response corresponds to an active user task and is
+                # addressed to our entrypoint (e.g., supervisor), auto-complete
+                # the task instead of re-invoking the agent to avoid ping-pong.
+                try:
+                    if response.get("msg_type") == "response" and isinstance(
+                        response.get("message", {}), dict
+                    ):
+                        msg = response["message"]
+                        task_id = msg.get("task_id")
+                        recipient = msg.get("recipient", {})
+                        sender_swarm = msg.get("sender_swarm")
+
+                        # recipient is a MAILAddress dict with `address`
+                        recipient_addr = (
+                            recipient.get("address")
+                            if isinstance(recipient, dict)
+                            else None
+                        )
+
+                        should_autocomplete = (
+                            task_id in self.pending_requests
+                            and isinstance(recipient_addr, str)
+                            and recipient_addr.split("@")[0] == self.entrypoint
+                            and sender_swarm is not None
+                            and sender_swarm != self.swarm_name
+                        )
+
+                        if should_autocomplete and task_id is not None:
+                            # Build a broadcast_complete-style message for consistency
+                            complete_message = MAILMessage(
+                                id=str(uuid.uuid4()),
+                                timestamp=datetime.datetime.now(
+                                    datetime.UTC
+                                ).isoformat(),
+                                message=MAILBroadcast(
+                                    task_id=task_id,
+                                    broadcast_id=str(uuid.uuid4()),
+                                    sender=create_agent_address(self.entrypoint),
+                                    recipients=[create_agent_address("all")],
+                                    subject="Task complete",
+                                    body=msg.get("body", "(empty body)"),
+                                    sender_swarm=self.swarm_name,
+                                    recipient_swarms=[self.swarm_name],
+                                    routing_info={},
+                                ),
+                                msg_type="broadcast_complete",
+                            )
+
+                            # Resolve the pending future immediately to end the task
+                            future = self.pending_requests.pop(task_id)
+                            if not future.done():
+                                logger.info(
+                                    f"auto-completing task '{task_id}' from interswarm response to '{recipient_addr}'"
+                                )
+                                future.set_result(complete_message)
+                            else:
+                                logger.warning(
+                                    f"future for task '{task_id}' already done when auto-completing"
+                                )
+
+                            # Do not enqueue the raw response; we've completed the task
+                            return
+
+                except Exception as e:
+                    logger.error(f"error during interswarm auto-complete check: '{e}'")
+                    self._submit_event(
+                        "router_error",
+                        task_id,
+                        f"error during interswarm auto-complete check: '{e}'",
+                    )
+                    await self.submit(
+                        self._system_response(
+                            task_id=message["message"]["task_id"],
+                            recipient=message["message"]["sender"],
+                            subject="Router Error",
+                            body=f"""An error occurred while auto-completing task '{task_id}' from interswarm response to '{recipient_addr}'.
+The MAIL interswarm router encountered the following error: '{e}'
+Use this information to decide how to complete your task.""",
+                        )
+                    )
+
+                # Default behavior: enqueue response for local processing
                 await self.submit(response)
             except Exception as e:
                 logger.error(f"error in interswarm routing: '{e}'")
-                # Fall back to local processing for failed interswarm messages
-                self._process_local_message(message)
+
+                self._submit_event(
+                    "router_error",
+                    message["message"]["task_id"],
+                    f"error in interswarm routing: '{e}'",
+                )
+
+                # inform the sender that the message was not delivered
+                await self.submit(
+                    self._system_response(
+                        task_id=message["message"]["task_id"],
+                        recipient=message["message"]["sender"],
+                        subject="Router Error",
+                        body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
+The MAIL interswarm router encountered the following error: '{e}'
+If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
+                    )
+                )
         else:
             logger.error("interswarm router not available")
-            # Fall back to local processing
-            self._process_local_message(message)
 
-    def _process_local_message(
+            self._submit_event(
+                "router_error",
+                message["message"]["task_id"],
+                "interswarm router not available",
+            )
+
+            # inform the sender that the message was not delivered
+            await self.submit(
+                self._system_response(
+                    task_id=message["message"]["task_id"],
+                    recipient=message["message"]["sender"],
+                    subject="Router Error",
+                    body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
+The MAIL interswarm router is not currently available.
+If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
+                )
+            )
+
+    async def _process_local_message(
         self,
         message: MAILMessage,
         action_override: ActionOverrideFunction | None = None,
@@ -637,22 +812,54 @@ class MAILRuntime:
                     if recipient_agent == self.user_id:
                         self._send_message(
                             sender_agent,
+                            self._submit_event(
+                                "agent_error",
+                                message["message"]["task_id"],
+                                f"agent '{message['message']['sender']['address']}' attempted to send a message to the user ('{self.user_id}')",
+                            ),
                             self._system_response(
-                                message,
-                                "Improper response to user",
-                                f"""The user ('{self.user_id}') is unable to respond to this message. 
-To respond to the user once their requested task is complete, use the 'task_complete' tool.""",
+                                task_id=message["message"]["task_id"],
+                                recipient=create_agent_address(recipient),
+                                subject="Improper response to user",
+                                body=f"""The user ('{self.user_id}') is unable to respond to your message. 
+If the user's task is complete, use the 'task_complete' tool.
+Otherwise, continue working with your agents to complete the user's task.""",
                             ),
                             action_override,
                         )
+                    elif recipient_agent == self.swarm_name:
+                        self._submit_event(
+                            "task_error",
+                            message["message"]["task_id"],
+                            f"agent '{recipient_agent}' is the swarm name; message from '{message['message']['sender']['address']}' cannot be delivered to it",
+                        )
+                        await self.submit(
+                            self._system_broadcast(
+                                task_id=message["message"]["task_id"],
+                                subject="Error: System-to-system message",
+                                body=f"""A message was detected with sender '{message["message"]["sender"]["address"]}' and recipient '{recipient_agent}'.
+This likely means that an error message intended for an agent was sent to the system.
+This, in turn, was probably caused by an agent failing to respond to a system response.
+In order to prevent infinite loops, system-to-system messages immediately end the task.""",
+                                task_complete=True,
+                            )
+                        )
+                        return None
                     else:
                         # otherwise, just a normal unknown agent
+                        self._submit_event(
+                            "agent_error",
+                            message["message"]["task_id"],
+                            f"agent '{recipient_agent}' is unknown; message from '{message['message']['sender']['address']}' cannot be delivered to it",
+                        )
                         self._send_message(
                             sender_agent,
                             self._system_response(
-                                message,
-                                f"Unknown Agent: '{recipient_agent}'",
-                                f"The agent '{recipient_agent}' is not known to this swarm.",
+                                task_id=message["message"]["task_id"],
+                                recipient=create_agent_address(recipient),
+                                subject=f"Unknown Agent: '{recipient_agent}'",
+                                body=f"""The agent '{recipient_agent}' is not known to this swarm.
+Your directly reachable agents can be found in the tool definitions for `send_request` and `send_response`.""",
                             ),
                             action_override,
                         )
@@ -668,7 +875,7 @@ To respond to the user once their requested task is complete, use the 'task_comp
         action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
-        Send a message to a recipient
+        Send a message to a recipient.
         """
         logger.info(
             f'sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
@@ -680,16 +887,27 @@ To respond to the user once their requested task is complete, use the 'task_comp
         )
 
         async def schedule(message: MAILMessage) -> None:
+            """
+            Schedule a message for processing.
+            Agent functions are called here.
+            """
             try:
+                # prepare the message for agent input
                 task_id = message["message"]["task_id"]
                 incoming_message = build_mail_xml(message)
                 history = self.agent_histories[recipient]
                 history.append(incoming_message)
+
+                # agent function is called here
                 out, results = await self.agents[recipient](history, "required")
+
+                # append the agent's response to the history
                 if results[0].completion:
                     history.append(results[0].completion)
                 else:
                     history.extend(results[0].responses)
+
+                # append the agent's tool responses to the history
                 for tc in results:
                     if tc.tool_name in MAIL_TOOL_NAMES:
                         result_message = tc.create_response_msg(
@@ -697,6 +915,7 @@ To respond to the user once their requested task is complete, use the 'task_comp
                         )
                         history.append(result_message)
 
+                # handle tool calls
                 for call in results:
                     match call.tool_name:
                         case "acknowledge_broadcast":
@@ -735,10 +954,38 @@ To respond to the user once their requested task is complete, use the 'task_comp
                                         )
                                 else:
                                     logger.debug(
-                                        "acknowledge_broadcast used on non-broadcast message; ignoring"
+                                        f"agent '{recipient}' used 'acknowledge_broadcast' on a '{message['msg_type']}'"
+                                    )
+                                    await self.submit(
+                                        self._system_response(
+                                            task_id=task_id,
+                                            recipient=create_agent_address(recipient),
+                                            subject="Improper use of `acknowledge_broadcast`",
+                                            body=f"""The `acknowledge_broadcast` tool cannot be used in response to a message of type '{message["msg_type"]}'.
+If your sender's message is a 'request', consider using `send_response` instead.
+Otherwise, determine the best course of action to complete your task.""",
+                                        )
                                     )
                             except Exception as e:
-                                logger.error(f"error acknowledging broadcast: '{e}'")
+                                logger.error(
+                                    f"error acknowledging broadcast for agent '{recipient}': '{e}'"
+                                )
+                                self._submit_event(
+                                    "agent_error",
+                                    task_id,
+                                    f"error acknowledging broadcast for agent '{recipient}': '{e}'",
+                                )
+                                await self.submit(
+                                    self._system_response(
+                                        task_id=task_id,
+                                        recipient=create_agent_address(recipient),
+                                        subject=f"Error acknowledging broadcast from '{message['message']['sender']['address']}'",
+                                        body=f"""An error occurred while acknowledging the broadcast from '{message["message"]["sender"]["address"]}'.
+Specifically, the MAIL runtime encountered the following error: '{e}'.
+It is possible that the `acknowledge_broadcast` tool is not implemented properly.
+Use this information to decide how to complete your task.""",
+                                    )
+                                )
                             # No outgoing message submission for acknowledge
                         case "ignore_broadcast":
                             # Explicitly ignore without storing or responding
@@ -813,36 +1060,56 @@ To respond to the user once their requested task is complete, use the 'task_comp
                                     )
                                 )
                         case _:
-                            logger.info(f"executing action tool: '{call.tool_name}'")
-                            self._submit_event(
-                                "action_tool_call",
-                                task_id,
-                                f"executing action tool (caller = '{recipient}'):\n'{call}'",  # type: ignore
-                            )  # type: ignore
-                            result_message = await execute_action_tool(
-                                call, self.actions, action_override
-                            )
-                            history.append(result_message)
-                            result_content = (
-                                result_message.get("content")
-                                if call.completion
-                                else result_message.get("output")
+                            logger.info(
+                                f"agent '{recipient}' executing action tool: '{call.tool_name}'"
                             )
                             self._submit_event(
-                                "action_tool_complete",
+                                "action_call",
                                 task_id,
-                                f"action tool complete (caller = '{recipient}'):\n'{result_content}'",  # type: ignore
-                            )  # type: ignore
-                            await self.submit(
-                                action_complete_broadcast(
-                                    call.tool_name,
-                                    result_message,
-                                    self.swarm_name,
-                                    recipient,
-                                    task_id,
+                                f"agent '{recipient}' executing action tool: '{call.tool_name}'",
+                            )
+                            try:
+                                result_message = await execute_action_tool(
+                                    call, self.actions, action_override
                                 )
-                            )
-                # self.agent_histories[recipient] = history[1:]
+                                history.append(result_message)
+                                result_content = (
+                                    result_message.get("content")
+                                    if call.completion
+                                    else result_message.get("output")
+                                )
+                                self._submit_event(
+                                    "action_complete",
+                                    task_id,
+                                    f"action complete (caller = '{recipient}'):\n'{result_content}'",
+                                )
+                                await self.submit(
+                                    self._system_broadcast(
+                                        task_id=task_id,
+                                        subject=f"Action Tool Complete: `{call.tool_name}`",
+                                        body=result_content,
+                                        recipients=[create_agent_address(recipient)],
+                                    )
+                                )
+                            except Exception as e:
+                                logger.error(f"error executing action tool: '{e}'")
+                                self._submit_event(
+                                    "action_error",
+                                    task_id,
+                                    f"action error (caller = '{recipient}'):\n'{e}'",
+                                )
+                                await self.submit(
+                                    self._system_broadcast(
+                                        task_id=task_id,
+                                        subject=f"Error executing action tool `{call.tool_name}`",
+                                        body=f"""An error occurred while executing the action tool `{call.tool_name}`.
+Specifically, the MAIL runtime encountered the following error: '{e}'.
+It is possible that the action tool `{call.tool_name}` is not implemented properly.
+Use this information to decide how to complete your task.""",
+                                        recipients=[create_agent_address(recipient)],
+                                    )
+                                )
+
                 last_user_idx = max(
                     i for i, msg in enumerate(history) if msg.get("role") == "user"
                 )
@@ -850,6 +1117,24 @@ To respond to the user once their requested task is complete, use the 'task_comp
                 while trimmed and trimmed[0].get("role") == "tool":
                     trimmed = trimmed[1:]
                 self.agent_histories[recipient] = trimmed
+            except Exception as e:
+                logger.error(f"error scheduling message for agent '{recipient}': '{e}'")
+                self._submit_event(
+                    "agent_error",
+                    task_id,
+                    f"error scheduling message for recipient '{recipient}': '{e}'",
+                )
+                await self.submit(
+                    self._system_response(
+                        task_id=task_id,
+                        recipient=message["message"]["sender"],
+                        subject=f"Agent Error: '{recipient}'",
+                        body=f"""An error occurred while scheduling the message for agent '{recipient}'.
+Specifically, the MAIL runtime encountered the following error: '{e}'.
+It is possible that the agent function for '{recipient}' is not valid.
+Use this information to decide how to complete your task.""",
+                    )
+                )
             finally:
                 self.message_queue.task_done()
 
@@ -860,39 +1145,60 @@ To respond to the user once their requested task is complete, use the 'task_comp
 
         return None
 
-    def _system_shutdown_message(self, reason: str) -> MAILMessage:
+    def _system_broadcast(
+        self,
+        task_id: str,
+        subject: str,
+        body: str,
+        task_complete: bool = False,
+        recipients: list[MAILAddress] | None = None,
+    ) -> MAILMessage:
         """
-        Create a system shutdown message.
+        Create a system broadcast message.
         """
+        if recipients is None and not task_complete:
+            raise ValueError(
+                "recipients must be provided for non-task-complete broadcasts"
+            )
+
         return MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILBroadcast(
-                task_id=str(uuid.uuid4()),
+                task_id=task_id,
                 broadcast_id=str(uuid.uuid4()),
                 sender=create_system_address(self.swarm_name),
-                recipients=[create_user_address(self.user_id)],
-                subject="System Shutdown",
-                body=reason,
+                recipients=[create_agent_address("all")]
+                if task_complete
+                else recipients,
+                subject=subject,
+                body=body,
                 sender_swarm=self.swarm_name,
                 recipient_swarms=[self.swarm_name],
                 routing_info={},
             ),
-            msg_type="response",
+            msg_type="broadcast" if not task_complete else "broadcast_complete",
         )
 
-    def _system_response(self, message: MAILMessage, subject: str, body: str) -> MAILMessage:
+    def _system_response(
+        self,
+        task_id: str,
+        subject: str,
+        body: str,
+        recipient: MAILAddress,
+    ) -> MAILMessage:
         """
-        Create a system response message.
+        Create a system response message for a recipient.
+        Said recipient must be either an agent or the user.
         """
         return MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILResponse(
-                task_id=message["message"]["task_id"],
+                task_id=task_id,
                 request_id=str(uuid.uuid4()),
                 sender=create_system_address(self.swarm_name),
-                recipient=create_user_address(self.user_id),
+                recipient=recipient,
                 subject=subject,
                 body=body,
                 sender_swarm=self.swarm_name,
@@ -909,9 +1215,7 @@ To respond to the user once their requested task is complete, use the 'task_comp
         self.new_events.append(
             ServerSentEvent(
                 data={
-                    "timestamp": datetime.datetime.now(
-                        datetime.UTC
-                    ).isoformat(),
+                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "description": description,
                     "task_id": task_id,
                 },

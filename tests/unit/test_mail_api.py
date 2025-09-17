@@ -84,7 +84,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "tests.conftest:make_stub_agent", 
+                "factory": "tests.conftest:make_stub_agent",
                 "comm_targets": ["analyst"],
                 "can_complete_tasks": True,
                 "actions": [],
@@ -178,7 +178,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
                     "comm_targets": ["supervisor"],
                     "actions": [],
                     "agent_params": {},
-                }
+                },
             ],
             "actions": [],
             "entrypoint": "supervisor",

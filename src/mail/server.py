@@ -617,9 +617,7 @@ async def receive_interswarm_message(request: Request):
 
         # Return response directly to the caller (remote router).
         # Avoid sending a duplicate response via callback HTTP to prevent races.
-        logger.info(
-            f"MAIL completed successfully for swarm '{source_swarm}'"
-        )
+        logger.info(f"MAIL completed successfully for swarm '{source_swarm}'")
         return response_message
 
     except Exception as e:
@@ -744,9 +742,7 @@ async def _send_response_to_swarm(
             url, json=response_message, headers=headers, timeout=timeout
         ) as response:
             if response.status == 200:
-                logger.info(
-                    f"successfully sent response to swarm: '{target_swarm}'"
-                )
+                logger.info(f"successfully sent response to swarm: '{target_swarm}'")
             else:
                 logger.error(
                     f"failed to send response to swarm '{target_swarm}' with status: '{response.status}'"

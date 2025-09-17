@@ -143,7 +143,9 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     def _factory(**kwargs: Any):  # noqa: ANN001, ANN003, ARG001
         return make_stub_agent(
             comm_targets=["analyst"],
-            tools=[{"name": "task_complete", "args": {"finish_message": "Task finished"}}],
+            tools=[
+                {"name": "task_complete", "args": {"finish_message": "Task finished"}}
+            ],
         )
 
     stub_swarm = MAILSwarmTemplate(

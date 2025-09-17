@@ -1,6 +1,6 @@
 import datetime
 import json
-import random
+from random import Random
 from typing import Any
 
 
@@ -16,13 +16,17 @@ async def get_weather_forecast(args: dict[str, Any]) -> str:
         return f"Error: {e} is required"
 
     # generate a random weather forecast
+    # on any given day, the forecast should yield the same result for the same location
+    # otherwise the weather agent will be confused
+    day = datetime.datetime.now(datetime.UTC).day
+    rng = Random()
+    rng.seed(location + str(days_ahead) + str(day))
     forecast = {
         "location": location,
         "date": str(
-            datetime.datetime.now(datetime.UTC)
-            + datetime.timedelta(days=days_ahead)
+            datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=days_ahead)
         ),
-        "condition": random.choice(
+        "condition": rng.choice(
             [
                 "clear",
                 "mostly clear",
@@ -34,7 +38,7 @@ async def get_weather_forecast(args: dict[str, Any]) -> str:
                 "heavy precipitation",
             ]
         ),
-        "temperature": random.randint(-15, 35) if metric else random.randint(5, 95),
+        "temperature": rng.randint(-15, 35) if metric else rng.randint(5, 95),
         "units": "C" if metric else "F",
     }
 

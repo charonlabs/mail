@@ -17,7 +17,6 @@ from .runtime import MAILRuntime
 from .tools import (
     MAIL_TOOL_NAMES,
     AgentToolCall,
-    action_complete_broadcast,
     convert_call_to_mail_message,
     create_acknowledge_broadcast_tool,
     create_broadcast_tool,
@@ -50,7 +49,6 @@ __all__ = [
     "MAILRuntime",
     "MAIL_TOOL_NAMES",
     "AgentToolCall",
-    "action_complete_broadcast",
     "convert_call_to_mail_message",
     "create_acknowledge_broadcast_tool",
     "create_broadcast_tool",

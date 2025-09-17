@@ -8,7 +8,7 @@ AUTH_ENDPOINT = os.getenv("AUTH_ENDPOINT")
 TOKEN_INFO_ENDPOINT = os.getenv("TOKEN_INFO_ENDPOINT")
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-logger = logging.getLogger("mail")
+logger = logging.getLogger("mail.auth")
 
 
 async def login(api_key: str) -> str:
