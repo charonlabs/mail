@@ -898,7 +898,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
                 history = self.agent_histories[recipient]
-                if not message.message.subject.startswith("Action Tool Complete"):
+                if not message["message"]["subject"].startswith("Action Tool Complete"):
                     incoming_message = build_mail_xml(message)
                     history.append(incoming_message)
 
