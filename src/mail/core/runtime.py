@@ -1113,13 +1113,7 @@ Use this information to decide how to complete your task.""",
                                     )
                                 )
 
-                last_user_idx = max(
-                    i for i, msg in enumerate(history) if msg.get("role") == "user"
-                )
-                trimmed = history[last_user_idx:] if last_user_idx >= 0 else history
-                while trimmed and trimmed[0].get("role") == "tool":
-                    trimmed = trimmed[1:]
-                self.agent_histories[recipient] = trimmed
+                self.agent_histories[recipient] = history
             except Exception as e:
                 logger.error(f"error scheduling message for agent '{recipient}': '{e}'")
                 self._submit_event(
