@@ -3,7 +3,7 @@
 ## Agents
 - An **agent** is an async callable created by a factory that takes a chat history and can emit tool calls ([src/mail/api.py](/src/mail/api.py), [src/mail/factories/](/src/mail/factories/__init__.py))
 - Agent types can be configured in [swarms.json](/swarms.json) and converted to `MAILAgentTemplate` at runtime
-- Important flags: `enable_entrypoint`, `enable_interswarm`, `can_complete_tasks`, `tool_format`
+- **Important flags**: `enable_entrypoint`, `enable_interswarm`, `can_complete_tasks`, `tool_format`
 
 ## Actions
 - A `MAILAction` defines a structured tool interface backed by a Python function (import string)
@@ -24,14 +24,14 @@
 - Supervisor extras: `task_complete(finish_message)`; interswarm extras: `send_interswarm_broadcast`, `discover_swarms`
 
 ## Supervisors
-- Agents with `can_complete_tasks: true` can signal task completion and are treated as supervisors
-- Swarms must include at least one supervisor; the default example uses `supervisor` as the entrypoint
+- Agents with `can_complete_tasks: true` can **signal task completion** and are treated as supervisors
+- **Swarms must include at least one supervisor**; the default example uses `supervisor` as the entrypoint
 
 ## Communication graph
 - `comm_targets` names define a directed graph of which agents an agent can contact
 - When interswarm is enabled, targets may include `agent@swarm` and local validation allows remote addresses
 
 ## Factories and prompts
-- Example factories and prompts live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
-- Add your own agent by creating a factory function and listing it in [swarms.json](/swarms.json)
+- **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
+- **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
 

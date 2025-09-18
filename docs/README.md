@@ -5,23 +5,23 @@ This folder documents the **Multi‑Agent Interface Layer (MAIL)** reference imp
 If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Architecture](/docs/architecture.md) and [Agents & Tools](/docs/agents-and-tools.md). The [API](/docs/api.md) and [Message Format](/docs/message-format.md) docs specify how to integrate clients and other swarms.
 
 ## Contents
-- **Quickstart**: quickstart.md
-- **Architecture**: architecture.md
-- **Configuration**: configuration.md
-- **API (HTTP)**: api.md
-- **Message Format**: message-format.md
-- **Agents & Tools**: agents-and-tools.md
-- **Interswarm Messaging**: interswarm.md
-- **Swarm Registry**: registry.md
-- **Security**: security.md
-- **Testing**: testing.md
-- **Examples**: examples.md
-- **Troubleshooting**: troubleshooting.md
+- **Quickstart**: [quickstart.md](/docs/quickstart.md)
+- **Architecture**: [architecture.md](/docs/architecture.md)
+- **Configuration**: [configuration.md](/docs/configuration.md)
+- **API (HTTP)**: [api.md](/docs/api.md)
+- **Message Format**: [message-format.md](/docs/message-format.md)
+- **Agents & Tools**: [agents-and-tools.md](/docs/agents-and-tools.md)
+- **Interswarm Messaging**: [interswarm.md](/docs/interswarm.md)
+- **Swarm Registry**: [registry.md](/docs/registry.md)
+- **Security**: [security.md](/docs/security.md)
+- **Testing**: [testing.md](/docs/testing.md)
+- **Examples**: [examples.md](/docs/examples.md)
+- **Troubleshooting**: [troubleshooting.md](/docs/troubleshooting.md)
 
 ## What is MAIL?
 - MAIL (Multi‑Agent Interface Layer) is a protocol and reference implementation that standardizes how autonomous agents communicate, coordinate, and collaborate.
 - The Python implementation uses FastAPI for HTTP endpoints, an internal runtime loop for message processing, and a registry/router for inter‑swarm communication over HTTP.
-- The normative protocol specification lives in `spec/` and includes JSON Schemas and an OpenAPI file for the HTTP surface.
+- The normative protocol specification lives in [spec/](/spec/SPEC.md) and includes JSON Schemas and an OpenAPI file for the HTTP surface.
 
 ## Where to look in the code
 - **Server and API**: [src/mail/server.py](/src/mail/server.py), [src/mail/api.py](/src/mail/api.py)
