@@ -898,7 +898,9 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
                 history = self.agent_histories[recipient]
-                if not message["message"]["subject"].startswith("Action Tool Complete"):
+                if not message["message"]["subject"].startswith(
+                    "::action_complete_broadcast::"
+                ):
                     incoming_message = build_mail_xml(message)
                     history.append(incoming_message)
 
@@ -1090,8 +1092,8 @@ Use this information to decide how to complete your task.""",
                                 await self.submit(
                                     self._system_broadcast(
                                         task_id=task_id,
-                                        subject=f"Action Tool Complete: `{call.tool_name}`",
-                                        body=result_content,
+                                        subject="::action_complete_broadcast::",
+                                        body="",
                                         recipients=[create_agent_address(recipient)],
                                     )
                                 )
