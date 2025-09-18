@@ -207,5 +207,10 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# MAIL
 # Scripts
 .scripts/
+
+# Runtime logs
+logs/
+
