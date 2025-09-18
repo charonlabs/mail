@@ -6,8 +6,14 @@
   "payload": {
     "task_id": "33333333-aaaa-4aaa-8aaa-333333333333",
     "request_id": "44444444-bbbb-4bbb-8bbb-444444444444",
-    "sender": { "address_type": "agent", "address": "supervisor@swarm-a" },
-    "recipient": { "address_type": "agent", "address": "weather@swarm-b" },
+    "sender": { 
+      "address_type": "agent", 
+      "address": "supervisor@swarm-a" 
+    },
+    "recipient": { 
+      "address_type": "agent", 
+      "address": "weather@swarm-b" 
+    },
     "subject": "Interswarm Message",
     "body": "Forecast please",
     "sender_swarm": "swarm-a",

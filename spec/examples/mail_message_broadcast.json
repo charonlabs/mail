@@ -4,10 +4,19 @@
   "message": {
     "task_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
     "broadcast_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    "sender": { "address_type": "system", "address": "system" },
+    "sender": { 
+      "address_type": "system", 
+      "address": "system" 
+    },
     "recipients": [
-      { "address_type": "agent", "address": "supervisor" },
-      { "address_type": "agent", "address": "weather" }
+      { 
+        "address_type": "agent", 
+        "address": "supervisor" 
+      },
+      { 
+        "address_type": "agent", 
+        "address": "weather" 
+      }
     ],
     "subject": "Action Complete: get_weather_forecast",
     "body": "The action result payload..."

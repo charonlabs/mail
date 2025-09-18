@@ -13,10 +13,22 @@
     "msg_type"
   ],
   "properties": {
-    "message_id": { "type": "string", "minLength": 1 },
-    "source_swarm": { "type": "string", "minLength": 1 },
-    "target_swarm": { "type": "string", "minLength": 1 },
-    "timestamp": { "type": "string", "format": "date-time" },
+    "message_id": { 
+      "type": "string", 
+      "minLength": 1 
+    },
+    "source_swarm": { 
+      "type": "string", 
+      "minLength": 1 
+    },
+    "target_swarm": { 
+      "type": "string", 
+      "minLength": 1 
+    },
+    "timestamp": { 
+      "type": "string", 
+      "format": "date-time" 
+    },
     "payload": { "type": "object" },
     "msg_type": {
       "type": "string",

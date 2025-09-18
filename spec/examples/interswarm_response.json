@@ -6,8 +6,14 @@
   "payload": {
     "task_id": "33333333-aaaa-4aaa-8aaa-333333333333",
     "request_id": "99999999-9999-4999-8999-999999999999",
-    "sender": { "address_type": "agent", "address": "weather@swarm-b" },
-    "recipient": { "address_type": "agent", "address": "supervisor@swarm-a" },
+    "sender": { 
+      "address_type": "agent", 
+      "address": "weather@swarm-b" 
+    },
+    "recipient": { 
+      "address_type": "agent", 
+      "address": "supervisor@swarm-a" 
+    },
     "subject": "Re: Interswarm Message",
     "body": "Sunny on remote swarm.",
     "sender_swarm": "swarm-b",

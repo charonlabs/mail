@@ -1,6 +1,6 @@
 # MAIL Documentation
 
-This folder documents the **Multi‑Agent Interface Layer (MAIL)** reference implementation found in this repository. It explains what MAIL is, how this Python implementation is structured, how to run it, and how to extend it with your own agents and swarms.
+This folder documents the **Multi‑Agent Interface Layer (MAIL) reference implementation** found in this repository. It explains what MAIL is, how this Python implementation is structured, how to run it, and how to extend it with your own agents and swarms.
 
 If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Architecture](/docs/architecture.md) and [Agents & Tools](/docs/agents-and-tools.md). The [API](/docs/api.md) and [Message Format](/docs/message-format.md) docs specify how to integrate clients and other swarms.
 

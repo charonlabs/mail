@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MAIL Server API
-  version: "1.0.0"
+  version: "1.0"
   description: REST API for the Multi-Agent Interface Layer (MAIL) server, including interswarm messaging.
 servers:
   - url: http://localhost:8000
@@ -60,14 +60,17 @@ paths:
                   swarm:
                     type: object
                     properties:
-                      name: { type: string, nullable: true }
+                      name: { 
+                        type: string, 
+                        nullable: true 
+                      }
                       status: { type: string }
                   active_users: { type: integer }
                   user_mail_ready: { type: boolean }
                   user_task_running: { type: boolean }
   /message:
     post:
-      summary: Send a message to the swarm (supervisor entrypoint)
+      summary: Send a message to the swarm 
       description: Requires role=user or role=admin.
       operationId: message
       security:
@@ -135,7 +138,10 @@ paths:
                 properties:
                   status: { type: string }
                   swarm_name: { type: string }
-                  timestamp: { type: string, format: date-time }
+                  timestamp: { 
+                    type: string, 
+                    format: date-time 
+                  }
   /swarms:
     get:
       summary: List known swarms
@@ -157,8 +163,15 @@ paths:
                         name: { type: string }
                         base_url: { type: string }
                         is_active: { type: boolean }
-                        last_seen: { type: string, format: date-time, nullable: true }
-                        metadata: { type: object, nullable: true }
+                        last_seen: { 
+                          type: string, 
+                          format: date-time, 
+                          nullable: true 
+                        }
+                        metadata: { 
+                          type: object, 
+                          nullable: true 
+                        }
   /swarms/register:
     post:
       summary: Register a swarm
@@ -177,9 +190,18 @@ paths:
               properties:
                 name: { type: string }
                 base_url: { type: string }
-                auth_token: { type: string, nullable: true }
-                volatile: { type: boolean, default: true }
-                metadata: { type: object, nullable: true }
+                auth_token: { 
+                  type: string, 
+                  nullable: true 
+                }
+                volatile: { 
+                  type: boolean, 
+                  default: true 
+                }
+                metadata: { 
+                  type: object, 
+                  nullable: true 
+                }
       responses:
         '200':
           description: Registration result
@@ -259,9 +281,15 @@ paths:
               additionalProperties: false
               required: [target_agent, message, user_token]
               properties:
-                target_agent: { type: string, description: "Use agent@swarm format" }
+                target_agent: { 
+                  type: string, 
+                  description: "Use agent@swarm format" 
+                }
                 message: { type: string }
-                user_token: { type: string, description: "User instance key" }
+                user_token: { 
+                  type: string, 
+                  description: "User instance key" 
+                }
       responses:
         '200':
           description: Routed MAIL message result

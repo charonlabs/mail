@@ -4,8 +4,14 @@
   "message": {
     "task_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     "request_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
-    "sender": { "address_type": "agent", "address": "weather" },
-    "recipient": { "address_type": "agent", "address": "supervisor" },
+    "sender": { 
+      "address_type": "agent", 
+      "address": "weather" 
+    },
+    "recipient": { 
+      "address_type": "agent", 
+      "address": "supervisor" 
+    },
     "subject": "Re: Forecast",
     "body": "Sunny with light winds."
   },

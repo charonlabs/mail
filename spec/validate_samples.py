@@ -1,7 +1,8 @@
 import json
 import sys
+from datetime import UTC, datetime
+from importlib import metadata
 from pathlib import Path
-from datetime import datetime, timezone
 
 
 def load_json(path: Path):
@@ -25,7 +26,7 @@ def make_uuid():
 
 
 def iso_now():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def sample_mail_request_message():
@@ -36,8 +37,14 @@ def sample_mail_request_message():
         "message": {
             "task_id": task_id,
             "request_id": make_uuid(),
-            "sender": {"address_type": "user", "address": "user_123"},
-            "recipient": {"address_type": "agent", "address": "supervisor"},
+            "sender": {
+                "address_type": "user",
+                "address": "user_123",
+            },
+            "recipient": {
+                "address_type": "agent",
+                "address": "supervisor",
+            },
             "subject": "New Message",
             "body": "What is the weather today?",
         },
@@ -53,8 +60,16 @@ def sample_broadcast_complete_message():
         "message": {
             "task_id": task_id,
             "broadcast_id": make_uuid(),
-            "sender": {"address_type": "agent", "address": "supervisor"},
-            "recipients": [{"address_type": "agent", "address": "all"}],
+            "sender": {
+                "address_type": "agent",
+                "address": "supervisor",
+            },
+            "recipients": [
+                {
+                    "address_type": "agent",
+                    "address": "all",
+                }
+            ],
             "subject": "Task complete",
             "body": "Done.",
         },
@@ -68,8 +83,14 @@ def sample_interswarm_request_wrapper():
     payload = {
         "task_id": task_id,
         "request_id": make_uuid(),
-        "sender": {"address_type": "agent", "address": "supervisor@swarm-a"},
-        "recipient": {"address_type": "agent", "address": "weather@swarm-b"},
+        "sender": {
+            "address_type": "agent",
+            "address": "supervisor@swarm-a",
+        },
+        "recipient": {
+            "address_type": "agent",
+            "address": "weather@swarm-b",
+        },
         "subject": "Interswarm Message",
         "body": "Forecast please",
         "sender_swarm": "swarm-a",
@@ -94,8 +115,14 @@ def sample_mail_response_message():
         "message": {
             "task_id": task_id,
             "request_id": make_uuid(),
-            "sender": {"address_type": "agent", "address": "weather"},
-            "recipient": {"address_type": "agent", "address": "supervisor"},
+            "sender": {
+                "address_type": "agent",
+                "address": "weather",
+            },
+            "recipient": {
+                "address_type": "agent",
+                "address": "supervisor",
+            },
             "subject": "Re: Forecast",
             "body": "Sunny with light winds.",
         },
@@ -111,10 +138,19 @@ def sample_mail_broadcast_message():
         "message": {
             "task_id": task_id,
             "broadcast_id": make_uuid(),
-            "sender": {"address_type": "system", "address": "system"},
+            "sender": {
+                "address_type": "system",
+                "address": "system",
+            },
             "recipients": [
-                {"address_type": "agent", "address": "supervisor"},
-                {"address_type": "agent", "address": "weather"},
+                {
+                    "address_type": "agent",
+                    "address": "supervisor",
+                },
+                {
+                    "address_type": "agent",
+                    "address": "weather",
+                },
             ],
             "subject": "Action Complete: get_weather_forecast",
             "body": "The action result payload...",
@@ -131,8 +167,16 @@ def sample_mail_interrupt_message():
         "message": {
             "task_id": task_id,
             "interrupt_id": make_uuid(),
-            "sender": {"address_type": "agent", "address": "supervisor"},
-            "recipients": [{"address_type": "agent", "address": "weather"}],
+            "sender": {
+                "address_type": "agent",
+                "address": "supervisor",
+            },
+            "recipients": [
+                {
+                    "address_type": "agent",
+                    "address": "weather",
+                }
+            ],
             "subject": "Pause",
             "body": "Stop processing current task.",
         },
@@ -145,8 +189,14 @@ def sample_interswarm_response_wrapper():
     payload = {
         "task_id": task_id,
         "request_id": make_uuid(),
-        "sender": {"address_type": "agent", "address": "weather@swarm-b"},
-        "recipient": {"address_type": "agent", "address": "supervisor@swarm-a"},
+        "sender": {
+            "address_type": "agent",
+            "address": "weather@swarm-b",
+        },
+        "recipient": {
+            "address_type": "agent",
+            "address": "supervisor@swarm-a",
+        },
         "subject": "Re: Interswarm Message",
         "body": "Sunny on remote swarm.",
         "sender_swarm": "swarm-b",
@@ -217,7 +267,7 @@ def main():
         sys.exit(0)
 
     # Full validation
-    print("Using jsonschema", jsonschema.__version__)
+    print("Using jsonschema", metadata.version("jsonschema"))
     Draft = getattr(jsonschema, "Draft202012Validator", None)
     if Draft is None:
         print(
@@ -225,7 +275,7 @@ def main():
         )
         from jsonschema import validate
 
-        for name, obj, schema in samples:
+        for name, obj, schema, _expect_valid in samples:
             try:
                 validate(instance=obj, schema=schema)
                 print(f"[VALID] {name}")
@@ -233,23 +283,37 @@ def main():
                 print(f"[INVALID] {name}: {e}")
         return
 
-    # Resolve $refs relative to spec directory
-    # Build a resolver rooted at spec/ for local $ref resolution
-    # Avoid any network fetch by providing a local store for $id references
-    store = {}
-    if isinstance(core_schema.get("$id"), str):
-        store[core_schema["$id"]] = core_schema
-    if isinstance(inter_schema.get("$id"), str):
-        store[inter_schema["$id"]] = inter_schema
-    store[(root / "MAIL-core.schema.json").as_uri()] = core_schema
-    store[(root / "MAIL-interswarm.schema.json").as_uri()] = inter_schema
+    # Resolve $refs using the 'referencing' library instead of RefResolver
+    # Build a registry of local resources keyed by both $id and file URI
+    try:
+        from referencing import Registry, Resource  # type: ignore
+        from referencing.jsonschema import DRAFT202012  # type: ignore
+    except Exception:
+        print("Failed to import 'referencing'; cannot build a reference registry")
+        sys.exit(1)
 
-    resolver = jsonschema.RefResolver(
-        base_uri=(root.as_uri() + "/"), referrer=core_schema, store=store
-    )
+    resources = {}
+
+    def _resource_for(contents: dict, file_name: str):
+        res = Resource.from_contents(contents, default_specification=DRAFT202012)
+        # Map by declared $id if present
+        _id = contents.get("$id")
+        if isinstance(_id, str):
+            resources[_id] = res
+        # Also map by on-disk file URI for relative file refs
+        resources[(root / file_name).as_uri()] = res
+        return res
+
+    _resource_for(core_schema, "MAIL-core.schema.json")
+    _resource_for(inter_schema, "MAIL-interswarm.schema.json")
+
+    registry = Registry()
+    for uri, res in resources.items():
+        registry = registry.with_resource(uri, res)
+
     for name, obj, schema, expect_valid in samples:
         try:
-            Draft(schema, resolver=resolver).validate(obj)
+            Draft(schema, registry=registry).validate(obj)
             if expect_valid:
                 print(f"[VALID] {name}")
         except Exception as e:
@@ -264,7 +328,7 @@ def main():
                 schema = (
                     inter_schema if p.name.startswith("interswarm_") else core_schema
                 )
-                Draft(schema, resolver=resolver).validate(data)
+                Draft(schema, registry=registry).validate(data)
                 print(f"[VALID] example {p.name}")
             except Exception as e:
                 print(f"[INVALID] example {p.name}: {e}")

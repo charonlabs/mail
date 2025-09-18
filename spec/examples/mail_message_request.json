@@ -4,8 +4,14 @@
   "message": {
     "task_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     "request_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-    "sender": { "address_type": "user", "address": "user_123" },
-    "recipient": { "address_type": "agent", "address": "supervisor" },
+    "sender": { 
+      "address_type": "user", 
+      "address": "user_123" 
+    },
+    "recipient": { 
+      "address_type": "agent", 
+      "address": "supervisor" 
+    },
     "subject": "New Message",
     "body": "What is the weather today?"
   },

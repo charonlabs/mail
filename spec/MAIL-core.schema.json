@@ -16,7 +16,10 @@
           "type": "string",
           "enum": ["agent", "user", "system"]
         },
-        "address": { "type": "string", "minLength": 1 }
+        "address": { 
+          "type": "string", 
+          "minLength": 1 
+        }
       }
     },
     "MAILRequest": {
@@ -24,8 +27,14 @@
       "additionalProperties": false,
       "required": ["task_id", "request_id", "sender", "recipient", "subject", "body"],
       "properties": {
-        "task_id": { "type": "string", "format": "uuid" },
-        "request_id": { "type": "string", "format": "uuid" },
+        "task_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
+        "request_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
         "sender": { "$ref": "#/$defs/MAILAddress" },
         "recipient": { "$ref": "#/$defs/MAILAddress" },
         "subject": { "type": "string" },
@@ -40,7 +49,10 @@
       "additionalProperties": false,
       "required": ["task_id", "request_id", "sender", "recipient", "subject", "body"],
       "properties": {
-        "task_id": { "type": "string", "format": "uuid" },
+        "task_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
         "request_id": { "type": "string" },
         "sender": { "$ref": "#/$defs/MAILAddress" },
         "recipient": { "$ref": "#/$defs/MAILAddress" },
@@ -56,8 +68,14 @@
       "additionalProperties": false,
       "required": ["task_id", "broadcast_id", "sender", "recipients", "subject", "body"],
       "properties": {
-        "task_id": { "type": "string", "format": "uuid" },
-        "broadcast_id": { "type": "string", "format": "uuid" },
+        "task_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
+        "broadcast_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
         "sender": { "$ref": "#/$defs/MAILAddress" },
         "recipients": {
           "type": "array",
@@ -79,8 +97,14 @@
       "additionalProperties": false,
       "required": ["task_id", "interrupt_id", "sender", "recipients", "subject", "body"],
       "properties": {
-        "task_id": { "type": "string", "format": "uuid" },
-        "interrupt_id": { "type": "string", "format": "uuid" },
+        "task_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
+        "interrupt_id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
         "sender": { "$ref": "#/$defs/MAILAddress" },
         "recipients": {
           "type": "array",
@@ -102,8 +126,14 @@
       "additionalProperties": false,
       "required": ["id", "timestamp", "message", "msg_type"],
       "properties": {
-        "id": { "type": "string", "format": "uuid" },
-        "timestamp": { "type": "string", "format": "date-time" },
+        "id": { 
+          "type": "string", 
+          "format": "uuid" 
+        },
+        "timestamp": { 
+          "type": "string", 
+          "format": "date-time" 
+        },
         "message": { "type": "object" },
         "msg_type": {
           "type": "string",
