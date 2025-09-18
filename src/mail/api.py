@@ -364,6 +364,26 @@ class MAILAction:
         return read_python_string(function)
 
     @staticmethod
+    def from_pydantic_model(
+        model: type[BaseModel],
+        function_str: str,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> "MAILAction":
+        """
+        Create a MAILAction from a Pydantic model and function string.
+        """
+        tool = pydantic_model_to_tool(
+            model, name=name, description=description, style="responses"
+        )
+        return MAILAction(
+            name=tool["name"],
+            description=tool["description"],
+            parameters=tool["parameters"],
+            function=function_str,
+        )
+
+    @staticmethod
     def from_swarm_json(json_dump: str) -> "MAILAction":
         """
         Create a MAILAction from a JSON dump following the `swarms.json` format.
