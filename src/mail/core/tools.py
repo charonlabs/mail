@@ -466,6 +466,7 @@ def create_supervisor_tools(
     can_complete_tasks: bool = True,
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
+    _debug_include_intraswarm: bool = True,
 ) -> list[dict[str, Any]]:
     """
     Create MAIL supervisor-exclusive tools.
@@ -476,11 +477,11 @@ def create_supervisor_tools(
         enable_interswarm: Whether the supervisor can send interswarm messages.
         style: The style of the tools to create.
     """
-
-    tools = [
-        create_interrupt_tool(targets, enable_interswarm, style),
-        create_broadcast_tool(style),
-    ]
+    if _debug_include_intraswarm:
+        tools = [
+            create_interrupt_tool(targets, enable_interswarm, style),
+            create_broadcast_tool(style),
+        ]
 
     if enable_interswarm:
         tools.extend(

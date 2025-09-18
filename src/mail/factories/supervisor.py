@@ -3,7 +3,9 @@
 
 from typing import Any, Literal
 
-from mail.core.tools import create_supervisor_tools
+from openai.resources.responses.responses import _make_tools
+
+from mail.core.tools import create_supervisor_tools, pydantic_function_tool
 from mail.factories.base import AgentFunction, base_agent_factory
 
 
@@ -33,14 +35,29 @@ def supervisor_factory(
     memory: bool = True,
     use_proxy: bool = True,
 ) -> AgentFunction:
-    tools = create_supervisor_tools(
-        comm_targets, can_complete_tasks, enable_interswarm, style=tool_format
+    _debug_include_intraswarm = True
+    if len(comm_targets) == 0:
+        _debug_include_intraswarm = False
+    parsed_tools: list[dict[str, Any]] = []
+    if not isinstance(tools[0], dict):
+        parsed_tools = [pydantic_function_tool(tool) for tool in tools]  # type: ignore
+        if tool_format == "responses":
+            parsed_tools = _make_tools(parsed_tools)  # type: ignore
+
+    else:
+        parsed_tools = tools  # type: ignore
+    parsed_tools += create_supervisor_tools(
+        comm_targets,
+        can_complete_tasks,
+        enable_interswarm,
+        style=tool_format,
+        _debug_include_intraswarm=_debug_include_intraswarm,
     )
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,
         comm_targets=comm_targets,
-        tools=tools,
+        tools=parsed_tools,
         system=system,
         reasoning_effort=reasoning_effort,
         thinking_budget=thinking_budget,
@@ -51,6 +68,6 @@ def supervisor_factory(
         name=name,
         enable_entrypoint=enable_entrypoint,
         enable_interswarm=enable_interswarm,
-        _debug_include_mail_tools=True,
+        _debug_include_mail_tools=_debug_include_intraswarm,
     )
     return agent
