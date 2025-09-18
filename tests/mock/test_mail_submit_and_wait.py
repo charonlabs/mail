@@ -19,6 +19,7 @@ async def test_submit_and_wait_resolves_on_task_complete():
     """
     Test that `submit_and_wait` resolves on `task_complete`.
     """
+
     async def stub_agent(history, tool_choice):  # noqa: ARG001
         from mail.factories.base import AgentToolCall
 

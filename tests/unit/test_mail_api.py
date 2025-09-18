@@ -75,6 +75,7 @@ class FakeMAIL:
         """
         Replacement for `MAILRuntime.submit_and_stream`.
         """
+
         async def _stream() -> AsyncGenerator[dict[str, Any], None]:
             yield {"event": "message", "data": "chunk1"}
             yield {"event": "message", "data": "chunk2"}

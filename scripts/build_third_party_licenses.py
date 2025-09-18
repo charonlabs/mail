@@ -30,6 +30,7 @@ class PackageReport:
     A container of metadata about a third-party package.
     Ideally contains all relevant license information.
     """
+
     name: str
     version: str
     summary: str | None = None
@@ -92,7 +93,7 @@ def read_license_file(dist: metadata.Distribution, relative_path: str) -> str | 
         file_path = dist.locate_file(relative_path)
     except FileNotFoundError:
         return None
-    
+
     path_obj = Path(file_path)
     if not path_obj.exists():
         return None
@@ -129,7 +130,7 @@ def build_report(name: str, version: str) -> PackageReport:
     if not report.license and not report.license_texts:
         report.warnings.append("No license metadata discovered; manual review needed.")
         print(f"report for {dist.name}:\n{[key for key in dist.metadata.keys()]}")
-    
+
     return report
 
 
@@ -244,7 +245,9 @@ def main(argv: list[str] | None = None) -> int:
                 logging.warning("%s: %s", name, warning)
 
     write_output(reports, args.output)
-    logging.info("Wrote license report for %d packages to %s", len(reports), args.output)
+    logging.info(
+        "Wrote license report for %d packages to %s", len(reports), args.output
+    )
     return 0
 
 

@@ -28,6 +28,7 @@ def test_execute_action_tool_normal_and_override():
     """
     Test that `execute_action_tool` works as expected.
     """
+
     async def run():
         # Normal path: resolves through actions mapping and wraps as tool response
         res1 = await execute_action_tool(
