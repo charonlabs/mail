@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.org/spec/MAIL-core.schema.json",
+  "$id": "https://github.com/charonlabs/mail/spec/MAIL-core.schema.json",
   "title": "MAIL Core Schema",
   "type": "object",
   "oneOf": [

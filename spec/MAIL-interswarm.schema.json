@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.org/spec/MAIL-interswarm.schema.json",
+  "$id": "https://github.com/charonlabs/mail/spec/MAIL-interswarm.schema.json",
   "title": "MAIL Interswarm Schema",
   "type": "object",
   "additionalProperties": false,

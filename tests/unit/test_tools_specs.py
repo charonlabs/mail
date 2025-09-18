@@ -34,7 +34,7 @@ def test_create_request_tool_completions_enforces_enum():
     assert tool["type"] == "function"
     assert "function" in tool and "parameters" in tool["function"]
     props = tool["function"]["parameters"]["properties"]
-    assert set(["target", "subject", "message"]).issubset(set(props.keys()))
+    assert set(["target", "subject", "body"]).issubset(set(props.keys()))
     assert props["target"]["enum"] == ["analyst", "helper"]
 
 

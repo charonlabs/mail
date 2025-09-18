@@ -19,7 +19,7 @@ def test_convert_send_request():
     Test that `convert_call_to_mail_message` works as expected for `send_request`.
     """
     msg = convert_call_to_mail_message(
-        _call("send_request", {"target": "analyst", "subject": "S", "message": "M"}),
+        _call("send_request", {"target": "analyst", "subject": "S", "body": "M"}),
         sender="supervisor",
         task_id="task-1",
     )
@@ -32,7 +32,7 @@ def test_convert_send_response():
     Test that `convert_call_to_mail_message` works as expected for `send_response`.
     """
     msg = convert_call_to_mail_message(
-        _call("send_response", {"target": "analyst", "subject": "S", "message": "M"}),
+        _call("send_response", {"target": "analyst", "subject": "S", "body": "M"}),
         sender="supervisor",
         task_id="task-1",
     )
@@ -45,7 +45,7 @@ def test_convert_send_interrupt():
     Test that `convert_call_to_mail_message` works as expected for `send_interrupt`.
     """
     msg = convert_call_to_mail_message(
-        _call("send_interrupt", {"target": "analyst", "subject": "S", "message": "M"}),
+        _call("send_interrupt", {"target": "analyst", "subject": "S", "body": "M"}),
         sender="supervisor",
         task_id="task-1",
     )
@@ -58,7 +58,7 @@ def test_convert_send_broadcast():
     Test that `convert_call_to_mail_message` works as expected for `send_broadcast`.
     """
     msg = convert_call_to_mail_message(
-        _call("send_broadcast", {"subject": "S", "message": "M"}),
+        _call("send_broadcast", {"subject": "S", "body": "M"}),
         sender="supervisor",
         task_id="task-1",
     )

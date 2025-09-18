@@ -112,7 +112,7 @@ def convert_call_to_mail_message(
                     sender=sender_address,
                     recipient=create_agent_address(call.tool_args["target"]),
                     subject=call.tool_args["subject"],
-                    body=call.tool_args["message"],
+                    body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarm=None,
                     routing_info=None,
@@ -129,7 +129,7 @@ def convert_call_to_mail_message(
                     sender=sender_address,
                     recipient=create_agent_address(call.tool_args["target"]),
                     subject=call.tool_args["subject"],
-                    body=call.tool_args["message"],
+                    body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarm=None,
                     routing_info=None,
@@ -146,7 +146,7 @@ def convert_call_to_mail_message(
                     sender=sender_address,
                     recipients=[create_agent_address(call.tool_args["target"])],
                     subject=call.tool_args["subject"],
-                    body=call.tool_args["message"],
+                    body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarms=None,
                     routing_info=None,
@@ -163,7 +163,7 @@ def convert_call_to_mail_message(
                     sender=sender_address,
                     recipients=[create_agent_address("all")],
                     subject=call.tool_args["subject"],
-                    body=call.tool_args["message"],
+                    body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarms=None,
                     routing_info=None,
@@ -212,7 +212,7 @@ def create_request_tool(
             )
         )
         subject: str = Field(description="The subject of the message.")
-        message: str = Field(description="The message content to send.")
+        body: str = Field(description="The message content to send.")
 
     tool_dict = pydantic_model_to_tool(send_request, name="send_request", style=style)
 
@@ -255,7 +255,7 @@ def create_response_tool(
             )
         )
         subject: str = Field(description="The subject of the message.")
-        message: str = Field(description="The message content to send.")
+        body: str = Field(description="The message content to send.")
 
     tool_dict = pydantic_model_to_tool(send_response, name="send_response", style=style)
 
@@ -298,7 +298,7 @@ def create_interrupt_tool(
             )
         )
         subject: str = Field(description="The subject of the interrupt.")
-        message: str = Field(description="The message content to send.")
+        body: str = Field(description="The message content to send.")
 
     tool_dict = pydantic_model_to_tool(
         send_interrupt, name="send_interrupt", style=style
@@ -331,7 +331,7 @@ def create_interswarm_broadcast_tool(
         """Broadcast a message to all known swarms."""
 
         subject: str = Field(description="The subject of the broadcast.")
-        message: str = Field(description="The message content to send.")
+        body: str = Field(description="The message content to send.")
         target_swarms: list[str] = Field(
             description="List of target swarm names. If empty, broadcasts to all known swarms.",
             default=[],
@@ -370,7 +370,7 @@ def create_broadcast_tool(
         """Broadcast a message to all possible recipient agents."""
 
         subject: str = Field(description="The subject of the broadcast.")
-        message: str = Field(description="The message content to send.")
+        body: str = Field(description="The message content to send.")
 
     return pydantic_model_to_tool(send_broadcast, name="send_broadcast", style=style)
 
