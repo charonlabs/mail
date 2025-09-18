@@ -477,19 +477,18 @@ def create_supervisor_tools(
         enable_interswarm: Whether the supervisor can send interswarm messages.
         style: The style of the tools to create.
     """
+    tools: list[dict[str, Any]] = []
     if _debug_include_intraswarm:
-        tools = [
+        tools += [
             create_interrupt_tool(targets, enable_interswarm, style),
             create_broadcast_tool(style),
         ]
 
     if enable_interswarm:
-        tools.extend(
-            [
-                create_interswarm_broadcast_tool(style),
-                create_swarm_discovery_tool(style),
-            ]
-        )
+        tools += [
+            create_interswarm_broadcast_tool(style),
+            create_swarm_discovery_tool(style),
+        ]
 
     if can_complete_tasks:
         tools.append(create_task_complete_tool(style))
