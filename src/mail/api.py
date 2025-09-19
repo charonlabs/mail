@@ -375,7 +375,7 @@ class MAILAction:
     @staticmethod
     def from_pydantic_model(
         model: type[BaseModel],
-        function_str: str,
+        function: str | ActionFunction,
         name: str | None = None,
         description: str | None = None,
     ) -> "MAILAction":
@@ -389,7 +389,7 @@ class MAILAction:
             name=tool["name"],
             description=tool["description"],
             parameters=tool["parameters"],
-            function=function_str,
+            function=function,
         )
 
     @staticmethod
