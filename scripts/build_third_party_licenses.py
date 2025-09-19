@@ -9,19 +9,34 @@ import argparse
 import logging
 import sys
 import textwrap
+import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from pathlib import Path
-
-try:  # Python 3.11+
-    import tomllib  # type: ignore[attr-defined]
-except ModuleNotFoundError:  # pragma: no cover
-    import tomli as tomllib  # type: ignore[assignment]
-
 from importlib import metadata
+from pathlib import Path
 
 DEFAULT_LOCK_PATH = Path("uv.lock")
 DEFAULT_OUTPUT_PATH = Path("THIRD_PARTY_NOTICES.md")
+
+COMMON_LICENSE_BASENAMES = (
+    "LICENSE",
+    "LICENSE.txt",
+    "LICENSE.md",
+    "LICENSE.rst",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "LICENCE",
+    "LICENCE.txt",
+    "LICENCE.md",
+    "COPYING",
+    "COPYING.txt",
+    "COPYING.md",
+    "NOTICE",
+    "NOTICE.txt",
+    "NOTICE.md",
+)
+
+LICENSE_KEYWORDS = ("license", "licence", "copying", "notice", "copyright")
 
 
 @dataclass
@@ -39,7 +54,8 @@ class PackageReport:
     home_page: str | None = None
     author: str | None = None
     license_texts: list[tuple[str, str]] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    infos: list[str] = field(default_factory=list) # log level `INFO`
+    warnings: list[str] = field(default_factory=list) # log level `WARNING`
 
 
 def load_packages(lock_path: Path) -> dict[str, str]:
@@ -64,18 +80,45 @@ def pick_license_texts(dist: metadata.Distribution) -> list[str]:
     Pick the license texts from the distribution.
     """
     meta = dist.metadata
-    declared = meta.get_all("License-File")
-    if declared is not None:
-        return [str(item) for item in declared]
+    results: list[str] = []
+    seen: set[str] = set()
 
-    # Fallback: scan files for LICENSE-like names.
-    candidates: list[str] = []
-    for file in dist.files or []:
-        normalized = str(file).lower()
-        if any(marker in normalized for marker in ("license", "copying")):
-            candidates.append(str(file))
+    def add_candidate(value: str | None) -> None:
+        if not value:
+            return
+        normalized = value.strip()
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        results.append(normalized)
 
-    return sorted(dict.fromkeys(candidates))
+    for declared in meta.get_all("License-File") or []:
+        add_candidate(str(declared))
+
+    files = dist.files or []
+    if files:
+        preferred_names = {name.lower() for name in COMMON_LICENSE_BASENAMES}
+        for file in files:
+            file_name = getattr(file, "name", None)
+            if file_name and file_name.lower() in preferred_names:
+                add_candidate(str(file))
+        if not results:
+            for file in files:
+                normalized = str(file).lower()
+                if any(keyword in normalized for keyword in LICENSE_KEYWORDS):
+                    add_candidate(str(file))
+
+    if not results:
+        for candidate in COMMON_LICENSE_BASENAMES:
+            try:
+                located = dist.locate_file(candidate)
+            except FileNotFoundError:
+                continue
+            path_obj = Path(str(located))
+            if path_obj.exists() and path_obj.is_file():
+                add_candidate(candidate)
+
+    return results
 
 
 def read_license_file(dist: metadata.Distribution, relative_path: str) -> str | None:
@@ -94,7 +137,7 @@ def read_license_file(dist: metadata.Distribution, relative_path: str) -> str | 
     except FileNotFoundError:
         return None
 
-    path_obj = Path(file_path)
+    path_obj = Path(str(file_path))
     if not path_obj.exists():
         return None
 
@@ -115,8 +158,23 @@ def build_report(name: str, version: str) -> PackageReport:
 
     meta = dist.metadata
     report.summary = meta.get("Summary")
-    report.license = meta.get("License-Expression")
+    license_expression = meta.get("License-Expression")
+    if license_expression:
+        report.license = license_expression.strip() or None
+    else:
+        legacy_license = meta.get("License")
+        if legacy_license:
+            cleaned = legacy_license.strip()
+            if cleaned and cleaned.upper() != "UNKNOWN":
+                report.license = cleaned
     report.license_classifiers = meta.get_all("Classifier") or []
+    if not report.license:
+        classifier_hint = next(
+            (cls for cls in report.license_classifiers if cls.startswith("License ::")),
+            None,
+        )
+        if classifier_hint:
+            report.license = classifier_hint.split("::")[-1].strip()
     report.home_page = meta.get("Home-page")
     report.author = meta.get("Author")
 
@@ -125,11 +183,10 @@ def build_report(name: str, version: str) -> PackageReport:
         if text:
             report.license_texts.append((rel_path, text))
         else:
-            report.warnings.append(f"Unable to read license file: {rel_path}")
+            report.infos.append(f"Unable to read license file: {rel_path}")
 
     if not report.license and not report.license_texts:
         report.warnings.append("No license metadata discovered; manual review needed.")
-        print(f"report for {dist.name}:\n{[key for key in dist.metadata.keys()]}")
 
     return report
 
@@ -170,23 +227,23 @@ def write_output(reports: Iterable[PackageReport], output_path: Path) -> None:
         if report.summary:
             lines.append(f"{report.summary}")
         license_line = report.license or "(license metadata not found)"
-        lines.append(f"- License field: {license_line}")
+        lines.append(f"### License field:\n{license_line}")
 
         classifiers = format_classifier_summary(report.license_classifiers)
         if classifiers:
-            lines.append("- Classifiers: " + "; ".join(classifiers))
+            lines.append("### Classifiers:\n" + "; ".join(classifiers))
         if report.home_page:
-            lines.append(f"- Home page: {report.home_page}")
+            lines.append(f"### Home page:\n{report.home_page}")
         if report.author:
-            lines.append(f"- Author: {report.author}")
+            lines.append(f"### Author:\n{report.author}")
         if report.warnings:
             for warning in report.warnings:
-                lines.append(f"- Warning: {warning}")
+                lines.append(f"### Warning:\n{warning}")
 
         if report.license_texts:
             for rel_path, text in report.license_texts:
                 lines.append("")
-                lines.append(f"### License Text ({rel_path})")
+                lines.append(f"### License Text (`{rel_path}`)")
                 lines.append("")
                 lines.append("```text")
                 lines.append(text.strip())
@@ -217,7 +274,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Enable debug logging",
+        help="Enable DEBUG-level logging",
     )
     return parser.parse_args(argv)
 
@@ -225,15 +282,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING)
 
     if not args.lock_file.exists():
-        logging.error("Lock file not found: %s", args.lock_file)
+        logging.error(f"lock file not found: {args.lock_file}")
         return 1
 
     packages = load_packages(args.lock_file)
     if not packages:
-        logging.error("No packages found in %s", args.lock_file)
+        logging.error(f"no packages found in {args.lock_file}")
         return 1
 
     reports: list[PackageReport] = []
@@ -242,11 +299,17 @@ def main(argv: list[str] | None = None) -> int:
         reports.append(report)
         if args.verbose and report.warnings:
             for warning in report.warnings:
-                logging.warning("%s: %s", name, warning)
+                logging.warning(f"{name}: {warning}")
+        if args.verbose and report.infos:
+            for info in report.infos:
+                logging.info(f"{name}: {info}")
 
     write_output(reports, args.output)
+    
+    # change the log level to INFO so this gets shown no matter what
+    logging.getLogger().setLevel(logging.INFO)
     logging.info(
-        "Wrote license report for %d packages to %s", len(reports), args.output
+        f"wrote license report for {len(reports)} packages to {args.output}"
     )
     return 0
 
