@@ -35,17 +35,26 @@ def supervisor_factory(
     memory: bool = True,
     use_proxy: bool = True,
 ) -> AgentFunction:
+    """
+    Create a `supervisor` agent function.
+    """
     _debug_include_intraswarm = True
+
     if len(comm_targets) == 0:
         _debug_include_intraswarm = False
-    parsed_tools: list[dict[str, Any]] = []
-    if not isinstance(tools[0], dict):
-        parsed_tools = [pydantic_function_tool(tool) for tool in tools]  # type: ignore
-        if tool_format == "responses":
-            parsed_tools = _make_tools(parsed_tools)  # type: ignore
 
+    # parse the user-provided tools
+    parsed_tools: list[dict[str, Any]] = []
+    if len(tools) == 0:
+        parsed_tools = []
+    elif not isinstance(tools[0], dict):
+        parsed_tools = [pydantic_function_tool(tool) for tool in tools]
+        if tool_format == "responses":
+            parsed_tools = _make_tools(parsed_tools)
     else:
-        parsed_tools = tools  # type: ignore
+        parsed_tools = tools
+
+    # add supervisor tools to user-provided tools
     parsed_tools += create_supervisor_tools(
         comm_targets,
         can_complete_tasks,
@@ -53,6 +62,7 @@ def supervisor_factory(
         style=tool_format,
         _debug_include_intraswarm=_debug_include_intraswarm,
     )
+
     agent = base_agent_factory(
         user_token=user_token,
         llm=llm,
@@ -70,4 +80,5 @@ def supervisor_factory(
         enable_interswarm=enable_interswarm,
         _debug_include_mail_tools=_debug_include_intraswarm,
     )
+
     return agent

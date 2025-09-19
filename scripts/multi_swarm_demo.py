@@ -2,9 +2,11 @@
 # Copyright (c) 2025 Addison Kline
 
 import asyncio
+import logging
 import os
 import signal
 import subprocess
+from pathlib import Path
 
 import aiohttp
 from aiohttp import web
@@ -50,6 +52,55 @@ async def _start_auth_stub(app: web.Application) -> web.AppRunner:
     site = web.TCPSite(runner, "127.0.0.1", AUTH_PORT)
     await site.start()
     return runner
+
+
+def _snapshot_mail_log_files() -> dict[Path, int]:
+    """
+    Capture current size of any FILE handlers attached to MAIL loggers.
+    """
+    loggers = {logging.getLogger("mail"), logging.getLogger()}
+    for name in logging.root.manager.loggerDict.keys():
+        if name.startswith("mail"):
+            loggers.add(logging.getLogger(name))
+
+    offsets: dict[Path, int] = {}
+    for logger in loggers:
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                path = Path(handler.baseFilename)
+                if path not in offsets:
+                    try:
+                        offsets[path] = path.stat().st_size
+                    except FileNotFoundError:
+                        offsets[path] = 0
+                        
+    return offsets
+
+
+def _dump_mail_logs(initial_offsets: dict[Path, int]) -> None:
+    """
+    Print the new MAIL log entries emitted since the snapshot was taken.
+    """
+    if not initial_offsets:
+        print("no MAIL log files discovered; skipping log dump")
+        return
+
+    print("\nMAIL logs:")
+    for path, start in sorted(initial_offsets.items(), key=lambda item: item[0]):
+        try:
+            with path.open("r", encoding="utf-8") as log_file:
+                log_file.seek(start)
+                contents = log_file.read()
+        except FileNotFoundError:
+            print(f"--- {path} missing (no logs available) ---")
+            continue
+
+        header = f"--- {path} ---"
+        print(header)
+        if contents:
+            print(contents.rstrip("\n"))
+        else:
+            print("(no new entries)")
 
 
 async def _wait_for_health(url: str, timeout_s: float = 20.0) -> None:
@@ -99,15 +150,11 @@ def _launch_mail_server(
         "127.0.0.1",
         "--port",
         port,
-        "--log-level",
-        "warning",
     ]
     return subprocess.Popen(
         args,
         cwd=os.getcwd(),
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
         shell=False,
         preexec_fn=os.setsid if hasattr(os, "setsid") else None,
     )
@@ -158,6 +205,7 @@ async def main():
     Main function.
     """
     init_logger()
+    log_snapshot: dict[Path, int] = _snapshot_mail_log_files()
 
     # Start minimal auth stub used by both swarms
     auth_app = web.Application()
@@ -224,6 +272,8 @@ async def main():
             await auth_runner.cleanup()
         except Exception:
             pass
+
+        _dump_mail_logs(log_snapshot)
 
 
 if __name__ == "__main__":
