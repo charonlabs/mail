@@ -16,13 +16,17 @@
 - The system mirrors definitions appropriately so both shapes are supported internally
 
 ## Built-in MAIL tools ([src/mail/core/tools.py](/src/mail/core/tools.py))
-- `send_request(target, subject, message)` → emits a `MAILRequest`
-- `send_response(target, subject, message)` → emits a `MAILResponse`
-- `send_interrupt(target, subject, message)` → emits a `MAILInterrupt`
-- `send_broadcast(subject, message)` → emits a `MAILBroadcast` to all
-- `acknowledge_broadcast(note?)` → store broadcast in memory, no outgoing message
-- `ignore_broadcast(reason?)` → ignore broadcast; no memory, no outgoing message
-- Supervisor extras: `task_complete(finish_message)`; interswarm extras: `send_interswarm_broadcast`, `discover_swarms`
+- `send_request(target, subject, body)` → emits a `MAILRequest` to a validated in-swarm target; when the agent template enables interswarm the `target` accepts the `agent@swarm` form.
+- `send_response(target, subject, body)` → mirrors `send_request` but produces a `MAILResponse`, letting agents continue existing conversations.
+- `send_interrupt(target, subject, body)` → issues a `MAILInterrupt` so supervisors can pause or redirect downstream agents.
+- `send_broadcast(subject, body)` → fans a `MAILBroadcast` out to every agent in the local swarm.
+- `acknowledge_broadcast(note=None)` → records the broadcast in agent memory without replying; the optional note stays internal.
+- `ignore_broadcast(reason=None)` → explicitly drops the broadcast and skips both memory storage and outbound mail; optional reason is internal only.
+- `send_interswarm_broadcast(subject, body, target_swarms=[])` → (supervisor + interswarm) sends a broadcast to selected remote swarms, defaulting to all when the list is empty.
+- `discover_swarms(discovery_urls)` → (supervisor + interswarm) hands discovery endpoints to the registry so it can import additional swarms.
+- `task_complete(finish_message)` → (supervisor) broadcasts the final answer and tells the runtime the task loop is finished.
+
+`create_mail_tools()` installs the standard request/response plus broadcast acknowledgement helpers for regular agents, while `create_supervisor_tools()` layers on interrupts, broadcasts, discovery, and task completion based on the template flags described above.
 
 ## Supervisors
 - Agents with `can_complete_tasks: true` can **signal task completion** and are treated as supervisors
@@ -35,4 +39,3 @@
 ## Factories and prompts
 - **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
 - **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
-

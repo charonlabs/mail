@@ -46,15 +46,29 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 ### Imports and modules
 - To obtain **high-level builder classes**:
   ```python 
-  from mail import MAILAgent, MAILAgentTemplate, MAILAction, MAILSwarm, MAILSwarmTemplate
+  from mail import (
+    MAILAgent, 
+    MAILAgentTemplate, 
+    MAILAction, 
+    MAILSwarm, 
+    MAILSwarmTemplate
+  )
   ``` 
 - To obtain **protocol types**:
   ```python
-  from mail import MAILMessage, MAILRequest, MAILResponse, MAILBroadcast, MAILInterrupt AgentToolCall
+  from mail import (
+      MAILMessage,
+      MAILRequest,
+      MAILResponse,
+      MAILBroadcast,
+      MAILInterrupt,
+      AgentToolCall,
+  )
   ```
 - To obtain **network helpers** for interswarm support:
   ```python
   from mail.net import SwarmRegistry, InterswarmRouter
+  ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
 
 ### Class reference
@@ -248,9 +262,9 @@ The Python surface is designed for embedding MAIL inside other applications, bui
     style="completions"
   ) -> dict[str, Any]
 ```
-  - **Parameters**: Pydantic model class, optional tool name/description, OpenAI tool style.
-  - **Returns**: Tool metadata dictionary compatible with OpenAI completions/responses APIs.
-  - **Summary**: Convert a Pydantic model into an OpenAI tool schema.
+  - **Parameters**: `model_cls: type[BaseModel]` – Pydantic model describing the tool payload; `name: str | None` – optional override for the tool name; `description: str | None` – supplemental natural language description; `style: Literal["completions", "responses"]` – which OpenAI API surface the schema will target.
+  - **Returns**: `dict[str, Any]` – Tool metadata in the shape expected by the chosen OpenAI API.
+  - **Summary**: Wraps Pydantic models with OpenAI metadata so MAIL agents can advertise structured tool calls across both the Chat Completions and Responses APIs.
 ##### `convert_call_to_mail_message`
 ```python
 def convert_call_to_mail_message(
@@ -259,9 +273,9 @@ def convert_call_to_mail_message(
     task_id
 ) -> MAILMessage
 ```
-  - **Parameters**: `AgentToolCall`, sender agent name, task identifier.
-  - **Returns**: MAIL envelope derived from the tool invocation.
-  - **Summary**: Translate tool calls into MAIL protocol messages.
+  - **Parameters**: `call: AgentToolCall` – serialized OpenAI tool invocation captured from the LLM; `sender: str` – MAIL agent name that issued the tool call; `task_id: str` – runtime task identifier tying the message to a conversation loop.
+  - **Returns**: `MAILMessage` – Fully populated MAIL envelope ready for routing (request, response, broadcast, interrupt, or completion broadcast).
+  - **Summary**: Normalizes OpenAI tool executions into canonical MAIL messages, setting message IDs, timestamps, and typed payloads so downstream routers can deliver them without additional parsing.
 ##### `create_request_tool`
 ```python
 def create_request_tool(
@@ -270,7 +284,9 @@ def create_request_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Build a request-sending tool limited to a set of recipient agents (optional interswarm addressing).
+  - **Parameters**: `targets: list[str]` – approved in-swarm recipients for outgoing requests; `enable_interswarm: bool` – toggles free-form `agent@swarm` addressing; `style: Literal["completions", "responses"]` – OpenAI API surface to tailor schema for.
+  - **Returns**: `dict[str, Any]` – OpenAI tool definition whose schema enforces MAIL request fields.
+  - **Summary**: Produces a constrained `send_request` tool that lets agents originate MAIL requests while guarding the recipient list and optionally annotating interswarm routing hints.
 ##### `create_response_tool`
 ```python
 def create_response_tool(
@@ -279,7 +295,9 @@ def create_response_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Build a response-sending tool mirroring `create_request_tool`.
+  - **Parameters**: `targets: list[str]` – eligible response recipients; `enable_interswarm: bool` – permits remote swarm addressing when true; `style: Literal["completions", "responses"]` – selects schema layout for the target OpenAI API.
+  - **Returns**: `dict[str, Any]` – OpenAI tool description for the `send_response` helper.
+  - **Summary**: Mirrors `create_request_tool` but directs the payload through the MAIL response channel so agents can close loops or send follow-ups with correct metadata.
 ##### `create_interrupt_tool`
 ```python
 def create_interrupt_tool(
@@ -288,49 +306,63 @@ def create_interrupt_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Build an interrupt tool for halting agent activity.
+  - **Parameters**: `targets: list[str]` – agents whose execution can be interrupted; `enable_interswarm: bool` – expands targeting to `agent@swarm`; `style: Literal["completions", "responses"]` – determines tool schema format.
+  - **Returns**: `dict[str, Any]` – OpenAI definition for the `send_interrupt` tool.
+  - **Summary**: Enables supervisor-style interventions by emitting MAIL interrupt envelopes that pause or redirect downstream agents, preserving target validation rules.
 ##### `create_interswarm_broadcast_tool`
 ```python
 def create_interswarm_broadcast_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Allow supervisors to broadcast messages across swarms.
+  - **Parameters**: `style: Literal["completions", "responses"]` – OpenAI API variant that should consume the tool description.
+  - **Returns**: `dict[str, Any]` – Tool metadata for `send_interswarm_broadcast`.
+  - **Summary**: Provides supervisors with a broadcast primitive that targets multiple remote swarms, including optional filtering of destination swarm names.
 ##### `create_swarm_discovery_tool`
 ```python
 def create_swarm_discovery_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Emit a tool that registers discovery URLs for swarms.
+  - **Parameters**: `style: Literal["completions", "responses"]` – dictates OpenAI schema flavor.
+  - **Returns**: `dict[str, Any]` – Tool definition for `discover_swarms`.
+  - **Summary**: Lets supervisors push discovery endpoint URLs into the registry so the runtime can crawl and register additional swarms on demand.
 ##### `create_broadcast_tool`
 ```python
 def create_broadcast_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Broadcast to all agents within the local swarm.
+  - **Parameters**: `style: Literal["completions", "responses"]` – OpenAI API compatibility toggle.
+  - **Returns**: `dict[str, Any]` – Tool metadata for `send_broadcast`.
+  - **Summary**: Issues swarm-wide broadcasts inside the local runtime, allowing supervisors to disseminate guidance or status simultaneously to every agent.
 ##### `create_acknowledge_broadcast_tool`
 ```python
 def create_acknowledge_broadcast_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Store broadcasts in memory without responding.
+  - **Parameters**: `style: Literal["completions", "responses"]` – chooses schema variant for OpenAI tools.
+  - **Returns**: `dict[str, Any]` – Tool payload describing `acknowledge_broadcast`.
+  - **Summary**: Gives agents a non-disruptive acknowledgement path that stores incoming broadcasts in local memory without generating MAIL traffic.
 ##### `create_ignore_broadcast_tool` 
 ```python
 def create_ignore_broadcast_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Explicitly ignore a broadcast.
+  - **Parameters**: `style: Literal["completions", "responses"]` – determines returned schema format.
+  - **Returns**: `dict[str, Any]` – Tool metadata for `ignore_broadcast`.
+  - **Summary**: Allows agents to discard a broadcast intentionally, optionally recording an internal reason while ensuring no acknowledgement is emitted.
 ##### `create_task_complete_tool`
 ```python
 def create_task_complete_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Summary**: Mark a task as finished and communicate the final answer.
+  - **Parameters**: `style: Literal["completions", "responses"]` – aligns the schema with the OpenAI API being used.
+  - **Returns**: `dict[str, Any]` – Tool specification for `task_complete`.
+  - **Summary**: Produces the termination tool supervisors use to broadcast the final user-facing answer and signal the runtime that the task loop can close.
 ##### `create_mail_tools`
 ```python
 def create_mail_tools(
@@ -339,7 +371,9 @@ def create_mail_tools(
     style="completions"
 ) -> list[dict[str, Any]]
 ```
-  - **Summary**: Convenience helper combining request/response/broadcast acknowledgement tools.
+  - **Parameters**: `targets: list[str]` – baseline intra-swarm recipients; `enable_interswarm: bool` – toggles remote routing support; `style: Literal["completions", "responses"]` – OpenAI schema variant shared by all generated tools.
+  - **Returns**: `list[dict[str, Any]]` – Bundled request, response, acknowledgement, and ignore tools configured with the provided options.
+  - **Summary**: Supplies a ready-to-install toolkit for standard agents so they can message peers, acknowledge broadcasts, or silence them without bespoke configuration.
 ##### `create_supervisor_tools`
 ```python
 def create_supervisor_tools(
@@ -350,7 +384,9 @@ def create_supervisor_tools(
     _debug_include_intraswarm=True
 ) -> list[dict[str, Any]]
 ```
-  - **Summary**: Supervisor-focused tool bundle including interrupts, broadcasts, discovery, and task completion.
+  - **Parameters**: `targets: list[str]` – intra-swarm agents reachable by the supervisor; `can_complete_tasks: bool` – gates inclusion of the task completion tool; `enable_interswarm: bool` – toggles remote messaging and discovery helpers; `style: Literal["completions", "responses"]` – controls schema flavor; `_debug_include_intraswarm: bool` – retains intra-swarm tools when debugging or running evaluations.
+  - **Returns**: `list[dict[str, Any]]` – Curated tool set composed of interrupts, broadcasts, discovery, and optional completion helpers.
+  - **Summary**: Tailors the MAIL control surface for supervisory agents, combining escalation, coordination, discovery, and shutdown capabilities into a single toolkit.
 
 #### `mail.utils.auth`
 ##### `login`
@@ -359,75 +395,95 @@ def login(
     api_key: str
 ) -> Awaitable[str]
 ```
-  - **Summary**: Exchange an API key for a bearer token via the auth service.
+  - **Parameters**: `api_key: str` – credential provided by the operator or registry.
+  - **Returns**: `Awaitable[str]` – coroutine resolving to a bearer token when the auth service accepts the key.
+  - **Summary**: Performs the remote API key exchange, logs successful authentications, and yields the token MAIL uses for subsequent secured calls.
 ##### `get_token_info`
 ```python
 def get_token_info(
     token: str
 ) -> Awaitable[dict[str, Any]]
 ```
-  - **Summary**: Resolve a token into `{ role, id, api_key }` metadata.
+  - **Parameters**: `token: str` – bearer token previously issued by the auth service.
+  - **Returns**: `Awaitable[dict[str, Any]]` – coroutine yielding the decoded token payload (role, id, api key reference, etc.).
+  - **Summary**: Queries the token introspection endpoint to materialize role metadata used by all downstream authorization checks.
 ##### `caller_is_admin`
 ```python
 def caller_is_admin(
     request
 ) -> Awaitable[bool]
 ```
-  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+  - **Parameters**: `request: fastapi.Request` – inbound HTTP request carrying the bearer token header.
+  - **Returns**: `Awaitable[bool]` – coroutine resolving to `True` when the token role is `admin`, otherwise raises `HTTPException`.
+  - **Summary**: FastAPI dependency that gates endpoints to administrators by validating the caller’s token role against the auth service.
 ##### `caller_is_user`
 ```python
 def caller_is_user(
     request
 ) -> Awaitable[bool]
 ```
-  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+  - **Parameters**: `request: fastapi.Request` – HTTP request containing an Authorization header.
+  - **Returns**: `Awaitable[bool]` – coroutine that resolves to `True` when the token role is `user` (otherwise raises `HTTPException`).
+  - **Summary**: Dependable guard that restricts endpoints to end users, reusing the shared role-checking helper.
 ##### `caller_is_agent`
 ```python
 def caller_is_agent(
     request
 ) -> Awaitable[bool]
 ```
-  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+  - **Parameters**: `request: fastapi.Request` – bearer-authenticated HTTP request.
+  - **Returns**: `Awaitable[bool]` – coroutine returning `True` if the caller’s role is `agent`, otherwise raising `HTTPException`.
+  - **Summary**: Dependency enforcing that only MAIL agents (typically other swarms) can access agent-scoped endpoints.
 ##### `caller_is_admin_or_user`
 ```python
 def caller_is_admin_or_user(
     request
 ) -> Awaitable[bool]
 ```
-  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+  - **Parameters**: `request: fastapi.Request` – inbound request from which the method extracts and validates the bearer token.
+  - **Returns**: `Awaitable[bool]` – coroutine that resolves to `True` for `admin` or `user` callers, raising `HTTPException` for all others.
+  - **Summary**: Combined guard that accepts either administrative or end-user tokens while protecting against malformed or mis-scoped Authorization headers.
 ##### `extract_token_info`
 ```python
 def extract_token_info(
     request
 ) -> Awaitable[dict[str, Any]]
 ```
-  - **Summary**: Pull token metadata from the incoming request headers.
+  - **Parameters**: `request: fastapi.Request` – request object containing bearer token details.
+  - **Returns**: `Awaitable[dict[str, Any]]` – coroutine yielding the token metadata dictionary retrieved from the auth service.
+  - **Summary**: Utility dependency that unwraps the Authorization header, normalizes the bearer token, and returns the decoded payload for downstream handlers.
 ##### `generate_user_id`
 ```python
 def generate_user_id(
     token_info
 ) -> str
 ```
-  - **Summary**: Deterministically format a user identifier (`role_id`).
+  - **Parameters**: `token_info: dict[str, Any]` – decoded token payload from the auth service.
+  - **Returns**: `str` – stable user identifier combining the caller role and id.
+  - **Summary**: Formats the composite user identifier MAIL uses to partition runtimes and per-user state.
 ##### `generate_agent_id`
 ```python
 def generate_agent_id(
     token_info
 ) -> str
 ```
-  - **Summary**: Deterministically format an interswarm agent identifier (`swarm_id`).
+  - **Parameters**: `token_info: dict[str, Any]` – token payload describing the remote agent.
+  - **Returns**: `str` – prefixed identifier (`swarm_<id>`) used for interswarm routing and persistence keys.
+  - **Summary**: Produces the canonical agent identifier expected by registry and routing components.
 
 #### `mail.utils.logger`
 ##### `get_loggers`
 ```python
 def get_loggers() -> list[str]
 ```
-  - **Summary**: List currently registered Python loggers.
+  - **Returns**: `list[str]` – names of loggers tracked by the root logging manager.
+  - **Summary**: Exposes the logging subsystem’s registry so callers can audit or reconfigure loggers programmatically.
 ##### `init_logger`
 ```python
 def init_logger() -> None
 ```
-  - **Summary**: Configure Rich console logging plus rotating file output under `logs/`.
+  - **Returns**: `None`.
+  - **Summary**: Builds MAIL’s logging pipeline by wiring Rich console output, daily rotating file handlers, and sanitizing third-party logger configurations before runtime startup.
 
 #### `mail.utils.parsing`
 ##### `read_python_string`
@@ -436,21 +492,26 @@ def read_python_string(
     string: str
 ) -> Any
 ```
-  - **Summary**: Import `module:attribute` strings at runtime (used by templates).
+  - **Parameters**: `string: str` – import target in `module:attribute` format.
+  - **Returns**: `Any` – referenced attribute imported dynamically from the specified module.
+  - **Summary**: Supports template-driven configuration by resolving dotted module references into live Python objects.
 ##### `target_address_is_interswarm`
 ```python
 def target_address_is_interswarm(
     address: str
 ) -> bool
 ```
-  - **Summary**: Determine whether an address targets a remote swarm (`agent@swarm`).
+  - **Parameters**: `address: str` – MAIL address such as `agent` or `agent@swarm`.
+  - **Returns**: `bool` – `True` when the address encodes a remote swarm component, otherwise `False`.
+  - **Summary**: Uses the core address parser to distinguish local recipients from interswarm destinations for routing decisions.
 
 #### `mail.utils.store`
 ##### `get_langmem_store`
 ```python
 def get_langmem_store() -> AsyncIterator[Any]
 ```
-  - **Summary**: Async context manager yielding a LangMem memory store (Postgres when configured, otherwise in-memory).
+  - **Returns**: `AsyncIterator[Any]` – async context manager that yields either a Postgres-backed LangMem store or an in-memory fallback.
+  - **Summary**: Centralizes memory-store provisioning, negotiating Postgres connectivity, schema options, and in-memory fallbacks while presenting a consistent async context manager interface.
 
 ### Example: programmatic swarm assembly
 

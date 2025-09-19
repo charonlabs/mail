@@ -3,10 +3,10 @@
 Thanks for helping make the MAIL protocol and reference server better!
 
 ## Licensing overview
-- Code: Licensed under `Apache-2.0` (see `LICENSE`).
-- Specification text: Licensed under `CC BY 4.0` (see `SPEC-LICENSE`).
-- Specification patents: Covered by `OWFa 1.1` (see `SPEC-PATENT-LICENSE`).
-- Inbound = Outbound: By contributing, you agree your contributions are
+- **Code**: Licensed under `Apache-2.0` (see `LICENSE`).
+- **Specification text**: Licensed under `CC BY 4.0` (see `SPEC-LICENSE`).
+- **Specification patents**: Covered by `OWFa 1.0` (see `SPEC-PATENT-LICENSE`).
+- **Inbound = Outbound**: By contributing, you agree your contributions are
   provided under the same licenses as the corresponding part of the project.
 
 ## Before you start
