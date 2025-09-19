@@ -1,7 +1,7 @@
 [project]
 name = "mail"
 version = "1.0.0"
-description = "Multi-Agent Interface Layer"
+description = "Multi-Agent Interface Layer reference implementation"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -29,7 +29,7 @@ license = "Apache-2.0"
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
 ]
-license-files = ["LICENSE", "NOTICE"]
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 
 [build-system]
 requires = ["hatchling"]
