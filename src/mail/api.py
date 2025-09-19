@@ -340,7 +340,7 @@ class MAILAction:
         name: str,
         description: str,
         parameters: dict[str, Any],
-        function: str,
+        function: str | ActionFunction,
     ) -> None:
         self.name = name
         self.description = description
@@ -363,9 +363,11 @@ class MAILAction:
 
     def _build_action_function(
         self,
-        function: str,
+        function: str | ActionFunction,
     ) -> ActionFunction:
-        return read_python_string(function)
+        if isinstance(function, str):
+            return read_python_string(function)
+        return function
 
     @staticmethod
     def from_pydantic_model(
