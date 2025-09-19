@@ -148,7 +148,12 @@ class MAILRuntime:
             logger.warning(
                 f"MAIL is already running for user '{self.user_id}', cannot start another run"
             )
-            return self._system_shutdown_message("MAIL already running")
+            return self._system_broadcast(
+                task_id="null",
+                subject="Runtime Error",
+                body="MAIL is already running, cannot start another run",
+                task_complete=True,
+            )
 
         self.is_running = True
 
@@ -723,7 +728,7 @@ class MAILRuntime:
                     logger.error(f"error during interswarm auto-complete check: '{e}'")
                     self._submit_event(
                         "router_error",
-                        task_id,
+                        message["message"]["task_id"],
                         f"error during interswarm auto-complete check: '{e}'",
                     )
                     await self.submit(
@@ -813,13 +818,13 @@ If your assigned task cannot be completed, inform your caller of this error and 
 
                     # if the recipient is actually the user, indicate that
                     if recipient_agent == self.user_id:
+                        self._submit_event(
+                            "agent_error",
+                            message["message"]["task_id"],
+                            f"agent '{message['message']['sender']['address']}' attempted to send a message to the user ('{self.user_id}')",
+                        )
                         self._send_message(
                             sender_agent,
-                            self._submit_event(
-                                "agent_error",
-                                message["message"]["task_id"],
-                                f"agent '{message['message']['sender']['address']}' attempted to send a message to the user ('{self.user_id}')",
-                            ),
                             self._system_response(
                                 task_id=message["message"]["task_id"],
                                 recipient=create_agent_address(recipient),
@@ -1170,7 +1175,7 @@ Use this information to decide how to complete your task.""",
                 sender=create_system_address(self.swarm_name),
                 recipients=[create_agent_address("all")]
                 if task_complete
-                else recipients,
+                else (recipients or []),
                 subject=subject,
                 body=body,
                 sender_swarm=self.swarm_name,

@@ -861,8 +861,8 @@ class MAILSwarm:
 
         actions: list[MAILAction] = []
         seen_actions: dict[str, MAILAction] = {}
-        for agent in selected_agents:
-            for action in agent.actions:
+        for agent_template in selected_agents:
+            for action in agent_template.actions:
                 if action.name not in seen_actions:
                     seen_actions[action.name] = action
         actions = list(seen_actions.values())
@@ -1045,8 +1045,8 @@ class MAILSwarmTemplate:
 
         actions: list[MAILAction] = []
         seen_actions: dict[str, MAILAction] = {}
-        for agent in selected_agents:
-            for action in agent.actions:
+        for agent_template in selected_agents:
+            for action in agent_template.actions:
                 if action.name not in seen_actions:
                     seen_actions[action.name] = action
         actions = list(seen_actions.values())
