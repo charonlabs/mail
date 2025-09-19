@@ -2,6 +2,7 @@
   "local_swarm_name": "example",
   "local_base_url": "http://localhost:8000",
   "endpoints": {
+<<<<<<< HEAD
     "example": {
       "swarm_name": "example",
       "base_url": "http://localhost:8000",
@@ -12,6 +13,8 @@
       "metadata": null,
       "volatile": false
     },
+=======
+>>>>>>> 7176327 (registry hooplah)
     "example-no-proxy": {
       "swarm_name": "example-no-proxy",
       "base_url": "http://localhost:8000",
