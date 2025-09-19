@@ -1,14 +1,14 @@
-# MAIL Documentation
+# MAIL Python Reference Implementation Documentation
 
 This folder documents the **Multi‑Agent Interface Layer (MAIL) reference implementation** found in this repository. It explains what MAIL is, how this Python implementation is structured, how to run it, and how to extend it with your own agents and swarms.
 
-If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Architecture](/docs/architecture.md) and [Agents & Tools](/docs/agents-and-tools.md). The [API](/docs/api.md) and [Message Format](/docs/message-format.md) docs specify how to integrate clients and other swarms.
+If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Architecture](/docs/architecture.md) and [Agents & Tools](/docs/agents-and-tools.md). The [API](/docs/api.md) doc covers both HTTP and Python surfaces, and [Message Format](/docs/message-format.md) specifies the wire schema used by every transport.
 
 ## Contents
 - **Quickstart**: [quickstart.md](/docs/quickstart.md)
 - **Architecture**: [architecture.md](/docs/architecture.md)
 - **Configuration**: [configuration.md](/docs/configuration.md)
-- **API (HTTP)**: [api.md](/docs/api.md)
+- **API (HTTP & Python)**: [api.md](/docs/api.md)
 - **Message Format**: [message-format.md](/docs/message-format.md)
 - **Agents & Tools**: [agents-and-tools.md](/docs/agents-and-tools.md)
 - **Interswarm Messaging**: [interswarm.md](/docs/interswarm.md)
@@ -19,7 +19,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Troubleshooting**: [troubleshooting.md](/docs/troubleshooting.md)
 
 ## What is MAIL?
-- MAIL (Multi‑Agent Interface Layer) is a protocol and reference implementation that standardizes how autonomous agents communicate, coordinate, and collaborate.
+- **MAIL** (**M**ulti‑**A**gent **I**nterface **L**ayer) is a protocol and reference implementation that standardizes how autonomous agents communicate, coordinate, and collaborate.
 - The Python implementation uses FastAPI for HTTP endpoints, an internal runtime loop for message processing, and a registry/router for inter‑swarm communication over HTTP.
 - The normative protocol specification lives in [spec/](/spec/SPEC.md) and includes JSON Schemas and an OpenAPI file for the HTTP surface.
 
@@ -29,4 +29,3 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Interswarm**: [src/mail/net/router.py](/src/mail/net/router.py), [src/mail/net/registry.py](/src/mail/net/registry.py), [src/mail/net/types.py](/src/mail/net/types.py)
 - **Utilities**: [src/mail/utils/](/src/mail/utils/__init__.py)
 - **Examples and factories**: [src/mail/examples/](/src/mail/examples/__init__.py), [src/mail/factories/](/src/mail/factories/__init__.py)
-
