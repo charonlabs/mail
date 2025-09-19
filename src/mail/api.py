@@ -8,7 +8,7 @@ import json
 import logging
 import uuid
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
@@ -39,7 +39,7 @@ class MAILAgent:
     def __init__(
         self,
         name: str,
-        factory: str,
+        factory: str | Callable,
         actions: list["MAILAction"],
         function: AgentFunction,
         comm_targets: list[str],
@@ -109,7 +109,7 @@ class MAILAgentTemplate:
     def __init__(
         self,
         name: str,
-        factory: str,
+        factory: str | Callable,
         comm_targets: list[str],
         actions: list["MAILAction"],
         agent_params: dict[str, Any],
@@ -163,7 +163,10 @@ class MAILAgentTemplate:
             **self.agent_params,
             **instance_params,
         }
-        factory_func = read_python_string(self.factory)
+        if isinstance(self.factory, str):
+            factory_func = read_python_string(self.factory)
+        else:
+            factory_func = self.factory
         agent_function = factory_func(**full_params)
 
         return MAILAgent(
