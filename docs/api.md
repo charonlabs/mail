@@ -353,33 +353,103 @@ def create_supervisor_tools(
   - **Summary**: Supervisor-focused tool bundle including interrupts, broadcasts, discovery, and task completion.
 
 #### `mail.utils.auth`
-- `login(api_key: str) -> Awaitable[str]`
+##### `login`
+```python
+def login(
+    api_key: str
+) -> Awaitable[str]
+```
   - **Summary**: Exchange an API key for a bearer token via the auth service.
-- `get_token_info(token: str) -> Awaitable[dict[str, Any]]`
+##### `get_token_info`
+```python
+def get_token_info(
+    token: str
+) -> Awaitable[dict[str, Any]]
+```
   - **Summary**: Resolve a token into `{ role, id, api_key }` metadata.
-- `caller_is_admin(request)`, `caller_is_user(request)`, `caller_is_agent(request)`, `caller_is_admin_or_user(request) -> Awaitable[bool]`
+##### `caller_is_admin`
+```python
+def caller_is_admin(
+    request
+) -> Awaitable[bool]
+```
   - **Summary**: FastAPI dependency helpers that enforce role-based access.
-- `extract_token_info(request) -> Awaitable[dict[str, Any]]`
+##### `caller_is_user`
+```python
+def caller_is_user(
+    request
+) -> Awaitable[bool]
+```
+  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+##### `caller_is_agent`
+```python
+def caller_is_agent(
+    request
+) -> Awaitable[bool]
+```
+  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+##### `caller_is_admin_or_user`
+```python
+def caller_is_admin_or_user(
+    request
+) -> Awaitable[bool]
+```
+  - **Summary**: FastAPI dependency helpers that enforce role-based access.
+##### `extract_token_info`
+```python
+def extract_token_info(
+    request
+) -> Awaitable[dict[str, Any]]
+```
   - **Summary**: Pull token metadata from the incoming request headers.
-- `generate_user_id(token_info) -> str`
+##### `generate_user_id`
+```python
+def generate_user_id(
+    token_info
+) -> str
+```
   - **Summary**: Deterministically format a user identifier (`role_id`).
-- `generate_agent_id(token_info) -> str`
+##### `generate_agent_id`
+```python
+def generate_agent_id(
+    token_info
+) -> str
+```
   - **Summary**: Deterministically format an interswarm agent identifier (`swarm_id`).
 
 #### `mail.utils.logger`
-- `get_loggers() -> list[str]`
+##### `get_loggers`
+```python
+def get_loggers() -> list[str]
+```
   - **Summary**: List currently registered Python loggers.
-- `init_logger() -> None`
+##### `init_logger`
+```python
+def init_logger() -> None
+```
   - **Summary**: Configure Rich console logging plus rotating file output under `logs/`.
 
 #### `mail.utils.parsing`
-- `read_python_string(string: str) -> Any`
+##### `read_python_string`
+```python
+def read_python_string(
+    string: str
+) -> Any
+```
   - **Summary**: Import `module:attribute` strings at runtime (used by templates).
-- `target_address_is_interswarm(address: str) -> bool`
+##### `target_address_is_interswarm`
+```python
+def target_address_is_interswarm(
+    address: str
+) -> bool
+```
   - **Summary**: Determine whether an address targets a remote swarm (`agent@swarm`).
 
 #### `mail.utils.store`
-- `get_langmem_store() -> AsyncIterator[Any]`
+##### `get_langmem_store`
+```python
+def get_langmem_store() -> AsyncIterator[Any]
+```
   - **Summary**: Async context manager yielding a LangMem memory store (Postgres when configured, otherwise in-memory).
 
 ### Example: programmatic swarm assembly
