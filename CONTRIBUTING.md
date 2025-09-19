@@ -3,9 +3,9 @@
 Thanks for helping make the MAIL protocol and reference server better!
 
 ## Licensing overview
-- **Code**: Licensed under `Apache-2.0` (see `LICENSE`).
-- **Specification text**: Licensed under `CC BY 4.0` (see `SPEC-LICENSE`).
-- **Specification patents**: Covered by `OWFa 1.0` (see `SPEC-PATENT-LICENSE`).
+- **Code**: Licensed under `Apache-2.0` (see [LICENSE](/LICENSE)).
+- **Specification text**: Licensed under `CC BY 4.0` (see [SPEC-LICENSE](/SPEC-LICENSE)).
+- **Specification patents**: Covered by `OWFa 1.0` (see [SPEC-PATENT-LICENSE](/SPEC-PATENT-LICENSE)).
 - **Inbound = Outbound**: By contributing, you agree your contributions are
   provided under the same licenses as the corresponding part of the project.
 
@@ -34,7 +34,7 @@ You can use `git commit -s` to add this automatically. See the full DCO text in 
   Open Web Foundation Final Specification Agreement 1.1 for Essential Claims.
 
 ## Trademarks
-"MAIL" and related names, logos, and marks are trademarks of their respective owners. Use of the trademarks is not licensed. Descriptive use is permitted; do not imply endorsement. See `TRADEMARKS.md` for details.
+"MAIL" and related names, logos, and marks are trademarks of their respective owners. Use of the trademarks is not licensed. Descriptive use is permitted; do not imply endorsement. See [TRADEMARKS.md](/TRADEMARKS.md) for details.
 
 ## Contact & questions
 Open an issue for bugs and proposals. For sensitive security matters, please avoid filing public issues and contact the maintainers directly.

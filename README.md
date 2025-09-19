@@ -4,7 +4,7 @@
   <img src="assets/mail.png" alt="MAIL Example Diagram" width="400" />
 </p>
 
-**MAIL** is an open protocol for letting autonomous agents communicate, coordinate, and cooperate across local runtimes and distributed swarms. This repository hosts both the normative specification and a production-grade Python/FastAPI reference implementation that demonstrate how to build interoperable agent systems on top of the MAIL contract.
+**MAIL** is an **open protocol** for letting autonomous agents communicate, coordinate, and cooperate across local runtimes and distributed swarms. This repository hosts both the normative specification and a production-grade **Python/FastAPI reference implementation** that demonstrate how to build interoperable agent systems on top of the MAIL contract.
 
 ---
 
@@ -128,10 +128,10 @@ uv run -m mail.server
 ### Federate Two Swarms (Example)
 ```bash
 # Terminal 1
-PORT=8000 uv run mail
+BASE_URL=http://localhost:8000 SWARM_NAME=swarm-alpha uv run mail
 
 # Terminal 2
-PORT=8001 SWARM_NAME=swarm-beta uv run mail
+BASE_URL=http://localhost:8001 SWARM_NAME=swarm-beta uv run mail
 
 # Register each swarm with the other (requires admin bearer token)
 curl -X POST http://localhost:8000/swarms/register \
