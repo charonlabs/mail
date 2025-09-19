@@ -235,7 +235,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
                 name="supervisor",
                 factory="tests.conftest:make_stub_agent",
                 actions=[],
-                function=make_stub_agent,
+                function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["analyst"],
                 can_complete_tasks=True,
                 enable_entrypoint=True,
@@ -245,7 +245,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
                 name="analyst",
                 factory="tests.conftest:make_stub_agent",
                 actions=[],
-                function=make_stub_agent,
+                function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["supervisor"],
                 enable_entrypoint=False,
                 agent_params={},
@@ -285,7 +285,7 @@ async def test_post_message_stream_headers_and_type() -> None:
                 name="supervisor",
                 factory="tests.conftest:make_stub_agent",
                 actions=[],
-                function=make_stub_agent,
+                function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["analyst"],
                 can_complete_tasks=True,
                 enable_entrypoint=True,
@@ -295,7 +295,7 @@ async def test_post_message_stream_headers_and_type() -> None:
                 name="analyst",
                 factory="tests.conftest:make_stub_agent",
                 actions=[],
-                function=make_stub_agent,
+                function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["supervisor"],
                 enable_entrypoint=False,
                 agent_params={},
@@ -324,7 +324,7 @@ def test_build_message_request_validation() -> None:
                 name="supervisor",
                 factory="tests.conftest:make_stub_agent",
                 actions=[],
-                function=make_stub_agent,
+                function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["analyst"],
                 can_complete_tasks=True,
                 enable_entrypoint=True,
@@ -334,7 +334,7 @@ def test_build_message_request_validation() -> None:
                 name="analyst",
                 factory="tests.conftest:make_stub_agent",
                 actions=[],
-                function=make_stub_agent,
+                function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["supervisor"],
                 enable_entrypoint=False,
                 agent_params={},

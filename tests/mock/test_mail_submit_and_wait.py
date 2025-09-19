@@ -15,7 +15,7 @@ from mail.core.message import (
 
 
 @pytest.mark.asyncio
-async def test_submit_and_wait_resolves_on_task_complete():
+async def test_submit_and_wait_resolves_on_task_complete() -> None:
     """
     Test that `submit_and_wait` resolves on `task_complete`.
     """
@@ -50,6 +50,9 @@ async def test_submit_and_wait_resolves_on_task_complete():
             recipient=create_agent_address("supervisor"),
             subject="Hello",
             body="Do the thing",
+            sender_swarm=None,
+            recipient_swarm=None,
+            routing_info=None,
         ),
         msg_type="request",
     )
