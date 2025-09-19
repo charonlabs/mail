@@ -186,7 +186,7 @@ mail/
 ## 8. Licensing & Trademarks
 - Reference implementation code: **Apache License 2.0** ([LICENSE](/LICENSE)).
 - Specification text: **Creative Commons Attribution 4.0** ([SPEC-LICENSE](/SPEC-LICENSE)).
-- Essential patent claims: **Open Web Foundation Final Specification Agreement 1.1** ([SPEC-PATENT-LICENSE](/SPEC-PATENT-LICENSE)).
+- Essential patent claims: **Open Web Foundation Final Specification Agreement 1.0** ([SPEC-PATENT-LICENSE](/SPEC-PATENT-LICENSE)).
 - Trademarks and descriptive use policy: [TRADEMARKS.md](/TRADEMARKS.md).
 
 Using the spec or code implies acceptance of their respective terms.
