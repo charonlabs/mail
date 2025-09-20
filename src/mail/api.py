@@ -590,6 +590,23 @@ class MAILSwarm:
                     adj[row_idx][target_idx] = 1
 
         return adj, agent_names
+    
+    def update_from_adjacency_matrix(self, adj: list[list[int]]) -> None:
+        """
+        Update comm_targets for all agents using an adjacency matrix.
+        """
+
+        if len(adj) != len(self.agents):
+            raise ValueError(f"Length of adjacency matrix does not match number of agents. Expected: {len(self.agents)} Got: {len(adj)}")
+
+        idx_to_name = {idx: name for idx, name in enumerate(self.agent_names)}
+        for i, agent_adj in enumerate(adj):
+            if len(agent_adj) != len(adj):
+                raise ValueError(f"Adjacency matrix is malformed. Expected number of agents: {len(adj)} Got: {len(agent_adj)}")
+
+            target_idx = [j for j, x in enumerate(agent_adj) if x]
+            new_targets = [idx_to_name[idx] for idx in target_idx]
+            self.agents[i].comm_targets = new_targets
 
     async def post_message(
         self,
@@ -965,6 +982,23 @@ class MAILSwarmTemplate:
                     adj[row_idx][target_idx] = 1
 
         return adj, agent_names
+    
+    def update_from_adjacency_matrix(self, adj: list[list[int]]) -> None:
+        """
+        Update comm_targets for all agents using an adjacency matrix.
+        """
+
+        if len(adj) != len(self.agents):
+            raise ValueError(f"Length of adjacency matrix does not match number of agents. Expected: {len(self.agents)} Got: {len(adj)}")
+
+        idx_to_name = {idx: name for idx, name in enumerate(self.agent_names)}
+        for i, agent_adj in enumerate(adj):
+            if len(agent_adj) != len(adj):
+                raise ValueError(f"Adjacency matrix is malformed. Expected number of agents: {len(adj)} Got: {len(agent_adj)}")
+
+            target_idx = [j for j, x in enumerate(agent_adj) if x]
+            new_targets = [idx_to_name[idx] for idx in target_idx]
+            self.agents[i].comm_targets = new_targets
 
     def instantiate(
         self,
