@@ -214,3 +214,6 @@ __marimo__/
 # Runtime logs
 logs/
 .dumps/
+
+# Swarm registries
+registries/
