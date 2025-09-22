@@ -200,12 +200,12 @@ def _terminate(proc: subprocess.Popen | None, timeout: float = 5.0) -> None:
         pass
 
 
-async def main():
+async def main() -> None:
     """
     Main function.
     """
     init_logger()
-    log_snapshot: dict[Path, int] = _snapshot_mail_log_files()
+    log_snapshot: dict[Path, int] = _snapshot_mail_log_files() 
 
     # Start minimal auth stub used by both swarms
     auth_app = web.Application()

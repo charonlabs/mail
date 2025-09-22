@@ -209,7 +209,7 @@ class MAILAgentTemplate:
             "comm_targets": list,
             "agent_params": dict,
         }
-        OPTIONAL_FIELDS = {
+        OPTIONAL_FIELDS = { # noqa: F841
             "actions": list,
             "enable_entrypoint": bool,
             "enable_interswarm": bool,
@@ -1131,7 +1131,7 @@ class MAILSwarmTemplate:
         Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
         """
         REQUIRED_FIELDS = {"name": str, "agents": list, "entrypoint": str}
-        OPTIONAL_FIELDS = {"enable_interswarm": bool}
+        OPTIONAL_FIELDS = {"enable_interswarm": bool} # noqa: F841
 
         data = json.loads(json_dump)
 
@@ -1170,7 +1170,7 @@ class MAILSwarmTemplate:
         """
         Create a `MAILSwarmTemplate` from a JSON file following the `swarms.json` format.
         """
-        with open(json_filepath, "r") as f:
+        with open(json_filepath) as f:
             contents = f.read()
             full_json = json.loads(contents)
             for swarm in full_json:

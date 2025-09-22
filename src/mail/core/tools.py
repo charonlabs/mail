@@ -208,7 +208,7 @@ def create_request_tool(
         target: str = Field(
             description=f"The target recipient agent for the message. Must be one of: {', '.join(targets)}"
             + (
-                f", or use 'agent-name@swarm-name' format for interswarm messaging"
+                ", or use 'agent-name@swarm-name' format for interswarm messaging"
                 if enable_interswarm
                 else ""
             )
@@ -390,7 +390,7 @@ def create_acknowledge_broadcast_tool(
         """Store the received broadcast in memory, do not respond."""
 
         # Use Optional to avoid PEP 604 UnionType issues in some converters
-        note: Optional[str] = Field(
+        note: Optional[str] = Field( # noqa: UP045
             default=None,
             description="Optional note to include in internal memory only.",
         )
@@ -412,7 +412,7 @@ def create_ignore_broadcast_tool(
         """Ignore the received broadcast. No memory, no response."""
 
         # Use Optional to avoid PEP 604 UnionType issues in some converters
-        reason: Optional[str] = Field(
+        reason: Optional[str] = Field( # noqa: UP045
             default=None,
             description="Optional internal reason for ignoring (not sent).",
         )
