@@ -27,6 +27,8 @@ MAIL_TOOL_NAMES = [
     "send_interrupt",
     "send_broadcast",
     "task_complete",
+    "acknowledge_broadcast",
+    "ignore_broadcast",
 ]
 
 

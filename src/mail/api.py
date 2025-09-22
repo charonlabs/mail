@@ -27,6 +27,7 @@ from mail.core import (
     create_user_address,
     pydantic_model_to_tool,
 )
+from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
 from mail.net import SwarmRegistry
 from mail.utils import read_python_string
@@ -407,6 +408,16 @@ class MAILAction:
             function=function,
         )
 
+    def to_core(self) -> ActionCore:
+        """
+        Convert the MAILAction to an ActionCore.
+        """
+        return ActionCore(
+            function=self.function,
+            name=self.name,
+            parameters=self.parameters,
+        )
+
     @staticmethod
     def from_swarm_json(json_dump: str) -> "MAILAction":
         """
@@ -528,7 +539,7 @@ class MAILSwarm:
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
         self._runtime = MAILRuntime(
             agents=self._agent_cores,
-            actions={action.name: action.function for action in actions},
+            actions={action.name: action.to_core() for action in actions},
             user_id=user_id,
             swarm_name=name,
             swarm_registry=swarm_registry,

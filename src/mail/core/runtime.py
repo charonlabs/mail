@@ -16,9 +16,8 @@ from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.store import get_langmem_store
 
 from .actions import (
-    ActionFunction,
+    ActionCore,
     ActionOverrideFunction,
-    execute_action_tool,
 )
 from .agents import (
     AgentCore,
@@ -51,7 +50,7 @@ class MAILRuntime:
     def __init__(
         self,
         agents: dict[str, AgentCore],
-        actions: dict[str, ActionFunction],
+        actions: dict[str, ActionCore],
         user_id: str,
         swarm_name: str = "example",
         swarm_registry: SwarmRegistry | None = None,
@@ -913,7 +912,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     history.append(incoming_message)
 
                 # agent function is called here
-                agent_fn = self.agents[recipient]["function"]
+                agent_fn = self.agents[recipient].function
                 _output_text, tool_calls = await agent_fn(history, "required")
 
                 # append the agent's response to the history
@@ -1075,6 +1074,36 @@ Use this information to decide how to complete your task.""",
                                     )
                                 )
                         case _:
+                            action_name = call.tool_name
+                            action_caller = self.agents.get(recipient)
+
+                            if action_caller is None:
+                                logger.error(f"agent '{recipient}' not found")
+                                self._submit_event(
+                                    "action_error",
+                                    task_id,
+                                    f"agent '{recipient}' not found",
+                                )
+                                continue
+                            action = self.actions.get(action_name)
+                            if action is None:
+                                logger.error(f"action '{action_name}' not found")
+                                self._submit_event(
+                                    "action_error",
+                                    task_id,
+                                    f"action '{action_name}' not found",
+                                )
+                                continue
+                            if not action_caller.can_access_action(action_name):
+                                logger.error(f"agent '{action_caller}' cannot access action '{action_name}'")
+                                self._submit_event(
+                                    "action_error",
+                                    task_id,
+                                    f"agent '{action_caller}' cannot access action '{action_name}'",
+                                )
+                                continue
+                                
+
                             logger.info(
                                 f"agent '{recipient}' executing action tool: '{call.tool_name}'"
                             )
@@ -1084,10 +1113,14 @@ Use this information to decide how to complete your task.""",
                                 f"agent '{recipient}' executing action tool: '{call.tool_name}'",
                             )
                             try:
-                                result_message = await execute_action_tool(
-                                    call, self.actions, action_override
+                                # execute the action function
+                                result_message = await action.execute(
+                                    call, 
+                                    actions=self.actions, 
+                                    action_override=action_override
                                 )
                                 history.append(result_message)
+
                                 result_content = (
                                     result_message.get("content")
                                     if call.completion
