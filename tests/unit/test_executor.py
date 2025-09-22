@@ -3,8 +3,8 @@
 
 import asyncio
 
-from mail.core.executor import execute_action_tool
-from mail.factories.base import AgentToolCall
+from mail.core.actions import execute_action_tool
+from mail.core.tools import AgentToolCall
 
 
 def _call(name: str, args: dict) -> AgentToolCall:
@@ -40,7 +40,7 @@ def test_execute_action_tool_normal_and_override():
         res2 = await execute_action_tool(
             _call("echo", {"x": "hi"}),
             {"echo": _action_echo},
-            _action_override=_override_upper,
+            action_override=_override_upper,
         )
         assert res2["content"].startswith("OVERRIDE:")
 

@@ -12,16 +12,19 @@ from typing import Any
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
 
-from mail.factories import (
-    ActionFunction,
-    ActionOverrideFunction,
-    AgentFunction,
-)
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.store import get_langmem_store
 
-from .executor import execute_action_tool
+from .actions import (
+    ActionFunction,
+    ActionOverrideFunction,
+    execute_action_tool,
+)
+from .agents import (
+    AgentCore,
+)
 from .message import (
+    MAIL_ALL_LOCAL_AGENTS,
     MAILAddress,
     MAILBroadcast,
     MAILMessage,
@@ -47,7 +50,7 @@ class MAILRuntime:
 
     def __init__(
         self,
-        agents: dict[str, AgentFunction],
+        agents: dict[str, AgentCore],
         actions: dict[str, ActionFunction],
         user_id: str,
         swarm_name: str = "example",
@@ -796,7 +799,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
         msg_content = message["message"]
 
         if "recipients" in msg_content:
-            if msg_content["recipients"] == ["all"]:  # type: ignore
+            if msg_content["recipients"] == MAIL_ALL_LOCAL_AGENTS: # type: ignore
                 recipients = list(self.agents.keys())
                 recipients.remove(message["message"]["sender"]["address"])
             else:
@@ -910,16 +913,17 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     history.append(incoming_message)
 
                 # agent function is called here
-                out, results = await self.agents[recipient](history, "required")
+                agent_fn = self.agents[recipient]["function"]
+                _output_text, tool_calls = await agent_fn(history, "required")
 
                 # append the agent's response to the history
-                if results[0].completion:
-                    history.append(results[0].completion)
+                if tool_calls[0].completion:
+                    history.append(tool_calls[0].completion)
                 else:
-                    history.extend(results[0].responses)
+                    history.extend(tool_calls[0].responses)
 
                 # append the agent's tool responses to the history
-                for tc in results:
+                for tc in tool_calls:
                     if tc.tool_name in MAIL_TOOL_NAMES:
                         result_message = tc.create_response_msg(
                             "Message sent. The response, if any, will be sent in the next user message."
@@ -927,7 +931,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                         history.append(result_message)
 
                 # handle tool calls
-                for call in results:
+                for call in tool_calls:
                     match call.tool_name:
                         case "acknowledge_broadcast":
                             try:

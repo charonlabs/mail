@@ -2,7 +2,6 @@
 # Copyright (c) 2025 Addison Kline, Ryan Heaton
 
 import logging
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -14,11 +13,8 @@ from litellm import (
     aresponses,
 )
 
+from mail.core.agents import AgentFunction
 from mail.core.tools import AgentToolCall, create_mail_tools
-
-AgentFunction = Callable[
-    [list[dict[str, Any]], str], Awaitable[tuple[str | None, list[AgentToolCall]]]
-]
 
 logger = logging.getLogger("mail")
 

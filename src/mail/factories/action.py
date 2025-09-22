@@ -1,16 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline, Ryan Heaton
 
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from openai import pydantic_function_tool
 from openai.resources.responses.responses import _make_tools
 
-from mail.factories.base import AgentFunction, base_agent_factory
-
-ActionFunction = Callable[[dict[str, Any]], Awaitable[str]]
-ActionOverrideFunction = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | str]]
+from mail.core.agents import AgentFunction
+from mail.factories.base import base_agent_factory
 
 
 def action_agent_factory(

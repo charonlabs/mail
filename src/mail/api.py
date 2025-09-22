@@ -7,14 +7,18 @@ import inspect
 import json
 import logging
 import uuid
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from mail import utils
 from mail.core import (
+    ActionFunction,
+    ActionOverrideFunction,
+    AgentFunction,
     AgentToolCall,
     MAILMessage,
     MAILRequest,
@@ -23,8 +27,7 @@ from mail.core import (
     create_user_address,
     pydantic_model_to_tool,
 )
-from mail.factories.action import ActionFunction, ActionOverrideFunction
-from mail.factories.base import AgentFunction
+from mail.core.agents import AgentCore
 from mail.net import SwarmRegistry
 from mail.utils import read_python_string
 
@@ -99,6 +102,18 @@ class MAILAgent:
         tool_choice: str = "required",
     ) -> tuple[str | None, list[AgentToolCall]]:
         return await self.function(messages, tool_choice)
+
+    def to_core(self) -> AgentCore:
+        """
+        Convert the `MAILAgent` to an `AgentCore`.
+        """
+        return AgentCore(
+            function=self.function,
+            comm_targets=self.comm_targets,
+            enable_entrypoint=self.enable_entrypoint,
+            enable_interswarm=self.enable_interswarm,
+            can_complete_tasks=self.can_complete_tasks,
+        )
 
 
 class MAILAgentTemplate:
@@ -510,8 +525,9 @@ class MAILSwarm:
         self.enable_interswarm = enable_interswarm
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
+        self._agent_cores = {agent.name: agent.to_core() for agent in agents}
         self._runtime = MAILRuntime(
-            agents={agent.name: agent.function for agent in agents},
+            agents=self._agent_cores,
             actions={action.name: action.function for action in actions},
             user_id=user_id,
             swarm_name=name,
@@ -831,7 +847,7 @@ class MAILSwarm:
     ) -> "MAILSwarmTemplate":
         """
         Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
-        Returns a MAILSwarmTemplate.
+        Returns a `MAILSwarmTemplate`.
         """
         agent_lookup = {agent.name: agent for agent in self.agents}
         selected_agents: list[MAILAgentTemplate] = []
@@ -1032,7 +1048,7 @@ class MAILSwarmTemplate:
     ) -> "MAILSwarmTemplate":
         """
         Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
-        Returns a MAILSwarmTemplate.
+        Returns a `MAILSwarmTemplate`.
         """
         agent_lookup = {agent.name: agent for agent in self.agents}
         selected_agents: list[MAILAgentTemplate] = []
@@ -1101,7 +1117,7 @@ class MAILSwarmTemplate:
     @staticmethod
     def from_swarm_json(json_dump: str) -> "MAILSwarmTemplate":
         """
-        Create a MAILAbstractSwarm from a JSON dump following the `swarms.json` format.
+        Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
         """
         REQUIRED_FIELDS = {"name": str, "agents": list, "entrypoint": str}
         OPTIONAL_FIELDS = {"enable_interswarm": bool}
@@ -1141,7 +1157,7 @@ class MAILSwarmTemplate:
         json_filepath: str = "swarms.json",
     ) -> "MAILSwarmTemplate":
         """
-        Create a MAILSwarmTemplate from a JSON file following the `swarms.json` format.
+        Create a `MAILSwarmTemplate` from a JSON file following the `swarms.json` format.
         """
         with open(json_filepath, "r") as f:
             contents = f.read()

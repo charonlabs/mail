@@ -5,10 +5,11 @@ import asyncio
 
 import pytest
 
-from mail.core import MAILRuntime
-from mail.core.message import (
+from mail.core import (
+    AgentCore,
     MAILMessage,
     MAILRequest,
+    MAILRuntime,
     create_agent_address,
     create_user_address,
 )
@@ -21,7 +22,7 @@ async def test_submit_and_wait_resolves_on_task_complete() -> None:
     """
 
     async def stub_agent(history, tool_choice):  # noqa: ARG001
-        from mail.factories.base import AgentToolCall
+        from mail.core.tools import AgentToolCall
 
         call = AgentToolCall(
             tool_name="task_complete",
@@ -32,7 +33,15 @@ async def test_submit_and_wait_resolves_on_task_complete() -> None:
         return None, [call]
 
     mail = MAILRuntime(
-        agents={"supervisor": stub_agent},
+        agents={
+            "supervisor": AgentCore(
+                function=stub_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=True,
+                enable_interswarm=False,
+                can_complete_tasks=True,
+            )
+        },
         actions={},
         user_id="user-1",
         swarm_name="example",

@@ -5,8 +5,9 @@ from typing import Any, Literal
 
 from openai.resources.responses.responses import _make_tools
 
+from mail.core.agents import AgentFunction
 from mail.core.tools import create_supervisor_tools, pydantic_function_tool
-from mail.factories.base import AgentFunction, base_agent_factory
+from mail.factories.base import base_agent_factory
 
 
 def supervisor_factory(
