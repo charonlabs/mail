@@ -8,50 +8,52 @@ from mail.core.tools import AgentToolCall
 
 
 async def _action_echo(args: dict) -> str:  # noqa: ANN001
-    return f"echo:{args.get('x')}"
+	return f"echo:{args.get('x')}"
 
 
 async def _override_upper(args: dict):  # noqa: ANN001
-    return f"OVERRIDE:{str(args.get('x')).upper()}"
-    
+	return f"OVERRIDE:{str(args.get('x')).upper()}"
+
+
 _action_echo_core = ActionCore(
-    function=_action_echo,
-    name="echo",
-    parameters={"x": int},
+	function=_action_echo,
+	name="echo",
+	parameters={"x": int},
 )
 _override_upper_core = ActionCore(
-    function=_override_upper,
-    name="override_upper",
-    parameters={"x": str},
+	function=_override_upper,
+	name="override_upper",
+	parameters={"x": str},
 )
 
+
 def _call(name: str, args: dict) -> AgentToolCall:
-    return AgentToolCall(
-        tool_name=name,
-        tool_args=args,
-        tool_call_id="t1",
-        completion={"role": "assistant", "content": "ok"},
-    )
+	return AgentToolCall(
+		tool_name=name,
+		tool_args=args,
+		tool_call_id="t1",
+		completion={"role": "assistant", "content": "ok"},
+	)
 
 
 def test_execute_action_tool_normal_and_override():
-    """
-    Test that `execute_action_tool` works as expected.
-    """
+	"""
+	Test that `execute_action_tool` works as expected.
+	"""
 
-    async def run():
-        # Normal path: resolves through actions mapping and wraps as tool response
-        res1 = await _action_echo_core.execute(
-            _call("echo", {"x": 3}), 
-            {"echo": _action_echo_core},
-        )
-        assert res1["role"] == "tool" and "echo:3" in res1["content"]
+	async def run():
+		# Normal path: resolves through actions mapping and wraps as tool response
+		res1 = await _action_echo_core.execute(
+			_call("echo", {"x": 3}),
+			{"echo": _action_echo_core},
+		)
+		assert res1["role"] == "tool" and "echo:3" in res1["content"]
 
-        # Override returns a string or dict directly
-        res2 = await _action_echo_core.execute(
-            _call("echo", {"x": "hi"}),
-            action_override=_override_upper,
-        )
-        assert res2["content"].startswith("OVERRIDE:")
+		# Override returns a string or dict directly
+		res2 = await _action_echo_core.execute(
+			_call("echo", {"x": "hi"}),
+			action_override=_override_upper,
+		)
+		assert res2["content"].startswith("OVERRIDE:")
 
-    asyncio.run(run())
+	asyncio.run(run())

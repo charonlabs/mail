@@ -54,6 +54,10 @@ dev = [
 [tool.ruff]
 target-version = "py312"
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "tab"
+
 [tool.ruff.lint]
 extend-select = ["TID252", "I", "UP"]
 
