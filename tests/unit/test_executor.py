@@ -3,9 +3,27 @@
 
 import asyncio
 
-from mail.core.executor import execute_action_tool
-from mail.factories.base import AgentToolCall
+from mail.core.actions import ActionCore
+from mail.core.tools import AgentToolCall
 
+
+async def _action_echo(args: dict) -> str:  # noqa: ANN001
+    return f"echo:{args.get('x')}"
+
+
+async def _override_upper(args: dict):  # noqa: ANN001
+    return f"OVERRIDE:{str(args.get('x')).upper()}"
+    
+_action_echo_core = ActionCore(
+    function=_action_echo,
+    name="echo",
+    parameters={"x": int},
+)
+_override_upper_core = ActionCore(
+    function=_override_upper,
+    name="override_upper",
+    parameters={"x": str},
+)
 
 def _call(name: str, args: dict) -> AgentToolCall:
     return AgentToolCall(
@@ -16,14 +34,6 @@ def _call(name: str, args: dict) -> AgentToolCall:
     )
 
 
-async def _action_echo(args: dict) -> str:  # noqa: ANN001
-    return f"echo:{args.get('x')}"
-
-
-async def _override_upper(args: dict):  # noqa: ANN001
-    return f"OVERRIDE:{str(args.get('x')).upper()}"
-
-
 def test_execute_action_tool_normal_and_override():
     """
     Test that `execute_action_tool` works as expected.
@@ -31,16 +41,16 @@ def test_execute_action_tool_normal_and_override():
 
     async def run():
         # Normal path: resolves through actions mapping and wraps as tool response
-        res1 = await execute_action_tool(
-            _call("echo", {"x": 3}), {"echo": _action_echo}
+        res1 = await _action_echo_core.execute(
+            _call("echo", {"x": 3}), 
+            {"echo": _action_echo_core},
         )
         assert res1["role"] == "tool" and "echo:3" in res1["content"]
 
         # Override returns a string or dict directly
-        res2 = await execute_action_tool(
+        res2 = await _action_echo_core.execute(
             _call("echo", {"x": "hi"}),
-            {"echo": _action_echo},
-            _action_override=_override_upper,
+            action_override=_override_upper,
         )
         assert res2["content"].startswith("OVERRIDE:")
 

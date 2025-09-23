@@ -18,6 +18,10 @@ class MAILAddress(TypedDict):
     address: str
     """The address of the sender or recipient."""
 
+MAIL_ALL_LOCAL_AGENTS = MAILAddress(
+    address_type="agent", address="all"
+)
+
 
 class MAILRequest(TypedDict):
     """

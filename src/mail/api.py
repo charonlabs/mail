@@ -7,14 +7,18 @@ import inspect
 import json
 import logging
 import uuid
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
 from mail import utils
 from mail.core import (
+    ActionFunction,
+    ActionOverrideFunction,
+    AgentFunction,
     AgentToolCall,
     MAILMessage,
     MAILRequest,
@@ -23,8 +27,8 @@ from mail.core import (
     create_user_address,
     pydantic_model_to_tool,
 )
-from mail.factories.action import ActionFunction, ActionOverrideFunction
-from mail.factories.base import AgentFunction
+from mail.core.actions import ActionCore
+from mail.core.agents import AgentCore
 from mail.net import SwarmRegistry
 from mail.utils import read_python_string
 
@@ -99,6 +103,19 @@ class MAILAgent:
         tool_choice: str = "required",
     ) -> tuple[str | None, list[AgentToolCall]]:
         return await self.function(messages, tool_choice)
+
+    def to_core(self) -> AgentCore:
+        """
+        Convert the `MAILAgent` to an `AgentCore`.
+        """
+        return AgentCore(
+            function=self.function,
+            comm_targets=self.comm_targets,
+            actions={action.name: action.to_core() for action in self.actions},
+            enable_entrypoint=self.enable_entrypoint,
+            enable_interswarm=self.enable_interswarm,
+            can_complete_tasks=self.can_complete_tasks,
+        )
 
 
 class MAILAgentTemplate:
@@ -193,7 +210,7 @@ class MAILAgentTemplate:
             "comm_targets": list,
             "agent_params": dict,
         }
-        OPTIONAL_FIELDS = {
+        OPTIONAL_FIELDS = { # noqa: F841
             "actions": list,
             "enable_entrypoint": bool,
             "enable_interswarm": bool,
@@ -392,6 +409,16 @@ class MAILAction:
             function=function,
         )
 
+    def to_core(self) -> ActionCore:
+        """
+        Convert the MAILAction to an ActionCore.
+        """
+        return ActionCore(
+            function=self.function,
+            name=self.name,
+            parameters=self.parameters,
+        )
+
     @staticmethod
     def from_swarm_json(json_dump: str) -> "MAILAction":
         """
@@ -510,9 +537,10 @@ class MAILSwarm:
         self.enable_interswarm = enable_interswarm
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
+        self._agent_cores = {agent.name: agent.to_core() for agent in agents}
         self._runtime = MAILRuntime(
-            agents={agent.name: agent.function for agent in agents},
-            actions={action.name: action.function for action in actions},
+            agents=self._agent_cores,
+            actions={action.name: action.to_core() for action in actions},
             user_id=user_id,
             swarm_name=name,
             swarm_registry=swarm_registry,
@@ -712,6 +740,8 @@ class MAILSwarm:
         Shut down the MAILSwarm.
         """
         await self._runtime.shutdown()
+        if self.enable_interswarm and self.swarm_registry is not None:
+            await self.swarm_registry.stop_health_checks()
 
     async def start_interswarm(self) -> None:
         """
@@ -724,6 +754,7 @@ class MAILSwarm:
                 "swarm registry must be provided if interswarm messaging is enabled"
             )
 
+        await self.swarm_registry.start_health_checks()
         await self._runtime.start_interswarm()
 
     async def stop_interswarm(self) -> None:
@@ -831,7 +862,7 @@ class MAILSwarm:
     ) -> "MAILSwarmTemplate":
         """
         Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
-        Returns a MAILSwarmTemplate.
+        Returns a `MAILSwarmTemplate`.
         """
         agent_lookup = {agent.name: agent for agent in self.agents}
         selected_agents: list[MAILAgentTemplate] = []
@@ -1032,7 +1063,7 @@ class MAILSwarmTemplate:
     ) -> "MAILSwarmTemplate":
         """
         Get a subswarm of the current swarm. Only agents with names in the `names` list will be included.
-        Returns a MAILSwarmTemplate.
+        Returns a `MAILSwarmTemplate`.
         """
         agent_lookup = {agent.name: agent for agent in self.agents}
         selected_agents: list[MAILAgentTemplate] = []
@@ -1101,10 +1132,10 @@ class MAILSwarmTemplate:
     @staticmethod
     def from_swarm_json(json_dump: str) -> "MAILSwarmTemplate":
         """
-        Create a MAILAbstractSwarm from a JSON dump following the `swarms.json` format.
+        Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
         """
         REQUIRED_FIELDS = {"name": str, "agents": list, "entrypoint": str}
-        OPTIONAL_FIELDS = {"enable_interswarm": bool}
+        OPTIONAL_FIELDS = {"enable_interswarm": bool} # noqa: F841
 
         data = json.loads(json_dump)
 
@@ -1141,9 +1172,9 @@ class MAILSwarmTemplate:
         json_filepath: str = "swarms.json",
     ) -> "MAILSwarmTemplate":
         """
-        Create a MAILSwarmTemplate from a JSON file following the `swarms.json` format.
+        Create a `MAILSwarmTemplate` from a JSON file following the `swarms.json` format.
         """
-        with open(json_filepath, "r") as f:
+        with open(json_filepath) as f:
             contents = f.read()
             full_json = json.loads(contents)
             for swarm in full_json:

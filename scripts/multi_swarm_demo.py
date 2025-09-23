@@ -169,43 +169,59 @@ def _terminate(proc: subprocess.Popen | None, timeout: float = 5.0) -> None:
     try:
         if proc.poll() is not None:
             return
-        # Try graceful shutdown
+        pgid: int | None = None
         if hasattr(os, "getpgid") and proc.pid:
             try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                pgid = os.getpgid(proc.pid)
             except Exception:
-                proc.terminate()
-        else:
-            proc.terminate()
+                pgid = None
 
-        try:
-            proc.wait(timeout=timeout)
-            return
-        except Exception:
-            pass
+        def _signal(sig: int) -> None:
+            if pgid is not None:
+                os.killpg(pgid, sig)
+            else:
+                proc.send_signal(sig)
+
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                _signal(sig)
+            except ProcessLookupError:
+                return
+            except Exception:
+                # Fall back to direct terminate if group signalling fails
+                proc.terminate()
+
+            try:
+                proc.wait(timeout=timeout)
+                return
+            except subprocess.TimeoutExpired:
+                continue
+            except Exception:
+                continue
 
         # Force kill if still alive
-        if hasattr(os, "getpgid") and proc.pid:
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except Exception:
-                proc.kill()
-        else:
+        try:
+            _signal(signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        except Exception:
             proc.kill()
+
         try:
             proc.wait(timeout=2.0)
         except Exception:
-            pass
+            if proc.poll() is None:
+                print(f"warning: process {proc.pid} did not exit cleanly")
     finally:
         pass
 
 
-async def main():
+async def main() -> None:
     """
     Main function.
     """
     init_logger()
-    log_snapshot: dict[Path, int] = _snapshot_mail_log_files()
+    log_snapshot: dict[Path, int] = _snapshot_mail_log_files() 
 
     # Start minimal auth stub used by both swarms
     auth_app = web.Application()

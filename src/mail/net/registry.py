@@ -381,6 +381,11 @@ class SwarmRegistry:
             return
 
         self.session = aiohttp.ClientSession()
+        try:
+            await self._perform_health_checks()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error(f"initial health check failed: '{exc}'")
+
         self.health_check_task = asyncio.create_task(self._health_check_loop())
         logger.info("started swarm health check loop")
 

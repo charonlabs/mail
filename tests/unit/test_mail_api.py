@@ -6,8 +6,9 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
-from mail.api import MAILAgent
+from mail.api import MAILAction, MAILAgent
 from tests.conftest import make_stub_agent
 
 
@@ -221,6 +222,38 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     assert tmpl.name == "target"
 
 
+def test_mailagent_to_core_preserves_actions() -> None:
+    """Ensure MAILAgent.to_core retains assigned action permissions."""
+
+    async def fake_action(_: dict[str, Any]) -> str:
+        return "ok"
+
+    action = MAILAction(
+        name="get_weather_forecast",
+        description="Fetch weather forecast",
+        parameters={"type": "object", "properties": {}},
+        function=fake_action,
+    )
+
+    async def noop_agent(
+        _messages: list[dict[str, Any]], _tool_choice: str
+    ) -> tuple[str | None, list[Any]]:
+        return None, []
+
+    agent = MAILAgent(
+        name="weather",
+        factory="tests.conftest:make_stub_agent",
+        actions=[action],
+        function=noop_agent,  # type: ignore[arg-type]
+        comm_targets=["supervisor"],
+        agent_params={},
+    )
+
+    core = agent.to_core()
+
+    assert core.can_access_action("get_weather_forecast")
+    assert "get_weather_forecast" in core.actions
+
 @pytest.mark.asyncio
 async def test_post_message_uses_default_entrypoint_and_returns_events() -> None:
     """
@@ -347,3 +380,83 @@ def test_build_message_request_validation() -> None:
     # _build_message should require exactly one target for requests
     with pytest.raises(ValueError):
         swarm.build_message("subj", "body", ["a", "b"], type="request")
+
+
+async def _stub_action(_: dict[str, Any]) -> str:
+    return "ok"
+
+
+def test_mailaction_to_pydantic_model_for_tools_enforces_types() -> None:
+    """`MAILAction.to_pydantic_model(for_tools=True)` should enforce declared types."""
+    action = MAILAction(
+        name="demo",
+        description="Demo action",
+        parameters={
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string", "description": "Subject"},
+                "retries": {"type": "integer", "description": "Attempts"},
+                "notify": {"type": "boolean", "description": "Flag"},
+            },
+        },
+        function=_stub_action,
+    )
+
+    model_cls = action.to_pydantic_model(for_tools=True)
+    payload = model_cls(subject="Plan", retries=2, notify=False)
+    assert payload.subject == "Plan"  # type: ignore
+    assert payload.retries == 2  # type: ignore
+    assert payload.notify is False  # type: ignore
+
+    with pytest.raises(ValidationError):
+        model_cls(subject=123, retries="two", notify="nope")
+
+
+def test_mailaction_to_pydantic_model_unsupported_type_raises() -> None:
+    """Unsupported parameter types should raise a ValueError during conversion."""
+    action = MAILAction(
+        name="bad",
+        description="Bad action",
+        parameters={
+            "type": "object",
+            "properties": {
+                "payload": {"type": "array", "description": "Unsupported"},
+            },
+        },
+        function=_stub_action,
+    )
+
+    with pytest.raises(ValueError) as exc:
+        action.to_pydantic_model(for_tools=True)
+    assert "unsupported type" in str(exc.value)
+
+
+@pytest.mark.parametrize("missing", ["name", "description", "parameters", "function"])
+def test_mailaction_from_swarm_json_missing_required_field(missing: str) -> None:
+    """MAILAction.from_swarm_json should validate presence of required keys."""
+    base = {
+        "name": "act",
+        "description": "desc",
+        "parameters": {"type": "object", "properties": {}},
+        "function": "tests.conftest:make_stub_agent",
+    }
+    bad = base.copy()
+    bad.pop(missing)
+
+    with pytest.raises(ValueError) as exc:
+        MAILAction.from_swarm_json(json.dumps(bad))
+    assert "missing required field" in str(exc.value)
+
+
+def test_mailaction_from_swarm_json_type_validation() -> None:
+    """MAILAction.from_swarm_json should reject incorrect types."""
+    bad = {
+        "name": 123,
+        "description": "desc",
+        "parameters": {"type": "object", "properties": {}},
+        "function": "tests.conftest:make_stub_agent",
+    }
+
+    with pytest.raises(ValueError) as exc:
+        MAILAction.from_swarm_json(json.dumps(bad))
+    assert "must be of type" in str(exc.value)

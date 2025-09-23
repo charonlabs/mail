@@ -69,6 +69,10 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   ```python
   from mail.net import SwarmRegistry, InterswarmRouter
   ```
+- To work directly with the lower-level runtime primitives:
+  ```python
+  from mail.core import AgentCore, ActionCore
+  ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
 
 ### Class reference
@@ -85,20 +89,22 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAgent` (`mail.api`)
 - **Summary**: Concrete runtime agent produced by an agent factory and associated actions.
-- **Constructor parameters**: `name: str`, `factory: str`, `actions: list[MAILAction]`, `function: AgentFunction`, `comm_targets: list[str]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
+- **Constructor parameters**: `name: str`, `factory: str | Callable`, `actions: list[MAILAction]`, `function: AgentFunction`, `comm_targets: list[str]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
 - **Key methods**:
   - `__call__(messages, tool_choice="required") -> Awaitable[tuple[str | None, list[AgentToolCall]]]`: execute the agent implementation.
   - `_to_template(names: list[str]) -> MAILAgentTemplate`: internal helper that trims targets for sub-swarms.
   - `_validate() -> None`: internal guard ensuring agent metadata is coherent.
+- Factories may be supplied as dotted import strings (resolved via `read_python_string`) or as preloaded callables.
 
 #### `MAILAgentTemplate` (`mail.api`)
 - **Summary**: Declarative agent description used for persistence, cloning, and factory instantiation.
-- **Constructor parameters**: `name: str`, `factory: str`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
+- **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
 - **Key methods**:
   - `instantiate(instance_params: dict[str, Any]) -> MAILAgent`: load the factory and produce a concrete `MAILAgent`.
   - `from_swarm_json(json_str) -> MAILAgentTemplate`: rebuild from `swarms.json` entries.
   - `from_example(name, comm_targets) -> MAILAgentTemplate`: load bundled examples (`supervisor`, `weather`, `math`, `consultant`, `analyst`).
   - `_top_level_params() -> dict[str, Any]` and `_validate() -> None`: internal helpers used during instantiation and validation.
+- Accepts either dotted import strings or callables for `factory`, enabling JSON-driven and dynamic runtime construction alike.
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
@@ -111,6 +117,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   - `handle_interswarm_response(response_message) -> Awaitable[None]`: process responses from remote swarms.
   - `route_interswarm_message(message) -> Awaitable[MAILMessage]`: send outbound interswarm traffic via the router.
   - `get_pending_requests() -> dict[str, asyncio.Future[MAILMessage]]`: inspect outstanding requests per task.
+  - `update_from_adjacency_matrix(adj: list[list[int]]) -> None`: overwrite agent communication targets using an adjacency matrix.
   - `get_subswarm(names, name_suffix, entrypoint?) -> MAILSwarmTemplate`: derive a sub-template focused on a subset of agents.
   - `build_message(subject, body, targets, sender_type?, type?) -> MAILMessage`: utility for crafting MAIL envelopes.
 
@@ -120,6 +127,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Key methods**:
   - `instantiate(instance_params, user_id?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
   - `get_subswarm(names, name_suffix, entrypoint?) -> MAILSwarmTemplate`: filter agents into a smaller template while preserving supervisors and entrypoints.
+  - `update_from_adjacency_matrix(adj: list[list[int]]) -> None`: sync template wiring back to `comm_targets` for each agent.
   - `from_swarm_json(json_str) -> MAILSwarmTemplate` / `from_swarm_json_file(swarm_name, json_filepath?) -> MAILSwarmTemplate`: rebuild from persisted JSON.
   - `_build_adjacency_matrix() -> tuple[list[list[int]], list[str]]`, `_validate() -> None`: internal helpers.
 
@@ -132,7 +140,8 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILRuntime` (`mail.core.runtime`)
 - **Summary**: Asynchronous runtime that owns the internal message queue, tool execution, and optional interswarm router.
-- **Constructor parameters**: `agents: dict[str, AgentFunction]`, `actions: dict[str, ActionFunction]`, `user_id: str`, `swarm_name: str = "example"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `entrypoint: str = "supervisor"`.
+- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `swarm_name: str = "example"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `entrypoint: str = "supervisor"`.
+- Pass the lower-level `AgentCore` / `ActionCore` objects (for example via `MAILAgent.to_core()` and `MAILAction.to_core()`) when instantiating the runtime directly.
 - **Key methods**:
   - `start_interswarm()`, `stop_interswarm()`, `is_interswarm_running()`.
   - `handle_interswarm_response(response_message)` and internal `_handle_local_message(message)`.
