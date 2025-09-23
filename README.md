@@ -1,8 +1,8 @@
 # Multi-Agent Interface Layer (MAIL)
 
-<p align="center">
-  <img src="assets/mail.png" alt="MAIL Example Diagram" width="400" />
-</p>
+Single-swarm example | Multi-swarm example
+:-------------------:|:-------------------:
+![](/assets/mail.png)| ![](/assets/interswarm.png)
 
 **MAIL** is an **open protocol** for letting autonomous agents communicate, coordinate, and cooperate across local runtimes and distributed swarms. This repository hosts both the normative specification and a production-grade **Python/FastAPI reference implementation** that demonstrate how to build interoperable agent systems on top of the MAIL contract.
 
