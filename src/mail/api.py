@@ -111,6 +111,7 @@ class MAILAgent:
         return AgentCore(
             function=self.function,
             comm_targets=self.comm_targets,
+            actions={action.name: action.to_core() for action in self.actions},
             enable_entrypoint=self.enable_entrypoint,
             enable_interswarm=self.enable_interswarm,
             can_complete_tasks=self.can_complete_tasks,
@@ -739,6 +740,8 @@ class MAILSwarm:
         Shut down the MAILSwarm.
         """
         await self._runtime.shutdown()
+        if self.enable_interswarm and self.swarm_registry is not None:
+            await self.swarm_registry.stop_health_checks()
 
     async def start_interswarm(self) -> None:
         """
@@ -751,6 +754,7 @@ class MAILSwarm:
                 "swarm registry must be provided if interswarm messaging is enabled"
             )
 
+        await self.swarm_registry.start_health_checks()
         await self._runtime.start_interswarm()
 
     async def stop_interswarm(self) -> None:

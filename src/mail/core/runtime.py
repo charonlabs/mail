@@ -1101,6 +1101,14 @@ Use this information to decide how to complete your task.""",
                                     task_id,
                                     f"agent '{action_caller}' cannot access action '{action_name}'",
                                 )
+                                await self.submit(
+                                    self._system_response(
+                                        task_id=task_id,
+                                        recipient=create_agent_address(recipient),
+                                        subject=f"Action Error: '{action_name}'",
+                                        body=f"The action '{action_name}' is not available.",
+                                    )
+                                )
                                 continue
                                 
 

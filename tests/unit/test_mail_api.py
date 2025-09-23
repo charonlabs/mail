@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from mail.api import MAILAgent
+from mail.api import MAILAction, MAILAgent
 from tests.conftest import make_stub_agent
 
 
@@ -220,6 +220,38 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     tmpl = MAILSwarmTemplate.from_swarm_json_file("target", str(path))
     assert tmpl.name == "target"
 
+
+def test_mailagent_to_core_preserves_actions() -> None:
+    """Ensure MAILAgent.to_core retains assigned action permissions."""
+
+    async def fake_action(_: dict[str, Any]) -> str:
+        return "ok"
+
+    action = MAILAction(
+        name="get_weather_forecast",
+        description="Fetch weather forecast",
+        parameters={"type": "object", "properties": {}},
+        function=fake_action,
+    )
+
+    async def noop_agent(
+        _messages: list[dict[str, Any]], _tool_choice: str
+    ) -> tuple[str | None, list[Any]]:
+        return None, []
+
+    agent = MAILAgent(
+        name="weather",
+        factory="tests.conftest:make_stub_agent",
+        actions=[action],
+        function=noop_agent,  # type: ignore[arg-type]
+        comm_targets=["supervisor"],
+        agent_params={},
+    )
+
+    core = agent.to_core()
+
+    assert core.can_access_action("get_weather_forecast")
+    assert "get_weather_forecast" in core.actions
 
 @pytest.mark.asyncio
 async def test_post_message_uses_default_entrypoint_and_returns_events() -> None:
