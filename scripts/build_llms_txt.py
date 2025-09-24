@@ -3,6 +3,8 @@
 
 import os
 
+FILE_HEADER = "===== `{filename}` =====\n\n"
+FILE_FOOTER = "\n\n===== End of `{filename}` =====\n\n"
 
 def build_llms_txt():
     """
@@ -12,34 +14,25 @@ def build_llms_txt():
     content = ""
 
     # start by reading the README.md file
-    with open("README.md") as f:
-        content += create_file_header("README.md")
-        content += f.read()
-        content += create_file_footer("README.md")
+    content += file_content_to_string("README.md")
     
     # then read all markdown files in the docs directory
     for filename in os.listdir("docs"):
         if filename.endswith(".md"):
-            with open(f"docs/{filename}") as f:
-                content += create_file_header(f'docs/{filename}')
-                content += f.read()
-                content += create_file_footer(f'docs/{filename}')
+            content += file_content_to_string(f'docs/{filename}')
     
     # write the content to the llms.txt file
     with open("llms.txt", "w") as f:
         f.write(content)
 
-def create_file_header(filename: str) -> str:
+def file_content_to_string(filename: str) -> str:
     """
-    Create a file header for the given filename.
+    Read the content of the given filename and return it as a string.
     """
-    return f"===== `{filename}` =====\n\n"
+    with open(filename) as f:
+        content = f.read()
+        return FILE_HEADER.format(filename=filename) + content + FILE_FOOTER.format(filename=filename)
 
-def create_file_footer(filename: str) -> str:
-    """
-    Create a file footer for the given filename.
-    """
-    return f"\n\n===== End of `{filename}` =====\n\n"
 
 if __name__ == "__main__":
     build_llms_txt()
