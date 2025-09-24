@@ -7,18 +7,18 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:supervisor_factory",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT"
+                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT"
                 }
             },
             {
                 "name": "weather",
-                "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "python::mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
                 "actions": [
                     {
@@ -32,21 +32,21 @@
                                 "metric": { "type": "boolean", "description": "Whether to use metric units" }
                             }
                         },
-                        "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
+                        "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
                     }
                 ],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
+                    "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT"
                 }
             },
             {
                 "name": "math",
-                "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
+                    "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT"
                 }
             }
         ]
@@ -59,20 +59,20 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:supervisor_factory",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             },
             {
                 "name": "weather",
-                "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "python::mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
                 "actions": [
                     {
@@ -86,22 +86,22 @@
                                 "metric": { "type": "boolean", "description": "Whether to use metric units" }
                             }
                         },
-                        "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
+                        "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
                     }
                 ],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             },
             {
                 "name": "math",
-                "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             }
@@ -116,24 +116,24 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:supervisor_factory",
                 "comm_targets": ["weather", "math", "supervisor@swarm-beta"],
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             },
             {
                 "name": "weather",
-                "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "python::mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "actions": [
@@ -148,17 +148,17 @@
                                 "metric": { "type": "boolean", "description": "Whether to use metric units" }
                             }
                         },
-                        "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
+                        "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
                     }
                 ]
             },
             {
                 "name": "math",
-                "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             }
@@ -173,34 +173,34 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:supervisor_factory",
                 "comm_targets": ["consultant", "analyst", "supervisor@swarm-alpha"],
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             },
             {
                 "name": "consultant",
-                "factory": "mail.examples.consultant_dummy.agent:factory_consultant_dummy",
+                "factory": "python::mail.examples.consultant_dummy.agent:factory_consultant_dummy",
                 "comm_targets": ["supervisor", "analyst"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.consultant_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             },
             {
                 "name": "analyst",
-                "factory": "mail.examples.analyst_dummy.agent:factory_analyst_dummy",
+                "factory": "python::mail.examples.analyst_dummy.agent:factory_analyst_dummy",
                 "comm_targets": ["supervisor", "consultant"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.examples.analyst_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             }

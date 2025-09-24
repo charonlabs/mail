@@ -30,7 +30,7 @@ from mail.core import (
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
 from mail.net import SwarmRegistry
-from mail.utils import read_python_string
+from mail.utils import read_python_string, resolve_python_references
 
 logger = logging.getLogger("mail")
 
@@ -237,7 +237,7 @@ class MAILAgentTemplate:
 			MAILAction.from_swarm_json(json.dumps(action))
 			for action in data.get("actions", [])
 		]
-		agent_params = data["agent_params"]
+		agent_params = resolve_python_references(data["agent_params"])
 		enable_entrypoint = data.get("enable_entrypoint", False)
 		enable_interswarm = data.get("enable_interswarm", False)
 		tool_format = data.get("tool_format", "responses")

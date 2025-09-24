@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from mail.api import MAILAction, MAILAgent
-from tests.conftest import make_stub_agent
+from tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
 
 class FakeMAIL:
@@ -133,6 +133,36 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
 	assert isinstance(swarm._runtime, FakeMAIL)
 	assert swarm._runtime.user_id == "u-1"
 	assert swarm._runtime.swarm_name == "myswarm"
+
+
+def test_agent_params_prefixed_python_strings_resolved() -> None:
+	"""
+	Ensure agent_params values with the python prefix are resolved.
+	"""
+	from mail import MAILSwarmTemplate
+
+	data = {
+		"name": "myswarm",
+		"agents": [
+			{
+				"name": "supervisor",
+				"factory": "tests.conftest:make_stub_agent",
+				"comm_targets": ["supervisor"],
+				"can_complete_tasks": True,
+				"actions": [],
+				"enable_entrypoint": True,
+				"agent_params": {
+					"system": "python::tests.conftest:TEST_SYSTEM_PROMPT",
+				},
+			},
+		],
+		"actions": [],
+		"entrypoint": "supervisor",
+	}
+
+	tmpl = MAILSwarmTemplate.from_swarm_json(json.dumps(data))
+	agent = tmpl.agents[0]
+	assert agent.agent_params["system"] == TEST_SYSTEM_PROMPT
 
 
 @pytest.mark.parametrize(
