@@ -7,7 +7,6 @@ from typing import Any, Literal
 
 import pytest
 
-
 TEST_SYSTEM_PROMPT = "Resolved via python import"
 
 

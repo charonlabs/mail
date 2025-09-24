@@ -136,7 +136,9 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
 
 
 def test_agent_params_prefixed_python_strings_resolved() -> None:
-	"""Ensure agent_params values with the python prefix are resolved."""
+	"""
+	Ensure agent_params values with the python prefix are resolved.
+	"""
 	from mail import MAILSwarmTemplate
 
 	data = {

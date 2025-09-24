@@ -6,7 +6,6 @@ from typing import Any
 
 from mail.core import parse_agent_address
 
-
 PYTHON_STRING_PREFIX = "python::"
 
 
@@ -33,11 +32,14 @@ def read_python_string(string: str) -> Any:
 	obj: Any = module
 	for attr in attribute_path.split("."):
 		obj = getattr(obj, attr)
+
 	return obj
 
 
 def resolve_python_references(value: Any) -> Any:
-	"""Recursively resolve strings prefixed with ``python::`` to Python objects."""
+	"""
+	Recursively resolve strings prefixed with ``python::`` to Python objects.
+	"""
 
 	if isinstance(value, dict):
 		return {key: resolve_python_references(item) for key, item in value.items()}
@@ -45,6 +47,7 @@ def resolve_python_references(value: Any) -> Any:
 		return [resolve_python_references(item) for item in value]
 	if isinstance(value, str) and value.startswith(PYTHON_STRING_PREFIX):
 		return read_python_string(value)
+		
 	return value
 
 
