@@ -8,6 +8,9 @@ from typing import Any, Literal
 import pytest
 
 
+TEST_SYSTEM_PROMPT = "Resolved via python import"
+
+
 class FakeSwarmRegistry:
 	"""
 	Fake `SwarmRegistry` for testing.
