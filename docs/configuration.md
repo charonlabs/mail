@@ -31,7 +31,7 @@ This page describes environment variables and the `swarms.json` file that config
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
-                "agent_params": { 
+                "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.supervisor.prompts:SYSPROMPT"
                 }
@@ -41,7 +41,7 @@ This page describes environment variables and the `swarms.json` file that config
                 "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
-                "agent_params": { 
+                "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
                 }
@@ -50,7 +50,7 @@ This page describes environment variables and the `swarms.json` file that config
                 "name": "math",
                 "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
-                "agent_params": { 
+                "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
                 }
@@ -81,3 +81,9 @@ This page describes environment variables and the `swarms.json` file that config
 - Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
 - `version` is required and should match the MAIL package you are targeting so migrations can gate incompatible swarm definitions
 - The helpers in `mail.json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
+
+### Prefixed string references
+- `python::package.module:attribute` strings resolve to Python objects at load time; use this for reusing constants such as prompts or tool factories
+- `url::https://example.com/prompt.json` strings are fetched with `httpx` and replaced by the response JSON encoded as a string
+- Nested dictionaries and lists inside `agent_params` (and other configuration blocks) are resolved recursively, so you can mix plain literals with both prefix formats
+- `url::` fetch failures return the original URL unless you set `raise_on_error` when calling `mail.utils.parsing.read_url_string`, which converts errors into descriptive `RuntimeError`s
