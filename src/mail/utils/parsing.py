@@ -46,7 +46,9 @@ def resolve_prefixed_string_references(value: Any) -> Any:
 	"""
 
 	if isinstance(value, dict):
-		return {key: resolve_prefixed_string_references(item) for key, item in value.items()}
+		return {
+			key: resolve_prefixed_string_references(item) for key, item in value.items()
+		}
 	if isinstance(value, list):
 		return [resolve_prefixed_string_references(item) for item in value]
 	if isinstance(value, str):
@@ -55,21 +57,18 @@ def resolve_prefixed_string_references(value: Any) -> Any:
 		if value.startswith(URL_STRING_PREFIX):
 			return read_url_string(value)
 		return value
-		
+
 	return value
 
 
-def read_url_string(
-	string: str, 
-	raise_on_error: bool = False
-) -> str:
+def read_url_string(string: str, raise_on_error: bool = False) -> str:
 	"""
 	Resolve a URL to a string.
 
 	Accepts strings in the format ``url::`` prefix used in swarm configuration files, e.g.
 	``url::https://example.com``.
 	"""
-	
+
 	if string.startswith(URL_STRING_PREFIX):
 		string = string[len(URL_STRING_PREFIX) :]
 

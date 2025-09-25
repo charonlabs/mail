@@ -30,9 +30,22 @@ This guide gets you running a local MAIL swarm and interacting with it.
 - **Status** (requires admin/user token): `curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/status`
 - **Send a message**: `curl -X POST http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Hello"}'`
 - **Stream (SSE)**: `curl -N http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Stream please","stream":true}'`
+- **Python client**: use [`MAILClient`](./client.md) if you prefer asyncio code over raw HTTP. Example:
+  ```python
+  import asyncio
+  from mail.client import MAILClient
+
+
+  async def main() -> None:
+	async with MAILClient("http://localhost:8000", api_key="${TOKEN}") as client:
+		print(await client.get_root())
+		print(await client.post_message("Hello from Python"))
+
+
+  asyncio.run(main())
+  ```
 
 ## Next steps
 - Read [architecture.md](/docs/architecture.md) to learn how the runtime processes messages
 - Check [agents-and-tools.md](/docs/agents-and-tools.md) to learm how to add or modify agents
 - See [interswarm.md](/docs/interswarm.md) to enable cross‑swarm communication
-

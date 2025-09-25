@@ -1131,7 +1131,9 @@ class MAILSwarmTemplate:
 		"""
 		Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
 		"""
-		actions = [MAILAction.from_swarms_json(action) for action in swarm_data["actions"]]
+		actions = [
+			MAILAction.from_swarms_json(action) for action in swarm_data["actions"]
+		]
 		actions_by_name = {action.name: action for action in actions}
 		agents = [
 			MAILAgentTemplate.from_swarms_json(agent, actions_by_name)
