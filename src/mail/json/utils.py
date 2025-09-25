@@ -33,61 +33,159 @@ def load_swarms_json_from_string(contents: str) -> SwarmsJSONFile:
     return SwarmsJSONFile(swarms=contents)
 
 
-def load_swarms_from_swarms_json(contents: list[Any]) -> list["SwarmsJSONSwarm"]:
+def build_swarms_from_swarms_json(contents: list[Any]) -> list[SwarmsJSONSwarm]:
     """
-    Load a list of `SwarmsJSONSwarm` from a list of `SwarmsJSONFile` contents.
+    Build a list of `SwarmsJSONSwarm` from a list of `SwarmsJSONFile` contents.
     """
-    for swarm in contents:
-        if not validate_swarm_from_swarms_json(swarm):
-            raise ValueError(f"swarm {swarm['name']} is not valid")
+    for swarm_candidate in contents:
+        validate_swarm_from_swarms_json(swarm_candidate)
 
-    return [build_swarm_from_swarms_json(swarm) for swarm in contents]
-
-
-def validate_swarms_json_swarm(swarm: SwarmsJSONSwarm) -> bool:
-    """
-    Validate a `SwarmsJSONSwarm` is valid.
-    """
-    raise NotImplementedError("Not implemented")
+    return [build_swarm_from_swarms_json(swarm_candidate) for swarm_candidate in contents]
 
 
-def build_swarm_from_swarms_json(swarm: SwarmsJSONSwarm) -> "SwarmsJSONSwarm":
+def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
     """
-    Build a `SwarmsJSONSwarm` from a `SwarmsJSONSwarm` contents.
+    Ensure the candidate is a valid `SwarmsJSONSwarm`.
     """
-    raise NotImplementedError("Not implemented")
+    if not isinstance(swarm_candidate, dict):
+        raise ValueError(f"swarm candidate must be a dict, actually got {type(swarm_candidate)}")
+
+    REQUIRED_FIELDS: dict[str, type] = {
+        "name": str,
+        "version": str,
+        "entrypoint": str,
+        "agents": list[Any],
+        "actions": list[Any],
+    }
+    
+    OPTIONAL_FIELDS: dict[str, type] = {
+        "enable_interswarm": bool,
+    }
+    
+    for field, field_type in REQUIRED_FIELDS.items():
+        if field not in swarm_candidate:
+            raise ValueError(f"swarm candidate must contain a '{field}' field")
+        if not isinstance(swarm_candidate[field], field_type):
+            raise ValueError(f"swarm candidate field '{field}' must be a {field_type.__name__}, actually got {type(swarm_candidate[field])}")
+    
+    for field, field_type in OPTIONAL_FIELDS.items():
+        if field not in swarm_candidate:
+            continue
+        if not isinstance(swarm_candidate[field], field_type):
+            raise ValueError(f"swarm candidate field '{field}' must be a {field_type.__name__}, actually got {type(swarm_candidate[field])}")
+    
+    return
 
 
-def validate_agent_from_swarms_json(agent: SwarmsJSONAgent) -> bool:
+def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
     """
-    Validate a `SwarmsJSONAgent` is valid.
+    Build a `SwarmsJSONSwarm` from a candidate.
     """
-    raise NotImplementedError("Not implemented")
+    validate_swarm_from_swarms_json(swarm_candidate)
+    return SwarmsJSONSwarm(
+        name=swarm_candidate["name"],
+        version=swarm_candidate["version"],
+        entrypoint=swarm_candidate["entrypoint"],
+        agents=[build_agent_from_swarms_json(agent) for agent in swarm_candidate["agents"]],
+        actions=[build_action_from_swarms_json(action) for action in swarm_candidate["actions"]],
+        enable_interswarm=swarm_candidate.get("enable_interswarm", False),
+    )
 
 
-def build_agent_from_swarms_json(agent: SwarmsJSONAgent) -> "SwarmsJSONAgent":
+def validate_agent_from_swarms_json(agent_candidate: Any) -> None:
     """
-    Build a `SwarmsJSONAgent` from a `SwarmsJSONAgent` contents.
+    Ensure the candidate is a valid `SwarmsJSONAgent`.
     """
-    raise NotImplementedError("Not implemented")
+    if not isinstance(agent_candidate, dict):
+        raise ValueError(f"agent candidate must be a dict, actually got {type(agent_candidate)}")
+    
+    REQUIRED_FIELDS: dict[str, type] = {
+        "name": str,
+        "factory": str,
+        "comm_targets": list[str],
+        "agent_params": dict[str, Any],
+    }
+    
+    OPTIONAL_FIELDS: dict[str, type] = {
+        "enable_entrypoint": bool,
+        "enable_interswarm": bool,
+        "can_complete_tasks": bool,
+        "actions": list[str],
+    }
+    
+    for field, field_type in REQUIRED_FIELDS.items():
+        if field not in agent_candidate:
+            raise ValueError(f"agent candidate must contain a '{field}' field")
+        if not isinstance(agent_candidate[field], field_type):
+            raise ValueError(f"agent candidate field '{field}' must be a {field_type.__name__}, actually got {type(agent_candidate[field])}")
+    
+    for field, field_type in OPTIONAL_FIELDS.items():
+        if field not in agent_candidate:
+            continue
+        if not isinstance(agent_candidate[field], field_type):
+            raise ValueError(f"agent candidate field '{field}' must be a {field_type.__name__}, actually got {type(agent_candidate[field])}")
+    
+    return
 
 
-def validate_action_from_swarms_json(action: SwarmsJSONAction) -> bool:
+def build_agent_from_swarms_json(agent_candidate: Any) -> SwarmsJSONAgent:
     """
-    Validate a `SwarmsJSONAction` is valid.
+    Build a `SwarmsJSONAgent` from a candidate.
     """
-    raise NotImplementedError("Not implemented")
+    validate_agent_from_swarms_json(agent_candidate)
+    return SwarmsJSONAgent(
+        name=agent_candidate["name"],
+        factory=agent_candidate["factory"],
+        comm_targets=agent_candidate["comm_targets"],
+        agent_params=agent_candidate["agent_params"],
+        enable_entrypoint=agent_candidate.get("enable_entrypoint", False),
+        enable_interswarm=agent_candidate.get("enable_interswarm", False),
+        can_complete_tasks=agent_candidate.get("can_complete_tasks", False),
+        actions=agent_candidate.get("actions", []),
+    )
 
 
-def validate_file_from_swarms_json(file: SwarmsJSONFile) -> bool:
+def validate_action_from_swarms_json(action_candidate: Any) -> None:
     """
-    Validate a `SwarmsJSONFile` is valid.
+    Ensure the candidate is a valid `SwarmsJSONAction`.
     """
-    raise NotImplementedError("Not implemented")
+    if not isinstance(action_candidate, dict):
+        raise ValueError(f"action candidate must be a dict, actually got {type(action_candidate)}")
+    
+    REQUIRED_FIELDS: dict[str, type] = {
+        "name": str,
+        "description": str,
+        "parameters": dict[str, Any],
+        "function": str,
+    }
+    
+    OPTIONAL_FIELDS: dict[str, type] = {
+        "actions": list[str],
+    }
+    
+    for field, field_type in REQUIRED_FIELDS.items():
+        if field not in action_candidate:
+            raise ValueError(f"action candidate must contain a '{field}' field")
+        if not isinstance(action_candidate[field], field_type):
+            raise ValueError(f"action candidate field '{field}' must be a {field_type.__name__}, actually got {type(action_candidate[field])}")
+    
+    for field, field_type in OPTIONAL_FIELDS.items():
+        if field not in action_candidate:
+            continue
+        if not isinstance(action_candidate[field], field_type):
+            raise ValueError(f"action candidate field '{field}' must be a {field_type.__name__}, actually got {type(action_candidate[field])}")
+    
+    return
 
 
-def build_action_from_swarms_json(action: SwarmsJSONAction) -> "SwarmsJSONAction":
+def build_action_from_swarms_json(action_candidate: Any) -> SwarmsJSONAction:
     """
-    Build a `SwarmsJSONAction` from a `SwarmsJSONAction` contents.
+    Build a `SwarmsJSONAction` from a candidate.
     """
-    raise NotImplementedError("Not implemented")
+    validate_action_from_swarms_json(action_candidate)
+    return SwarmsJSONAction(
+        name=action_candidate["name"],
+        description=action_candidate["description"],
+        parameters=action_candidate["parameters"],
+        function=action_candidate["function"],
+    )
