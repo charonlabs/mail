@@ -15,7 +15,7 @@ from .logger import (
 )
 from .parsing import (
 	read_python_string,
-	resolve_python_references,
+	resolve_prefixed_string_references,
 	target_address_is_interswarm,
 )
 from .store import (
@@ -30,7 +30,7 @@ __all__ = [
 	"get_loggers",
 	"init_logger",
 	"read_python_string",
-	"resolve_python_references",
+	"resolve_prefixed_string_references",
 	"target_address_is_interswarm",
 	"get_langmem_store",
 	"caller_is_admin",

@@ -2,11 +2,15 @@
 # Copyright (c) 2025 Addison Kline
 
 import importlib
+import json
 from typing import Any
+
+import httpx
 
 from mail.core import parse_agent_address
 
 PYTHON_STRING_PREFIX = "python::"
+URL_STRING_PREFIX = "url::"
 
 
 def read_python_string(string: str) -> Any:
@@ -36,23 +40,51 @@ def read_python_string(string: str) -> Any:
 	return obj
 
 
-def resolve_python_references(value: Any) -> Any:
+def resolve_prefixed_string_references(value: Any) -> Any:
 	"""
-	Recursively resolve strings prefixed with ``python::`` to Python objects.
+	Recursively resolve strings prefixed with ``python::`` or ``url::`` to Python objects or strings, respectively.
 	"""
 
 	if isinstance(value, dict):
-		return {key: resolve_python_references(item) for key, item in value.items()}
+		return {key: resolve_prefixed_string_references(item) for key, item in value.items()}
 	if isinstance(value, list):
-		return [resolve_python_references(item) for item in value]
-	if isinstance(value, str) and value.startswith(PYTHON_STRING_PREFIX):
-		return read_python_string(value)
+		return [resolve_prefixed_string_references(item) for item in value]
+	if isinstance(value, str):
+		if value.startswith(PYTHON_STRING_PREFIX):
+			return read_python_string(value)
+		if value.startswith(URL_STRING_PREFIX):
+			return read_url_string(value)
+		return value
 		
 	return value
+
+
+def read_url_string(
+	string: str, 
+	raise_on_error: bool = False
+) -> str:
+	"""
+	Resolve a URL to a string.
+
+	Accepts strings in the format ``url::`` prefix used in swarm configuration files, e.g.
+	``url::https://example.com``.
+	"""
+	
+	if string.startswith(URL_STRING_PREFIX):
+		string = string[len(URL_STRING_PREFIX) :]
+
+	try:
+		response = httpx.get(string)
+		return json.dumps(response.json())
+	except Exception as e:
+		if raise_on_error:
+			raise RuntimeError(f"error reading URL string: '{str(e)}'")
+		return string
 
 
 def target_address_is_interswarm(address: str) -> bool:
 	"""
 	Check if a target address is an interswarm address.
 	"""
+
 	return parse_agent_address(address)[1] is not None

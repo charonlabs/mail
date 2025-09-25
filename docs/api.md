@@ -106,6 +106,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   - `from_example(name, comm_targets) -> MAILAgentTemplate`: load bundled examples (`supervisor`, `weather`, `math`, `consultant`, `analyst`).
   - `_top_level_params() -> dict[str, Any]` and `_validate() -> None`: internal helpers used during instantiation and validation.
 - Accepts either dotted import strings or callables for `factory`, enabling JSON-driven and dynamic runtime construction alike.
+- Recursively resolves `python::module:object` and `url::https://...` string prefixes in `agent_params` (and nested structures) so templates can reference code exports or remote JSON payloads without manual preprocessing.
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
