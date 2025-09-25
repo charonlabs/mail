@@ -66,11 +66,15 @@ class MAILClient:
 		self._session = None
 
 	async def _ensure_session(self) -> ClientSession:
+		"""
+		Ensure a session exists by creating one if it doesn't.
+		"""
 		if self._session is None:
 			session_kwargs: dict[str, Any] = {}
 			if self._timeout is not None:
 				session_kwargs["timeout"] = self._timeout
 			self._session = ClientSession(**session_kwargs)
+			
 		return self._session
 
 	def _build_url(self, path: str) -> str:
