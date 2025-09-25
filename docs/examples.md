@@ -15,8 +15,8 @@ This repo includes example agents and demo scripts you can run locally.
 ## Demo scripts
 - **Single swarm**: [scripts/single_swarm_demo.py](/scripts/single_swarm_demo.py)
 - **Multiple swarms**: [scripts/multi_swarm_demo.py](/scripts/single_swarm_demo.py)
+- **HTTP client**: [scripts/demo_client.py](/scripts/demo_client.py) launches a stub server and exercises [`MAILClient`](./client.md)
 
 ## Swarms configuration
 - Top-level [swarms.json](/swarms.json) provides the default template loaded by the server
 - Update agent factories, prompts, or actions to customize behavior
-

@@ -13,6 +13,7 @@ Single-swarm example | Multi-swarm example
 - **JSON Schemas**: [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.json), [spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json)
 - **REST transport** (OpenAPI 3.1): [spec/openapi.yaml](/spec/openapi.yaml)
 - **Reference implementation source**: [src/mail/](/src/mail/__init__.py)
+- **Asynchronous HTTP client**: [docs/client.md](/docs/client.md), [src/mail/client.py](/src/mail/client.py)
 - **Deployment examples and docs**: [docs/](/docs/README.md)
 
 ## 1. MAIL Protocol Overview
@@ -57,6 +58,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 ### Key Features
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
+- **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.
 - Built-in **swarm registry** with **health checks** and **service discovery** for distributed deployments.
 - **Configurable authentication layer** that plugs into external auth/token providers.
 - **Example agents** (`supervisor`, `weather`, `math`, cross-swarm demos) showcasing MAIL usage patterns.
@@ -172,6 +174,7 @@ mail/
 - **Protocol message format reference**: [docs/message-format.md](/docs/message-format.md)
 - **HTTP/API surface**: [docs/api.md](/docs/api.md)
 - **Swarm configuration & registry operations**: [docs/configuration.md](/docs/configuration.md), [docs/registry.md](/docs/registry.md)
+- **HTTP client usage**: [docs/client.md](/docs/client.md)
 - **Security hardening checklist**: [docs/security.md](/docs/security.md)
 - **Agents, tools, and examples**: [docs/agents-and-tools.md](/docs/agents-and-tools.md), [docs/examples.md](/docs/examples.md)
 - **Testing and troubleshooting**: [docs/testing.md](/docs/testing.md), [docs/troubleshooting.md](/docs/troubleshooting.md)

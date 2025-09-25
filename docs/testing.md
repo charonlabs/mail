@@ -12,8 +12,8 @@
 - Network tests use **FastAPI TestClient** and patch external I/O
 - **Fixtures** patch `SwarmRegistry`, auth helpers, and factory imports to avoid network/LLM calls
 - **No real external requests** are performed during tests
+- The asynchronous HTTP client is exercised in [`tests/unit/test_mail_client.py`](/tests/unit/test_mail_client.py) with an in-process aiohttp server covering SSE and payload validation
 
 ## Extending
 - **Follow existing patterns** under [tests/unit](/tests/unit/) and [tests/network](/tests/network/)
 - Reuse provided fixtures for isolated behavior
-
