@@ -28,8 +28,10 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
-from mail.json.types import SwarmsJSONAction, SwarmsJSONAgent, SwarmsJSONSwarm
-from mail.json.utils import (
+from mail.json import (
+	SwarmsJSONAction,
+	SwarmsJSONAgent,
+	SwarmsJSONSwarm,
 	build_action_from_swarms_json,
 	build_agent_from_swarms_json,
 	build_swarm_from_swarms_json,
