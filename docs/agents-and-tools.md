@@ -7,7 +7,7 @@
 
 ## Actions
 - A `MAILAction` defines a structured tool interface backed by a Python function (import string)
-- Actions can be attached to agents in [swarms.json](/swarms.json) and are available to the agent as OpenAI-style function tools
+- Actions are declared once per swarm in [swarms.json](/swarms.json) and agents reference them by name in their `actions` list
 - Actions can also be created from Pydantic basemodels and function defs with `MAILAction.from_pydantic_model()` in [src/mail/api.py](/src/mail/api.py)
 - Conversion helpers build Pydantic models and tool specs: see `MAILAction.to_tool_dict()` and `pydantic_model_to_tool()` in [src/mail/core/tools.py](/src/mail/core/tools.py) and [src/mail/api.py](/src/mail/api.py)
 

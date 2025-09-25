@@ -4,7 +4,6 @@
 import asyncio
 import datetime
 import inspect
-import json
 import logging
 import uuid
 from collections.abc import Callable
@@ -29,6 +28,16 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
+from mail.json import (
+	SwarmsJSONAction,
+	SwarmsJSONAgent,
+	SwarmsJSONSwarm,
+	build_action_from_swarms_json,
+	build_agent_from_swarms_json,
+	build_swarm_from_swarms_json,
+	build_swarms_from_swarms_json,
+	load_swarms_json_from_file,
+)
 from mail.net import SwarmRegistry
 from mail.utils import read_python_string, resolve_python_references
 
@@ -200,60 +209,53 @@ class MAILAgentTemplate:
 		)
 
 	@staticmethod
-	def from_swarm_json(json_dump: str) -> "MAILAgentTemplate":
+	def from_swarms_json(
+		agent_data: SwarmsJSONAgent,
+		actions_by_name: dict[str, "MAILAction"] | None = None,
+	) -> "MAILAgentTemplate":
+		"""
+		Create a MAILAgentTemplate from a pre-parsed `SwarmsJSONAgent` definition.
+		"""
+		actions: list[MAILAction] = []
+		action_names = agent_data.get("actions") or []
+		if action_names:
+			if not actions_by_name:
+				raise ValueError(
+					f"agent '{agent_data['name']}' declares actions but no action definitions were provided"
+				)
+			for action_name in action_names:
+				if action_name not in actions_by_name:
+					raise ValueError(
+						f"agent '{agent_data['name']}' references unknown action '{action_name}'"
+					)
+				actions.append(actions_by_name[action_name])
+
+		agent_params = resolve_python_references(agent_data["agent_params"])
+		return MAILAgentTemplate(
+			name=agent_data["name"],
+			factory=agent_data["factory"],
+			comm_targets=agent_data["comm_targets"],
+			actions=actions,
+			agent_params=agent_params,
+			enable_entrypoint=agent_data["enable_entrypoint"],
+			enable_interswarm=agent_data["enable_interswarm"],
+			tool_format=agent_data["tool_format"],
+			can_complete_tasks=agent_data["can_complete_tasks"],
+		)
+
+	@staticmethod
+	def from_swarm_json(
+		json_dump: str,
+		actions_by_name: dict[str, "MAILAction"] | None = None,
+	) -> "MAILAgentTemplate":
 		"""
 		Create a MAILAgentTemplate from a JSON dump following the `swarms.json` format.
 		"""
-		REQUIRED_FIELDS = {
-			"name": str,
-			"factory": str,
-			"comm_targets": list,
-			"agent_params": dict,
-		}
-		OPTIONAL_FIELDS = {  # noqa: F841
-			"actions": list,
-			"enable_entrypoint": bool,
-			"enable_interswarm": bool,
-			"tool_format": Literal["completions", "responses"],
-			"can_complete_tasks": bool,
-		}
+		import json as _json
 
-		data = json.loads(json_dump)
-
-		if data is None:
-			raise ValueError("agent JSON dump must not be None")
-		for field in REQUIRED_FIELDS:
-			if field not in data:
-				raise ValueError(f"agent JSON dump missing required field: '{field}'")
-			if not isinstance(data[field], REQUIRED_FIELDS[field]):
-				raise ValueError(
-					f"agent JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
-				)
-
-		name = data["name"]
-		factory = data["factory"]
-		comm_targets = data["comm_targets"]
-		actions = [
-			MAILAction.from_swarm_json(json.dumps(action))
-			for action in data.get("actions", [])
-		]
-		agent_params = resolve_python_references(data["agent_params"])
-		enable_entrypoint = data.get("enable_entrypoint", False)
-		enable_interswarm = data.get("enable_interswarm", False)
-		tool_format = data.get("tool_format", "responses")
-		can_complete_tasks = data.get("can_complete_tasks", False)
-
-		return MAILAgentTemplate(
-			name=name,
-			factory=factory,
-			comm_targets=comm_targets,
-			actions=actions,
-			agent_params=agent_params,
-			enable_entrypoint=enable_entrypoint,
-			enable_interswarm=enable_interswarm,
-			tool_format=tool_format,
-			can_complete_tasks=can_complete_tasks,
-		)
+		agent_candidate = _json.loads(json_dump)
+		parsed_agent = build_agent_from_swarms_json(agent_candidate)
+		return MAILAgentTemplate.from_swarms_json(parsed_agent, actions_by_name)
 
 	@staticmethod
 	def from_example(
@@ -420,40 +422,27 @@ class MAILAction:
 		)
 
 	@staticmethod
+	def from_swarms_json(action_data: SwarmsJSONAction) -> "MAILAction":
+		"""
+		Create a MAILAction from a pre-parsed `SwarmsJSONAction` definition.
+		"""
+		return MAILAction(
+			name=action_data["name"],
+			description=action_data["description"],
+			parameters=action_data["parameters"],
+			function=action_data["function"],
+		)
+
+	@staticmethod
 	def from_swarm_json(json_dump: str) -> "MAILAction":
 		"""
 		Create a MAILAction from a JSON dump following the `swarms.json` format.
 		"""
-		REQUIRED_FIELDS = {
-			"name": str,
-			"description": str,
-			"parameters": dict,
-			"function": str,
-		}
+		import json as _json
 
-		data = json.loads(json_dump)
-
-		if data is None:
-			raise ValueError("action JSON dump must not be None")
-		for field in REQUIRED_FIELDS:
-			if field not in data:
-				raise ValueError(f"action JSON dump missing required field: '{field}'")
-			if not isinstance(data[field], REQUIRED_FIELDS[field]):
-				raise ValueError(
-					f"action JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
-				)
-
-		name = data["name"]
-		description = data["description"]
-		parameters = data["parameters"]
-		function = data["function"]
-
-		return MAILAction(
-			name=name,
-			description=description,
-			parameters=parameters,
-			function=function,
-		)
+		action_candidate = _json.loads(json_dump)
+		parsed_action = build_action_from_swarms_json(action_candidate)
+		return MAILAction.from_swarms_json(parsed_action)
 
 	def to_tool_dict(
 		self,
@@ -1138,41 +1127,35 @@ class MAILSwarmTemplate:
 		)
 
 	@staticmethod
+	def from_swarms_json(swarm_data: SwarmsJSONSwarm) -> "MAILSwarmTemplate":
+		"""
+		Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
+		"""
+		actions = [MAILAction.from_swarms_json(action) for action in swarm_data["actions"]]
+		actions_by_name = {action.name: action for action in actions}
+		agents = [
+			MAILAgentTemplate.from_swarms_json(agent, actions_by_name)
+			for agent in swarm_data["agents"]
+		]
+
+		return MAILSwarmTemplate(
+			name=swarm_data["name"],
+			agents=agents,
+			actions=actions,
+			entrypoint=swarm_data["entrypoint"],
+			enable_interswarm=swarm_data["enable_interswarm"],
+		)
+
+	@staticmethod
 	def from_swarm_json(json_dump: str) -> "MAILSwarmTemplate":
 		"""
 		Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
 		"""
-		REQUIRED_FIELDS = {"name": str, "agents": list, "entrypoint": str}
-		OPTIONAL_FIELDS = {"enable_interswarm": bool}  # noqa: F841
+		import json as _json
 
-		data = json.loads(json_dump)
-
-		if data is None:
-			raise ValueError("swarm JSON dump must not be None")
-		for field in REQUIRED_FIELDS:
-			if field not in data:
-				raise ValueError(f"swarm JSON dump missing required field: '{field}'")
-			if not isinstance(data[field], REQUIRED_FIELDS[field]):
-				raise ValueError(
-					f"swarm JSON dump field '{field}' must be of type '{REQUIRED_FIELDS[field].__name__}', not '{type(data[field]).__name__}'"
-				)
-
-		name = data["name"]
-		agents = [
-			MAILAgentTemplate.from_swarm_json(json.dumps(agent))
-			for agent in data["agents"]
-		]
-		actions = [action for agent in agents for action in agent.actions]
-		entrypoint = data["entrypoint"]
-		enable_interswarm = data.get("enable_interswarm", False)
-
-		return MAILSwarmTemplate(
-			name=name,
-			agents=agents,
-			actions=actions,
-			entrypoint=entrypoint,
-			enable_interswarm=enable_interswarm,
-		)
+		swarm_candidate = _json.loads(json_dump)
+		parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
+		return MAILSwarmTemplate.from_swarms_json(parsed_swarm)
 
 	@staticmethod
 	def from_swarm_json_file(
@@ -1182,10 +1165,9 @@ class MAILSwarmTemplate:
 		"""
 		Create a `MAILSwarmTemplate` from a JSON file following the `swarms.json` format.
 		"""
-		with open(json_filepath) as f:
-			contents = f.read()
-			full_json = json.loads(contents)
-			for swarm in full_json:
-				if swarm["name"] == swarm_name:
-					return MAILSwarmTemplate.from_swarm_json(json.dumps(swarm))
-			raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")
+		swarms_file = load_swarms_json_from_file(json_filepath)
+		swarms = build_swarms_from_swarms_json(swarms_file["swarms"])
+		for swarm in swarms:
+			if swarm["name"] == swarm_name:
+				return MAILSwarmTemplate.from_swarms_json(swarm)
+		raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")

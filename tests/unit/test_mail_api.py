@@ -103,6 +103,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
 
 	data = {
 		"name": "myswarm",
+		"version": "1.0.0",
 		"agents": [
 			{
 				"name": "supervisor",
@@ -143,6 +144,7 @@ def test_agent_params_prefixed_python_strings_resolved() -> None:
 
 	data = {
 		"name": "myswarm",
+		"version": "1.0.0",
 		"agents": [
 			{
 				"name": "supervisor",
@@ -177,6 +179,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
 	base = {
 		"name": "x",
+		"version": "1.0.0",
 		"agents": [],
 		"actions": [],
 		"entrypoint": "supervisor",
@@ -186,7 +189,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
 	with pytest.raises(ValueError) as exc:
 		MAILSwarmTemplate.from_swarm_json(json.dumps(bad))
-	assert "missing required field" in str(exc.value)
+	assert "must contain" in str(exc.value)
 
 
 def test_from_swarm_json_wrong_types_raise() -> None:
@@ -197,6 +200,7 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 
 	bad = {
 		"name": 123,
+		"version": 1,
 		"agents": {},
 		"actions": {},
 		"entrypoint": 999,
@@ -205,7 +209,7 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 	with pytest.raises(ValueError) as exc:
 		MAILSwarmTemplate.from_swarm_json(json.dumps(bad))
 	# Message should note type mismatch
-	assert "must be of type" in str(exc.value)
+	assert "must be a" in str(exc.value)
 
 
 def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
@@ -217,12 +221,14 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
 	contents = [
 		{
 			"name": "other",
+			"version": "1.0.0",
 			"agents": [],
 			"actions": [],
 			"entrypoint": "s",
 		},
 		{
 			"name": "target",
+			"version": "1.0.0",
 			"agents": [
 				{
 					"name": "supervisor",
@@ -476,7 +482,7 @@ def test_mailaction_from_swarm_json_missing_required_field(missing: str) -> None
 
 	with pytest.raises(ValueError) as exc:
 		MAILAction.from_swarm_json(json.dumps(bad))
-	assert "missing required field" in str(exc.value)
+	assert "must contain" in str(exc.value)
 
 
 def test_mailaction_from_swarm_json_type_validation() -> None:
@@ -490,4 +496,4 @@ def test_mailaction_from_swarm_json_type_validation() -> None:
 
 	with pytest.raises(ValueError) as exc:
 		MAILAction.from_swarm_json(json.dumps(bad))
-	assert "must be of type" in str(exc.value)
+	assert "must be a" in str(exc.value)

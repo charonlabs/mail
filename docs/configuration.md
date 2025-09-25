@@ -40,21 +40,7 @@ This page describes environment variables and the `swarms.json` file that config
                 "name": "weather",
                 "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
-                "actions": [
-                    {
-                        "name": "get_weather_forecast",
-                        "description": "Get the weather forecast for a given location",
-                        "parameters": { 
-                            "type": "object",
-                            "properties": {
-                                "location": { "type": "string", "description": "The location to get the weather forecast for" },
-                                "days_ahead": { "type": "integer", "description": "The number of days ahead to get the weather forecast for" },
-                                "metric": { "type": "boolean", "description": "Whether to use metric units" }
-                            }
-                        },
-                        "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
-                    }
-                ],
+                "actions": ["get_weather_forecast"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
@@ -69,6 +55,21 @@ This page describes environment variables and the `swarms.json` file that config
                     "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
                 }
             }
+        ],
+        "actions": [
+            {
+                "name": "get_weather_forecast",
+                "description": "Get the weather forecast for a given location",
+                "parameters": { 
+                    "type": "object",
+                    "properties": {
+                        "location": { "type": "string", "description": "The location to get the weather forecast for" },
+                        "days_ahead": { "type": "integer", "description": "The number of days ahead to get the weather forecast for" },
+                        "metric": { "type": "boolean", "description": "Whether to use metric units" }
+                    }
+                },
+                "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
+            }
         ]
     }
 ]
@@ -77,5 +78,6 @@ This page describes environment variables and the `swarms.json` file that config
 ### Notes
 - `comm_targets` must reference existing agents by name, or interswarm addresses if interswarm is enabled
 - Exactly one or more entrypoint-capable agents must be present; the top-level `entrypoint` names which one to use by default
-- Actions defined at the agent level become available to that agent via tools; [see agents-and-tools.md](/docs/agents-and-tools.md)
-
+- Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
+- `version` is required and should match the MAIL package you are targeting so migrations can gate incompatible swarm definitions
+- The helpers in `mail.json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
