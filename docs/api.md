@@ -38,6 +38,13 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 ### Notes
 - The server keeps a persistent `MAILSwarmTemplate` catalogue and per-user `MAILSwarm` instances
 - **Message schemas** are documented in [docs/message-format.md](/docs/message-format.md) and [spec/](/spec/SPEC.md)
+- The repository ships an asynchronous helper described in [docs/client.md](/docs/client.md) that wraps these endpoints and handles bearer auth + SSE parsing
+
+### MAILClient helper
+- `MAILClient` (see [client.md](/docs/client.md)) mirrors every route above with ergonomic async methods
+- Supports bearer tokens, custom timeouts, and optional externally managed `aiohttp.ClientSession`
+- Provides `post_message_stream()` to yield `ServerSentEvent` objects without recreating SSE parsing logic
+- Used by automated tests and demo scripts (`scripts/demo_client.py`) to validate client/server interoperability
 
 ## Python API
 
@@ -74,6 +81,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   from mail.core import AgentCore, ActionCore
   ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
+- `mail.json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
 
 ### Class reference
 
@@ -101,10 +109,11 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
 - **Key methods**:
   - `instantiate(instance_params: dict[str, Any]) -> MAILAgent`: load the factory and produce a concrete `MAILAgent`.
-  - `from_swarm_json(json_str) -> MAILAgentTemplate`: rebuild from `swarms.json` entries.
+  - `from_swarm_json(json_str, actions_by_name: dict[str, MAILAction] | None = None) -> MAILAgentTemplate`: rebuild from `swarms.json` entries, optionally supplying pre-built actions to resolve `actions` references efficiently.
   - `from_example(name, comm_targets) -> MAILAgentTemplate`: load bundled examples (`supervisor`, `weather`, `math`, `consultant`, `analyst`).
   - `_top_level_params() -> dict[str, Any]` and `_validate() -> None`: internal helpers used during instantiation and validation.
 - Accepts either dotted import strings or callables for `factory`, enabling JSON-driven and dynamic runtime construction alike.
+- Recursively resolves `python::module:object` and `url::https://...` string prefixes in `agent_params` (and nested structures) so templates can reference code exports or remote JSON payloads without manual preprocessing.
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.

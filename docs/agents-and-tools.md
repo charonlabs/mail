@@ -4,10 +4,11 @@
 - An **agent** is an async callable created by a factory that takes a chat history and can emit tool calls ([src/mail/api.py](/src/mail/api.py), [src/mail/factories/](/src/mail/factories/__init__.py))
 - Agent types can be configured in [swarms.json](/swarms.json) and converted to `MAILAgentTemplate` at runtime
 - **Important flags**: `enable_entrypoint`, `enable_interswarm`, `can_complete_tasks`, `tool_format`
+- Values inside `agent_params` support string prefixes resolved at load time: use `python::package.module:OBJECT` for Python exports and `url::https://...` to fetch JSON payloads that populate prompts or additional settings
 
 ## Actions
 - A `MAILAction` defines a structured tool interface backed by a Python function (import string)
-- Actions can be attached to agents in [swarms.json](/swarms.json) and are available to the agent as OpenAI-style function tools
+- Actions are declared once per swarm in [swarms.json](/swarms.json) and agents reference them by name in their `actions` list
 - Actions can also be created from Pydantic basemodels and function defs with `MAILAction.from_pydantic_model()` in [src/mail/api.py](/src/mail/api.py)
 - Conversion helpers build Pydantic models and tool specs: see `MAILAction.to_tool_dict()` and `pydantic_model_to_tool()` in [src/mail/core/tools.py](/src/mail/core/tools.py) and [src/mail/api.py](/src/mail/api.py)
 
@@ -39,3 +40,4 @@
 ## Factories and prompts
 - **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
 - **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
+- When referencing shared prompt text or other dynamic values, prefer the `python::` and `url::` prefixes so they stay in sync with code or remote configuration without manual duplication
