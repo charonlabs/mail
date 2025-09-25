@@ -74,6 +74,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   from mail.core import AgentCore, ActionCore
   ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
+- `mail.json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
 
 ### Class reference
 
@@ -101,7 +102,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
 - **Key methods**:
   - `instantiate(instance_params: dict[str, Any]) -> MAILAgent`: load the factory and produce a concrete `MAILAgent`.
-  - `from_swarm_json(json_str) -> MAILAgentTemplate`: rebuild from `swarms.json` entries.
+  - `from_swarm_json(json_str, actions_by_name: dict[str, MAILAction] | None = None) -> MAILAgentTemplate`: rebuild from `swarms.json` entries, optionally supplying pre-built actions to resolve `actions` references efficiently.
   - `from_example(name, comm_targets) -> MAILAgentTemplate`: load bundled examples (`supervisor`, `weather`, `math`, `consultant`, `analyst`).
   - `_top_level_params() -> dict[str, Any]` and `_validate() -> None`: internal helpers used during instantiation and validation.
 - Accepts either dotted import strings or callables for `factory`, enabling JSON-driven and dynamic runtime construction alike.
