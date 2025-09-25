@@ -54,10 +54,10 @@ def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
         "name": str,
         "version": str,
         "entrypoint": str,
-        "agents": list[Any],
-        "actions": list[Any],
+        "agents": list,
+        "actions": list,
     }
-    
+
     OPTIONAL_FIELDS: dict[str, type] = {
         "enable_interswarm": bool,
     }
@@ -102,16 +102,16 @@ def validate_agent_from_swarms_json(agent_candidate: Any) -> None:
     REQUIRED_FIELDS: dict[str, type] = {
         "name": str,
         "factory": str,
-        "comm_targets": list[str],
-        "agent_params": dict[str, Any],
+        "comm_targets": list,
+        "agent_params": dict,
     }
-    
+
     OPTIONAL_FIELDS: dict[str, type] = {
         "enable_entrypoint": bool,
         "enable_interswarm": bool,
         "can_complete_tasks": bool,
         "tool_format": str,
-        "actions": list[str],
+        "actions": list,
     }
     
     for field, field_type in REQUIRED_FIELDS.items():
@@ -157,13 +157,11 @@ def validate_action_from_swarms_json(action_candidate: Any) -> None:
     REQUIRED_FIELDS: dict[str, type] = {
         "name": str,
         "description": str,
-        "parameters": dict[str, Any],
+        "parameters": dict,
         "function": str,
     }
-    
-    OPTIONAL_FIELDS: dict[str, type] = {
-        "actions": list[str],
-    }
+
+    OPTIONAL_FIELDS: dict[str, type] = {}
     
     for field, field_type in REQUIRED_FIELDS.items():
         if field not in action_candidate:
