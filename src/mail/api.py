@@ -39,7 +39,7 @@ from mail.json import (
 	load_swarms_json_from_file,
 )
 from mail.net import SwarmRegistry
-from mail.utils import read_python_string, resolve_python_references
+from mail.utils import read_python_string, resolve_prefixed_string_references
 
 logger = logging.getLogger("mail")
 
@@ -230,7 +230,7 @@ class MAILAgentTemplate:
 					)
 				actions.append(actions_by_name[action_name])
 
-		agent_params = resolve_python_references(agent_data["agent_params"])
+		agent_params = resolve_prefixed_string_references(agent_data["agent_params"])
 		return MAILAgentTemplate(
 			name=agent_data["name"],
 			factory=agent_data["factory"],
