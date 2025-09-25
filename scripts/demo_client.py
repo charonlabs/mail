@@ -20,13 +20,19 @@ from mail.core.message import MAILMessage
 
 
 class DemoSwarmRegistry:
-	"""
-	Non-persisted registry stub used by the demo server.
-	"""
+	"""Non-persisted registry stub used by the demo server."""
 
-	def __init__(self, local_swarm_name: str, base_url: str, _: str | None = None) -> None:
+	def __init__(
+		self,
+		local_swarm_name: str,
+		base_url: str,
+		persistence_file: str | None = None,
+	) -> None:
 		self.local_swarm_name = local_swarm_name
 		self.base_url = base_url
+		self.persistence_file = persistence_file or "demo-registry.json"
+		self._endpoints: dict[str, dict[str, Any]] = {}
+		self.register_swarm(local_swarm_name, base_url, volatile=False)
 
 	async def start_health_checks(self) -> None:
 		return None
@@ -35,18 +41,36 @@ class DemoSwarmRegistry:
 		return None
 
 	def cleanup_volatile_endpoints(self) -> None:
-		return None
+		self._endpoints = {
+			name: data
+			for name, data in self._endpoints.items()
+			if not data.get("volatile", False)
+		}
+
+	def register_swarm(
+		self,
+		swarm_name: str,
+		base_url: str,
+		auth_token: str | None = None,
+		metadata: dict[str, Any] | None = None,
+		volatile: bool = True,
+	) -> None:
+		self._endpoints[swarm_name] = {
+			"swarm_name": swarm_name,
+			"base_url": base_url,
+			"health_check_url": f"{base_url}/health",
+			"auth_token_ref": auth_token,
+			"last_seen": datetime.datetime.now(datetime.UTC),
+			"is_active": True,
+			"metadata": metadata,
+			"volatile": volatile,
+		}
+
+	def get_swarm_endpoint(self, swarm_name: str) -> dict[str, Any] | None:
+		return self._endpoints.get(swarm_name)
 
 	def get_all_endpoints(self) -> dict[str, dict[str, Any]]:
-		return {
-			self.local_swarm_name: {
-				"swarm_name": self.local_swarm_name,
-				"base_url": self.base_url,
-				"is_active": True,
-				"last_seen": None,
-				"metadata": None,
-			}
-		}
+		return self._endpoints.copy()
 
 
 class DemoMAILSwarm:
@@ -138,6 +162,7 @@ class DemoSwarmTemplate:
 		self.name = swarm_name
 		self.entrypoint = "supervisor"
 		self.enable_interswarm = False
+		self.agents: list[Any] = []
 
 	def instantiate(
 		self,
@@ -158,10 +183,16 @@ async def patch_server() -> None:
 	import mail.utils as utils
 	import mail.utils.auth as auth
 
-	server.SwarmRegistry = DemoSwarmRegistry
-	server.MAILSwarmTemplate.from_swarm_json_file = (
-		lambda swarm_name, _: DemoSwarmTemplate(swarm_name)
+	server.SwarmRegistry = DemoSwarmRegistry # type: ignore[assignment, misc]
+	server.MAILSwarmTemplate.from_swarm_json_file = staticmethod( # type: ignore[assignment, misc]
+		lambda swarm_name, _=None: DemoSwarmTemplate(swarm_name)
 	)
+	server.user_mail_instances.clear()
+	server.user_mail_tasks.clear()
+	server.swarm_mail_instances.clear()
+	server.swarm_mail_tasks.clear()
+	server.swarm_registry = None
+	server.persistent_swarm = None
 
 	async def _fake_login(_: str) -> str:
 		return "demo-token"
@@ -169,10 +200,10 @@ async def patch_server() -> None:
 	async def _fake_token(_: str) -> dict[str, str]:
 		return {"role": "user", "id": "demo"}
 
-	auth.login = _fake_login  
-	auth.get_token_info = _fake_token 
-	utils.login = _fake_login
-	utils.get_token_info = _fake_token
+	auth.login = _fake_login # type: ignore[assignment]
+	auth.get_token_info = _fake_token # type: ignore[assignment]
+	utils.login = _fake_login # type: ignore[assignment]
+	utils.get_token_info = _fake_token # type: ignore[assignment]
 
 
 async def wait_for_server(host: str, port: int) -> None:
