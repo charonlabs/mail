@@ -110,6 +110,7 @@ def validate_agent_from_swarms_json(agent_candidate: Any) -> None:
         "enable_entrypoint": bool,
         "enable_interswarm": bool,
         "can_complete_tasks": bool,
+        "tool_format": str,
         "actions": list[str],
     }
     
@@ -141,6 +142,7 @@ def build_agent_from_swarms_json(agent_candidate: Any) -> SwarmsJSONAgent:
         enable_entrypoint=agent_candidate.get("enable_entrypoint", False),
         enable_interswarm=agent_candidate.get("enable_interswarm", False),
         can_complete_tasks=agent_candidate.get("can_complete_tasks", False),
+        tool_format=agent_candidate.get("tool_format", "responses"),
         actions=agent_candidate.get("actions", []),
     )
 
