@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import shlex
 from collections.abc import AsyncIterator
@@ -44,7 +45,7 @@ class MAILClient:
         self,
         url: str,
         api_key: str | None = None,
-        timeout: ClientTimeout | float | None = 60.0,
+        timeout: ClientTimeout | float | None = 3600.0,
         session: ClientSession | None = None,
     ) -> None:
         self.base_url = url.rstrip("/")
@@ -231,6 +232,9 @@ class MAILClient:
         buffer = ""
         async for chunk in response.content.iter_any():
             buffer += chunk.decode("utf-8", errors="replace")
+            if "\r" in buffer:
+                buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
+
             while "\n\n" in buffer:
                 raw_event, buffer = buffer.split("\n\n", 1)
                 if not raw_event.strip():
@@ -522,7 +526,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.get_root()
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error getting root: {e}")
 
@@ -532,7 +536,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message(args.message, entrypoint=args.entrypoint, show_events=args.show_events)
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error posting message: {e}")
 
@@ -543,7 +547,11 @@ class MAILClientCLI:
         try:
             response = await self.client.post_message_stream(args.message, entrypoint=args.entrypoint)
             async for event in response:
-                print(event)
+                parsed_event = {
+                    "event": event.event,
+                    "data": event.data,
+                }
+                print(json.dumps(parsed_event, indent=2))
         except Exception as e:
             print(f"error posting message: {e}")
 
@@ -553,7 +561,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.get_health()
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error getting health: {e}")
 
@@ -563,7 +571,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.get_swarms()
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error getting swarms: {e}")
 
@@ -573,7 +581,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.register_swarm(args.name, args.base_url, auth_token=args.auth_token, volatile=args.volatile, metadata=args.metadata)
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error registering swarm: {e}")
 
@@ -583,7 +591,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.dump_swarm()
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error dumping swarm: {e}")
 
@@ -593,7 +601,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.send_interswarm_message(args.target_agent, args.message, args.user_token)
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error sending interswarm message: {e}")
 
@@ -603,7 +611,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.load_swarm_from_json(args.swarm_json)
-            print(response)
+            print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error loading swarm from JSON: {e}")
 

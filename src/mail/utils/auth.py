@@ -42,7 +42,7 @@ async def login(api_key: str) -> str:
 
 async def get_token_info(token: str) -> dict[str, Any]:
     """
-    Get information about a token.
+    Get information about a JWT.
     """
     async with aiohttp.ClientSession() as session:
         response = await session.get(
@@ -64,10 +64,13 @@ async def caller_is_role(request: Request, role: str) -> bool:
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
 
-    token_info = await get_token_info(token)
+    # login to the auth service
+    jwt = await login(token)
+
+    token_info = await get_token_info(jwt)
     if token_info["role"] != role:
         logger.warning(f"invalid role: '{token_info['role']}' != '{role}'")
-        raise HTTPException(status_code=401, detail="invalid role")
+        return False
 
     return True
 
@@ -90,24 +93,12 @@ async def caller_is_admin_or_user(request: Request) -> bool:
     """
     Check if the caller is an `admin` or a `user`.
     """
-    token_header = request.headers.get("Authorization")
-    if token_header is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
-
-    # Preserve historical behavior expected by tests: a non-Bearer header
-    # should be treated as unauthorized ("invalid role").
-    if not token_header.startswith("Bearer "):
-        logger.warning("invalid role: header missing 'Bearer ' prefix")
-        raise HTTPException(status_code=401, detail="invalid role")
-
-    token = token_header.split(" ")[1]
-    token_info = await get_token_info(token)
-    role = token_info.get("role")
-    if role in ("admin", "user"):
+    is_admin = await caller_is_admin(request)
+    is_user = await caller_is_user(request)
+    if is_admin or is_user:
         return True
 
-    logger.warning(f"invalid role: '{role}' is not admin or user")
+    logger.warning("invalid role: 'admin' or 'user' is not admin or user")
     raise HTTPException(status_code=401, detail="invalid role")
 
 
@@ -130,7 +121,10 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
 
-    return await get_token_info(token)
+    # login to the auth service
+    jwt = await login(token)
+
+    return await get_token_info(jwt)
 
 
 def generate_user_id(token_info: dict[str, Any]) -> str:
