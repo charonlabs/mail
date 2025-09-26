@@ -2,7 +2,9 @@
 # Copyright (c) 2025 Addison Kline
 
 import argparse
+import asyncio
 
+from mail.client import MAILClientCLI
 from mail.server import run_server
 
 
@@ -15,6 +17,14 @@ def _run_server_with_args(args: argparse.Namespace) -> None:
         port=args.port,
         reload=args.reload,
     )
+
+
+def _run_client_with_args(args: argparse.Namespace) -> None:
+    """
+    Run a MAIL client with the given CLI args.
+    """
+    client_cli = MAILClientCLI(args)
+    asyncio.run(client_cli.run())
 
 
 def main() -> None:
@@ -55,9 +65,41 @@ def main() -> None:
         type=bool,
         help="enable hot reloading",
     )
+
+    # command `client`
+    client_parser = subparsers.add_parser("client", help="run the MAIL client")
+    client_parser.set_defaults(func=_run_client_with_args)
+    client_parser.add_argument(
+        "--config",
+        default="mail.toml",
+    )
+    client_parser.add_argument(
+        "--url",
+        type=str,
+        help="URL of the MAIL server",
+    )
+    client_parser.add_argument(
+        "--api-key",
+        type=str,
+        required=False,
+        help="API key for the MAIL server",
+    )
+    client_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=60.0,
+        help="timeout for the MAIL server",
+    )
     
     # parse CLI args
     args = parser.parse_args()
+
+    # if no command is provided, print the help
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return
+
+    # run the command
     args.func(args)
 
 

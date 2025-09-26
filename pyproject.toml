@@ -63,4 +63,4 @@ indent-style = "space"
 extend-select = ["TID252", "I", "UP"]
 
 [project.scripts]
-mail = "mail.server:run_server"
+mail = "mail.cli:main"
