@@ -737,11 +737,18 @@ async def load_swarm_from_json(request: Request):
         )
 
 
-def run_server():
+def run_server(
+    host: str,
+    port: int,
+    reload: bool,
+):
     logger.info("starting MAIL server directly...")
-    port = int(os.getenv("BASE_URL", "http://localhost:8000").split(":")[-1])
-    uvicorn.run("mail.server:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("mail.server:app", host=host, port=port, reload=reload)
 
 
 if __name__ == "__main__":
-    run_server()
+    run_server(
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+    )

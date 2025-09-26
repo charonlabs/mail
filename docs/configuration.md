@@ -80,7 +80,7 @@ This page describes environment variables and the `swarms.json` file that config
 - Exactly one or more entrypoint-capable agents must be present; the top-level `entrypoint` names which one to use by default
 - Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
 - `version` is required and should match the MAIL package you are targeting so migrations can gate incompatible swarm definitions
-- The helpers in `mail.json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
+- The helpers in `mail.swarms_json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
 
 ### Prefixed string references
 - `python::package.module:attribute` strings resolve to Python objects at load time; use this for reusing constants such as prompts or tool factories

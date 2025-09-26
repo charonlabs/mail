@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from mail.json.utils import (
+from mail.swarms_json.utils import (
     build_action_from_swarms_json,
     build_agent_from_swarms_json,
     build_swarm_from_swarms_json,

@@ -3,17 +3,41 @@
 
 import argparse
 
+from mail.server import run_server
+
+
+def _handle_parsed_args(args: argparse.Namespace) -> None:
+    """
+    Handle parsed CLI args.
+    """
+    match args.command:
+        case "server":
+            _run_server_with_args(args)
+        case _:
+            raise ValueError(f"unknown command: {args.command}")
+
+
+def _run_server_with_args(args: argparse.Namespace) -> None:
+    """
+    Run a MAIL server with the given CLI args.
+    """
+    run_server(
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+    )
+
 
 def main() -> None:
     # top-level MAIL parser
     parser = argparse.ArgumentParser(
         prog="mail",
-        description="Multi-Agent Interface Layer reference implementation",
+        description="Multi-Agent Interface Layer reference implementation CLI",
         epilog="For more information, see `README.md` and `docs/`",
     )
     
     # subparsers for each MAIL command
-    subparsers = parser.add_subparsers(help="sub-command help")
+    subparsers = parser.add_subparsers()
 
     # command `server`
     server_parser = subparsers.add_parser("server", help="start the MAIL server")
@@ -36,12 +60,16 @@ def main() -> None:
         help="host to listen on",
     )
     server_parser.add_argument(
-        "--debug",
-        action="store_true", 
-        help="enable debug mode",
+        "--reload",
+        default=False,
+        type=bool,
+        help="enable hot reloading",
     )
     
-
+    # parse CLI args
+    args = parser.parse_args()
+    _handle_parsed_args(args)
+    
 
 if __name__ == "__main__":
     main()

@@ -81,7 +81,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   from mail.core import AgentCore, ActionCore
   ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
-- `mail.json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
+- `mail.swarms_json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
 
 ### Class reference
 
