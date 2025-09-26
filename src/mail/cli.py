@@ -6,17 +6,6 @@ import argparse
 from mail.server import run_server
 
 
-def _handle_parsed_args(args: argparse.Namespace) -> None:
-    """
-    Handle parsed CLI args.
-    """
-    match args.command:
-        case "server":
-            _run_server_with_args(args)
-        case _:
-            raise ValueError(f"unknown command: {args.command}")
-
-
 def _run_server_with_args(args: argparse.Namespace) -> None:
     """
     Run a MAIL server with the given CLI args.
@@ -41,6 +30,7 @@ def main() -> None:
 
     # command `server`
     server_parser = subparsers.add_parser("server", help="start the MAIL server")
+    server_parser.set_defaults(func=_run_server_with_args)
     server_parser.add_argument(
         "--config",
         default="mail.toml",
@@ -68,8 +58,8 @@ def main() -> None:
     
     # parse CLI args
     args = parser.parse_args()
-    _handle_parsed_args(args)
-    
+    args.func(args)
+
 
 if __name__ == "__main__":
     main()
