@@ -21,7 +21,7 @@ This page describes environment variables and the `swarms.json` file that config
 [
     {
         "name": "example",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
