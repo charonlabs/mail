@@ -36,6 +36,10 @@ class SwarmRegistry:
             persistence_file or f"registries/{local_swarm_name}.json"
         )
 
+        persistence_dir = os.path.dirname(self.persistence_file)
+        if persistence_dir:
+            os.makedirs(persistence_dir, exist_ok=True)
+
         # Register self
         self.register_local_swarm(local_base_url)
 

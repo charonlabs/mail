@@ -205,6 +205,7 @@
                     "use_proxy": false
                 }
             }
-        ]
+        ],
+        "actions": []
     }
 ]

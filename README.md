@@ -117,6 +117,8 @@ export SWARM_REGISTRY_FILE=registries/example.json
 export DATABASE_URL=postgresql://...
 ```
 
+MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
+
 **Swarm definitions** live in [swarms.json](/swarms.json). Each entry declares the agents, entrypoint, tools, and default models for a swarm.
 
 ### Run a Local Swarm
@@ -157,7 +159,7 @@ mail/
 ├── swarms.json            # Default swarm configurations
 ├── tests/                 # Pytest suite covering protocol + runtime behaviors
 ├── scripts/               # Operational helpers (deploy, smoke tests, tooling)
-├── registries/            # Sample registry persistence outputs
+-├── registries/            # Swarm registry persistence (created as needed)
 ├── assets/                # Diagrams and static assets (README image, etc.)
 └── pyproject.toml         # Project metadata and dependency definitions
 ```
