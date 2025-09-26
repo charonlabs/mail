@@ -15,6 +15,7 @@ Single-swarm example | Multi-swarm example
 - **JSON Schemas**: [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.json), [spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json)
 - **REST transport** (OpenAPI 3.1): [spec/openapi.yaml](/spec/openapi.yaml)
 - **Reference implementation source**: [src/mail/](/src/mail/__init__.py)
+- **Asynchronous HTTP client**: [docs/client.md](/docs/client.md), [src/mail/client.py](/src/mail/client.py)
 - **Deployment examples and docs**: [docs/](/docs/README.md)
 
 ## 1. MAIL Protocol Overview
@@ -59,6 +60,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 ### Key Features
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
+- **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.
 - Built-in **swarm registry** with **health checks** and **service discovery** for distributed deployments.
 - **Configurable authentication layer** that plugs into external auth/token providers.
 - **Example agents** (`supervisor`, `weather`, `math`, cross-swarm demos) showcasing MAIL usage patterns.
@@ -117,6 +119,8 @@ export SWARM_REGISTRY_FILE=registries/example.json
 export DATABASE_URL=postgresql://...
 ```
 
+MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
+
 **Swarm definitions** live in [swarms.json](/swarms.json). Each entry declares the agents, entrypoint, tools, and default models for a swarm.
 
 ### Run a Local Swarm
@@ -157,7 +161,7 @@ mail/
 ├── swarms.json            # Default swarm configurations
 ├── tests/                 # Pytest suite covering protocol + runtime behaviors
 ├── scripts/               # Operational helpers (deploy, smoke tests, tooling)
-├── registries/            # Sample registry persistence outputs
+-├── registries/            # Swarm registry persistence (created as needed)
 ├── assets/                # Diagrams and static assets (README image, etc.)
 └── pyproject.toml         # Project metadata and dependency definitions
 ```
@@ -174,6 +178,7 @@ mail/
 - **Protocol message format reference**: [docs/message-format.md](/docs/message-format.md)
 - **HTTP/API surface**: [docs/api.md](/docs/api.md)
 - **Swarm configuration & registry operations**: [docs/configuration.md](/docs/configuration.md), [docs/registry.md](/docs/registry.md)
+- **HTTP client usage**: [docs/client.md](/docs/client.md)
 - **Security hardening checklist**: [docs/security.md](/docs/security.md)
 - **Agents, tools, and examples**: [docs/agents-and-tools.md](/docs/agents-and-tools.md), [docs/examples.md](/docs/examples.md)
 - **Testing and troubleshooting**: [docs/testing.md](/docs/testing.md), [docs/troubleshooting.md](/docs/troubleshooting.md)
@@ -308,12 +313,25 @@ This guide gets you running a local MAIL swarm and interacting with it.
 - **Status** (requires admin/user token): `curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/status`
 - **Send a message**: `curl -X POST http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Hello"}'`
 - **Stream (SSE)**: `curl -N http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Stream please","stream":true}'`
+- **Python client**: use [`MAILClient`](./client.md) if you prefer asyncio code over raw HTTP. Example:
+  ```python
+  import asyncio
+  from mail.client import MAILClient
+
+
+  async def main() -> None:
+	async with MAILClient("http://localhost:8000", api_key="${TOKEN}") as client:
+		print(await client.get_root())
+		print(await client.post_message("Hello from Python"))
+
+
+  asyncio.run(main())
+  ```
 
 ## Next steps
 - Read [architecture.md](/docs/architecture.md) to learn how the runtime processes messages
 - Check [agents-and-tools.md](/docs/agents-and-tools.md) to learm how to add or modify agents
 - See [interswarm.md](/docs/interswarm.md) to enable cross‑swarm communication
-
 
 
 ===== End of `docs/quickstart.md` =====
@@ -328,7 +346,7 @@ This repo includes example agents and demo scripts you can run locally.
 - **Supervisor**: [src/mail/examples/supervisor/](/src/mail/examples/supervisor/__init__.py)
 - **Weather**: [src/mail/examples/weather_dummy/](/src/mail/examples/weather_dummy/__init__.py)
 - **Math**: [src/mail/examples/math_dummy/](/src/mail/examples/math_dummy/__init__.py)
-- **Consultant**: [src/mail/examples/consultant_dummy/](/src/mail/examples/analyst_dummy/__init__.py)
+- **Consultant**: [src/mail/examples/consultant_dummy/](/src/mail/examples/consultant_dummy/__init__.py)
 - **Analyst**: [src/mail/examples/analyst_dummy/](/src/mail/examples/analyst_dummy/__init__.py)
 
 ## Factories
@@ -336,12 +354,12 @@ This repo includes example agents and demo scripts you can run locally.
 
 ## Demo scripts
 - **Single swarm**: [scripts/single_swarm_demo.py](/scripts/single_swarm_demo.py)
-- **Multiple swarms**: [scripts/multi_swarm_demo.py](/scripts/single_swarm_demo.py)
+- **Multiple swarms**: [scripts/multi_swarm_demo.py](/scripts/multi_swarm_demo.py)
+- **HTTP client**: [scripts/demo_client.py](/scripts/demo_client.py) launches a stub server and exercises [`MAILClient`](./client.md)
 
 ## Swarms configuration
 - Top-level [swarms.json](/swarms.json) provides the default template loaded by the server
 - Update agent factories, prompts, or actions to customize behavior
-
 
 
 ===== End of `docs/examples.md` =====
@@ -405,11 +423,11 @@ MAIL messages are strongly typed envelopes used internally and over interswarm H
 - Network tests use **FastAPI TestClient** and patch external I/O
 - **Fixtures** patch `SwarmRegistry`, auth helpers, and factory imports to avoid network/LLM calls
 - **No real external requests** are performed during tests
+- The asynchronous HTTP client is exercised in [`tests/unit/test_mail_client.py`](/tests/unit/test_mail_client.py) with an in-process aiohttp server covering SSE and payload validation
 
 ## Extending
 - **Follow existing patterns** under [tests/unit](/tests/unit/) and [tests/network](/tests/network/)
 - Reuse provided fixtures for isolated behavior
-
 
 
 ===== End of `docs/testing.md` =====
@@ -456,6 +474,13 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 ### Notes
 - The server keeps a persistent `MAILSwarmTemplate` catalogue and per-user `MAILSwarm` instances
 - **Message schemas** are documented in [docs/message-format.md](/docs/message-format.md) and [spec/](/spec/SPEC.md)
+- The repository ships an asynchronous helper described in [docs/client.md](/docs/client.md) that wraps these endpoints and handles bearer auth + SSE parsing
+
+### MAILClient helper
+- `MAILClient` (see [client.md](/docs/client.md)) mirrors every route above with ergonomic async methods
+- Supports bearer tokens, custom timeouts, and optional externally managed `aiohttp.ClientSession`
+- Provides `post_message_stream()` to yield `ServerSentEvent` objects without recreating SSE parsing logic
+- Used by automated tests and demo scripts (`scripts/demo_client.py`) to validate client/server interoperability
 
 ## Python API
 
@@ -492,6 +517,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   from mail.core import AgentCore, ActionCore
   ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
+- `mail.json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
 
 ### Class reference
 
@@ -519,10 +545,11 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
 - **Key methods**:
   - `instantiate(instance_params: dict[str, Any]) -> MAILAgent`: load the factory and produce a concrete `MAILAgent`.
-  - `from_swarm_json(json_str) -> MAILAgentTemplate`: rebuild from `swarms.json` entries.
+  - `from_swarm_json(json_str, actions_by_name: dict[str, MAILAction] | None = None) -> MAILAgentTemplate`: rebuild from `swarms.json` entries, optionally supplying pre-built actions to resolve `actions` references efficiently.
   - `from_example(name, comm_targets) -> MAILAgentTemplate`: load bundled examples (`supervisor`, `weather`, `math`, `consultant`, `analyst`).
   - `_top_level_params() -> dict[str, Any]` and `_validate() -> None`: internal helpers used during instantiation and validation.
 - Accepts either dotted import strings or callables for `factory`, enabling JSON-driven and dynamic runtime construction alike.
+- Recursively resolves `python::module:object` and `url::https://...` string prefixes in `agent_params` (and nested structures) so templates can reference code exports or remote JSON payloads without manual preprocessing.
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
@@ -982,6 +1009,104 @@ This snippet constructs two agents from the bundled examples, wires them into a 
 
 ===== End of `docs/api.md` =====
 
+===== `docs/client.md` =====
+
+# MAILClient Guide
+
+`MAILClient` is the reference asynchronous Python client for the MAIL HTTP API. It wraps every documented endpoint, handles bearer authentication, and provides helpers for Server‑Sent Events (SSE) streaming and interswarm routing.
+
+Use this guide when you want to talk to a MAIL server from Python without writing raw `aiohttp` calls.
+
+## Installation & Requirements
+- `MAILClient` lives in `src/mail/client.py` and ships with the main package (`pip install -e .` or `uv sync`).
+- **Python 3.12+** and **aiohttp** (pulled in automatically via `pyproject.toml`).
+- The client is fully asynchronous. Run it inside an asyncio event loop, preferably with `asyncio.run(...)` or within async frameworks such as FastAPI or LangChain tools.
+
+## Quick Start
+
+```python
+import asyncio
+
+from mail.client import MAILClient
+
+
+async def main() -> None:
+	async with MAILClient("http://localhost:8000", api_key="user-token") as client:
+		root = await client.get_root()
+		print(root["version"])
+
+		response = await client.post_message(
+			"Hello from MAILClient",
+			entrypoint="supervisor",
+			show_events=True,
+		)
+		print(response)
+
+	stream = await client.post_message_stream("Stream this task")
+	async for event in stream:
+		print(event.event, event.data)
+
+
+if __name__ == "__main__":
+	asyncio.run(main())
+```
+
+## Connection Options
+- `MAILClient(base_url, api_key=None, timeout=60.0, session=None)`
+  - `base_url`: Root URL for the MAIL server (no trailing slash).
+  - `api_key`: Optional JWT or API key. When provided, every request includes `Authorization: Bearer <api_key>`.
+  - `timeout`: Float seconds or an `aiohttp.ClientTimeout`. Applies to the internally managed session.
+  - `session`: Provide your own `aiohttp.ClientSession` to share connections or customise connectors. The client will not close externally supplied sessions.
+
+The class implements `__aenter__` / `__aexit__`, so `async with` automatically opens and closes the HTTP session (`aclose()` is also available).
+
+## Endpoint Coverage
+
+| Category | Methods | Notes |
+| --- | --- | --- |
+| Service metadata | `get_root()`, `get_status()` | Mirrors `GET /` and `GET /status`. |
+| Health | `get_health()` | Returns interswarm readiness info. |
+| Messaging | `post_message(message, entrypoint=None, show_events=False)`, `post_message_stream(message, entrypoint=None)` | Handles synchronous responses and SSE streaming. |
+| Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |
+| Interswarm | `post_interswarm_message(...)`, `post_interswarm_response(...)`, `send_interswarm_message(...)` | Submit or receive interswarm traffic. |
+
+All helpers return deserialised `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
+
+## Streaming Responses
+
+`post_message_stream` returns an async iterator over `sse_starlette.ServerSentEvent` instances. Internally, the client parses chunked text from the HTTP response and yields structured events.
+
+```python
+stream = await client.post_message_stream("Need live updates")
+async for event in stream:
+	if event.event == "task_complete":
+		print("done", event.data)
+```
+
+## Error Handling
+- HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
+- Non‑JSON responses raise `ValueError` annotated with the returned content type and body.
+- Always wrap calls in try/except when the network may be flaky or when tokens can expire.
+
+## Testing & Utilities
+- Unit coverage lives in `tests/unit/test_mail_client.py`, using an in‑process aiohttp server to validate payloads and streaming behaviour.
+- `scripts/demo_client.py` launches a stubbed MAIL server and exercises the client end‑to‑end—useful for manual testing or onboarding demos.
+
+## Integration Tips
+- **Reuse sessions** for high‑throughput scenarios by passing an externally managed `ClientSession`.
+- **Custom headers**: Extend `_build_headers` by subclassing `MAILClient` if you need additional per‑request metadata.
+- **Timeouts**: Provide an `aiohttp.ClientTimeout(total=...)` for fine control over connect/read limits.
+- **Logging**: Enable the `mail.client` logger for request traces (`logging.getLogger("mail.client").setLevel(logging.DEBUG)`).
+
+## Related Documentation
+- [API Surfaces](./api.md) – discusses the HTTP routes that `MAILClient` calls.
+- [Quickstart](./quickstart.md) – shows how to run the server; you can replace `curl` steps with `MAILClient` snippets.
+- [Testing](./testing.md) – outlines the project’s testing strategy, including client exercises.
+- [Troubleshooting](./troubleshooting.md) – consult for common connectivity issues.
+
+
+===== End of `docs/client.md` =====
+
 ===== `docs/registry.md` =====
 
 # Swarm Registry
@@ -1021,13 +1146,14 @@ The registry manages discovery and routing for remote swarms.
 
 This folder documents the **Multi‑Agent Interface Layer (MAIL) reference implementation** found in this repository. It explains what MAIL is, how this Python implementation is structured, how to run it, and how to extend it with your own agents and swarms.
 
-If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Architecture](/docs/architecture.md) and [Agents & Tools](/docs/agents-and-tools.md). The [API](/docs/api.md) doc covers both HTTP and Python surfaces, and [Message Format](/docs/message-format.md) specifies the wire schema used by every transport.
+If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Architecture](/docs/architecture.md) and [Agents & Tools](/docs/agents-and-tools.md). The [API](/docs/api.md) doc covers both HTTP and Python surfaces, [Client](/docs/client.md) explains the asynchronous HTTP helper, and [Message Format](/docs/message-format.md) specifies the wire schema used by every transport.
 
 ## Contents
 - **Quickstart**: [quickstart.md](/docs/quickstart.md)
 - **Architecture**: [architecture.md](/docs/architecture.md)
 - **Configuration**: [configuration.md](/docs/configuration.md)
 - **API (HTTP & Python)**: [api.md](/docs/api.md)
+- **HTTP Client**: [client.md](/docs/client.md)
 - **Message Format**: [message-format.md](/docs/message-format.md)
 - **Agents & Tools**: [agents-and-tools.md](/docs/agents-and-tools.md)
 - **Interswarm Messaging**: [interswarm.md](/docs/interswarm.md)
@@ -1044,6 +1170,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 
 ## Where to look in the code
 - **Server and API**: [src/mail/server.py](/src/mail/server.py), [src/mail/api.py](/src/mail/api.py)
+- **HTTP client**: [src/mail/client.py](/src/mail/client.py)
 - **Core runtime, tools, messages**: [src/mail/core/runtime.py](/src/mail/core/runtime.py), [src/mail/core/tools.py](/src/mail/core/tools.py), [src/mail/core/message.py](/src/mail/core/message.py)
 - **Interswarm**: [src/mail/net/router.py](/src/mail/net/router.py), [src/mail/net/registry.py](/src/mail/net/registry.py), [src/mail/net/types.py](/src/mail/net/types.py)
 - **Utilities**: [src/mail/utils/](/src/mail/utils/__init__.py)
@@ -1060,10 +1187,11 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - An **agent** is an async callable created by a factory that takes a chat history and can emit tool calls ([src/mail/api.py](/src/mail/api.py), [src/mail/factories/](/src/mail/factories/__init__.py))
 - Agent types can be configured in [swarms.json](/swarms.json) and converted to `MAILAgentTemplate` at runtime
 - **Important flags**: `enable_entrypoint`, `enable_interswarm`, `can_complete_tasks`, `tool_format`
+- Values inside `agent_params` support string prefixes resolved at load time: use `python::package.module:OBJECT` for Python exports and `url::https://...` to fetch JSON payloads that populate prompts or additional settings
 
 ## Actions
 - A `MAILAction` defines a structured tool interface backed by a Python function (import string)
-- Actions can be attached to agents in [swarms.json](/swarms.json) and are available to the agent as OpenAI-style function tools
+- Actions are declared once per swarm in [swarms.json](/swarms.json) and agents reference them by name in their `actions` list
 - Actions can also be created from Pydantic basemodels and function defs with `MAILAction.from_pydantic_model()` in [src/mail/api.py](/src/mail/api.py)
 - Conversion helpers build Pydantic models and tool specs: see `MAILAction.to_tool_dict()` and `pydantic_model_to_tool()` in [src/mail/core/tools.py](/src/mail/core/tools.py) and [src/mail/api.py](/src/mail/api.py)
 
@@ -1095,6 +1223,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 ## Factories and prompts
 - **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
 - **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
+- When referencing shared prompt text or other dynamic values, prefer the `python::` and `url::` prefixes so they stay in sync with code or remote configuration without manual duplication
 
 
 ===== End of `docs/agents-and-tools.md` =====
@@ -1196,7 +1325,7 @@ This page describes environment variables and the `swarms.json` file that config
 [
     {
         "name": "example",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
@@ -1206,7 +1335,7 @@ This page describes environment variables and the `swarms.json` file that config
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
-                "agent_params": { 
+                "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.supervisor.prompts:SYSPROMPT"
                 }
@@ -1215,22 +1344,8 @@ This page describes environment variables and the `swarms.json` file that config
                 "name": "weather",
                 "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
-                "actions": [
-                    {
-                        "name": "get_weather_forecast",
-                        "description": "Get the weather forecast for a given location",
-                        "parameters": { 
-                            "type": "object",
-                            "properties": {
-                                "location": { "type": "string", "description": "The location to get the weather forecast for" },
-                                "days_ahead": { "type": "integer", "description": "The number of days ahead to get the weather forecast for" },
-                                "metric": { "type": "boolean", "description": "Whether to use metric units" }
-                            }
-                        },
-                        "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
-                    }
-                ],
-                "agent_params": { 
+                "actions": ["get_weather_forecast"],
+                "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
                 }
@@ -1239,10 +1354,25 @@ This page describes environment variables and the `swarms.json` file that config
                 "name": "math",
                 "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
-                "agent_params": { 
+                "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
                 }
+            }
+        ],
+        "actions": [
+            {
+                "name": "get_weather_forecast",
+                "description": "Get the weather forecast for a given location",
+                "parameters": { 
+                    "type": "object",
+                    "properties": {
+                        "location": { "type": "string", "description": "The location to get the weather forecast for" },
+                        "days_ahead": { "type": "integer", "description": "The number of days ahead to get the weather forecast for" },
+                        "metric": { "type": "boolean", "description": "Whether to use metric units" }
+                    }
+                },
+                "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
             }
         ]
     }
@@ -1252,8 +1382,15 @@ This page describes environment variables and the `swarms.json` file that config
 ### Notes
 - `comm_targets` must reference existing agents by name, or interswarm addresses if interswarm is enabled
 - Exactly one or more entrypoint-capable agents must be present; the top-level `entrypoint` names which one to use by default
-- Actions defined at the agent level become available to that agent via tools; [see agents-and-tools.md](/docs/agents-and-tools.md)
+- Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
+- `version` is required and should match the MAIL package you are targeting so migrations can gate incompatible swarm definitions
+- The helpers in `mail.json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
 
+### Prefixed string references
+- `python::package.module:attribute` strings resolve to Python objects at load time; use this for reusing constants such as prompts or tool factories
+- `url::https://example.com/prompt.json` strings are fetched with `httpx` and replaced by the response JSON encoded as a string
+- Nested dictionaries and lists inside `agent_params` (and other configuration blocks) are resolved recursively, so you can mix plain literals with both prefix formats
+- `url::` fetch failures return the original URL unless you set `raise_on_error` when calling `mail.utils.parsing.read_url_string`, which converts errors into descriptive `RuntimeError`s
 
 
 ===== End of `docs/configuration.md` =====
