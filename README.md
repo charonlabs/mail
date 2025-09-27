@@ -13,6 +13,7 @@ Single-swarm example | Multi-swarm example
 - **JSON Schemas**: [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.json), [spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json)
 - **REST transport** (OpenAPI 3.1): [spec/openapi.yaml](/spec/openapi.yaml)
 - **Reference implementation source**: [src/mail/](/src/mail/__init__.py)
+- **Command-line interface**: [docs/cli.md](/docs/cli.md), `uv run mail …`
 - **Asynchronous HTTP client**: [docs/client.md](/docs/client.md), [src/mail/client.py](/src/mail/client.py)
 - **Deployment examples and docs**: [docs/](/docs/README.md)
 
@@ -58,6 +59,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 ### Key Features
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
+- **CLI launcher** (`mail server`, `mail client`) for running the server and an interactive REPL without writing code.
 - **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.
 - Built-in **swarm registry** with **health checks** and **service discovery** for distributed deployments.
 - **Configurable authentication layer** that plugs into external auth/token providers.

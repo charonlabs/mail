@@ -21,6 +21,10 @@ from .parsing import (
 from .store import (
     get_langmem_store,
 )
+from .version import (
+    get_protocol_version,
+    get_version,
+)
 
 __all__ = [
     "login",
@@ -38,4 +42,6 @@ __all__ = [
     "caller_is_admin_or_user",
     "caller_is_agent",
     "extract_token_info",
+    "get_version",
+    "get_protocol_version",
 ]

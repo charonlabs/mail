@@ -9,6 +9,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Architecture**: [architecture.md](/docs/architecture.md)
 - **Configuration**: [configuration.md](/docs/configuration.md)
 - **API (HTTP & Python)**: [api.md](/docs/api.md)
+- **CLI**: [cli.md](/docs/cli.md)
 - **HTTP Client**: [client.md](/docs/client.md)
 - **Message Format**: [message-format.md](/docs/message-format.md)
 - **Agents & Tools**: [agents-and-tools.md](/docs/agents-and-tools.md)

@@ -28,6 +28,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
 ## Try it
 - **Health/root**: `curl http://localhost:8000/`
 - **Status** (requires admin/user token): `curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/status`
+- **MAIL CLI REPL**: `uv run mail client --url http://localhost:8000 --api-key $TOKEN` (enter `help` for commands)
 - **Send a message**: `curl -X POST http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Hello"}'`
 - **Stream (SSE)**: `curl -N http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Stream please","stream":true}'`
 - **Python client**: use [`MAILClient`](./client.md) if you prefer asyncio code over raw HTTP. Example:

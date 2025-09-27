@@ -42,7 +42,7 @@ async def login(api_key: str) -> str:
 
 async def get_token_info(token: str) -> dict[str, Any]:
     """
-    Get information about a token.
+    Get information about a JWT.
     """
     async with aiohttp.ClientSession() as session:
         response = await session.get(
@@ -52,7 +52,7 @@ async def get_token_info(token: str) -> dict[str, Any]:
         return await response.json()
 
 
-async def caller_is_role(request: Request, role: str) -> bool:
+async def caller_is_role(request: Request, role: str, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is a specific role.
     """
@@ -63,59 +63,57 @@ async def caller_is_role(request: Request, role: str) -> bool:
 
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
+    else:
+        logger.warning("invalid API key format: missing 'Bearer' prefix")
+        if raise_on_false:
+            raise HTTPException(status_code=401, detail="invalid API key format")
+        return False
 
-    token_info = await get_token_info(token)
+    # login to the auth service
+    jwt = await login(token)
+
+    token_info = await get_token_info(jwt)
     if token_info["role"] != role:
         logger.warning(f"invalid role: '{token_info['role']}' != '{role}'")
-        raise HTTPException(status_code=401, detail="invalid role")
+        if raise_on_false:
+            raise HTTPException(status_code=401, detail="invalid role")
+        return False
 
     return True
 
 
-async def caller_is_admin(request: Request) -> bool:
+async def caller_is_admin(request: Request, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is an `admin`.
     """
-    return await caller_is_role(request, "admin")
+    return await caller_is_role(request, "admin", raise_on_false)
 
 
-async def caller_is_user(request: Request) -> bool:
+async def caller_is_user(request: Request, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is a `user`.
     """
-    return await caller_is_role(request, "user")
+    return await caller_is_role(request, "user", raise_on_false)
 
 
 async def caller_is_admin_or_user(request: Request) -> bool:
     """
     Check if the caller is an `admin` or a `user`.
     """
-    token_header = request.headers.get("Authorization")
-    if token_header is None:
-        logger.warning("no API key provided")
-        raise HTTPException(status_code=401, detail="no API key provided")
-
-    # Preserve historical behavior expected by tests: a non-Bearer header
-    # should be treated as unauthorized ("invalid role").
-    if not token_header.startswith("Bearer "):
-        logger.warning("invalid role: header missing 'Bearer ' prefix")
-        raise HTTPException(status_code=401, detail="invalid role")
-
-    token = token_header.split(" ")[1]
-    token_info = await get_token_info(token)
-    role = token_info.get("role")
-    if role in ("admin", "user"):
+    is_admin = await caller_is_admin(request, raise_on_false=False)
+    is_user = await caller_is_user(request, raise_on_false=False)
+    if is_admin or is_user:
         return True
 
-    logger.warning(f"invalid role: '{role}' is not admin or user")
+    logger.warning("invalid role: 'admin' or 'user' is not admin or user")
     raise HTTPException(status_code=401, detail="invalid role")
 
 
-async def caller_is_agent(request: Request) -> bool:
+async def caller_is_agent(request: Request, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is an `agent`.
     """
-    return await caller_is_role(request, "agent")
+    return await caller_is_role(request, "agent", raise_on_false)
 
 
 async def extract_token_info(request: Request) -> dict[str, Any]:
@@ -129,8 +127,14 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="no API key provided")
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
+    else:
+        logger.warning("invalid API key format: missing 'Bearer' prefix")
+        raise HTTPException(status_code=401, detail="invalid API key format")
 
-    return await get_token_info(token)
+    # login to the auth service
+    jwt = await login(token)
+
+    return await get_token_info(jwt)
 
 
 def generate_user_id(token_info: dict[str, Any]) -> str:
