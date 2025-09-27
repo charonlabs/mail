@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import argparse
+import json
 import logging
+import shlex
 from collections.abc import AsyncIterator
 from typing import Any, cast
 
@@ -15,6 +18,7 @@ from aiohttp import (
 )
 from sse_starlette import ServerSentEvent
 
+import mail.utils as utils
 from mail.core.message import MAILInterswarmMessage, MAILMessage
 from mail.net.types import (
     GetHealthResponse,
@@ -41,7 +45,7 @@ class MAILClient:
         self,
         url: str,
         api_key: str | None = None,
-        timeout: ClientTimeout | float | None = 60.0,
+        timeout: ClientTimeout | float | None = 3600.0,
         session: ClientSession | None = None,
     ) -> None:
         self.base_url = url.rstrip("/")
@@ -228,6 +232,9 @@ class MAILClient:
         buffer = ""
         async for chunk in response.content.iter_any():
             buffer += chunk.decode("utf-8", errors="replace")
+            if "\r" in buffer:
+                buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
+
             while "\n\n" in buffer:
                 raw_event, buffer = buffer.split("\n\n", 1)
                 if not raw_event.strip():
@@ -379,3 +386,284 @@ class MAILClient:
                 payload=payload,
             ),
         )
+
+
+class MAILClientCLI:
+    """
+    CLI for interacting with the MAIL server.
+    """
+
+    def __init__(self, args: argparse.Namespace) -> None:
+        self.args = args
+        self.client = MAILClient(
+            args.url,
+            api_key=args.api_key,
+        )
+        self.parser = self._build_parser()
+
+    def _build_parser(self) -> argparse.ArgumentParser:
+        """
+        Build the argument parser for the MAIL client.
+        """
+        parser = argparse.ArgumentParser(
+            prog="mail client",
+            description="Interact with a remote MAIL server",
+            epilog="For more information, see `README.md` and `docs/`",
+        )
+        
+        # subparsers for each MAIL command
+        subparsers = parser.add_subparsers()
+
+        # command `get-root`
+        get_root_parser = subparsers.add_parser("get-root", help="get the root of the MAIL server")
+        get_root_parser.set_defaults(func=self._get_root)
+
+        # command `post-message`
+        post_message_parser = subparsers.add_parser("post-message", help="send a message to the MAIL server")
+        post_message_parser.add_argument(
+            "--message",
+            type=str,
+            help="the message to send",
+        )
+        post_message_parser.add_argument(
+            "--entrypoint",
+            type=str,
+            help="the entrypoint to send the message to",
+        )
+        post_message_parser.add_argument(
+            "--show-events",
+            action="store_true",
+            help="show events",
+        )
+        post_message_parser.set_defaults(func=self._post_message)
+
+        # command `post-message-stream`
+        post_message_stream_parser = subparsers.add_parser("post-message-stream", help="send a message to the MAIL server and stream the response")
+        post_message_stream_parser.add_argument(
+            "--message",
+            type=str,
+            help="the message to send",
+        )
+        post_message_stream_parser.add_argument(
+            "--entrypoint",
+            type=str,
+            help="the entrypoint to send the message to",
+        )
+        post_message_stream_parser.set_defaults(func=self._post_message_stream)
+
+        # command `get-health`
+        get_health_parser = subparsers.add_parser("get-health", help="get the health of the MAIL server")
+        get_health_parser.set_defaults(func=self._get_health)
+
+        # command `get-swarms`
+        get_swarms_parser = subparsers.add_parser("get-swarms", help="get the swarms of the MAIL server")
+        get_swarms_parser.set_defaults(func=self._get_swarms)
+
+        # command `register-swarm`
+        register_swarm_parser = subparsers.add_parser("register-swarm", help="register a swarm with the MAIL server")
+        register_swarm_parser.add_argument(
+            "--name",
+            type=str,
+            help="the name of the swarm",
+        )
+        register_swarm_parser.add_argument(
+            "--base-url",
+            type=str,
+            help="the base URL of the swarm",
+        )
+        register_swarm_parser.add_argument(
+            "--auth-token",
+            type=str,
+            required=False,
+            help="the auth token of the swarm",
+        )
+        register_swarm_parser.add_argument(
+            "--volatile",
+            type=bool,
+            required=False,
+            default=False,
+            help="whether the swarm is volatile",
+        )
+        register_swarm_parser.set_defaults(func=self._register_swarm)
+
+        # command `dump-swarm`
+        dump_swarm_parser = subparsers.add_parser("dump-swarm", help="dump the swarm of the MAIL server")
+        dump_swarm_parser.set_defaults(func=self._dump_swarm)
+
+        # command `send-interswarm-message`
+        send_interswarm_message_parser = subparsers.add_parser("send-interswarm-message", help="send an interswarm message to the MAIL server")
+        send_interswarm_message_parser.add_argument(
+            "--message",
+            type=str,
+            help="the message to send",
+        )
+        send_interswarm_message_parser.add_argument(
+            "--target-agent",
+            type=str,
+            help="the target agent to send the message to",
+        )
+        send_interswarm_message_parser.add_argument(
+            "--user-token",
+            type=str,
+            help="the user token to send the message with",
+        )
+        send_interswarm_message_parser.set_defaults(func=self._send_interswarm_message)
+
+        # command `load-swarm-from-json`
+        load_swarm_from_json_parser = subparsers.add_parser("load-swarm-from-json", help="load a swarm from a JSON document")
+        load_swarm_from_json_parser.add_argument(
+            "--swarm-json",
+            type=str,
+            help="the JSON document to load the swarm from",
+        )
+        load_swarm_from_json_parser.set_defaults(func=self._load_swarm_from_json)
+
+        return parser
+
+    async def _get_root(self, _args: argparse.Namespace) -> None:
+        """
+        Get the root of the MAIL server.
+        """
+        try:
+            response = await self.client.get_root()
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error getting root: {e}")
+
+    async def _post_message(self, args: argparse.Namespace) -> None:
+        """
+        Post a message to the MAIL server.
+        """
+        try:
+            response = await self.client.post_message(args.message, entrypoint=args.entrypoint, show_events=args.show_events)
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error posting message: {e}")
+
+    async def _post_message_stream(self, args: argparse.Namespace) -> None:
+        """
+        Post a message to the MAIL server and stream the response.
+        """
+        try:
+            response = await self.client.post_message_stream(args.message, entrypoint=args.entrypoint)
+            async for event in response:
+                parsed_event = {
+                    "event": event.event,
+                    "data": event.data,
+                }
+                print(json.dumps(parsed_event, indent=2))
+        except Exception as e:
+            print(f"error posting message: {e}")
+
+    async def _get_health(self, _args: argparse.Namespace) -> None:
+        """
+        Get the health of the MAIL server.
+        """
+        try:
+            response = await self.client.get_health()
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error getting health: {e}")
+
+    async def _get_swarms(self, _args: argparse.Namespace) -> None:
+        """
+        Get the swarms of the MAIL server.
+        """
+        try:
+            response = await self.client.get_swarms()
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error getting swarms: {e}")
+
+    async def _register_swarm(self, args: argparse.Namespace) -> None:
+        """
+        Register a swarm with the MAIL server.
+        """
+        try:
+            response = await self.client.register_swarm(args.name, args.base_url, auth_token=args.auth_token, volatile=args.volatile, metadata=None)
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error registering swarm: {e}")
+
+    async def _dump_swarm(self, _args: argparse.Namespace) -> None:
+        """
+        Dump the swarm of the MAIL server.
+        """
+        try:
+            response = await self.client.dump_swarm()
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error dumping swarm: {e}")
+
+    async def _send_interswarm_message(self, args: argparse.Namespace) -> None:
+        """
+        Send an interswarm message to the MAIL server.
+        """
+        try:
+            response = await self.client.send_interswarm_message(args.target_agent, args.message, args.user_token)
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error sending interswarm message: {e}")
+
+    async def _load_swarm_from_json(self, args: argparse.Namespace) -> None:
+        """
+        Load a swarm from a JSON document.
+        """
+        try:
+            response = await self.client.load_swarm_from_json(args.swarm_json)
+            print(json.dumps(response, indent=2))
+        except Exception as e:
+            print(f"error loading swarm from JSON: {e}")
+
+    def _print_preamble(self) -> None:
+        """
+        Print the preamble for the MAIL client.
+        """
+        print(f"MAIL CLIent v{utils.get_version()}")
+        print("Enter `help` for help and `exit` to quit")
+        print("==========")
+
+    async def run(self) -> None:
+        """
+        Run the MAIL client as a REPL in the terminal.
+        """
+        self._print_preamble()
+
+        while True:
+            try:
+                raw_command = input("mail> ")
+            except EOFError:
+                print()
+                break
+            except KeyboardInterrupt:
+                print()
+                continue
+
+            if not raw_command.strip():
+                continue
+
+            try:
+                tokens = shlex.split(raw_command)
+            except ValueError as exc:
+                print(f"error parsing command: {exc}")
+                continue
+
+            command = tokens[0]
+
+            if command in {"exit", "quit"}:
+                break
+            if command in {"help", "?"}:
+                self.parser.print_help()
+                continue
+
+            try:
+                args = self.parser.parse_args(tokens)
+            except SystemExit:
+                continue
+
+            func = getattr(args, "func", None)
+            if func is None:
+                self.parser.print_help()
+                continue
+
+            await func(args)

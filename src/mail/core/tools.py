@@ -387,7 +387,11 @@ def create_acknowledge_broadcast_tool(
     """
 
     class acknowledge_broadcast(BaseModel):
-        """Store the received broadcast in memory, do not respond."""
+        """
+        Store the received broadcast in memory, do not respond.
+        This MUST NOT be used in response to a message of type other than 'broadcast'.
+        Not all broadcasts warrant acknowledgement--only those that do not warrant a response.
+        """
 
         # Use Optional to avoid PEP 604 UnionType issues in some converters
         note: Optional[str] = Field(  # noqa: UP045
