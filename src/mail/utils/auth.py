@@ -63,6 +63,11 @@ async def caller_is_role(request: Request, role: str, raise_on_false: bool = Tru
 
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
+    else:
+        logger.warning("invalid API key format: missing 'Bearer' prefix")
+        if raise_on_false:
+            raise HTTPException(status_code=401, detail="invalid API key format")
+        return False
 
     # login to the auth service
     jwt = await login(token)
@@ -122,6 +127,9 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="no API key provided")
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
+    else:
+        logger.warning("invalid API key format: missing 'Bearer' prefix")
+        raise HTTPException(status_code=401, detail="invalid API key format")
 
     # login to the auth service
     jwt = await login(token)
