@@ -52,7 +52,7 @@ async def get_token_info(token: str) -> dict[str, Any]:
         return await response.json()
 
 
-async def caller_is_role(request: Request, role: str) -> bool:
+async def caller_is_role(request: Request, role: str, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is a specific role.
     """
@@ -70,31 +70,33 @@ async def caller_is_role(request: Request, role: str) -> bool:
     token_info = await get_token_info(jwt)
     if token_info["role"] != role:
         logger.warning(f"invalid role: '{token_info['role']}' != '{role}'")
+        if raise_on_false:
+            raise HTTPException(status_code=401, detail="invalid role")
         return False
 
     return True
 
 
-async def caller_is_admin(request: Request) -> bool:
+async def caller_is_admin(request: Request, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is an `admin`.
     """
-    return await caller_is_role(request, "admin")
+    return await caller_is_role(request, "admin", raise_on_false)
 
 
-async def caller_is_user(request: Request) -> bool:
+async def caller_is_user(request: Request, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is a `user`.
     """
-    return await caller_is_role(request, "user")
+    return await caller_is_role(request, "user", raise_on_false)
 
 
 async def caller_is_admin_or_user(request: Request) -> bool:
     """
     Check if the caller is an `admin` or a `user`.
     """
-    is_admin = await caller_is_admin(request)
-    is_user = await caller_is_user(request)
+    is_admin = await caller_is_admin(request, raise_on_false=False)
+    is_user = await caller_is_user(request, raise_on_false=False)
     if is_admin or is_user:
         return True
 
@@ -102,11 +104,11 @@ async def caller_is_admin_or_user(request: Request) -> bool:
     raise HTTPException(status_code=401, detail="invalid role")
 
 
-async def caller_is_agent(request: Request) -> bool:
+async def caller_is_agent(request: Request, raise_on_false: bool = True) -> bool:
     """
     Check if the caller is an `agent`.
     """
-    return await caller_is_role(request, "agent")
+    return await caller_is_role(request, "agent", raise_on_false)
 
 
 async def extract_token_info(request: Request) -> dict[str, Any]:

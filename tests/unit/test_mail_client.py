@@ -200,10 +200,10 @@ async def test_mail_client_post_message_stream() -> None:
             status=200, headers={"Content-Type": "text/event-stream"}
         )
         await resp.prepare(request)
-        await resp.write(b"event: ping\n\n")
-        await resp.write(b"data: chunk-1\n\n")
-        await resp.write(b"event: task_complete\n")
-        await resp.write(b"data: final\n\n")
+        await resp.write(b"event: ping\r\n\r\n")
+        await resp.write(b"data: chunk-1\r\n\r\n")
+        await resp.write(b"event: task_complete\r\n")
+        await resp.write(b"data: final\r\n\r\n")
         await resp.write_eof()
         return resp
 

@@ -481,7 +481,7 @@ class MAILClientCLI:
             "--volatile",
             type=bool,
             required=False,
-            default=True,
+            default=False,
             help="whether the swarm is volatile",
         )
         register_swarm_parser.set_defaults(func=self._register_swarm)
@@ -580,7 +580,7 @@ class MAILClientCLI:
         Register a swarm with the MAIL server.
         """
         try:
-            response = await self.client.register_swarm(args.name, args.base_url, auth_token=args.auth_token, volatile=args.volatile, metadata=args.metadata)
+            response = await self.client.register_swarm(args.name, args.base_url, auth_token=args.auth_token, volatile=args.volatile, metadata=None)
             print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error registering swarm: {e}")

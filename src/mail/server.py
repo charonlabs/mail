@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     # Get configuration from environment
     local_swarm_name = os.getenv("SWARM_NAME", "example-no-proxy")
     local_base_url = os.getenv("BASE_URL", "http://localhost:8000")
-    persistence_file = os.getenv("SWARM_REGISTRY_FILE", "registries/example.json")
+    persistence_file = os.getenv("SWARM_REGISTRY_FILE", "registries/example-no-proxy.json")
 
     swarm_registry = SwarmRegistry(local_swarm_name, local_base_url, persistence_file)
 
