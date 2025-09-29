@@ -4,18 +4,28 @@
 import argparse
 import asyncio
 
+from mail import utils
 from mail.client import MAILClientCLI
+from mail.config.server import ServerConfig, SwarmConfig
 from mail.server import run_server
 
 
 def _run_server_with_args(args: argparse.Namespace) -> None:
     """
     Run a MAIL server with the given CLI args.
+    Given CLI args will override the defaults in the config file.
     """
     run_server(
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
+        cfg=ServerConfig(
+            host=args.host,
+            port=args.port,
+            reload=args.reload,
+            swarm=SwarmConfig(
+                name=args.swarm_name,
+                source=args.swarm_source,
+                registry_file=args.swarm_registry,
+            ),
+        ),
     )
 
 
@@ -25,6 +35,15 @@ def _run_client_with_args(args: argparse.Namespace) -> None:
     """
     client_cli = MAILClientCLI(args)
     asyncio.run(client_cli.run())
+
+
+def _print_version(_args: argparse.Namespace) -> None:
+    """
+    Print the version of MAIL.
+    """
+    print(f"MAIL reference implementation version: {utils.get_version()}")
+    print(f"MAIL protocol version: {utils.get_protocol_version()}")
+    print("For a given MAIL reference implementation with version `x.y.z`, the protocol version is `x.y`")
 
 
 def main() -> None:
@@ -65,6 +84,24 @@ def main() -> None:
         type=bool,
         help="enable hot reloading",
     )
+    server_parser.add_argument(
+        "--swarm-name",
+        default="example-no-proxy",
+        type=str,
+        help="name of the swarm",
+    )
+    server_parser.add_argument(
+        "--swarm-source",
+        default="swarms.json",
+        type=str,
+        help="source of the swarm",
+    )
+    server_parser.add_argument(
+        "--swarm-registry",
+        default="registries/example-no-proxy.json",
+        type=str,
+        help="registry file of the swarm",
+    )
 
     # command `client`
     client_parser = subparsers.add_parser("client", help="run the MAIL client")
@@ -87,9 +124,13 @@ def main() -> None:
     client_parser.add_argument(
         "--timeout",
         type=float,
-        default=60.0,
+        default=3600.0,
         help="timeout for the MAIL server",
     )
+
+    # command `version`
+    version_parser = subparsers.add_parser("version", help="print the version of MAIL")
+    version_parser.set_defaults(func=_print_version)
     
     # parse CLI args
     args = parser.parse_args()
