@@ -8,6 +8,7 @@ from pathlib import Path
 
 from mail import utils
 from mail.client import MAILClientCLI
+from mail.config.client import ClientConfig
 from mail.config.server import ServerConfig
 from mail.server import run_server
 
@@ -87,7 +88,11 @@ def _run_client_with_args(args: argparse.Namespace) -> None:
     """
     Run a MAIL client with the given CLI args.
     """
-    client_cli = MAILClientCLI(args)
+    client_config = ClientConfig()
+    if args.timeout is not None:
+        client_config.timeout = args.timeout
+
+    client_cli = MAILClientCLI(args, config=client_config)
     asyncio.run(client_cli.run())
 
 
@@ -114,12 +119,6 @@ def main() -> None:
     # command `server`
     server_parser = subparsers.add_parser("server", help="start the MAIL server")
     server_parser.set_defaults(func=_run_server_with_args)
-    server_parser.add_argument(
-        "--config",
-        type=str,
-        required=False,
-        help="path to the MAIL configuration file",
-    )
     server_parser.add_argument(
         "--port",
         type=int,
@@ -161,10 +160,6 @@ def main() -> None:
     client_parser = subparsers.add_parser("client", help="run the MAIL client")
     client_parser.set_defaults(func=_run_client_with_args)
     client_parser.add_argument(
-        "--config",
-        default="mail.toml",
-    )
-    client_parser.add_argument(
         "--url",
         type=str,
         help="URL of the MAIL server",
@@ -178,8 +173,8 @@ def main() -> None:
     client_parser.add_argument(
         "--timeout",
         type=float,
-        default=3600.0,
-        help="timeout for the MAIL server",
+        required=False,
+        help="client request timeout time in seconds",
     )
 
     # command `version`

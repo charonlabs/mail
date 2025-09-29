@@ -19,6 +19,7 @@ from aiohttp import (
 from sse_starlette import ServerSentEvent
 
 import mail.utils as utils
+from mail.config.client import ClientConfig
 from mail.core.message import MAILInterswarmMessage, MAILMessage
 from mail.net.types import (
     GetHealthResponse,
@@ -45,15 +46,16 @@ class MAILClient:
         self,
         url: str,
         api_key: str | None = None,
-        timeout: ClientTimeout | float | None = 3600.0,
         session: ClientSession | None = None,
+        config: ClientConfig | None = None,
     ) -> None:
         self.base_url = url.rstrip("/")
         self.api_key = api_key
-        if isinstance(timeout, ClientTimeout) or timeout is None:
-            self._timeout = timeout
+        if config is None:
+            config = ClientConfig()
         else:
-            self._timeout = ClientTimeout(total=float(timeout))
+            timeout_float = float(config.timeout)
+            self._timeout = ClientTimeout(total=timeout_float)
         self._session = session
         self._owns_session = session is None
 
@@ -393,11 +395,15 @@ class MAILClientCLI:
     CLI for interacting with the MAIL server.
     """
 
-    def __init__(self, args: argparse.Namespace) -> None:
+    def __init__(
+        self, args: argparse.Namespace, 
+        config: ClientConfig | None = None,
+    ) -> None:
         self.args = args
         self.client = MAILClient(
             args.url,
             api_key=args.api_key,
+            config=config,
         )
         self.parser = self._build_parser()
 
@@ -406,7 +412,7 @@ class MAILClientCLI:
         Build the argument parser for the MAIL client.
         """
         parser = argparse.ArgumentParser(
-            prog="mail client",
+            prog="",
             description="Interact with a remote MAIL server",
             epilog="For more information, see `README.md` and `docs/`",
         )

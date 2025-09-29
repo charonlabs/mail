@@ -1,9 +1,12 @@
 [server]
-port = 8001
+port = 8000
 host = "0.0.0.0"
 reload = false
 
 [server.swarm]
-name = "swarm-beta"
+name = "example-no-proxy"
 source = "swarms.json"
-registry = "registries/swarm-beta.json"
+registry = "registries/example-no-proxy.json"
+
+[client]
+timeout = 3600.0
