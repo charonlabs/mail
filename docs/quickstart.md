@@ -13,17 +13,18 @@ This guide gets you running a local MAIL swarm and interacting with it.
   - `uv sync`
   - or `pip install -e .`
 
-## Environment
+## Environment & Config
+- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, and client timeout. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access via the proxy
-  - Optional: `SWARM_NAME`, `BASE_URL`, `SWARM_REGISTRY_FILE`
+  - Optional overrides: `SWARM_NAME`, `BASE_URL`, `SWARM_REGISTRY_FILE` – these supersede values from `mail.toml`
 
 ## Run
 - Start the server:
-  - `uv run mail`
+  - `uv run mail server`
   - or `python -m mail.server`
-- Default base URL: `http://localhost:8000`
+- Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
 
 ## Try it
 - **Health/root**: `curl http://localhost:8000/`

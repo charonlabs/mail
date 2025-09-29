@@ -4,7 +4,7 @@ This page describes the configuration surfaces for a MAIL deployment: the projec
 
 ## mail.toml
 
-`mail.toml` provides defaults for the reference server. The CLI, API, and `ServerConfig` class all read from this file the first time configuration is needed.
+`mail.toml` provides defaults for both the server and client reference implementations. The CLI, API, and configuration models read from this file the first time configuration is needed.
 
 ```toml
 [server]
@@ -16,12 +16,17 @@ reload = false
 name = "example-no-proxy"
 source = "swarms.json"
 registry = "registries/example-no-proxy.json"
+
+[client]
+timeout = 3600.0
 ```
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`).
 - The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry`), and the runtime swarm name (`name`).
-- Instantiating `ServerConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
+- The `[client]` table currently exposes a single `timeout` option (seconds). It feeds `ClientConfig` which in turn sets the default timeout for `MAILClient` and the CLI REPL.
+- Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
 - The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
+- The CLI command `mail client` honors `timeout` from `[client]` and allows `--timeout` to override it per invocation.
 - Set `MAIL_CONFIG_PATH` to point at an alternate `mail.toml` (for example per environment). `mail server --config /path/to/mail.toml` temporarily overrides this variable for the lifetime of the command.
 
 ## Environment variables

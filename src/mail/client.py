@@ -53,9 +53,9 @@ class MAILClient:
         self.api_key = api_key
         if config is None:
             config = ClientConfig()
-        else:
-            timeout_float = float(config.timeout)
-            self._timeout = ClientTimeout(total=timeout_float)
+
+        timeout_float = float(config.timeout)
+        self._timeout = ClientTimeout(total=timeout_float)
         self._session = session
         self._owns_session = session is None
 
