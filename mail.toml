@@ -1,9 +1,9 @@
 [server]
-port = 8000
+port = 8001
 host = "0.0.0.0"
 reload = false
 
 [server.swarm]
-name = "example-no-proxy"
+name = "swarm-beta"
 source = "swarms.json"
-registry = "registries/example-no-proxy.json"
+registry = "registries/swarm-beta.json"

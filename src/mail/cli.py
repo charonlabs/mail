@@ -16,16 +16,7 @@ def _run_server_with_args(args: argparse.Namespace) -> None:
     Given CLI args will override the defaults in the config file.
     """
     run_server(
-        cfg=ServerConfig(
-            host=args.host,
-            port=args.port,
-            reload=args.reload,
-            swarm=SwarmConfig(
-                name=args.swarm_name,
-                source=args.swarm_source,
-                registry_file=args.swarm_registry,
-            ),
-        ),
+        cfg=ServerConfig(),
     )
 
 
@@ -62,44 +53,44 @@ def main() -> None:
     server_parser.set_defaults(func=_run_server_with_args)
     server_parser.add_argument(
         "--config",
-        default="mail.toml",
-        type=str, 
+        type=str,
+        required=False,
         help="path to the MAIL configuration file",
     )
     server_parser.add_argument(
         "--port",
-        default=8000,
-        type=int, 
+        type=int,
+        required=False,
         help="port to listen on",
     )
     server_parser.add_argument(
         "--host", 
-        default="0.0.0.0",
-        type=str, 
+        type=str,
+        required=False,
         help="host to listen on",
     )
     server_parser.add_argument(
         "--reload",
-        default=False,
         type=bool,
+        required=False,
         help="enable hot reloading",
     )
     server_parser.add_argument(
         "--swarm-name",
-        default="example-no-proxy",
         type=str,
+        required=False,
         help="name of the swarm",
     )
     server_parser.add_argument(
         "--swarm-source",
-        default="swarms.json",
         type=str,
+        required=False,
         help="source of the swarm",
     )
     server_parser.add_argument(
         "--swarm-registry",
-        default="registries/example-no-proxy.json",
         type=str,
+        required=False,
         help="registry file of the swarm",
     )
 
