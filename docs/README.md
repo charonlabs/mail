@@ -6,6 +6,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 
 ## Contents
 - **Quickstart**: [quickstart.md](/docs/quickstart.md)
+- **Docker Deployment**: [docker.md](/docs/docker.md)
 - **Architecture**: [architecture.md](/docs/architecture.md)
 - **Configuration**: [configuration.md](/docs/configuration.md)
 - **API (HTTP & Python)**: [api.md](/docs/api.md)

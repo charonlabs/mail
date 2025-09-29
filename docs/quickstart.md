@@ -25,6 +25,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
   - `uv run mail server`
   - or `python -m mail.server`
 - Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
+- Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
 ## Try it
 - **Health/root**: `curl http://localhost:8000/`
