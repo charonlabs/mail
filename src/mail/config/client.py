@@ -15,7 +15,7 @@ try:  # Python 3.11+
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - fallback for older runtimes
     try:
-        import tomli as tomllib  # type: ignore[import]
+        import tomli as tomllib  # type: ignore[no-redef]
     except ModuleNotFoundError:  # pragma: no cover - hard fallback
         tomllib = None  # type: ignore[assignment]
 
