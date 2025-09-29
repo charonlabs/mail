@@ -12,6 +12,7 @@ import pytest
 from aiohttp import web
 
 from mail.client import MAILClient
+from mail.config import ClientConfig
 
 EXAMPLE_MAIL_MESSAGE: dict[str, Any] = {
     "id": "msg-001",
@@ -145,7 +146,9 @@ async def test_mail_client_rest_endpoints() -> None:
     app.router.add_post("/swarms/load", handle_swarm_load)
 
     async with run_app(app) as base_url:
-        async with MAILClient(base_url, api_key="demo-token") as client:
+        async with MAILClient(
+            base_url, api_key="demo-token", config=ClientConfig()
+        ) as client:
             root = await client.get_root()
             status = await client.get_status()
             await client.post_message("hello world")
@@ -211,7 +214,9 @@ async def test_mail_client_post_message_stream() -> None:
     app.router.add_post("/message", handle_stream)
 
     async with run_app(app) as base_url:
-        async with MAILClient(base_url, api_key="demo-token") as client:
+        async with MAILClient(
+            base_url, api_key="demo-token", config=ClientConfig()
+        ) as client:
             stream_iterator = await client.post_message_stream("eventful")
             async for event in stream_iterator:
                 stream_received.append(f"{event.event}:{event.data}")

@@ -21,6 +21,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from toml import load as load_toml
 
 import mail.utils as utils
+from mail.config.server import ServerConfig
 from mail.core.message import (
     MAILInterswarmMessage,
     MAILMessage,
@@ -35,7 +36,26 @@ from mail.utils.logger import init_logger
 
 from .api import MAILSwarm, MAILSwarmTemplate
 
+
+def _compute_base_url(cfg: ServerConfig) -> str:
+    """
+    Derive an externally-reachable base URL from the server config.
+    """
+
+    host = cfg.host
+    port = cfg.port
+
+    if host in {"0.0.0.0", "::"}:
+        # 0.0.0.0/:: listen on all interfaces; default to localhost for callbacks
+        host_for_url = "localhost"
+    else:
+        host_for_url = host
+
+    return f"http://{host_for_url}:{port}"
+
+
 # Initialize logger at module level so it runs regardless of how the server is started
+_server_config: ServerConfig = ServerConfig()
 init_logger()
 logger = logging.getLogger("mail.server")
 
@@ -48,7 +68,7 @@ swarm_mail_tasks: dict[str, asyncio.Task] = {}
 
 # Interswarm messaging support
 swarm_registry: SwarmRegistry | None = None
-local_swarm_name: str = "example-no-proxy"
+local_swarm_name: str = _server_config.swarm.name
 local_base_url: str = "http://localhost:8000"
 default_entrypoint_agent: str = "supervisor"
 
@@ -67,10 +87,17 @@ async def lifespan(app: FastAPI):
     # Initialize swarm registry for interswarm messaging
     global swarm_registry, local_swarm_name, local_base_url
 
-    # Get configuration from environment
-    local_swarm_name = os.getenv("SWARM_NAME", "example-no-proxy")
-    local_base_url = os.getenv("BASE_URL", "http://localhost:8000")
-    persistence_file = os.getenv("SWARM_REGISTRY_FILE", "registries/example-no-proxy.json")
+    cfg = _server_config
+
+    local_swarm_name = os.getenv("SWARM_NAME", cfg.swarm.name)
+
+    configured_base_url = os.getenv("BASE_URL")
+    if not configured_base_url:
+        configured_base_url = _compute_base_url(cfg)
+    local_base_url = configured_base_url
+
+    persistence_file = os.getenv("SWARM_REGISTRY_FILE", cfg.swarm.registry_file)
+    swarm_source = os.getenv("SWARM_SOURCE", cfg.swarm.source)
 
     swarm_registry = SwarmRegistry(local_swarm_name, local_base_url, persistence_file)
 
@@ -82,7 +109,7 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("building persistent swarm...")
         persistent_swarm = MAILSwarmTemplate.from_swarm_json_file(
-            local_swarm_name, "swarms.json"
+            local_swarm_name, swarm_source
         )
         logger.info("persistent swarm built successfully")
         # Load default entrypoint from config
@@ -738,17 +765,25 @@ async def load_swarm_from_json(request: Request):
 
 
 def run_server(
-    host: str,
-    port: int,
-    reload: bool,
+    cfg: ServerConfig,
 ):
     logger.info("starting MAIL server directly...")
-    uvicorn.run("mail.server:app", host=host, port=port, reload=reload)
+
+    global _server_config, local_swarm_name, local_base_url
+
+    _server_config = cfg
+    local_swarm_name = cfg.swarm.name
+    local_base_url = _compute_base_url(cfg)
+
+    os.environ["SWARM_NAME"] = cfg.swarm.name
+    os.environ["SWARM_REGISTRY_FILE"] = cfg.swarm.registry_file
+    os.environ["SWARM_SOURCE"] = cfg.swarm.source
+    os.environ.setdefault("BASE_URL", local_base_url)
+
+    uvicorn.run("mail.server:app", host=cfg.host, port=cfg.port, reload=cfg.reload)
 
 
 if __name__ == "__main__":
     run_server(
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
+        cfg=ServerConfig(),
     )
