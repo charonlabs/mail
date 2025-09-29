@@ -8,8 +8,7 @@ from pathlib import Path
 
 from mail import utils
 from mail.client import MAILClientCLI
-from mail.config.client import ClientConfig
-from mail.config.server import ServerConfig
+from mail.config import ClientConfig, ServerConfig
 from mail.server import run_server
 
 
@@ -102,7 +101,9 @@ def _print_version(_args: argparse.Namespace) -> None:
     """
     print(f"MAIL reference implementation version: {utils.get_version()}")
     print(f"MAIL protocol version: {utils.get_protocol_version()}")
-    print("For a given MAIL reference implementation with version `x.y.z`, the protocol version is `x.y`")
+    print(
+        "For a given MAIL reference implementation with version `x.y.z`, the protocol version is `x.y`"
+    )
 
 
 def main() -> None:
@@ -112,7 +113,7 @@ def main() -> None:
         description="Multi-Agent Interface Layer reference implementation CLI",
         epilog="For more information, see `README.md` and `docs/`",
     )
-    
+
     # subparsers for each MAIL command
     subparsers = parser.add_subparsers()
 
@@ -126,7 +127,7 @@ def main() -> None:
         help="port to listen on",
     )
     server_parser.add_argument(
-        "--host", 
+        "--host",
         type=str,
         required=False,
         help="host to listen on",
@@ -180,7 +181,7 @@ def main() -> None:
     # command `version`
     version_parser = subparsers.add_parser("version", help="print the version of MAIL")
     version_parser.set_defaults(func=_print_version)
-    
+
     # parse CLI args
     args = parser.parse_args()
 

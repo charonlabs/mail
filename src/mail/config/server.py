@@ -116,7 +116,9 @@ def _swarm_defaults() -> dict[str, Any]:
 class SwarmConfig(BaseModel):
     name: str = Field(default_factory=lambda: _swarm_defaults()["name"])
     source: str = Field(default_factory=lambda: _swarm_defaults()["source"])
-    registry_file: str = Field(default_factory=lambda: _swarm_defaults()["registry_file"])
+    registry_file: str = Field(
+        default_factory=lambda: _swarm_defaults()["registry_file"]
+    )
 
 
 class ServerConfig(BaseModel):

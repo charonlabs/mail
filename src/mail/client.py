@@ -19,7 +19,7 @@ from aiohttp import (
 from sse_starlette import ServerSentEvent
 
 import mail.utils as utils
-from mail.config.client import ClientConfig
+from mail.config import ClientConfig
 from mail.core.message import MAILInterswarmMessage, MAILMessage
 from mail.net.types import (
     GetHealthResponse,
@@ -396,7 +396,8 @@ class MAILClientCLI:
     """
 
     def __init__(
-        self, args: argparse.Namespace, 
+        self,
+        args: argparse.Namespace,
         config: ClientConfig | None = None,
     ) -> None:
         self.args = args
@@ -416,16 +417,20 @@ class MAILClientCLI:
             description="Interact with a remote MAIL server",
             epilog="For more information, see `README.md` and `docs/`",
         )
-        
+
         # subparsers for each MAIL command
         subparsers = parser.add_subparsers()
 
         # command `get-root`
-        get_root_parser = subparsers.add_parser("get-root", help="get the root of the MAIL server")
+        get_root_parser = subparsers.add_parser(
+            "get-root", help="get the root of the MAIL server"
+        )
         get_root_parser.set_defaults(func=self._get_root)
 
         # command `post-message`
-        post_message_parser = subparsers.add_parser("post-message", help="send a message to the MAIL server")
+        post_message_parser = subparsers.add_parser(
+            "post-message", help="send a message to the MAIL server"
+        )
         post_message_parser.add_argument(
             "--message",
             type=str,
@@ -444,7 +449,10 @@ class MAILClientCLI:
         post_message_parser.set_defaults(func=self._post_message)
 
         # command `post-message-stream`
-        post_message_stream_parser = subparsers.add_parser("post-message-stream", help="send a message to the MAIL server and stream the response")
+        post_message_stream_parser = subparsers.add_parser(
+            "post-message-stream",
+            help="send a message to the MAIL server and stream the response",
+        )
         post_message_stream_parser.add_argument(
             "--message",
             type=str,
@@ -458,15 +466,21 @@ class MAILClientCLI:
         post_message_stream_parser.set_defaults(func=self._post_message_stream)
 
         # command `get-health`
-        get_health_parser = subparsers.add_parser("get-health", help="get the health of the MAIL server")
+        get_health_parser = subparsers.add_parser(
+            "get-health", help="get the health of the MAIL server"
+        )
         get_health_parser.set_defaults(func=self._get_health)
 
         # command `get-swarms`
-        get_swarms_parser = subparsers.add_parser("get-swarms", help="get the swarms of the MAIL server")
+        get_swarms_parser = subparsers.add_parser(
+            "get-swarms", help="get the swarms of the MAIL server"
+        )
         get_swarms_parser.set_defaults(func=self._get_swarms)
 
         # command `register-swarm`
-        register_swarm_parser = subparsers.add_parser("register-swarm", help="register a swarm with the MAIL server")
+        register_swarm_parser = subparsers.add_parser(
+            "register-swarm", help="register a swarm with the MAIL server"
+        )
         register_swarm_parser.add_argument(
             "--name",
             type=str,
@@ -493,11 +507,16 @@ class MAILClientCLI:
         register_swarm_parser.set_defaults(func=self._register_swarm)
 
         # command `dump-swarm`
-        dump_swarm_parser = subparsers.add_parser("dump-swarm", help="dump the swarm of the MAIL server")
+        dump_swarm_parser = subparsers.add_parser(
+            "dump-swarm", help="dump the swarm of the MAIL server"
+        )
         dump_swarm_parser.set_defaults(func=self._dump_swarm)
 
         # command `send-interswarm-message`
-        send_interswarm_message_parser = subparsers.add_parser("send-interswarm-message", help="send an interswarm message to the MAIL server")
+        send_interswarm_message_parser = subparsers.add_parser(
+            "send-interswarm-message",
+            help="send an interswarm message to the MAIL server",
+        )
         send_interswarm_message_parser.add_argument(
             "--message",
             type=str,
@@ -516,7 +535,9 @@ class MAILClientCLI:
         send_interswarm_message_parser.set_defaults(func=self._send_interswarm_message)
 
         # command `load-swarm-from-json`
-        load_swarm_from_json_parser = subparsers.add_parser("load-swarm-from-json", help="load a swarm from a JSON document")
+        load_swarm_from_json_parser = subparsers.add_parser(
+            "load-swarm-from-json", help="load a swarm from a JSON document"
+        )
         load_swarm_from_json_parser.add_argument(
             "--swarm-json",
             type=str,
@@ -541,7 +562,9 @@ class MAILClientCLI:
         Post a message to the MAIL server.
         """
         try:
-            response = await self.client.post_message(args.message, entrypoint=args.entrypoint, show_events=args.show_events)
+            response = await self.client.post_message(
+                args.message, entrypoint=args.entrypoint, show_events=args.show_events
+            )
             print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error posting message: {e}")
@@ -551,7 +574,9 @@ class MAILClientCLI:
         Post a message to the MAIL server and stream the response.
         """
         try:
-            response = await self.client.post_message_stream(args.message, entrypoint=args.entrypoint)
+            response = await self.client.post_message_stream(
+                args.message, entrypoint=args.entrypoint
+            )
             async for event in response:
                 parsed_event = {
                     "event": event.event,
@@ -586,7 +611,13 @@ class MAILClientCLI:
         Register a swarm with the MAIL server.
         """
         try:
-            response = await self.client.register_swarm(args.name, args.base_url, auth_token=args.auth_token, volatile=args.volatile, metadata=None)
+            response = await self.client.register_swarm(
+                args.name,
+                args.base_url,
+                auth_token=args.auth_token,
+                volatile=args.volatile,
+                metadata=None,
+            )
             print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error registering swarm: {e}")
@@ -606,7 +637,9 @@ class MAILClientCLI:
         Send an interswarm message to the MAIL server.
         """
         try:
-            response = await self.client.send_interswarm_message(args.target_agent, args.message, args.user_token)
+            response = await self.client.send_interswarm_message(
+                args.target_agent, args.message, args.user_token
+            )
             print(json.dumps(response, indent=2))
         except Exception as e:
             print(f"error sending interswarm message: {e}")

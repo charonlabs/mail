@@ -52,7 +52,9 @@ async def get_token_info(token: str) -> dict[str, Any]:
         return await response.json()
 
 
-async def caller_is_role(request: Request, role: str, raise_on_false: bool = True) -> bool:
+async def caller_is_role(
+    request: Request, role: str, raise_on_false: bool = True
+) -> bool:
     """
     Check if the caller is a specific role.
     """

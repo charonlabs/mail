@@ -53,6 +53,7 @@ def _compute_base_url(cfg: ServerConfig) -> str:
 
     return f"http://{host_for_url}:{port}"
 
+
 # Initialize logger at module level so it runs regardless of how the server is started
 _server_config: ServerConfig = ServerConfig()
 init_logger()
