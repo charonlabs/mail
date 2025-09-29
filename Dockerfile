@@ -13,8 +13,6 @@ RUN uv sync --frozen --no-dev
 
 # copy application code
 COPY src ./src
-COPY spec ./spec
-COPY docs ./docs
 
 # set required env vars at runtime, or rely on docker run -e ...
 ENV PORT=8000 \
