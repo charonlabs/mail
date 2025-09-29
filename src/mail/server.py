@@ -771,7 +771,6 @@ def run_server(
     global _server_config, local_swarm_name, local_base_url
 
     _server_config = cfg
-    logger.info(f"server config: {_server_config}")
     local_swarm_name = cfg.swarm.name
     local_base_url = _compute_base_url(cfg)
 

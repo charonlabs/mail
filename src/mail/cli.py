@@ -3,11 +3,32 @@
 
 import argparse
 import asyncio
+import os
+from pathlib import Path
 
 from mail import utils
 from mail.client import MAILClientCLI
-from mail.config.server import ServerConfig, SwarmConfig
+from mail.config.server import ServerConfig
 from mail.server import run_server
+
+
+def _str_to_bool(value: str | bool) -> bool:
+    """
+    Parse common string representations of booleans.
+    """
+
+    if isinstance(value, bool):
+        return value
+
+    normalized = value.lower()
+    if normalized in {"true", "t", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "f", "0", "no", "n"}:
+        return False
+
+    raise argparse.ArgumentTypeError(
+        f"invalid boolean value '{value}'; expected true/false"
+    )
 
 
 def _run_server_with_args(args: argparse.Namespace) -> None:
@@ -15,9 +36,51 @@ def _run_server_with_args(args: argparse.Namespace) -> None:
     Run a MAIL server with the given CLI args.
     Given CLI args will override the defaults in the config file.
     """
-    run_server(
-        cfg=ServerConfig(),
-    )
+    original_config_path = os.environ.get("MAIL_CONFIG_PATH")
+    env_overridden = False
+
+    try:
+        if args.config:
+            resolved_config = Path(args.config).expanduser().resolve()
+            os.environ["MAIL_CONFIG_PATH"] = str(resolved_config)
+            env_overridden = True
+
+        base_config = ServerConfig()
+
+        server_overrides: dict[str, object] = {}
+        if args.host is not None:
+            server_overrides["host"] = args.host
+        if args.port is not None:
+            server_overrides["port"] = args.port
+        if args.reload is not None:
+            server_overrides["reload"] = args.reload
+
+        swarm_overrides: dict[str, object] = {}
+        if args.swarm_name is not None:
+            swarm_overrides["name"] = args.swarm_name
+        if args.swarm_source is not None:
+            swarm_overrides["source"] = args.swarm_source
+        if args.swarm_registry is not None:
+            swarm_overrides["registry_file"] = args.swarm_registry
+
+        if swarm_overrides:
+            server_overrides["swarm"] = base_config.swarm.model_copy(
+                update=swarm_overrides
+            )
+
+        effective_config = (
+            base_config.model_copy(update=server_overrides)
+            if server_overrides
+            else base_config
+        )
+
+        run_server(cfg=effective_config)
+    finally:
+        if env_overridden:
+            if original_config_path is None:
+                os.environ.pop("MAIL_CONFIG_PATH", None)
+            else:
+                os.environ["MAIL_CONFIG_PATH"] = original_config_path
 
 
 def _run_client_with_args(args: argparse.Namespace) -> None:
@@ -71,7 +134,7 @@ def main() -> None:
     )
     server_parser.add_argument(
         "--reload",
-        type=bool,
+        type=_str_to_bool,
         required=False,
         help="enable hot reloading",
     )
