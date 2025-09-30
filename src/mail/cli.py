@@ -100,8 +100,6 @@ def _run_client_with_args(args: argparse.Namespace) -> None:
         if args.timeout is not None:
             client_config.timeout = args.timeout
 
-        print(f"args.verbose: {args.verbose}")
-        print(f"client_config.verbose: {client_config.verbose}")
         if args.verbose:
             client_config.verbose = True
 

@@ -419,7 +419,6 @@ class MAILClientCLI:
         self.args = args
         self._config = config or ClientConfig()
         self.verbose = args.verbose
-        print(f"verbose: {self.verbose}")
         self.client = MAILClient(
             args.url,
             api_key=args.api_key,
