@@ -22,6 +22,8 @@ def load_swarms_json_from_file(path: str) -> SwarmsJSONFile:
             raise ValueError(
                 f"swarms.json file at {path} must contain a list of swarms, actually got {type(contents)}"
             )
+        for swarm in contents:
+            validate_swarm_from_swarms_json(swarm)
         return SwarmsJSONFile(swarms=contents)
 
 
@@ -34,6 +36,8 @@ def load_swarms_json_from_string(contents: str) -> SwarmsJSONFile:
         raise ValueError(
             f"swarms.json string must contain a list of swarms, actually got {type(contents)}"
         )
+    for swarm in contents:
+        validate_swarm_from_swarms_json(swarm)
     return SwarmsJSONFile(swarms=contents)
 
 
@@ -68,6 +72,7 @@ def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
 
     OPTIONAL_FIELDS: dict[str, type] = {
         "enable_interswarm": bool,
+        "breakpoint_tools": list,
     }
 
     for field, field_type in REQUIRED_FIELDS.items():
@@ -106,6 +111,7 @@ def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
             for action in swarm_candidate["actions"]
         ],
         enable_interswarm=swarm_candidate.get("enable_interswarm", False),
+        breakpoint_tools=swarm_candidate.get("breakpoint_tools", []),
     )
 
 

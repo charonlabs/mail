@@ -20,7 +20,9 @@ from mail.core.runtime import MAILRuntime
 def _make_request(
     task_id: str, sender: str = "supervisor", recipient: str = "analyst"
 ) -> MAILMessage:
-    """Build a minimal MAIL request message for testing."""
+    """
+    Build a minimal MAIL request message for testing.
+    """
     return MAILMessage(
         id=str(uuid.uuid4()),
         timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
@@ -79,8 +81,16 @@ def _make_interrupt(task_id: str) -> MAILMessage:
 
 @pytest.mark.asyncio
 async def test_submit_prioritises_message_types() -> None:
-    """Interrupts and completions should outrank broadcasts, which outrank requests."""
-    runtime = MAILRuntime(agents={}, actions={}, user_id="user-1")
+    """
+    Interrupts and completions should outrank broadcasts, which outrank requests.
+    """
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-1",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
 
     await runtime.submit(_make_request("task-req"))
     await runtime.submit(_make_broadcast("task-bc"))
@@ -107,8 +117,16 @@ async def test_submit_prioritises_message_types() -> None:
 async def test_submit_and_stream_handles_timeout_and_events(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Streaming should emit heartbeats, relay task events, and finish with task_complete."""
-    runtime = MAILRuntime(agents={}, actions={}, user_id="user-2")
+    """
+    Streaming should emit heartbeats, relay task events, and finish with `task_complete`.
+    """
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-2",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
     task_id = "task-stream"
     message = _make_request(task_id)
 
@@ -164,8 +182,16 @@ async def test_submit_and_stream_handles_timeout_and_events(
 
 
 def test_system_broadcast_requires_recipients_for_non_completion() -> None:
-    """Non-task-complete broadcasts must define recipients."""
-    runtime = MAILRuntime(agents={}, actions={}, user_id="user-3")
+    """
+    Non-task-complete broadcasts must define recipients.
+    """
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-3",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
 
     with pytest.raises(ValueError):
         runtime._system_broadcast(
@@ -184,8 +210,16 @@ def test_system_broadcast_requires_recipients_for_non_completion() -> None:
 
 
 def test_submit_event_tracks_events_by_task() -> None:
-    """Events should be stored and filtered per task id."""
-    runtime = MAILRuntime(agents={}, actions={}, user_id="user-4")
+    """
+    Events should be stored and filtered per task id.
+    """
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-4",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
 
     runtime._submit_event("update", "task-a", "first")
     runtime._submit_event("update", "task-b", "second")

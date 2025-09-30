@@ -55,10 +55,11 @@ class MAILRuntime:
         agents: dict[str, AgentCore],
         actions: dict[str, ActionCore],
         user_id: str,
-        swarm_name: str = "example",
+        swarm_name: str,
+        entrypoint: str,
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
-        entrypoint: str = "supervisor",
+        breakpoint_tools: list[str] = [],
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
         # Structure: (priority, seq, message)
@@ -69,12 +70,12 @@ class MAILRuntime:
         self.response_queue: asyncio.Queue[tuple[str, MAILMessage]] = asyncio.Queue()
         self.agents = agents
         self.actions = actions
+        # Agent histories in an LLM-friendly format
         self.agent_histories: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self.active_tasks: set[Task[Any]] = set()
         self.shutdown_event = asyncio.Event()
         self.response_to_user: MAILMessage | None = None
         self.is_running = False
-        self.current_request_id: str | None = None
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
         self.events: list[ServerSentEvent] = []
@@ -93,6 +94,7 @@ class MAILRuntime:
             self.interswarm_router.register_message_handler(
                 "local_message_handler", self._handle_local_message
             )
+        self.breakpoint_tools = breakpoint_tools
 
     async def start_interswarm(self) -> None:
         """
@@ -936,6 +938,24 @@ Your directly reachable agents can be found in the tool definitions for `send_re
 
                 # handle tool calls
                 for call in tool_calls:
+                    if call.tool_name in self.breakpoint_tools:
+                        logger.info(
+                            f"agent '{recipient}' used breakpoint tool '{call.tool_name}'"
+                        )
+                        self._submit_event(
+                            "breakpoint_tool_call",
+                            task_id,
+                            f"agent '{recipient}' used breakpoint tool '{call.tool_name}'",
+                        )
+                        await self.submit(
+                            self._system_broadcast(
+                                task_id=task_id,
+                                subject=f"Breakpoint Tool Call: '{call.tool_name}'",
+                                body=f"{call.model_dump_json()}",
+                                task_complete=True,
+                                recipients=[create_agent_address(recipient)],
+                            )
+                        )
                     match call.tool_name:
                         case "acknowledge_broadcast":
                             try:

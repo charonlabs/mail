@@ -28,6 +28,7 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
+from mail.core.tools import MAIL_TOOL_NAMES
 from mail.net import SwarmRegistry
 from mail.swarms_json import (
     SwarmsJSONAction,
@@ -516,6 +517,7 @@ class MAILSwarm:
         user_id: str = "default_user",
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
+        breakpoint_tools: list[str] = [],
     ) -> None:
         self.name = name
         self.agents = agents
@@ -524,6 +526,7 @@ class MAILSwarm:
         self.user_id = user_id
         self.swarm_registry = swarm_registry
         self.enable_interswarm = enable_interswarm
+        self.breakpoint_tools = breakpoint_tools
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
@@ -535,6 +538,7 @@ class MAILSwarm:
             swarm_registry=swarm_registry,
             enable_interswarm=enable_interswarm,
             entrypoint=entrypoint,
+            breakpoint_tools=breakpoint_tools,
         )
         self._validate()
 
@@ -589,6 +593,11 @@ class MAILSwarm:
             raise ValueError(
                 f"swarm must have at least one supervisor, got {len(self.supervisors)}"
             )
+
+        # is each breakpoint tool valid?
+        for tool in self.breakpoint_tools:
+            if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
+                raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
@@ -947,12 +956,14 @@ class MAILSwarmTemplate:
         actions: list[MAILAction],
         entrypoint: str,
         enable_interswarm: bool = False,
+        breakpoint_tools: list[str] = [],
     ) -> None:
         self.name = name
         self.agents = agents
         self.actions = actions
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
+        self.breakpoint_tools = breakpoint_tools
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
@@ -998,6 +1009,11 @@ class MAILSwarmTemplate:
             raise ValueError(
                 f"swarm must have at least one supervisor, got {len(self.supervisors)}"
             )
+
+        # is each breakpoint tool valid?
+        for tool in self.breakpoint_tools:
+            if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
+                raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
@@ -1063,6 +1079,7 @@ class MAILSwarmTemplate:
             user_id=user_id,
             swarm_registry=swarm_registry,
             enable_interswarm=self.enable_interswarm,
+            breakpoint_tools=self.breakpoint_tools,
         )
 
     def get_subswarm(
@@ -1156,6 +1173,7 @@ class MAILSwarmTemplate:
             actions=actions,
             entrypoint=swarm_data["entrypoint"],
             enable_interswarm=swarm_data["enable_interswarm"],
+            breakpoint_tools=swarm_data["breakpoint_tools"],
         )
 
     @staticmethod

@@ -29,7 +29,8 @@ class SwarmsJSONSwarm(TypedDict):
     """The agents in this swarm."""
     actions: list["SwarmsJSONAction"]
     """The actions in this swarm."""
-
+    breakpoint_tools: list[str]  # default: []
+    """The tools that can be used to breakpoint the swarm."""
 
 class SwarmsJSONAgent(TypedDict):
     """
