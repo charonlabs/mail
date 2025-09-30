@@ -15,6 +15,7 @@ Single-swarm example | Multi-swarm example
 - **JSON Schemas**: [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.json), [spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json)
 - **REST transport** (OpenAPI 3.1): [spec/openapi.yaml](/spec/openapi.yaml)
 - **Reference implementation source**: [src/mail/](/src/mail/__init__.py)
+- **Command-line interface**: [docs/cli.md](/docs/cli.md), `uv run mail …`
 - **Asynchronous HTTP client**: [docs/client.md](/docs/client.md), [src/mail/client.py](/src/mail/client.py)
 - **Deployment examples and docs**: [docs/](/docs/README.md)
 
@@ -60,6 +61,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 ### Key Features
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
+- **CLI launcher** (`mail server`, `mail client`) for running the server and an interactive REPL without writing code.
 - **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.
 - Built-in **swarm registry** with **health checks** and **service discovery** for distributed deployments.
 - **Configurable authentication layer** that plugs into external auth/token providers.
@@ -233,7 +235,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 - **POST `/interswarm/send`** (admin/user): convenience endpoint to send to `agent@remote-swarm` via a local user instance
 
 ## Enabling interswarm
-- Provide `SWARM_NAME`, `BASE_URL`, and a `SWARM_REGISTRY_FILE`
+- Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
 - Ensure your persistent swarm template enables interswarm where needed (see agents & supervisor tools)
 - Start two servers on different ports; register them with each other using `/swarms` endpoints
 
@@ -245,8 +247,86 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 5. Local server correlates and completes the user’s task
 
 
-
 ===== End of `docs/interswarm.md` =====
+
+===== `docs/cli.md` =====
+
+# MAIL Command-Line Interface
+
+The reference implementation ships with a convenience CLI that lets you run the FastAPI server and talk to it interactively from the same entry point.
+Both commands are exposed via the console script `mail`, which is installed when you install this package (`uv sync` or `pip install -e .`).
+
+## Commands
+
+```shell
+mail server   # run the FastAPI reference server
+mail client   # launch the interactive MAIL client REPL
+```
+
+The top-level parser accepts the same flags regardless of how you invoke it, for example `python -m mail.cli …` or `uv run mail …`.
+
+### `mail server`
+- Configuration defaults are read from `mail.toml` (see
+  [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
+- Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
+- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them.
+- Example:
+
+  ```bash
+  uv run mail server --host 0.0.0.0 --port 8000 --reload
+  ```
+
+### `mail client`
+Launching `mail client` starts the interactive REPL.
+
+- The default timeout comes from the `[client]` table in `mail.toml`; override
+  it per invocation with `--timeout`.
+- The `--config` flag is shared with `mail server`, allowing you to point both
+  commands at the same config file if you keep multiple TOML profiles.
+
+```shell
+uv run mail client --url http://localhost:8000 --api-key $USER_TOKEN
+```
+
+Once inside you will see the prompt `mail>`. The REPL accepts any of the subcommands documented in [docs/client.md](./client.md), plus a few helper commands:
+
+| Command | Description |
+| --- | --- |
+| `help` or `?` | Print CLI usage information without exiting the loop. |
+| `exit` / `quit` | Leave the REPL. |
+| `get-health` | Invoke `GET /health` and print the JSON body. |
+| `post-message --message "…" [--entrypoint …] [--show-events]` | Submit a message and print the structured response. |
+| `post-message-stream --message "…"` | Stream SSE events; each event is printed as it arrives. |
+| `get-swarms`, `register-swarm`, `dump-swarm` | Manage the swarm registry. |
+| `send-interswarm-message` | Send interswarm traffic by target agent. |
+| `load-swarm-from-json` | Submit a JSON payload to `POST /swarms/load`. |
+
+The REPL uses `shlex.split`, so quoting works as expected:
+
+```shell
+mail> post-message --message "Forecast for tomorrow" --entrypoint supervisor
+```
+
+Errors raised by `argparse` are caught and reported without exiting the loop,
+letting you adjust the command and retry. Blank lines are ignored, and
+`Ctrl+C` returns you to the prompt without killing the process.
+
+### Streaming inside the REPL
+`post-message-stream` mirrors the behaviour of `MAILClient.post_message_stream`.
+When the server emits events, each `ServerSentEvent` object is printed in
+arrival order. This is particularly useful when you want to monitor `task_complete`
+notifications or inspect intermediate `new_message` / `action_call` events
+without leaving the terminal.
+
+## Tips
+- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, and `--timeout`.
+- Combine with `uv run` for isolated environments, e.g. `uv run mail client …`.
+- Logging inherits the standard logging configuration. Setting `MAIL_LOG_LEVEL=DEBUG` will surface detailed request/response traces while you use the REPL.
+
+For deeper programmatic examples refer to [docs/client.md](./client.md).
+
+
+===== End of `docs/cli.md` =====
 
 ===== `docs/troubleshooting.md` =====
 
@@ -264,7 +344,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
   - Ensure at least one supervisor agent exists and is the configured entrypoint
 - **Interswarm routing fails**
   - Use `agent@swarm` addressing and register swarms via `/swarms`
-  - Verify `SWARM_NAME`, `BASE_URL`, registry persistence file, and env var tokens
+  - Verify `SWARM_NAME`, `BASE_URL`, the registry persistence file, and env var tokens (set them in `mail.toml` or override with environment variables)
 - **SSE stream disconnects**
   - Check client and proxy timeouts; events include periodic ping heartbeats
 
@@ -274,7 +354,6 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 
 ## Where to ask
 - **Open an issue** with endpoint responses, logs, and your [swarms.json](/swarms.json) (redact secrets)
-
 
 
 ===== End of `docs/troubleshooting.md` =====
@@ -296,21 +375,24 @@ This guide gets you running a local MAIL swarm and interacting with it.
   - `uv sync`
   - or `pip install -e .`
 
-## Environment
+## Environment & Config
+- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, and client timeout. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access via the proxy
-  - Optional: `SWARM_NAME`, `BASE_URL`, `SWARM_REGISTRY_FILE`
+  - Optional overrides: `SWARM_NAME`, `BASE_URL`, `SWARM_REGISTRY_FILE` – these supersede values from `mail.toml`
 
 ## Run
 - Start the server:
-  - `uv run mail`
+  - `uv run mail server`
   - or `python -m mail.server`
-- Default base URL: `http://localhost:8000`
+- Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
+- Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
 ## Try it
 - **Health/root**: `curl http://localhost:8000/`
 - **Status** (requires admin/user token): `curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/status`
+- **MAIL CLI REPL**: `uv run mail client --url http://localhost:8000 --api-key $TOKEN` (enter `help` for commands)
 - **Send a message**: `curl -X POST http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Hello"}'`
 - **Stream (SSE)**: `curl -N http://localhost:8000/message -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"message":"Stream please","stream":true}'`
 - **Python client**: use [`MAILClient`](./client.md) if you prefer asyncio code over raw HTTP. Example:
@@ -1052,13 +1134,19 @@ if __name__ == "__main__":
 ```
 
 ## Connection Options
-- `MAILClient(base_url, api_key=None, timeout=60.0, session=None)`
+- `MAILClient(base_url, api_key=None, timeout=60.0, session=None, config=None)`
   - `base_url`: Root URL for the MAIL server (no trailing slash).
   - `api_key`: Optional JWT or API key. When provided, every request includes `Authorization: Bearer <api_key>`.
   - `timeout`: Float seconds or an `aiohttp.ClientTimeout`. Applies to the internally managed session.
   - `session`: Provide your own `aiohttp.ClientSession` to share connections or customise connectors. The client will not close externally supplied sessions.
+  - `config`: Pass a `ClientConfig` instance to reuse defaults hydrated from `mail.toml` (see below).
 
 The class implements `__aenter__` / `__aexit__`, so `async with` automatically opens and closes the HTTP session (`aclose()` is also available).
+
+### ClientConfig and mail.toml
+- `ClientConfig` pulls its defaults from the `[client]` table in `mail.toml` (default `timeout = 3600.0`).
+- `MAILClient` uses these defaults automatically when you omit the `config` argument; the CLI REPL (`mail client`) follows the same behavior.
+- Override per run by passing `timeout=` directly or by exporting/pointing `MAIL_CONFIG_PATH` to an alternate config file.
 
 ## Endpoint Coverage
 
@@ -1150,9 +1238,11 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 
 ## Contents
 - **Quickstart**: [quickstart.md](/docs/quickstart.md)
+- **Docker Deployment**: [docker.md](/docs/docker.md)
 - **Architecture**: [architecture.md](/docs/architecture.md)
 - **Configuration**: [configuration.md](/docs/configuration.md)
 - **API (HTTP & Python)**: [api.md](/docs/api.md)
+- **CLI**: [cli.md](/docs/cli.md)
 - **HTTP Client**: [client.md](/docs/client.md)
 - **Message Format**: [message-format.md](/docs/message-format.md)
 - **Agents & Tools**: [agents-and-tools.md](/docs/agents-and-tools.md)
@@ -1254,6 +1344,126 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 
 ===== End of `docs/security.md` =====
 
+===== `docs/docker.md` =====
+
+# Docker Deployment
+
+This guide explains how to build and run the MAIL reference server in a Docker container. Use it when you want an immutable runtime or need to deploy MAIL to container platforms.
+
+## Prerequisites
+- Docker 24+
+- Python 3.12-compatible base image (the example uses `python:3.12-slim`)
+- Access to the MAIL repository source tree when building the image
+
+## Example Dockerfile
+Place the following `Dockerfile` at the repository root or in a build-specific
+folder. It mirrors the workflow used throughout the docs (`uv sync` for
+dependency resolution):
+
+```Dockerfile
+FROM python:3.12-slim AS base
+WORKDIR /app
+
+# Install system dependencies used during the build
+RUN apt-get update \ \
+    && apt-get install -y --no-install-recommends curl build-essential \ \
+    && rm -rf /var/lib/apt/lists/*
+
+# uv handles dependency resolution and execution
+RUN pip install --no-cache-dir uv
+
+# Copy dep metadata first to leverage Docker layer caching
+COPY pyproject.toml uv.lock mail.toml ./
+RUN uv sync --frozen --no-dev
+
+# Copy the remaining source files required by the server
+COPY src ./src
+COPY spec ./spec
+COPY docs ./docs
+
+# Default configuration; override via `docker run -e` or compose files
+ENV PORT=8000 \
+    AUTH_ENDPOINT=http://auth.local/login \
+    TOKEN_INFO_ENDPOINT=http://auth.local/token-info \
+    LITELLM_PROXY_API_BASE=http://litellm.local \
+    SWARM_NAME=example-no-proxy \
+    BASE_URL=http://localhost:8000
+
+EXPOSE 8000
+CMD ["uv", "run", "mail", "server", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+### Multi-stage tip
+If you want a smaller runtime image, split the Dockerfile into build and final stages. Copy `.venv` from the build stage to the runtime stage and strip out build-essential packages there.
+
+## Build the image
+```bash
+docker build -t mail-server .
+```
+The build context must contain the repository so that the `COPY` commands pick up the source and configuration files.
+
+## Run the container
+The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, `LITELLM_PROXY_API_BASE`, and optional swarm overrides). Pass them via `--env` flags or an env file:
+
+```bash
+# Option 1: export locally then forward with --env
+export AUTH_ENDPOINT=http://127.0.0.1:8999/login
+export TOKEN_INFO_ENDPOINT=http://127.0.0.1:8999/token-info
+export LITELLM_PROXY_API_BASE=http://127.0.0.1:8080
+
+docker run --rm \
+  -p 8000:8000 \
+  -e AUTH_ENDPOINT \
+  -e TOKEN_INFO_ENDPOINT \
+  -e LITELLM_PROXY_API_BASE \
+  -e BASE_URL="https://your-hostname" \
+  mail-server
+```
+
+```bash
+# Option 2: use an env file
+cat <<'ENVVARS' > .env.mail
+AUTH_ENDPOINT=http://127.0.0.1:8999/login
+TOKEN_INFO_ENDPOINT=http://127.0.0.1:8999/token-info
+LITELLM_PROXY_API_BASE=http://127.0.0.1:8080
+BASE_URL=https://your-hostname
+SWARM_NAME=example-no-proxy
+ENVVARS
+
+docker run --rm -p 8000:8000 --env-file .env.mail mail-server
+```
+
+### Persisting registries and logs
+Mount host directories if you want the container to keep swarm registry data or logs between runs:
+
+```bash
+docker run --rm \
+  -p 8000:8000 \
+  --env-file .env.mail \
+  -v $(pwd)/registries:/app/registries \
+  -v $(pwd)/logs:/app/logs \
+  mail-server
+```
+
+## Health checks
+Use the same endpoints as the quickstart for readiness and status:
+
+```bash
+curl http://localhost:8000/health
+curl -H "Authorization: Bearer user:demo" http://localhost:8000/status
+```
+
+Update the URLs to the forwarded host/port if you publish the container through ngrok or another ingress.
+
+## Troubleshooting
+- Ensure Docker is forwarding the port (`-p 8000:8000`) and no other service is bound to that port on the host.
+- Confirm the authentication service is reachable from inside the container. If you expose a host service via `localhost`, use the Docker host gateway (`host.docker.internal` on macOS/Windows or `--add-host` on Linux).
+- Rebuild the image after dependency changes; Docker layer caching only applies when `pyproject.toml`/`uv.lock` remain unchanged.
+```
+
+
+===== End of `docs/docker.md` =====
+
 ===== `docs/architecture.md` =====
 
 # Architecture
@@ -1304,15 +1514,42 @@ This section explains the runtime, server, and networking layers that make up a 
 
 # Configuration
 
-This page describes environment variables and the `swarms.json` file that configures a MAIL deployment.
+This page describes the configuration surfaces for a MAIL deployment: the project-level `mail.toml`, relevant environment variables, and the `swarms.json` swarm template.
+
+## mail.toml
+
+`mail.toml` provides defaults for both the server and client reference implementations. The CLI, API, and configuration models read from this file the first time configuration is needed.
+
+```toml
+[server]
+port = 8000
+host = "0.0.0.0"
+reload = false
+
+[server.swarm]
+name = "example-no-proxy"
+source = "swarms.json"
+registry = "registries/example-no-proxy.json"
+
+[client]
+timeout = 3600.0
+```
+
+- The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`).
+- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry`), and the runtime swarm name (`name`).
+- The `[client]` table currently exposes a single `timeout` option (seconds). It feeds `ClientConfig` which in turn sets the default timeout for `MAILClient` and the CLI REPL.
+- Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
+- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
+- The CLI command `mail client` honors `timeout` from `[client]` and allows `--timeout` to override it per invocation.
+- Set `MAIL_CONFIG_PATH` to point at an alternate `mail.toml` (for example per environment). `mail server --config /path/to/mail.toml` temporarily overrides this variable for the lifetime of the command.
 
 ## Environment variables
 - `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy used by agents
 - `AUTH_ENDPOINT`: URL for login endpoint used by the server (Bearer API key -> temporary token)
 - `TOKEN_INFO_ENDPOINT`: URL for token info endpoint (Bearer temporary token -> {role,id,api_key})
-- `SWARM_NAME`: Name of this swarm instance (default: `example-no-proxy`)
-- `BASE_URL`: Base URL for this server (default: `http://localhost:8000`)
-- `SWARM_REGISTRY_FILE`: Path used by the server to persist non-volatile registry entries (default: `registries/example.json`)
+- `SWARM_NAME`: Name of this swarm instance. Overrides the value calculated from `mail.toml`.
+- `BASE_URL`: Base URL for this server. Overrides the derived value (defaults to `http://localhost:<port>`).
+- `SWARM_REGISTRY_FILE`: Path used by the server to persist non-volatile registry entries. Overrides the `mail.toml` default.
 - Optional provider keys consumed by your proxy (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
 ## swarms.json
@@ -1325,7 +1562,7 @@ This page describes environment variables and the `swarms.json` file that config
 [
     {
         "name": "example",
-        "version": "1.0.1",
+        "version": "1.0.2",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
@@ -1394,3 +1631,4 @@ This page describes environment variables and the `swarms.json` file that config
 
 
 ===== End of `docs/configuration.md` =====
+
