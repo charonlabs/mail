@@ -165,6 +165,7 @@ class MAILClient:
         *,
         entrypoint: str | None = None,
         show_events: bool = False,
+        task_id: str | None = None,
     ) -> PostMessageResponse:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
@@ -175,6 +176,7 @@ class MAILClient:
             "msg_type": msg_type,
             "entrypoint": entrypoint,
             "show_events": show_events,
+            "task_id": task_id,
         }
 
         return cast(
@@ -189,6 +191,7 @@ class MAILClient:
         msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         *,
         entrypoint: str | None = None,
+        task_id: str | None = None,
     ) -> AsyncIterator[ServerSentEvent]:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
@@ -201,6 +204,7 @@ class MAILClient:
             "msg_type": msg_type,
             "entrypoint": entrypoint,
             "stream": True,
+            "task_id": task_id,
         }
 
         url = self._build_url("/message")
@@ -574,6 +578,7 @@ class MAILClientCLI:
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
                 show_events=args.show_events,
+                task_id=args.task_id,
             )
             print(json.dumps(response, indent=2))
         except Exception as e:
@@ -589,6 +594,7 @@ class MAILClientCLI:
                 subject=args.subject,
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
+                task_id=args.task_id,
             )
             async for event in response:
                 parsed_event = {

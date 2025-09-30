@@ -58,7 +58,12 @@ def test_message_flow_success():
         r = client.post(
             "/message",
             headers={"Authorization": "Bearer test-key"},
-            json={"message": "Hello"},
+            json={
+                "subject": "Hello",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
         )
         assert r.status_code == 200
         data = r.json()

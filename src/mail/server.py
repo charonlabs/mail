@@ -322,6 +322,7 @@ async def message(request: Request):
         entrypoint: The entrypoint to use for the message.
         show_events: Whether to return the events for the task.
         stream: Whether to stream the response.
+        task_id: The task ID to use for the message.
 
     Returns:
         A dictionary containing the response message.
@@ -352,6 +353,7 @@ async def message(request: Request):
         subject = data.get("subject", "New Message")
         msg_type = data.get("msg_type", "request")
         entrypoint = data.get("entrypoint")
+        task_id = data.get("task_id")
         # Choose recipient: provided entrypoint or default from config
         if isinstance(entrypoint, str) and entrypoint.strip():
             recipient_agent = entrypoint.strip()
@@ -390,6 +392,7 @@ async def message(request: Request):
                 body=body,
                 msg_type=msg_type,
                 entrypoint=chosen_entrypoint,
+                task_id=task_id,
             )
         else:
             logger.info(
@@ -401,6 +404,7 @@ async def message(request: Request):
                 msg_type=msg_type,
                 entrypoint=chosen_entrypoint,
                 show_events=show_events,
+                task_id=task_id,
             )
             # Support both (response, events) and response-only returns
             if isinstance(result, tuple) and len(result) == 2:

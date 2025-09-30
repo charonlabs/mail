@@ -637,6 +637,7 @@ class MAILSwarm:
         entrypoint: str | None = None,
         show_events: bool = False,
         timeout: float = 3600.0,
+        task_id: str | None = None,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Post a message to the swarm and return the task completion response.
@@ -645,7 +646,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", msg_type)
+        message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
 
         return await self.submit_message(message, timeout, show_events)
 
@@ -655,6 +656,7 @@ class MAILSwarm:
         subject: str = "New Message",
         msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
+        task_id: str | None = None,
         timeout: float = 3600.0,
     ) -> EventSourceResponse:
         """
@@ -664,7 +666,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", msg_type)
+        message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
 
         return await self.submit_message_stream(message, timeout)
 
@@ -675,6 +677,7 @@ class MAILSwarm:
         msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
         show_events: bool = False,
+        task_id: str | None = None,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Post a message to the swarm and run until the task is complete.
@@ -683,7 +686,7 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", msg_type)
+        message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run()
@@ -702,6 +705,7 @@ class MAILSwarm:
         targets: list[str],
         sender_type: Literal["user", "agent"] = "user",
         type: Literal["request", "response", "broadcast", "interrupt"] = "request",
+        task_id: str | None = None,
     ) -> MAILMessage:
         """
         Build a MAIL message.
@@ -715,7 +719,7 @@ class MAILSwarm:
                     id=str(uuid.uuid4()),
                     timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                     message=MAILRequest(
-                        task_id=str(uuid.uuid4()),
+                        task_id=task_id or str(uuid.uuid4()),
                         request_id=str(uuid.uuid4()),
                         sender=create_user_address(self.user_id)
                         if sender_type == "user"
