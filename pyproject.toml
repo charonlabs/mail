@@ -1,6 +1,6 @@
 [project]
 name = "mail"
-version = "1.0.1"
+version = "1.0.2"
 description = "Multi-Agent Interface Layer reference implementation"
 readme = "README.md"
 requires-python = ">=3.12"

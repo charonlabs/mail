@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_mail_config_path() -> Path | None:
-    """Determine the best candidate path for `mail.toml`."""
+    """
+    Determine the best candidate path for `mail.toml`.
+    """
 
     env_path = os.getenv("MAIL_CONFIG_PATH")
     if env_path:

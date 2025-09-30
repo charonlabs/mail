@@ -48,7 +48,7 @@ timeout = 3600.0
 [
     {
         "name": "example",
-        "version": "1.0.1",
+        "version": "1.0.2",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
