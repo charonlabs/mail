@@ -40,6 +40,8 @@ from .tools import (
 
 logger = logging.getLogger("mail.runtime")
 
+AGENT_HISTORY_KEY = "{task_id}::{agent_name}"
+
 
 class MAILRuntime:
     """
@@ -904,7 +906,11 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             try:
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
-                history = self.agent_histories[recipient]
+
+                # get agent history for this task
+                agent_history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=recipient)
+                history = self.agent_histories[agent_history_key]
+
                 if not message["message"]["subject"].startswith(
                     "::action_complete_broadcast::"
                 ):
@@ -1167,7 +1173,7 @@ Use this information to decide how to complete your task.""",
                                     )
                                 )
 
-                self.agent_histories[recipient] = history
+                self.agent_histories[agent_history_key] = history
             except Exception as e:
                 logger.error(f"error scheduling message for agent '{recipient}': '{e}'")
                 self._submit_event(
