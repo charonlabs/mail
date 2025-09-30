@@ -442,16 +442,37 @@ class MAILClientCLI:
             "post-message", help="send a message to the MAIL server"
         )
         post_message_parser.add_argument(
-            "--message",
+            "-b",
+            "--body",
             type=str,
             help="the message to send",
         )
         post_message_parser.add_argument(
-            "--entrypoint",
+            "-s",
+            "--subject",
             type=str,
-            help="the entrypoint to send the message to",
+            help="the subject of the message",
         )
         post_message_parser.add_argument(
+            "-t",
+            "--msg-type",
+            type=str,
+            help="the type of the message",
+        )
+        post_message_parser.add_argument(
+            "-tid",
+            "--task-id",
+            type=str,
+            help="the task ID of the message",
+        )
+        post_message_parser.add_argument(
+            "-e",
+            "--entrypoint",
+            type=str,
+            help="the agent to send the message to",
+        )
+        post_message_parser.add_argument(
+            "-se",
             "--show-events",
             action="store_true",
             help="show events",
@@ -464,14 +485,34 @@ class MAILClientCLI:
             help="send a message to the MAIL server and stream the response",
         )
         post_message_stream_parser.add_argument(
-            "--message",
+            "-b",
+            "--body",
             type=str,
             help="the message to send",
         )
         post_message_stream_parser.add_argument(
+            "-s",
+            "--subject",
+            type=str,
+            help="the subject of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-t",
+            "--msg-type",
+            type=str,
+            help="the type of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-tid",
+            "--task-id",
+            type=str,
+            help="the task ID of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-e",
             "--entrypoint",
             type=str,
-            help="the entrypoint to send the message to",
+            help="the agent to send the message to",
         )
         post_message_stream_parser.set_defaults(func=self._post_message_stream)
 
@@ -492,22 +533,26 @@ class MAILClientCLI:
             "register-swarm", help="register a swarm with the MAIL server"
         )
         register_swarm_parser.add_argument(
+            "-n",
             "--name",
             type=str,
             help="the name of the swarm",
         )
         register_swarm_parser.add_argument(
+            "-bu",
             "--base-url",
             type=str,
             help="the base URL of the swarm",
         )
         register_swarm_parser.add_argument(
+            "-at",
             "--auth-token",
             type=str,
             required=False,
             help="the auth token of the swarm",
         )
         register_swarm_parser.add_argument(
+            "-v",
             "--volatile",
             type=bool,
             required=False,
@@ -573,7 +618,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message(
-                args.message,
+                body=args.body,
                 subject=args.subject,
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
@@ -590,7 +635,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message_stream(
-                args.message,
+                body=args.body,
                 subject=args.subject,
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
