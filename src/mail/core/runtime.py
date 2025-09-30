@@ -6,6 +6,7 @@ import datetime
 import logging
 import uuid
 from asyncio import PriorityQueue, Task
+from collections import defaultdict
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -68,9 +69,7 @@ class MAILRuntime:
         self.response_queue: asyncio.Queue[tuple[str, MAILMessage]] = asyncio.Queue()
         self.agents = agents
         self.actions = actions
-        self.agent_histories: dict[str, list[dict[str, Any]]] = {
-            agent: [] for agent in agents
-        }
+        self.agent_histories: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self.active_tasks: set[Task[Any]] = set()
         self.shutdown_event = asyncio.Event()
         self.response_to_user: MAILMessage | None = None
@@ -1173,7 +1172,7 @@ Use this information to decide how to complete your task.""",
                                     )
                                 )
 
-                self.agent_histories[agent_history_key] = history
+                self.agent_histories.setdefault(agent_history_key, [])
             except Exception as e:
                 logger.error(f"error scheduling message for agent '{recipient}': '{e}'")
                 self._submit_event(
