@@ -8,7 +8,7 @@ import json
 import logging
 import shlex
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from aiohttp import (
     ClientResponse,
@@ -159,7 +159,9 @@ class MAILClient:
 
     async def post_message(
         self,
-        message: str,
+        body: str,
+        subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         *,
         entrypoint: str | None = None,
         show_events: bool = False,
@@ -167,12 +169,13 @@ class MAILClient:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
         """
-        payload: dict[str, Any] = {"message": message}
-
-        if entrypoint:
-            payload["entrypoint"] = entrypoint
-        if show_events:
-            payload["show_events"] = True
+        payload: dict[str, Any] = {
+            "subject": subject,
+            "body": body,
+            "msg_type": msg_type,
+            "entrypoint": entrypoint,
+            "show_events": show_events,
+        }
 
         return cast(
             PostMessageResponse,
@@ -181,7 +184,9 @@ class MAILClient:
 
     async def post_message_stream(
         self,
-        message: str,
+        body: str,
+        subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         *,
         entrypoint: str | None = None,
     ) -> AsyncIterator[ServerSentEvent]:
@@ -191,12 +196,13 @@ class MAILClient:
         session = await self._ensure_session()
 
         payload: dict[str, Any] = {
-            "message": message,
+            "subject": subject,
+            "body": body,
+            "msg_type": msg_type,
+            "entrypoint": entrypoint,
             "stream": True,
         }
 
-        if entrypoint:
-            payload["entrypoint"] = entrypoint
         url = self._build_url("/message")
         logger.debug("POST %s (stream)", url)
 
@@ -563,7 +569,11 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message(
-                args.message, entrypoint=args.entrypoint, show_events=args.show_events
+                args.message,
+                subject=args.subject,
+                msg_type=args.msg_type,
+                entrypoint=args.entrypoint,
+                show_events=args.show_events,
             )
             print(json.dumps(response, indent=2))
         except Exception as e:
@@ -575,7 +585,10 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message_stream(
-                args.message, entrypoint=args.entrypoint
+                args.message,
+                subject=args.subject,
+                msg_type=args.msg_type,
+                entrypoint=args.entrypoint,
             )
             async for event in response:
                 parsed_event = {

@@ -610,7 +610,7 @@ class MAILSwarm:
 
     def update_from_adjacency_matrix(self, adj: list[list[int]]) -> None:
         """
-        Update comm_targets for all agents using an adjacency matrix.
+        Update `comm_targets` for all agents using an adjacency matrix.
         """
 
         if len(adj) != len(self.agents):
@@ -633,17 +633,19 @@ class MAILSwarm:
         self,
         body: str,
         subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
         show_events: bool = False,
         timeout: float = 3600.0,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Post a message to the swarm and return the task completion response.
+        This method is indented to be used when the swarm is running in continuous mode.
         """
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(subject, body, [entrypoint], "user", msg_type)
 
         return await self.submit_message(message, timeout, show_events)
 
@@ -651,16 +653,18 @@ class MAILSwarm:
         self,
         body: str,
         subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
         timeout: float = 3600.0,
     ) -> EventSourceResponse:
         """
         Post a message to the swarm and stream the response.
+        This method is indented to be used when the swarm is running in continuous mode.
         """
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(subject, body, [entrypoint], "user", msg_type)
 
         return await self.submit_message_stream(message, timeout)
 
@@ -668,16 +672,18 @@ class MAILSwarm:
         self,
         body: str,
         subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
         show_events: bool = False,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
-        Post a message to the swarm and run the swarm.
+        Post a message to the swarm and run until the task is complete.
+        This method cannot be used when the swarm is running in continuous mode.
         """
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(subject, body, [entrypoint], "user", msg_type)
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run()

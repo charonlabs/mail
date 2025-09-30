@@ -316,7 +316,9 @@ async def message(request: Request):
     Uses a user-specific MAIL instance to process the request and returns the response.
 
     Args:
-        message: The string containing the message.
+        body: The string containing the message.
+        subject: The subject of the message.
+        msg_type: The type of the message.
         entrypoint: The entrypoint to use for the message.
         show_events: Whether to return the events for the task.
         stream: Whether to stream the response.
@@ -346,7 +348,9 @@ async def message(request: Request):
     # parse request
     try:
         data = await request.json()
-        message = data.get("message", "")
+        body = data.get("body", "")
+        subject = data.get("subject", "New Message")
+        msg_type = data.get("msg_type", "request")
         entrypoint = data.get("entrypoint")
         # Choose recipient: provided entrypoint or default from config
         if isinstance(entrypoint, str) and entrypoint.strip():
@@ -356,7 +360,7 @@ async def message(request: Request):
         show_events = data.get("show_events", False)
         stream = data.get("stream", False)
         logger.info(
-            f"received message from user or admin '{caller_id}': '{message[:50]}...'"
+            f"received message from user or admin '{caller_id}': '{body[:50]}...'"
         )
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
@@ -364,8 +368,8 @@ async def message(request: Request):
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
         )
 
-    if not message:
-        logger.warning("no message provided")
+    if not body:
+        logger.warning("no message body provided")
         raise HTTPException(status_code=400, detail="no message provided")
 
     # MAIL process
@@ -382,15 +386,19 @@ async def message(request: Request):
                 f"submitting streamed message via MAIL API for user or admin '{caller_id}'..."
             )
             return await api_swarm.post_message_stream(
-                subject="New Message", body=message, entrypoint=chosen_entrypoint
+                subject=subject,
+                body=body,
+                msg_type=msg_type,
+                entrypoint=chosen_entrypoint,
             )
         else:
             logger.info(
                 f"submitting message via MAIL API for user or admin '{caller_id}' and waiting..."
             )
             result = await api_swarm.post_message(
-                subject="New Message",
-                body=message,
+                subject=subject,
+                body=body,
+                msg_type=msg_type,
                 entrypoint=chosen_entrypoint,
                 show_events=show_events,
             )
