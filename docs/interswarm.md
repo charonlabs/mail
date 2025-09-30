@@ -24,7 +24,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 - **POST `/interswarm/send`** (admin/user): convenience endpoint to send to `agent@remote-swarm` via a local user instance
 
 ## Enabling interswarm
-- Provide `SWARM_NAME`, `BASE_URL`, and a `SWARM_REGISTRY_FILE`
+- Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
 - Ensure your persistent swarm template enables interswarm where needed (see agents & supervisor tools)
 - Start two servers on different ports; register them with each other using `/swarms` endpoints
 
@@ -34,4 +34,3 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 3. Router wraps the message and POSTs to the remote `POST /interswarm/message`
 4. Remote swarm processes and returns a `MAILMessage` response
 5. Local server correlates and completes the user’s task
-

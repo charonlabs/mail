@@ -28,6 +28,7 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
+from mail.net import SwarmRegistry
 from mail.swarms_json import (
     SwarmsJSONAction,
     SwarmsJSONAgent,
@@ -38,7 +39,6 @@ from mail.swarms_json import (
     build_swarms_from_swarms_json,
     load_swarms_json_from_file,
 )
-from mail.net import SwarmRegistry
 from mail.utils import read_python_string, resolve_prefixed_string_references
 
 logger = logging.getLogger("mail")

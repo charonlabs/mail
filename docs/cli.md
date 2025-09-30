@@ -13,11 +13,10 @@ mail client   # launch the interactive MAIL client REPL
 The top-level parser accepts the same flags regardless of how you invoke it, for example `python -m mail.cli …` or `uv run mail …`.
 
 ### `mail server`
-- Flags mirror the existing server module: `--host`, `--port`, `--reload`, and
-  `--config` (defaults to `mail.toml`).
-- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and
-  `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults
-  for them.
+- Configuration defaults are read from `mail.toml` (see
+  [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
+- Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
+- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them.
 - Example:
 
   ```bash
@@ -26,6 +25,11 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 
 ### `mail client`
 Launching `mail client` starts the interactive REPL.
+
+- The default timeout comes from the `[client]` table in `mail.toml`; override
+  it per invocation with `--timeout`.
+- The `--config` flag is shared with `mail server`, allowing you to point both
+  commands at the same config file if you keep multiple TOML profiles.
 
 ```shell
 uv run mail client --url http://localhost:8000 --api-key $USER_TOKEN

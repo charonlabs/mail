@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/charonlabs/mail/docs/swarms-schema.json",
+  "title": "Swarms Configuration",
+  "description": "Configuration schema for MAIL swarm definitions",
+  "type": "array",
+  "items": {
+    "$ref": "#/definitions/Swarm"
+  },
+  "definitions": {
+    "Swarm": {
+      "type": "object",
+      "required": ["name", "version", "entrypoint", "agents"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for the swarm"
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the MAIL reference implementation to be used",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "entrypoint": {
+          "type": "string",
+          "description": "Name of the agent that serves as the entry point for the swarm"
+        },
+        "enable_interswarm": {
+          "type": "boolean",
+          "description": "Whether inter-swarm communication is enabled",
+          "default": false
+        },
+        "agents": {
+          "type": "array",
+          "description": "List of agents in the swarm",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/Agent"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "description": "List of actions available to agents in the swarm",
+          "items": {
+            "$ref": "#/definitions/Action"
+          },
+          "default": []
+        }
+      }
+    },
+    "Agent": {
+      "type": "object",
+      "required": ["name", "factory", "comm_targets", "agent_params"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for the agent within the swarm"
+        },
+        "factory": {
+          "type": "string",
+          "description": "Python module path to the agent factory function. Supports 'python::' prefix (e.g., 'python::module.path:factory_function') or 'url::' prefix to fetch from a URL",
+          "pattern": "^(python::|url::).+"
+        },
+        "comm_targets": {
+          "type": "array",
+          "description": "List of agents this agent can communicate with. Can include local agent names or remote agents using agent@swarm syntax",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enable_entrypoint": {
+          "type": "boolean",
+          "description": "Whether this agent can serve as an entry point",
+          "default": false
+        },
+        "enable_interswarm": {
+          "type": "boolean",
+          "description": "Whether this agent can participate in inter-swarm communication",
+          "default": false
+        },
+        "can_complete_tasks": {
+          "type": "boolean",
+          "description": "Whether this agent has the ability to mark tasks as complete",
+          "default": false
+        },
+        "tool_format": {
+          "type": "string",
+          "description": "The format of tools this agent uses",
+          "enum": ["completions", "responses"],
+          "default": "responses"
+        },
+        "actions": {
+          "type": "array",
+          "description": "List of action names this agent can perform",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "agent_params": {
+          "type": "object",
+          "description": "Parameters passed to the agent factory. Contents are defined by the implementer and can contain any properties",
+          "additionalProperties": true
+        }
+      }
+    },
+    "Action": {
+      "type": "object",
+      "required": ["name", "description", "parameters", "function"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique identifier for the action"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what the action does"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "JSON Schema definition of the action's parameters",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["object"]
+            },
+            "properties": {
+              "type": "object",
+              "description": "Schema properties for each parameter",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["string", "integer", "number", "boolean", "array", "object"]
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": ["type"]
+              }
+            }
+          }
+        },
+        "function": {
+          "type": "string",
+          "description": "Python module path to the function that implements the action. Supports 'python::' prefix (e.g., 'python::module.path:function_name') or 'url::' prefix to fetch from a URL",
+          "pattern": "^(python::|url::).+"
+        }
+      }
+    }
+  }
+}

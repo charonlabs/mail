@@ -39,13 +39,19 @@ if __name__ == "__main__":
 ```
 
 ## Connection Options
-- `MAILClient(base_url, api_key=None, timeout=60.0, session=None)`
+- `MAILClient(base_url, api_key=None, timeout=60.0, session=None, config=None)`
   - `base_url`: Root URL for the MAIL server (no trailing slash).
   - `api_key`: Optional JWT or API key. When provided, every request includes `Authorization: Bearer <api_key>`.
   - `timeout`: Float seconds or an `aiohttp.ClientTimeout`. Applies to the internally managed session.
   - `session`: Provide your own `aiohttp.ClientSession` to share connections or customise connectors. The client will not close externally supplied sessions.
+  - `config`: Pass a `ClientConfig` instance to reuse defaults hydrated from `mail.toml` (see below).
 
 The class implements `__aenter__` / `__aexit__`, so `async with` automatically opens and closes the HTTP session (`aclose()` is also available).
+
+### ClientConfig and mail.toml
+- `ClientConfig` pulls its defaults from the `[client]` table in `mail.toml` (default `timeout = 3600.0`).
+- `MAILClient` uses these defaults automatically when you omit the `config` argument; the CLI REPL (`mail client`) follows the same behavior.
+- Override per run by passing `timeout=` directly or by exporting/pointing `MAIL_CONFIG_PATH` to an alternate config file.
 
 ## Endpoint Coverage
 
