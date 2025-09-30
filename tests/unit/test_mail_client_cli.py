@@ -11,7 +11,7 @@ from mail.client import MAILClientCLI
 
 
 def _make_cli() -> MAILClientCLI:
-    args = SimpleNamespace(url="http://example.com", api_key=None)
+    args = SimpleNamespace(url="http://example.com", api_key=None, verbose=False)
     return MAILClientCLI(args)  # type: ignore[arg-type]
 
 

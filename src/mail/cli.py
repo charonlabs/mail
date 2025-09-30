@@ -100,6 +100,11 @@ def _run_client_with_args(args: argparse.Namespace) -> None:
         if args.timeout is not None:
             client_config.timeout = args.timeout
 
+        print(f"args.verbose: {args.verbose}")
+        print(f"client_config.verbose: {client_config.verbose}")
+        if args.verbose:
+            client_config.verbose = True
+
         client_cli = MAILClientCLI(args, config=client_config)
         asyncio.run(client_cli.run())
     finally:
@@ -214,6 +219,12 @@ def main() -> None:
         type=float,
         required=False,
         help="client request timeout time in seconds",
+    )
+    client_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="enable verbose output",
     )
 
     # command `version`

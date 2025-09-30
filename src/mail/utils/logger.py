@@ -40,6 +40,7 @@ def init_logger():
             logging.getLogger(logger).addHandler(file_handler)
 
     # Rich handler for colored console output
+    # All mail loggers should use this handler, except ones that end in 'quiet'
     console_handler = RichHandler(
         rich_tracebacks=True,
         show_time=True,

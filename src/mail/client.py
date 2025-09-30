@@ -34,8 +34,6 @@ from mail.net.types import (
     PostSwarmsResponse,
 )
 
-logger = logging.getLogger("mail.client")
-
 
 class MAILClient:
     """
@@ -53,6 +51,11 @@ class MAILClient:
         self.api_key = api_key
         if config is None:
             config = ClientConfig()
+        self.verbose = config.verbose
+        if self.verbose:
+            self.logger = logging.getLogger("mail.client")
+        else:
+            self.logger = logging.getLogger("mailquiet.client")
 
         timeout_float = float(config.timeout)
         self._timeout = ClientTimeout(total=timeout_float)
@@ -118,7 +121,7 @@ class MAILClient:
         """
         session = await self._ensure_session()
         url = self._build_url(path)
-        logger.debug("%s %s", method.upper(), url)
+        self.logger.debug(f"{method.upper()} {url}")
 
         try:
             async with session.request(
@@ -130,6 +133,7 @@ class MAILClient:
                 response.raise_for_status()
                 return await self._read_json(response)
         except Exception as e:
+            self.logger.error("exception during request to remote HTTP, aborting")
             raise RuntimeError(f"MAIL client request failed: {e}")
 
     @staticmethod
@@ -208,7 +212,7 @@ class MAILClient:
         }
 
         url = self._build_url("/message")
-        logger.debug("POST %s (stream)", url)
+        self.logger.debug(f"POST {url} (stream)")
 
         try:
             response = await session.post(
@@ -217,11 +221,13 @@ class MAILClient:
                 headers=self._build_headers({"Accept": "text/event-stream"}),
             )
         except Exception as e:
+            self.logger.error("exception in POST request, aborting")
             raise RuntimeError(f"MAIL client request failed: {e}")
 
         try:
             response.raise_for_status()
         except Exception as e:
+            self.logger.error("exception in POST response, aborting")
             response.close()
             raise RuntimeError(f"MAIL client request failed: {e}") from e
 
@@ -411,10 +417,13 @@ class MAILClientCLI:
         config: ClientConfig | None = None,
     ) -> None:
         self.args = args
+        self._config = config or ClientConfig()
+        self.verbose = args.verbose
+        print(f"verbose: {self.verbose}")
         self.client = MAILClient(
             args.url,
             api_key=args.api_key,
-            config=config,
+            config=self._config,
         )
         self.parser = self._build_parser()
 
@@ -423,7 +432,7 @@ class MAILClientCLI:
         Build the argument parser for the MAIL client.
         """
         parser = argparse.ArgumentParser(
-            prog="",
+            prog="", # to make usage examples work inside the REPL
             description="Interact with a remote MAIL server",
             epilog="For more information, see `README.md` and `docs/`",
         )

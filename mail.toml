@@ -10,3 +10,4 @@ registry = "registries/example-no-proxy.json"
 
 [client]
 timeout = 3600.0
+verbose = false
