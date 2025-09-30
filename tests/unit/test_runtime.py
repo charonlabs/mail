@@ -147,6 +147,7 @@ async def test_submit_and_stream_handles_timeout_and_events(
     ping_event = await agen.__anext__()
     assert ping_event.event == "ping"
 
+    runtime._ensure_task_exists(task_id)
     runtime._submit_event("task_update", task_id, "intermediate status")
 
     update_event = await agen.__anext__()
@@ -220,6 +221,9 @@ def test_submit_event_tracks_events_by_task() -> None:
         swarm_name="example",
         entrypoint="supervisor",
     )
+
+    runtime._ensure_task_exists("task-a")
+    runtime._ensure_task_exists("task-b")
 
     runtime._submit_event("update", "task-a", "first")
     runtime._submit_event("update", "task-b", "second")

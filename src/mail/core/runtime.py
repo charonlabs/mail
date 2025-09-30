@@ -34,6 +34,7 @@ from .message import (
     create_system_address,
     parse_agent_address,
 )
+from .tasks import MAILTask
 from .tools import (
     MAIL_TOOL_NAMES,
     convert_call_to_mail_message,
@@ -72,13 +73,14 @@ class MAILRuntime:
         self.actions = actions
         # Agent histories in an LLM-friendly format
         self.agent_histories: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        # MAIL tasks in swarm memory
+        self.mail_tasks: dict[str, MAILTask] = {}
+        # asyncio tasks that are currently active
         self.active_tasks: set[Task[Any]] = set()
         self.shutdown_event = asyncio.Event()
-        self.response_to_user: MAILMessage | None = None
         self.is_running = False
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
-        self.events: list[ServerSentEvent] = []
         self.new_events: list[ServerSentEvent] = []
         # Event notifier for streaming to avoid busy-waiting
         self._events_available = asyncio.Event()
@@ -442,7 +444,7 @@ class MAILRuntime:
                 # Yield only events related to this task, but keep history of all
                 for ev in events_to_emit:
                     try:
-                        self.events.append(ev)
+                        self.mail_tasks[task_id].add_event(ev)
                     except Exception as e:
                         # Never let history tracking break streaming
                         logger.error(
@@ -614,6 +616,13 @@ class MAILRuntime:
 
         return
 
+    def _ensure_task_exists(self, task_id: str) -> None:
+        """
+        Ensure a task exists in swarm memory.
+        """
+        if task_id not in self.mail_tasks:
+            self.mail_tasks[task_id] = MAILTask(task_id)
+
     async def _process_message(
         self,
         message: MAILMessage,
@@ -622,6 +631,10 @@ class MAILRuntime:
         """
         The internal process for sending a message to the recipient agent(s)
         """
+        # make sure this task_id exists in swarm memory
+        task_id = message["message"]["task_id"]
+        self._ensure_task_exists(task_id)
+
         # If interswarm messaging is enabled, try to route via interswarm router first
         if self.enable_interswarm and self.interswarm_router:
             # Check if any recipients are in interswarm format
@@ -897,6 +910,9 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             "new_message",
             message["message"]["task_id"],
             f"sending message:\n{build_mail_xml(message)['content']}",
+            extra_data={
+                "full_message": message,
+            },
         )
 
         async def schedule(message: MAILMessage) -> None:
@@ -1284,20 +1300,32 @@ Use this information to decide how to complete your task.""",
             msg_type="response",
         )
 
-    def _submit_event(self, event: str, task_id: str, description: str) -> None:
+    def _submit_event(
+        self, 
+        event: str, 
+        task_id: str, 
+        description: str, 
+        extra_data: dict[str, Any] | None = None,
+    ) -> None:
         """
         Submit an event to the event queue.
         """
-        self.new_events.append(
-            ServerSentEvent(
-                data={
-                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                    "description": description,
-                    "task_id": task_id,
-                },
-                event=event,
-            )
+        self._ensure_task_exists(task_id)
+
+        if extra_data is None:
+            extra_data = {}
+
+        sse = ServerSentEvent(
+            data={
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                "description": description,
+                "task_id": task_id,
+                "extra_data": extra_data,
+            },
+            event=event,
         )
+        self.new_events.append(sse)
+        self.mail_tasks[task_id].add_event(sse)
         # Signal that new events are available for streaming
         try:
             self._events_available.set()
@@ -1309,16 +1337,13 @@ Use this information to decide how to complete your task.""",
         """
         Get events by task ID.
         """
-        candidates = []
+        candidates: list[ServerSentEvent] = []
         try:
-            candidates.extend(self.events)
+            candidates.extend(self.mail_tasks[task_id].events)
         except Exception:
             pass
-        try:
-            candidates.extend(self.new_events)
-        except Exception:
-            pass
-        out = []
+
+        out: list[ServerSentEvent] = []
         for ev in candidates:
             try:
                 if isinstance(ev.data, dict) and ev.data.get("task_id") == task_id:
@@ -1326,3 +1351,9 @@ Use this information to decide how to complete your task.""",
             except Exception:
                 continue
         return out
+
+    def get_task_by_id(self, task_id: str) -> MAILTask | None:
+        """
+        Get a task by ID.
+        """
+        return self.mail_tasks.get(task_id)
