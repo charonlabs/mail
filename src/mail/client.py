@@ -627,7 +627,7 @@ class MAILClientCLI:
         try:
             response = await self.client.post_message(
                 body=args.body,
-                subject=args.subject,
+                subject=args.subject or "New Message",
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
                 show_events=args.show_events,
@@ -644,7 +644,7 @@ class MAILClientCLI:
         try:
             response = await self.client.post_message_stream(
                 body=args.body,
-                subject=args.subject,
+                subject=args.subject or "New Message",
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
                 task_id=args.task_id,
