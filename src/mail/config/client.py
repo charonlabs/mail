@@ -52,7 +52,10 @@ def _client_defaults() -> dict[str, Any]:
     Resolve client defaults from `mail.toml`, falling back to literals.
     """
 
-    defaults: dict[str, Any] = {"timeout": 3600.0}
+    defaults: dict[str, Any] = {
+        "timeout": 3600.0,
+        "verbose": False,
+    }
 
     if tomllib is None:
         logger.debug("tomllib not available; using built-in client defaults")
@@ -74,9 +77,11 @@ def _client_defaults() -> dict[str, Any]:
     if isinstance(client_section, dict):
         if "timeout" in client_section:
             defaults["timeout"] = float(client_section["timeout"])
-
+        if "verbose" in client_section:
+            defaults["verbose"] = bool(client_section["verbose"])
     return defaults
 
 
 class ClientConfig(BaseModel):
     timeout: float = Field(default_factory=lambda: _client_defaults()["timeout"])
+    verbose: bool = Field(default_factory=lambda: _client_defaults()["verbose"])

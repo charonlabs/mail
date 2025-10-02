@@ -23,6 +23,7 @@ from toml import load as load_toml
 import mail.utils as utils
 from mail.config.server import ServerConfig
 from mail.core.message import (
+    MAIL_MESSAGE_TYPES,
     MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
@@ -81,7 +82,16 @@ async def lifespan(app: FastAPI):
     """
     Handle startup and shutdown events.
     """
-    # Startup
+    await _server_startup()
+
+    yield
+
+    await _server_shutdown()
+
+async def _server_startup() -> None:
+    """
+    Server startup logic, run before the `yield` in the lifespan context manager.
+    """
     logger.info("MAIL server starting up...")
 
     # Initialize swarm registry for interswarm messaging
@@ -122,9 +132,25 @@ async def lifespan(app: FastAPI):
         logger.error(f"error building persistent swarm: '{e}'")
         raise e
 
-    yield
+    # ensure necessary auth endpoints are registered
+    auth_endpoints = ["AUTH_ENDPOINT", "TOKEN_INFO_ENDPOINT"]
+    for endpoint in auth_endpoints:
+        if endpoint not in os.environ:
+            logger.error(f"required environment variable '{endpoint}' is not set")
+            raise Exception(f"required environment variable '{endpoint}' is not set")
 
-    # Shutdown
+    # ensure necessary swarm endpoints are registered
+    swarm_endpoints = ["SWARM_REGISTRY_FILE", "SWARM_SOURCE"]
+    for endpoint in swarm_endpoints:
+        if endpoint not in os.environ:
+            logger.error(f"required environment variable '{endpoint}' is not set")
+            raise Exception(f"required environment variable '{endpoint}' is not set")
+
+
+async def _server_shutdown() -> None:
+    """
+    Server shutdown logic, run after the `yield` in the lifespan context manager.
+    """
     logger.info("MAIL server shutting down...")
 
     # Stop swarm registry and cleanup volatile endpoints
@@ -171,7 +197,6 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         _http_session = None
-
 
 app = FastAPI(lifespan=lifespan)
 
@@ -316,10 +341,15 @@ async def message(request: Request):
     Uses a user-specific MAIL instance to process the request and returns the response.
 
     Args:
-        message: The string containing the message.
+        body: The string containing the message.
+        subject: The subject of the message.
+        msg_type: The type of the message.
         entrypoint: The entrypoint to use for the message.
         show_events: Whether to return the events for the task.
         stream: Whether to stream the response.
+        task_id: The task ID to use for the message.
+        resume_from: The type of resume to use for the message.
+        **kwargs: Additional keyword arguments to pass to the runtime.run_task method.
 
     Returns:
         A dictionary containing the response message.
@@ -346,8 +376,13 @@ async def message(request: Request):
     # parse request
     try:
         data = await request.json()
-        message = data.get("message", "")
+        body = data.get("body") or ""
+        subject = data.get("subject") or "New Message"
+        msg_type = data.get("msg_type") or "request"
         entrypoint = data.get("entrypoint")
+        task_id = data.get("task_id")
+        resume_from = data.get("resume_from")
+        kwargs = data.get("kwargs") or {}
         # Choose recipient: provided entrypoint or default from config
         if isinstance(entrypoint, str) and entrypoint.strip():
             recipient_agent = entrypoint.strip()
@@ -355,8 +390,13 @@ async def message(request: Request):
             recipient_agent = default_entrypoint_agent
         show_events = data.get("show_events", False)
         stream = data.get("stream", False)
+
+        assert isinstance(msg_type, str)
+        if msg_type not in MAIL_MESSAGE_TYPES:
+            raise HTTPException(status_code=400, detail=f"invalid message type: {msg_type}")
+
         logger.info(
-            f"received message from user or admin '{caller_id}': '{message[:50]}...'"
+            f"received message from user or admin '{caller_id}': '{body[:50]}...'"
         )
     except Exception as e:
         logger.error(f"error parsing request: '{e}'")
@@ -364,8 +404,8 @@ async def message(request: Request):
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
         )
 
-    if not message:
-        logger.warning("no message provided")
+    if not body:
+        logger.warning("no message body provided")
         raise HTTPException(status_code=400, detail="no message provided")
 
     # MAIL process
@@ -382,17 +422,27 @@ async def message(request: Request):
                 f"submitting streamed message via MAIL API for user or admin '{caller_id}'..."
             )
             return await api_swarm.post_message_stream(
-                subject="New Message", body=message, entrypoint=chosen_entrypoint
+                subject=subject,
+                body=body,
+                msg_type=msg_type, # type: ignore
+                entrypoint=chosen_entrypoint,
+                task_id=task_id,
+                resume_from=resume_from,
+                **kwargs,
             )
         else:
             logger.info(
                 f"submitting message via MAIL API for user or admin '{caller_id}' and waiting..."
             )
             result = await api_swarm.post_message(
-                subject="New Message",
-                body=message,
+                subject=subject,
+                body=body,
+                msg_type=msg_type, # type: ignore
                 entrypoint=chosen_entrypoint,
                 show_events=show_events,
+                task_id=task_id,
+                resume_from=resume_from,
+                **kwargs,
             )
             # Support both (response, events) and response-only returns
             if isinstance(result, tuple) and len(result) == 2:

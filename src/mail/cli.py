@@ -100,6 +100,9 @@ def _run_client_with_args(args: argparse.Namespace) -> None:
         if args.timeout is not None:
             client_config.timeout = args.timeout
 
+        if args.verbose:
+            client_config.verbose = True
+
         client_cli = MAILClientCLI(args, config=client_config)
         asyncio.run(client_cli.run())
     finally:
@@ -136,42 +139,49 @@ def main() -> None:
     server_parser = subparsers.add_parser("server", help="start the MAIL server")
     server_parser.set_defaults(func=_run_server_with_args)
     server_parser.add_argument(
+        "-c",
         "--config",
         type=str,
         required=False,
         help="path to the MAIL configuration file",
     )
     server_parser.add_argument(
+        "-p",
         "--port",
         type=int,
         required=False,
         help="port to listen on",
     )
     server_parser.add_argument(
+        "-H",
         "--host",
         type=str,
         required=False,
         help="host to listen on",
     )
     server_parser.add_argument(
+        "-r",
         "--reload",
         type=_str_to_bool,
         required=False,
         help="enable hot reloading",
     )
     server_parser.add_argument(
+        "-n",
         "--swarm-name",
         type=str,
         required=False,
         help="name of the swarm",
     )
     server_parser.add_argument(
+        "-s",
         "--swarm-source",
         type=str,
         required=False,
         help="source of the swarm",
     )
     server_parser.add_argument(
+        "-rf",
         "--swarm-registry",
         type=str,
         required=False,
@@ -182,27 +192,37 @@ def main() -> None:
     client_parser = subparsers.add_parser("client", help="run the MAIL client")
     client_parser.set_defaults(func=_run_client_with_args)
     client_parser.add_argument(
+        "-c",
         "--config",
         type=str,
         required=False,
         help="path to the MAIL configuration file",
     )
     client_parser.add_argument(
+        "-u",
         "--url",
         type=str,
         help="URL of the MAIL server",
     )
     client_parser.add_argument(
+        "-ak",
         "--api-key",
         type=str,
         required=False,
         help="API key for the MAIL server",
     )
     client_parser.add_argument(
+        "-t",
         "--timeout",
         type=float,
         required=False,
         help="client request timeout time in seconds",
+    )
+    client_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="enable verbose output",
     )
 
     # command `version`

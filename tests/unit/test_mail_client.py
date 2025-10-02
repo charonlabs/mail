@@ -178,9 +178,24 @@ async def test_mail_client_rest_endpoints() -> None:
         assert dump["status"] == "dumped"
         assert load["status"] == "success"
 
-    assert captured["messages"][0] == {"message": "hello world"}
+    assert captured["messages"][0] == {
+        "subject": "New Message",
+        "body": "hello world",
+        "msg_type": "request",
+        "entrypoint": None,
+        "show_events": False,
+        "task_id": None,
+        "resume_from": None,
+        "kwargs": {},
+    }
+    assert captured["messages"][1]["body"] == "needs events"
+    assert captured["messages"][1]["subject"] == "New Message"
+    assert captured["messages"][1]["msg_type"] == "request"
     assert captured["messages"][1]["show_events"] is True
     assert captured["messages"][1]["entrypoint"] == "other"
+    assert captured["messages"][1]["task_id"] is None
+    assert captured["messages"][1]["resume_from"] is None
+    assert captured["messages"][1]["kwargs"] == {}
     assert captured["registrations"][0]["volatile"] is False
     assert captured["registrations"][0]["metadata"] == {"label": "alpha"}
     assert captured["interswarm_message"][0]["msg_type"] == "response"
@@ -198,7 +213,16 @@ async def test_mail_client_post_message_stream() -> None:
     async def handle_stream(request: web.Request) -> web.StreamResponse:
         assert request.headers.get("Accept") == "text/event-stream"
         payload = await request.json()
-        assert payload["stream"] is True
+        assert payload == {
+            "subject": "New Message",
+            "body": "eventful",
+            "msg_type": "request",
+            "entrypoint": None,
+            "stream": True,
+            "task_id": None,
+            "resume_from": None,
+            "kwargs": {},
+        }
         resp = web.StreamResponse(
             status=200, headers={"Content-Type": "text/event-stream"}
         )

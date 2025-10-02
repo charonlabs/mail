@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 1.0
-- **Date**: September 18, 2025
+- **Version**: 1.1
+- **Date**: October 3, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -113,6 +113,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - A **user task** is identified by `task_id`.
 - The task **completes** when a `broadcast_complete` for the corresponding `task_id` is produced by a supervisor in the swarm that initiated it.
 - Systems using `submit_and_wait` MUST resolve awaiting futures only when `broadcast_complete` for that `task_id` is observed.
+- A given task MAY be referenced in a future request from the calling user, even after `task_complete`. Resumed tasks MUST also resolve only on `task_complete`.
 
 ### Body Encoding
 
@@ -138,7 +139,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 ## Runtime Model
 
 - A **MAIL Instance**:
-  - Maintains per-agent message histories for context.
+  - Maintains per-task message histories for context.
   - Executes agent tool calls, which may or may not be native to MAIL.
   - Tracks pending requests keyed by `task_id`; resolves only on `broadcast_complete`.
   - Supports continuous operation and graceful shutdown (waits for active tasks to finish).
@@ -210,7 +211,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **`GET /`**: Server metadata. Returns `{ name, status, version }`.
 - **`GET /health`**: Health probe for interswarm peers. Returns `{ status, swarm_name, timestamp }`.
 - **`GET /status`** (`user|admin`): Server status, including swarm and user-instance indicators.
-- **`POST /message`** (`user|admin`): Body `{ message: string, entrypoint?: string, show_events?: boolean, stream?: boolean }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
+- **`POST /message`** (`user|admin`): Body `{ message: string, entrypoint?: string, show_events?: boolean, stream?: boolean, resume_from?: user_response|breakpoint_tool_called, kwargs?: object }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
 - **`GET /swarms`**: List known swarms from the registry.
 - **`POST /swarms`** (`admin`): Body `{ name, base_url, auth_token?, volatile?, metadata? }`. Registers or updates a remote swarm. Non-volatile entries persist across restarts.
 - **`GET /swarms/dump`** (`admin`): Logs the active persistent swarm and returns `{ status, swarm_name }`.
@@ -252,7 +253,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Versioning
 
-- **Protocol version**: 1.0
+- **Protocol version**: 1.1
 - Backward-incompatible changes MUST bump the minor (or major) version and update OpenAPI `info.version`.
 
 ## References

@@ -8,7 +8,7 @@ import json
 import logging
 import shlex
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from aiohttp import (
     ClientResponse,
@@ -34,8 +34,6 @@ from mail.net.types import (
     PostSwarmsResponse,
 )
 
-logger = logging.getLogger("mail.client")
-
 
 class MAILClient:
     """
@@ -53,6 +51,11 @@ class MAILClient:
         self.api_key = api_key
         if config is None:
             config = ClientConfig()
+        self.verbose = config.verbose
+        if self.verbose:
+            self.logger = logging.getLogger("mail.client")
+        else:
+            self.logger = logging.getLogger("mailquiet.client")
 
         timeout_float = float(config.timeout)
         self._timeout = ClientTimeout(total=timeout_float)
@@ -118,7 +121,7 @@ class MAILClient:
         """
         session = await self._ensure_session()
         url = self._build_url(path)
-        logger.debug("%s %s", method.upper(), url)
+        self.logger.debug(f"{method.upper()} {url}")
 
         try:
             async with session.request(
@@ -130,6 +133,7 @@ class MAILClient:
                 response.raise_for_status()
                 return await self._read_json(response)
         except Exception as e:
+            self.logger.error("exception during request to remote HTTP, aborting")
             raise RuntimeError(f"MAIL client request failed: {e}")
 
     @staticmethod
@@ -159,20 +163,29 @@ class MAILClient:
 
     async def post_message(
         self,
-        message: str,
+        body: str,
+        subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         *,
         entrypoint: str | None = None,
         show_events: bool = False,
+        task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> PostMessageResponse:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
         """
-        payload: dict[str, Any] = {"message": message}
-
-        if entrypoint:
-            payload["entrypoint"] = entrypoint
-        if show_events:
-            payload["show_events"] = True
+        payload: dict[str, Any] = {
+            "subject": subject,
+            "body": body,
+            "msg_type": msg_type,
+            "entrypoint": entrypoint,
+            "show_events": show_events,
+            "task_id": task_id,
+            "resume_from": resume_from,
+            "kwargs": kwargs,
+        }
 
         return cast(
             PostMessageResponse,
@@ -181,9 +194,14 @@ class MAILClient:
 
     async def post_message_stream(
         self,
-        message: str,
+        body: str,
+        subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         *,
         entrypoint: str | None = None,
+        task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> AsyncIterator[ServerSentEvent]:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
@@ -191,14 +209,18 @@ class MAILClient:
         session = await self._ensure_session()
 
         payload: dict[str, Any] = {
-            "message": message,
+            "subject": subject,
+            "body": body,
+            "msg_type": msg_type,
+            "entrypoint": entrypoint,
             "stream": True,
+            "task_id": task_id,
+            "resume_from": resume_from,
+            "kwargs": kwargs,
         }
 
-        if entrypoint:
-            payload["entrypoint"] = entrypoint
         url = self._build_url("/message")
-        logger.debug("POST %s (stream)", url)
+        self.logger.debug(f"POST {url} (stream)")
 
         try:
             response = await session.post(
@@ -207,11 +229,13 @@ class MAILClient:
                 headers=self._build_headers({"Accept": "text/event-stream"}),
             )
         except Exception as e:
+            self.logger.error("exception in POST request, aborting")
             raise RuntimeError(f"MAIL client request failed: {e}")
 
         try:
             response.raise_for_status()
         except Exception as e:
+            self.logger.error("exception in POST response, aborting")
             response.close()
             raise RuntimeError(f"MAIL client request failed: {e}") from e
 
@@ -401,10 +425,12 @@ class MAILClientCLI:
         config: ClientConfig | None = None,
     ) -> None:
         self.args = args
+        self._config = config or ClientConfig()
+        self.verbose = args.verbose
         self.client = MAILClient(
             args.url,
             api_key=args.api_key,
-            config=config,
+            config=self._config,
         )
         self.parser = self._build_parser()
 
@@ -413,7 +439,7 @@ class MAILClientCLI:
         Build the argument parser for the MAIL client.
         """
         parser = argparse.ArgumentParser(
-            prog="",
+            prog="", # to make usage examples work inside the REPL
             description="Interact with a remote MAIL server",
             epilog="For more information, see `README.md` and `docs/`",
         )
@@ -432,19 +458,65 @@ class MAILClientCLI:
             "post-message", help="send a message to the MAIL server"
         )
         post_message_parser.add_argument(
-            "--message",
+            "body",
             type=str,
             help="the message to send",
         )
         post_message_parser.add_argument(
-            "--entrypoint",
+            "-s",
+            "--subject",
             type=str,
-            help="the entrypoint to send the message to",
+            required=False,
+            default="New Message",
+            help="the subject of the message",
         )
         post_message_parser.add_argument(
+            "-t",
+            "--msg-type",
+            type=str,
+            required=False,
+            default="request",
+            help="the type of the message",
+        )
+        post_message_parser.add_argument(
+            "-tid",
+            "--task-id",
+            type=str,
+            required=False,
+            default=None,
+            help="the task ID of the message",
+        )
+        post_message_parser.add_argument(
+            "-e",
+            "--entrypoint",
+            type=str,
+            required=False,
+            default=None,
+            help="the agent to send the message to",
+        )
+        post_message_parser.add_argument(
+            "-se",
             "--show-events",
             action="store_true",
+            required=False,
+            default=False,
             help="show events",
+        )
+        post_message_parser.add_argument(
+            "-rf",
+            "--resume-from",
+            type=str,
+            required=False,
+            default=None,
+            help="the resume from of the message",
+        )
+        post_message_parser.add_argument(
+            "-k",
+            "--kwargs",
+            type=json.loads,
+            required=False,
+            default=f"{{}}",  # noqa: F541
+            help="the kwargs of the message",
         )
         post_message_parser.set_defaults(func=self._post_message)
 
@@ -454,14 +526,57 @@ class MAILClientCLI:
             help="send a message to the MAIL server and stream the response",
         )
         post_message_stream_parser.add_argument(
-            "--message",
+            "body",
             type=str,
             help="the message to send",
         )
         post_message_stream_parser.add_argument(
+            "-s",
+            "--subject",
+            type=str,
+            required=False,
+            default="New Message",
+            help="the subject of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-t",
+            "--msg-type",
+            type=str,
+            required=False,
+            default="request",
+            help="the type of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-tid",
+            "--task-id",
+            type=str,
+            required=False,
+            default=None,
+            help="the task ID of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-e",
             "--entrypoint",
             type=str,
-            help="the entrypoint to send the message to",
+            required=False,
+            default=None,
+            help="the agent to send the message to",
+        )
+        post_message_stream_parser.add_argument(
+            "-rf",
+            "--resume-from",
+            type=str,
+            required=False,
+            default=None,
+            help="the resume from of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-k",
+            "--kwargs",
+            type=json.loads,
+            required=False,
+            default=f"{{}}",  # noqa: F541
+            help="the kwargs of the message",
         )
         post_message_stream_parser.set_defaults(func=self._post_message_stream)
 
@@ -482,22 +597,26 @@ class MAILClientCLI:
             "register-swarm", help="register a swarm with the MAIL server"
         )
         register_swarm_parser.add_argument(
+            "-n",
             "--name",
             type=str,
             help="the name of the swarm",
         )
         register_swarm_parser.add_argument(
+            "-bu",
             "--base-url",
             type=str,
             help="the base URL of the swarm",
         )
         register_swarm_parser.add_argument(
+            "-at",
             "--auth-token",
             type=str,
             required=False,
             help="the auth token of the swarm",
         )
         register_swarm_parser.add_argument(
+            "-v",
             "--volatile",
             type=bool,
             required=False,
@@ -563,7 +682,14 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message(
-                args.message, entrypoint=args.entrypoint, show_events=args.show_events
+                body=args.body,
+                subject=args.subject or "New Message",
+                msg_type=args.msg_type,
+                entrypoint=args.entrypoint,
+                show_events=args.show_events,
+                task_id=args.task_id,
+                resume_from=args.resume_from,
+                **args.kwargs,
             )
             print(json.dumps(response, indent=2))
         except Exception as e:
@@ -575,7 +701,13 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.post_message_stream(
-                args.message, entrypoint=args.entrypoint
+                body=args.body,
+                subject=args.subject or "New Message",
+                msg_type=args.msg_type,
+                entrypoint=args.entrypoint,
+                task_id=args.task_id,
+                resume_from=args.resume_from,
+                **args.kwargs,
             )
             async for event in response:
                 parsed_event = {

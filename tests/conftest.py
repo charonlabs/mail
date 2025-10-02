@@ -158,6 +158,14 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     server.swarm_mail_instances.clear()
     server.swarm_mail_tasks.clear()
 
+    # required environment variables
+    monkeypatch.setenv("AUTH_ENDPOINT", "http://test-auth.local/login")
+    monkeypatch.setenv("TOKEN_INFO_ENDPOINT", "http://test-auth.local/token-info")
+    monkeypatch.setenv("SWARM_NAME", "example")
+    monkeypatch.setenv("BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("SWARM_REGISTRY_FILE", "test-swarm-registry.json")
+    monkeypatch.setenv("SWARM_SOURCE", "tests/swarms.json")
+
     # Fake registry prevents network
     monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
 

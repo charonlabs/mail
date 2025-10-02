@@ -58,7 +58,35 @@ def test_message_flow_success():
         r = client.post(
             "/message",
             headers={"Authorization": "Bearer test-key"},
-            json={"message": "Hello"},
+            json={
+                "subject": "Hello",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["response"] is not None
+
+
+@pytest.mark.usefixtures("patched_server")
+def test_message_flow_defaults_msg_type_on_none():
+    """
+    The server should treat an explicit `null` message type as a request.
+    """
+    from mail.server import app
+
+    with TestClient(app) as client:
+        r = client.post(
+            "/message",
+            headers={"Authorization": "Bearer test-key"},
+            json={
+                "subject": "Hello",
+                "body": "Hello",
+                "msg_type": None,
+                "task_id": "test-task-id",
+            },
         )
         assert r.status_code == 200
         data = r.json()

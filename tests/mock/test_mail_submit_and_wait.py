@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Addison Kline
 
 import asyncio
+import json
 
 import pytest
 
@@ -45,6 +46,7 @@ async def test_submit_and_wait_resolves_on_task_complete() -> None:
         actions={},
         user_id="user-1",
         swarm_name="example",
+        entrypoint="supervisor",
         swarm_registry=None,
         enable_interswarm=False,
     )
@@ -85,3 +87,80 @@ async def test_submit_and_wait_resolves_on_task_complete() -> None:
             pass
     assert result["msg_type"] == "broadcast_complete"
     assert result["message"]["body"] == "All good"
+
+
+@pytest.mark.asyncio
+async def test_breakpoint_tool_triggers_task_complete() -> None:
+    """
+    Ensure breakpoint tools complete the task and surface the tool call.
+    """
+
+    async def breakpoint_agent(history, tool_choice):  # noqa: ARG001
+        from mail.core.tools import AgentToolCall
+
+        call = AgentToolCall(
+            tool_name="pause_for_debug",
+            tool_args={"note": "pausing"},
+            tool_call_id="bp-1",
+            completion={"role": "assistant", "content": "debug pause"},
+        )
+        return None, [call]
+
+    mail = MAILRuntime(
+        agents={
+            "supervisor": AgentCore(
+                function=breakpoint_agent,
+                comm_targets=["supervisor"],
+                enable_entrypoint=True,
+                enable_interswarm=False,
+                can_complete_tasks=True,
+            )
+        },
+        actions={},
+        user_id="user-1",
+        swarm_name="example",
+        swarm_registry=None,
+        enable_interswarm=False,
+        entrypoint="supervisor",
+        breakpoint_tools=["pause_for_debug"],
+    )
+
+    msg: MAILMessage = MAILMessage(
+        id="m1",
+        timestamp="2024-01-01T00:00:00Z",
+        message=MAILRequest(
+            task_id="t-break",
+            request_id="r-break",
+            sender=create_user_address("user-1"),
+            recipient=create_agent_address("supervisor"),
+            subject="Pause",
+            body="hit breakpoint",
+            sender_swarm=None,
+            recipient_swarm=None,
+            routing_info=None,
+        ),
+        msg_type="request",
+    )
+
+    loop_task = asyncio.create_task(mail.run_continuous())
+    try:
+        await asyncio.sleep(0)
+
+        result = await asyncio.wait_for(
+            mail.submit_and_wait(msg, timeout=2.0), timeout=3.0
+        )
+    finally:
+        await mail.shutdown()
+        loop_task.cancel()
+        try:
+            await loop_task
+        except asyncio.CancelledError:
+            pass
+
+    assert result["msg_type"] == "broadcast_complete"
+    assert result["message"]["subject"] == "Breakpoint Tool Call: 'pause_for_debug'"
+
+    payload = json.loads(result["message"]["body"])
+    assert payload["tool_name"] == "pause_for_debug"
+    assert payload["tool_args"] == {"note": "pausing"}
+    assert payload["tool_call_id"] == "bp-1"
