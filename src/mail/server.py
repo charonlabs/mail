@@ -23,6 +23,7 @@ from toml import load as load_toml
 import mail.utils as utils
 from mail.config.server import ServerConfig
 from mail.core.message import (
+    MAIL_MESSAGE_TYPES,
     MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
@@ -81,7 +82,16 @@ async def lifespan(app: FastAPI):
     """
     Handle startup and shutdown events.
     """
-    # Startup
+    await _server_startup()
+
+    yield
+
+    await _server_shutdown()
+
+async def _server_startup() -> None:
+    """
+    Server startup logic, run before the `yield` in the lifespan context manager.
+    """
     logger.info("MAIL server starting up...")
 
     # Initialize swarm registry for interswarm messaging
@@ -122,9 +132,25 @@ async def lifespan(app: FastAPI):
         logger.error(f"error building persistent swarm: '{e}'")
         raise e
 
-    yield
+    # ensure necessary auth endpoints are registered
+    auth_endpoints = ["AUTH_ENDPOINT", "TOKEN_INFO_ENDPOINT"]
+    for endpoint in auth_endpoints:
+        if endpoint not in os.environ:
+            logger.error(f"required environment variable '{endpoint}' is not set")
+            raise Exception(f"required environment variable '{endpoint}' is not set")
 
-    # Shutdown
+    # ensure necessary swarm endpoints are registered
+    swarm_endpoints = ["SWARM_REGISTRY_FILE", "SWARM_SOURCE"]
+    for endpoint in swarm_endpoints:
+        if endpoint not in os.environ:
+            logger.error(f"required environment variable '{endpoint}' is not set")
+            raise Exception(f"required environment variable '{endpoint}' is not set")
+
+
+async def _server_shutdown() -> None:
+    """
+    Server shutdown logic, run after the `yield` in the lifespan context manager.
+    """
     logger.info("MAIL server shutting down...")
 
     # Stop swarm registry and cleanup volatile endpoints
@@ -171,7 +197,6 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
         _http_session = None
-
 
 app = FastAPI(lifespan=lifespan)
 
@@ -351,13 +376,13 @@ async def message(request: Request):
     # parse request
     try:
         data = await request.json()
-        body = data.get("body", "")
-        subject = data.get("subject", "New Message")
-        msg_type = data.get("msg_type", "request")
+        body = data.get("body") or ""
+        subject = data.get("subject") or "New Message"
+        msg_type = data.get("msg_type") or "request"
         entrypoint = data.get("entrypoint")
         task_id = data.get("task_id")
-        resume_from = data.get("resume_from", None)
-        kwargs = data.get("kwargs", {})
+        resume_from = data.get("resume_from")
+        kwargs = data.get("kwargs") or {}
         # Choose recipient: provided entrypoint or default from config
         if isinstance(entrypoint, str) and entrypoint.strip():
             recipient_agent = entrypoint.strip()
@@ -365,6 +390,11 @@ async def message(request: Request):
             recipient_agent = default_entrypoint_agent
         show_events = data.get("show_events", False)
         stream = data.get("stream", False)
+
+        assert isinstance(msg_type, str)
+        if msg_type not in MAIL_MESSAGE_TYPES:
+            raise HTTPException(status_code=400, detail=f"invalid message type: {msg_type}")
+
         logger.info(
             f"received message from user or admin '{caller_id}': '{body[:50]}...'"
         )
@@ -394,7 +424,7 @@ async def message(request: Request):
             return await api_swarm.post_message_stream(
                 subject=subject,
                 body=body,
-                msg_type=msg_type,
+                msg_type=msg_type, # type: ignore
                 entrypoint=chosen_entrypoint,
                 task_id=task_id,
                 resume_from=resume_from,
@@ -407,7 +437,7 @@ async def message(request: Request):
             result = await api_swarm.post_message(
                 subject=subject,
                 body=body,
-                msg_type=msg_type,
+                msg_type=msg_type, # type: ignore
                 entrypoint=chosen_entrypoint,
                 show_events=show_events,
                 task_id=task_id,

@@ -170,6 +170,8 @@ class MAILClient:
         entrypoint: str | None = None,
         show_events: bool = False,
         task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> PostMessageResponse:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
@@ -181,6 +183,8 @@ class MAILClient:
             "entrypoint": entrypoint,
             "show_events": show_events,
             "task_id": task_id,
+            "resume_from": resume_from,
+            "kwargs": kwargs,
         }
 
         return cast(
@@ -196,6 +200,8 @@ class MAILClient:
         *,
         entrypoint: str | None = None,
         task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> AsyncIterator[ServerSentEvent]:
         """
         Queue a user-scoped task, optionally returning runtime events or an SSE stream (`POST /message`).
@@ -209,6 +215,8 @@ class MAILClient:
             "entrypoint": entrypoint,
             "stream": True,
             "task_id": task_id,
+            "resume_from": resume_from,
+            "kwargs": kwargs,
         }
 
         url = self._build_url("/message")
@@ -450,8 +458,7 @@ class MAILClientCLI:
             "post-message", help="send a message to the MAIL server"
         )
         post_message_parser.add_argument(
-            "-b",
-            "--body",
+            "body",
             type=str,
             help="the message to send",
         )
@@ -459,31 +466,57 @@ class MAILClientCLI:
             "-s",
             "--subject",
             type=str,
+            required=False,
+            default="New Message",
             help="the subject of the message",
         )
         post_message_parser.add_argument(
             "-t",
             "--msg-type",
             type=str,
+            required=False,
+            default="request",
             help="the type of the message",
         )
         post_message_parser.add_argument(
             "-tid",
             "--task-id",
             type=str,
+            required=False,
+            default=None,
             help="the task ID of the message",
         )
         post_message_parser.add_argument(
             "-e",
             "--entrypoint",
             type=str,
+            required=False,
+            default=None,
             help="the agent to send the message to",
         )
         post_message_parser.add_argument(
             "-se",
             "--show-events",
             action="store_true",
+            required=False,
+            default=False,
             help="show events",
+        )
+        post_message_parser.add_argument(
+            "-rf",
+            "--resume-from",
+            type=str,
+            required=False,
+            default=None,
+            help="the resume from of the message",
+        )
+        post_message_parser.add_argument(
+            "-k",
+            "--kwargs",
+            type=json.loads,
+            required=False,
+            default=f"{{}}",  # noqa: F541
+            help="the kwargs of the message",
         )
         post_message_parser.set_defaults(func=self._post_message)
 
@@ -493,8 +526,7 @@ class MAILClientCLI:
             help="send a message to the MAIL server and stream the response",
         )
         post_message_stream_parser.add_argument(
-            "-b",
-            "--body",
+            "body",
             type=str,
             help="the message to send",
         )
@@ -502,25 +534,49 @@ class MAILClientCLI:
             "-s",
             "--subject",
             type=str,
+            required=False,
+            default="New Message",
             help="the subject of the message",
         )
         post_message_stream_parser.add_argument(
             "-t",
             "--msg-type",
             type=str,
+            required=False,
+            default="request",
             help="the type of the message",
         )
         post_message_stream_parser.add_argument(
             "-tid",
             "--task-id",
             type=str,
+            required=False,
+            default=None,
             help="the task ID of the message",
         )
         post_message_stream_parser.add_argument(
             "-e",
             "--entrypoint",
             type=str,
+            required=False,
+            default=None,
             help="the agent to send the message to",
+        )
+        post_message_stream_parser.add_argument(
+            "-rf",
+            "--resume-from",
+            type=str,
+            required=False,
+            default=None,
+            help="the resume from of the message",
+        )
+        post_message_stream_parser.add_argument(
+            "-k",
+            "--kwargs",
+            type=json.loads,
+            required=False,
+            default=f"{{}}",  # noqa: F541
+            help="the kwargs of the message",
         )
         post_message_stream_parser.set_defaults(func=self._post_message_stream)
 
@@ -632,6 +688,8 @@ class MAILClientCLI:
                 entrypoint=args.entrypoint,
                 show_events=args.show_events,
                 task_id=args.task_id,
+                resume_from=args.resume_from,
+                **args.kwargs,
             )
             print(json.dumps(response, indent=2))
         except Exception as e:
@@ -648,6 +706,8 @@ class MAILClientCLI:
                 msg_type=args.msg_type,
                 entrypoint=args.entrypoint,
                 task_id=args.task_id,
+                resume_from=args.resume_from,
+                **args.kwargs,
             )
             async for event in response:
                 parsed_event = {

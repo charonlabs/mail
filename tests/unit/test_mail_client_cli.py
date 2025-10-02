@@ -75,7 +75,7 @@ async def test_cli_uses_shlex_for_tokenization(
 
     cli = _make_cli()
 
-    inputs = iter(['post-message --body "hello world"', "exit"])
+    inputs = iter(['post-message "hello world"', "exit"])
 
     def fake_input(_prompt: str) -> str:
         return next(inputs)
