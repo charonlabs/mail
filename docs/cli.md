@@ -42,8 +42,8 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 | `help` or `?` | Print CLI usage information without exiting the loop. |
 | `exit` / `quit` | Leave the REPL. |
 | `get-health` | Invoke `GET /health` and print the JSON body. |
-| `post-message --message "…" [--entrypoint …] [--show-events]` | Submit a message and print the structured response. |
-| `post-message-stream --message "…"` | Stream SSE events; each event is printed as it arrives. |
+| `post-message --message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
+| `post-message-stream --message "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
 | `get-swarms`, `register-swarm`, `dump-swarm` | Manage the swarm registry. |
 | `send-interswarm-message` | Send interswarm traffic by target agent. |
 | `load-swarm-from-json` | Submit a JSON payload to `POST /swarms/load`. |
@@ -64,6 +64,21 @@ When the server emits events, each `ServerSentEvent` object is printed in
 arrival order. This is particularly useful when you want to monitor `task_complete`
 notifications or inspect intermediate `new_message` / `action_call` events
 without leaving the terminal.
+
+### Working with Tasks and Breakpoint Resumes
+
+- Both messaging commands accept `--task-id`. Provide it to resume an existing task; omit it to let the server allocate one for a brand-new task.
+- To continue a task that paused on a breakpoint tool call, add the following flags:
+
+  ```shell
+  mail> post-message-stream \
+        --task-id weather-123 \
+        --resume-from breakpoint_tool_call \
+        --kwargs '{"breakpoint_tool_caller": "analyst", "breakpoint_tool_call_result": "Forecast: sunny"}'
+  ```
+
+- The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
+- `--resume-from user_response` is reserved for future releases and currently raises an error if supplied.
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, and `--timeout`.
