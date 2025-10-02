@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MAIL Server API
-  version: "1.0"
+  version: "1.1"
   description: REST API for the Multi-Agent Interface Layer (MAIL) server, including interswarm messaging.
 servers:
   - url: http://localhost:8000
@@ -96,6 +96,15 @@ paths:
                   type: boolean
                   description: When true, server responds with text/event-stream (SSE)
                   default: false
+                resume_from:
+                  type: string
+                  description: When provided, resume the task from the given state
+                  enum: ["user_response", "breakpoint_tool_call"]
+                  default: null
+                kwargs:
+                  type: object
+                  description: Additional keyword arguments to pass to the entrypoint
+                  default: {}
       responses:
         '200':
           description: Final response produced by supervisor after task completion
