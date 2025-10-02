@@ -3,7 +3,7 @@
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from pydantic import ValidationError
@@ -12,9 +12,9 @@ from mail.api import MAILAction, MAILAgent
 from tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
 
-class FakeMAIL:
+class FakeMAILRuntime:
     """
-    Lightweight stub for mail.core.MAIL used by MAILSwarm tests.
+    Lightweight stub for mail.core.MAILRuntime used by MAILSwarm tests.
     """
 
     def __init__(
@@ -39,7 +39,7 @@ class FakeMAIL:
 
     @pytest.mark.asyncio
     async def submit_and_wait(
-        self, message: dict[str, Any], _timeout: float = 3600.0
+        self, message: dict[str, Any], _timeout: float = 3600.0, _resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None, **kwargs: Any
     ) -> dict[str, Any]:
         """
         Replacement for `MAILRuntime.submit_and_wait`.
@@ -73,7 +73,7 @@ class FakeMAIL:
 
     @pytest.mark.asyncio
     async def submit_and_stream(
-        self, _message: dict[str, Any], _timeout: float = 3600.0
+        self, _message: dict[str, Any], _timeout: float = 3600.0, _resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None, **kwargs: Any
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Replacement for `MAILRuntime.submit_and_stream`.
@@ -94,7 +94,7 @@ def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
     # Patch the MAILRuntime used inside mail.api to avoid heavy runtime behavior
     import mail.api as api
 
-    monkeypatch.setattr(api, "MAILRuntime", FakeMAIL)
+    monkeypatch.setattr(api, "MAILRuntime", FakeMAILRuntime)
 
 
 def test_from_swarm_json_valid_creates_swarm() -> None:
@@ -134,7 +134,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     assert swarm.name == "myswarm"
     assert swarm.entrypoint == "supervisor"
     # Ensure runtime was created with our stub
-    assert isinstance(swarm._runtime, FakeMAIL)
+    assert isinstance(swarm._runtime, FakeMAILRuntime)
     assert swarm._runtime.user_id == "u-1"
     assert swarm._runtime.swarm_name == "myswarm"
 

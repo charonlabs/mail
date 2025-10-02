@@ -3,9 +3,11 @@
 import asyncio
 import datetime
 import uuid
+from types import MethodType
 
 import pytest
 
+from mail.core.agents import AgentCore
 from mail.core.message import (
     MAILBroadcast,
     MAILInterrupt,
@@ -14,7 +16,7 @@ from mail.core.message import (
     create_agent_address,
     create_user_address,
 )
-from mail.core.runtime import MAILRuntime
+from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
 
 
 def _make_request(
@@ -238,3 +240,175 @@ def test_submit_event_tracks_events_by_task() -> None:
 
     events_missing = runtime.get_events_by_task_id("missing")
     assert events_missing == []
+
+
+@pytest.mark.asyncio
+async def test_run_task_breakpoint_resume_requires_task_id() -> None:
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-5",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    response = await runtime.run_task(resume_from="breakpoint_tool_call")
+
+    assert response["msg_type"] == "broadcast_complete"
+    assert response["message"]["subject"] == "Runtime Error"
+    assert "parameter 'task_id' is required" in response["message"]["body"]
+
+
+@pytest.mark.asyncio
+async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
+    task_id = "task-breakpoint"
+    tool_caller = "analyst"
+
+    async def noop_agent(
+        history: list[dict[str, str]], task: str
+    ) -> tuple[str | None, list]:
+        return ("ack", [])
+
+    runtime = MAILRuntime(
+        agents={
+            tool_caller: AgentCore(function=noop_agent, comm_targets=[])
+        },
+        actions={},
+        user_id="user-6",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+    runtime._ensure_task_exists(task_id)
+
+    action_override_called_with: dict[str, object] = {}
+    expected_result = runtime._system_broadcast(
+        task_id=task_id,
+        subject="Resumed",
+        body="complete",
+        task_complete=True,
+    )
+
+    async def fake_run_loop(self: MAILRuntime, task: str, override) -> MAILMessage:
+        action_override_called_with["task_id"] = task
+        action_override_called_with["override"] = override
+        return expected_result
+
+    runtime._run_loop_for_task = MethodType(fake_run_loop, runtime) # type: ignore
+
+    async def action_override(payload: dict[str, object]) -> dict[str, object] | str:
+        return payload
+
+    result = await runtime.run_task(
+        task_id=task_id,
+        resume_from="breakpoint_tool_call",
+        breakpoint_tool_caller=tool_caller,
+        breakpoint_tool_call_result="done",
+        action_override=action_override,
+    )
+
+    assert result == expected_result
+    assert action_override_called_with["task_id"] == task_id
+    assert action_override_called_with["override"] is action_override
+
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=tool_caller)
+    assert runtime.agent_histories[history_key][-1]["role"] == "tool"
+    assert runtime.agent_histories[history_key][-1]["content"] == "done"
+
+    _priority, _seq, queued_message = runtime.message_queue.get_nowait()
+    runtime.message_queue.task_done()
+    assert queued_message["message"]["subject"] == "::action_complete_broadcast::"
+    assert queued_message["msg_type"] == "broadcast"
+    recipient = queued_message["message"]["recipients"][0] # type: ignore
+    assert recipient["address"] == create_agent_address(tool_caller)["address"]
+
+
+@pytest.mark.asyncio
+async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> None:
+    task_id = "missing-task"
+    tool_caller = "analyst"
+
+    async def noop_agent(
+        history: list[dict[str, str]], task: str
+    ) -> tuple[str | None, list]:
+        return ("ack", [])
+
+    runtime = MAILRuntime(
+        agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
+        actions={},
+        user_id="user-7",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    message = _make_request(task_id)
+
+    response = await runtime.submit_and_wait(
+        message,
+        resume_from="breakpoint_tool_call",
+        breakpoint_tool_caller=tool_caller,
+        breakpoint_tool_call_result="ready",
+    )
+
+    assert response["msg_type"] == "broadcast_complete"
+    assert response["message"]["subject"] == "Task Error"
+    assert "task 'missing-task' not found" in response["message"]["body"]
+    assert task_id not in runtime.pending_requests
+
+
+@pytest.mark.asyncio
+async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() -> None:
+    task_id = "task-continuous"
+    tool_caller = "analyst"
+
+    async def noop_agent(
+        history: list[dict[str, str]], task: str
+    ) -> tuple[str | None, list]:
+        return ("ack", [])
+
+    runtime = MAILRuntime(
+        agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
+        actions={},
+        user_id="user-8",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+    runtime._ensure_task_exists(task_id)
+
+    completion_message = runtime._system_broadcast(
+        task_id=task_id,
+        subject="Done",
+        body="complete",
+        task_complete=True,
+    )
+
+    async def resolve_future() -> None:
+        while task_id not in runtime.pending_requests:
+            await asyncio.sleep(0)
+        future = runtime.pending_requests.pop(task_id)
+        future.set_result(completion_message)
+
+    completer = asyncio.create_task(resolve_future())
+
+    message = _make_request(task_id)
+    result = await runtime.submit_and_wait(
+        message,
+        resume_from="breakpoint_tool_call",
+        breakpoint_tool_caller=tool_caller,
+        breakpoint_tool_call_result="ready",
+    )
+
+    await completer
+
+    assert result == completion_message
+
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=tool_caller)
+    assert runtime.agent_histories[history_key][-1]["role"] == "tool"
+    assert runtime.agent_histories[history_key][-1]["content"] == "ready"
+
+    _priority, _seq, resume_message = runtime.message_queue.get_nowait()
+    runtime.message_queue.task_done()
+    assert resume_message["message"]["subject"] == "::action_complete_broadcast::"
+    recipient = resume_message["message"]["recipients"][0] # type: ignore
+    assert recipient["address"] == create_agent_address(tool_caller)["address"]
+
+    assert task_id not in runtime.pending_requests

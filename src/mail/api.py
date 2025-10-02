@@ -647,6 +647,8 @@ class MAILSwarm:
         show_events: bool = False,
         timeout: float = 3600.0,
         task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Post a message to the swarm and return the task completion response.
@@ -657,7 +659,16 @@ class MAILSwarm:
 
         message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
 
-        return await self.submit_message(message, timeout, show_events)
+        runtime_kwargs = dict(kwargs)
+        if resume_from is not None:
+            runtime_kwargs["resume_from"] = resume_from
+
+        return await self.submit_message(
+            message,
+            timeout=timeout,
+            show_events=show_events,
+            **runtime_kwargs,
+        )
 
     async def post_message_stream(
         self,
@@ -667,6 +678,8 @@ class MAILSwarm:
         entrypoint: str | None = None,
         task_id: str | None = None,
         timeout: float = 3600.0,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> EventSourceResponse:
         """
         Post a message to the swarm and stream the response.
@@ -677,7 +690,15 @@ class MAILSwarm:
 
         message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
 
-        return await self.submit_message_stream(message, timeout)
+        runtime_kwargs = dict(kwargs)
+        if resume_from is not None:
+            runtime_kwargs["resume_from"] = resume_from
+
+        return await self.submit_message_stream(
+            message,
+            timeout=timeout,
+            **runtime_kwargs,
+        )
 
     async def post_message_and_run(
         self,
@@ -687,6 +708,8 @@ class MAILSwarm:
         entrypoint: str | None = None,
         show_events: bool = False,
         task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Post a message to the swarm and run until the task is complete.
@@ -698,7 +721,7 @@ class MAILSwarm:
         message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
 
         await self._runtime.submit(message)
-        task_response = await self._runtime.run()
+        task_response = await self._runtime.run_task(task_id=task_id, resume_from=resume_from, **kwargs)
 
         if show_events:
             return task_response, self._runtime.get_events_by_task_id(
@@ -807,11 +830,13 @@ class MAILSwarm:
         message: MAILMessage,
         timeout: float = 3600.0,
         show_events: bool = False,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Submit a fully-formed MAILMessage to the swarm and return the response.
         """
-        response = await self._runtime.submit_and_wait(message, timeout)
+        response = await self._runtime.submit_and_wait(message, timeout, resume_from, **kwargs)
 
         if show_events:
             return response, self._runtime.get_events_by_task_id(
@@ -824,13 +849,15 @@ class MAILSwarm:
         self,
         message: MAILMessage,
         timeout: float = 3600.0,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> EventSourceResponse:
         """
         Submit a fully-formed MAILMessage to the swarm and stream the response.
         """
         # Support runtimes that either return an async generator directly
         # or coroutines that resolve to an async generator.
-        maybe_stream = self._runtime.submit_and_stream(message, timeout)
+        maybe_stream = self._runtime.submit_and_stream(message, timeout, resume_from, **kwargs)
         stream = (
             await maybe_stream  # type: ignore[func-returns-value]
             if inspect.isawaitable(maybe_stream)

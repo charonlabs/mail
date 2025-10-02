@@ -18,6 +18,7 @@ class MAILTask:
         self.task_id = task_id
         self.start_time = datetime.datetime.now(datetime.UTC)
         self.events: list[ServerSentEvent] = []
+        self.is_running = False
     
     def add_event(self, event: ServerSentEvent) -> None:
         """

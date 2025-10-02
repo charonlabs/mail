@@ -8,7 +8,7 @@ import uuid
 from asyncio import PriorityQueue, Task
 from collections import defaultdict
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Literal
 
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
@@ -144,107 +144,223 @@ class MAILRuntime:
         # The supervisor agent should process the response and generate
         # a final response that will complete the user's request
 
-    async def run(
-        self, _action_override: ActionOverrideFunction | None = None
+    async def run_task(
+        self,
+        task_id: str | None = None,
+        action_override: ActionOverrideFunction | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> MAILMessage:
         """
-        Run the MAIL system until a task is complete or shutdown is requested.
+        Run the MAIL system until the specified task is complete or shutdown is requested.
         This method can be called multiple times for different requests.
         """
-        if self.is_running:
-            logger.warning(
-                f"MAIL is already running for user '{self.user_id}', cannot start another run"
-            )
-            return self._system_broadcast(
-                task_id="null",
-                subject="Runtime Error",
-                body="MAIL is already running, cannot start another run",
-                task_complete=True,
-            )
-
-        self.is_running = True
-
-        try:
-            while True:
-                try:
-                    # Wait for either a message or shutdown signal
-                    get_message_task = asyncio.create_task(self.message_queue.get())
-                    shutdown_task = asyncio.create_task(self.shutdown_event.wait())
-
-                    done, pending = await asyncio.wait(
-                        [get_message_task, shutdown_task],
-                        return_when=asyncio.FIRST_COMPLETED,
+        match resume_from:
+            case "user_response":
+                raise NotImplementedError
+            case "breakpoint_tool_call":
+                if task_id is None:
+                    logger.error("task_id is required when resuming from a breakpoint tool call")
+                    return self._system_broadcast(
+                        task_id="null",
+                        subject="Runtime Error",
+                        body="""The parameter 'task_id' is required when resuming from a breakpoint tool call.
+It is impossible to resume a task without `task_id` specified.""",
+                        task_complete=True,
+                    )
+                if task_id not in self.mail_tasks:
+                    logger.error(f"task '{task_id}' not found")
+                    return self._system_broadcast(
+                        task_id=task_id,
+                        subject="Runtime Error",
+                        body=f"The task '{task_id}' was not found.",
+                        task_complete=True,
                     )
 
-                    # Cancel pending tasks
-                    for task in pending:
-                        task.cancel()
-                        try:
-                            await task
-                        except asyncio.CancelledError:
-                            pass
-
-                    # Check if shutdown was requested
-                    if shutdown_task in done:
-                        logger.info(f"shutdown requested for user '{self.user_id}'...")
+                REQUIRED_KWARGS = ["breakpoint_tool_caller", "breakpoint_tool_call_result"]
+                for kwarg in REQUIRED_KWARGS:
+                    if kwarg not in kwargs:
+                        logger.error(f"required keyword argument '{kwarg}' not provided")
                         return self._system_broadcast(
-                            task_id="null",
-                            subject="Shutdown Requested",
-                            body="The shutdown was requested.",
+                            task_id=task_id,
+                            subject="Runtime Error",
+                            body=f"""The keyword argument '{kwarg}' is required when resuming from a breakpoint tool call.
+It is impossible to resume a task without `{kwarg}` specified.""",
                             task_complete=True,
                         )
+                breakpoint_tool_caller = kwargs["breakpoint_tool_caller"]
+                breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
-                    # Process the message
-                    message_tuple = get_message_task.result()
-                    # message_tuple structure: (priority, seq, message)
-                    message = message_tuple[2]
-                    logger.info(
-                        f"processing message for user '{self.user_id}' with message: '{message}'"
-                    )
+                result = await self._resume_task_from_breakpoint_tool_call(
+                    task_id,
+                    breakpoint_tool_caller,
+                    breakpoint_tool_call_result,
+                    action_override=action_override,
+                )
+                
+            case None: # start a new task
+                if task_id is None:
+                    task_id = str(uuid.uuid4())
+                self._ensure_task_exists(task_id)
 
-                    if message["msg_type"] == "broadcast_complete":
-                        # Mark this message as done before breaking
-                        self.message_queue.task_done()
-                        return message
+                self.mail_tasks[task_id].is_running = True
 
-                    await self._process_message(message, _action_override)
-                    # Note: task_done() is called by the schedule function for regular messages
+                try:
+                    result = await self._run_loop_for_task(task_id, action_override)
+                finally:
+                    self.mail_tasks[task_id].is_running = False
 
-                except asyncio.CancelledError:
-                    logger.info(
-                        f"run loop cancelled for user '{self.user_id}', initiating shutdown..."
-                    )
-                    self._submit_event(
-                        "run_loop_cancelled",
-                        message["message"]["task_id"],
-                        f"run loop for user '{self.user_id}' cancelled",
-                    )
+        return result
+
+
+    async def _run_loop_for_task(
+        self,
+        task_id: str,
+        action_override: ActionOverrideFunction | None = None,
+    ) -> MAILMessage:
+        """
+        Run the MAIL system for a specific task until the task is complete or shutdown is requested.
+        """
+        while True:
+            try:
+                # Wait for either a message or shutdown signal
+                get_message_task = asyncio.create_task(self.message_queue.get())
+                shutdown_task = asyncio.create_task(self.shutdown_event.wait())
+
+                done, pending = await asyncio.wait(
+                    [get_message_task, shutdown_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                # Cancel pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Check if shutdown was requested
+                if shutdown_task in done:
+                    logger.info(f"shutdown requested for user '{self.user_id}'...")
                     return self._system_broadcast(
-                        task_id=message["message"]["task_id"],
-                        subject="Run Loop Cancelled",
-                        body="The run loop was cancelled.",
+                        task_id="null",
+                        subject="Shutdown Requested",
+                        body="The shutdown was requested.",
                         task_complete=True,
                     )
-                except Exception as e:
-                    logger.error(
-                        f"error in run loop for user '{self.user_id}' with error: '{e}'"
-                    )
-                    self._submit_event(
-                        "run_loop_error",
-                        message["message"]["task_id"],
-                        f"error in run loop for user '{self.user_id}' with error: '{e}'",
-                    )
-                    return self._system_broadcast(
-                        task_id=message["message"]["task_id"],
-                        subject="Error in run loop",
-                        body=f"An error occurred while running the MAIL system: '{e}'",
-                        task_complete=True,
-                    )
+
+                # Process the message
+                message_tuple = get_message_task.result()
+                # message_tuple structure: (priority, seq, message)
+                message = message_tuple[2]
+                logger.info(
+                    f"processing message for user '{self.user_id}' with message: '{message}'"
+                )
+
+                if message["msg_type"] == "broadcast_complete":
+                    # Mark this message as done before breaking
+                    self.message_queue.task_done()
+                    return message
+
+                await self._process_message(message, action_override)
+                # Note: task_done() is called by the schedule function for regular messages
+
+            except asyncio.CancelledError:
+                logger.info(
+                    f"run loop cancelled for user '{self.user_id}', initiating shutdown..."
+                )
+                self._submit_event(
+                    "run_loop_cancelled",
+                    message["message"]["task_id"],
+                    f"run loop for user '{self.user_id}' cancelled",
+                )
+                return self._system_broadcast(
+                    task_id=message["message"]["task_id"],
+                    subject="Run Loop Cancelled",
+                    body="The run loop was cancelled.",
+                    task_complete=True,
+                )
+            except Exception as e:
+                logger.error(
+                    f"error in run loop for user '{self.user_id}' with error: '{e}'"
+                )
+                self._submit_event(
+                    "run_loop_error",
+                    message["message"]["task_id"],
+                    f"error in run loop for user '{self.user_id}' with error: '{e}'",
+                )
+                return self._system_broadcast(
+                    task_id=message["message"]["task_id"],
+                    subject="Error in run loop",
+                    body=f"An error occurred while running the MAIL system: '{e}'",
+                    task_complete=True,
+                )
+
+    async def _resume_task_from_breakpoint_tool_call(
+        self,
+        task_id: str,
+        breakpoint_tool_caller: Any,
+        breakpoint_tool_call_result: Any,
+        action_override: ActionOverrideFunction | None = None,
+    ) -> MAILMessage:
+        """
+        Resume a task from a breakpoint tool call.
+        """
+        if not isinstance(breakpoint_tool_caller, str):
+            logger.error("breakpoint_tool_caller must be a string")
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="Runtime Error",
+                body="""The parameter 'breakpoint_tool_caller' must be a string.
+`breakpoint_tool_caller` specifies the name of the agent that called the breakpoint tool.""",
+                task_complete=True,
+            )
+        if not isinstance(breakpoint_tool_call_result, str):
+            logger.error("breakpoint_tool_call_result must be a string")
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="Runtime Error",
+                body="""The parameter 'breakpoint_tool_call_result' must be a string.
+`breakpoint_tool_call_result` specifies the result of the breakpoint tool call.""",
+                task_complete=True,
+            )
+        if breakpoint_tool_caller not in self.agents:
+            logger.error(f"agent '{breakpoint_tool_caller}' not found")
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="Runtime Error",
+                body=f"The agent '{breakpoint_tool_caller}' was not found.",
+                task_complete=True,
+            )
+        
+        # append the breakpoint tool call result to the agent history
+        self.agent_histories[AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)].append({
+            "role": "tool",
+            "content": breakpoint_tool_call_result,
+        })
+
+        # send action complete broadcast to tool caller
+        await self.submit(
+            self._system_broadcast(
+                task_id=task_id,
+                subject="::action_complete_broadcast::",
+                body="",
+                recipients=[create_agent_address(breakpoint_tool_caller)],
+            )
+        )
+
+        # resume the task
+        self.mail_tasks[task_id].is_running = True
+        try:
+            result = await self._run_loop_for_task(task_id, action_override)
         finally:
-            self.is_running = False
+            self.mail_tasks[task_id].is_running = False
+
+        return result
 
     async def run_continuous(
-        self, _action_override: ActionOverrideFunction | None = None
+        self, action_override: ActionOverrideFunction | None = None
     ) -> None:
         """
         Run the MAIL system continuously, handling multiple requests.
@@ -312,7 +428,7 @@ class MAILRuntime:
                         self.message_queue.task_done()
                         continue
 
-                await self._process_message(message, _action_override)
+                await self._process_message(message, action_override)
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
@@ -340,7 +456,11 @@ class MAILRuntime:
         logger.info(f"continuous MAIL operation stopped for user '{self.user_id}'.")
 
     async def submit_and_wait(
-        self, message: MAILMessage, timeout: float = 3600.0
+        self, 
+        message: MAILMessage,
+        timeout: float = 3600.0,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> MAILMessage:
         """
         Submit a message and wait for the response.
@@ -357,9 +477,17 @@ class MAILRuntime:
         self.pending_requests[task_id] = future
 
         try:
-            # Submit the message
-            logger.info(f"'submit_and_wait': submitting message for task '{task_id}'")
-            await self.submit(message)
+            match resume_from:
+                case "user_response":
+                    raise NotImplementedError
+                case "breakpoint_tool_call":
+                    await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
+                case None: # start a new task (task_id should be provided in the message)
+                    self._ensure_task_exists(task_id)
+
+                    self.mail_tasks[task_id].is_running = True
+
+                    await self.submit(message)
 
             # Wait for the response with timeout
             logger.info(f"'submit_and_wait': waiting for future for task '{task_id}'")
@@ -370,6 +498,8 @@ class MAILRuntime:
             self._submit_event(
                 "task_complete", task_id, f"response: '{response['message']['body']}'"
             )
+            self.mail_tasks[task_id].is_running = False
+
             return response
 
         except TimeoutError:
@@ -398,7 +528,11 @@ class MAILRuntime:
             )
 
     async def submit_and_stream(
-        self, message: MAILMessage, timeout: float = 3600.0
+        self, 
+        message: MAILMessage,
+        timeout: float = 3600.0,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> AsyncGenerator[ServerSentEvent, None]:
         """
         Submit a message and stream the response.
@@ -414,8 +548,13 @@ class MAILRuntime:
         self.pending_requests[task_id] = future
 
         try:
-            # Submit the message for processing
-            await self.submit(message)
+            match resume_from:
+                case "user_response":
+                    raise NotImplementedError
+                case "breakpoint_tool_call":
+                    await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
+                case None: # start a new task
+                    await self.submit(message)
 
             # Stream events as they become available, emitting periodic heartbeats
             while not future.done():
@@ -514,6 +653,52 @@ class MAILRuntime:
                 },
                 event="task_error",
             )
+
+    async def _submit_breakpoint_tool_call_result(
+        self,
+        task_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Submit a breakpoint tool call result to the task.
+        """
+        # ensure the task exists already
+        if task_id not in self.mail_tasks:
+            logger.error(f"task '{task_id}' not found")
+            raise ValueError(f"task '{task_id}' not found")
+
+        # ensure valid kwargs
+        REQUIRED_KWARGS: dict[str, type] = {
+            "breakpoint_tool_caller": str,
+            "breakpoint_tool_call_result": str,
+        }
+        for kwarg, type in REQUIRED_KWARGS.items():
+            if kwarg not in kwargs:
+                logger.error(f"required keyword argument '{kwarg}' not provided")
+                raise ValueError(f"required keyword argument '{kwarg}' not provided")
+        breakpoint_tool_caller = kwargs["breakpoint_tool_caller"]
+        breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
+
+        # ensure the agent exists already
+        if breakpoint_tool_caller not in self.agents:
+            logger.error(f"agent '{breakpoint_tool_caller}' not found")
+            raise ValueError(f"agent '{breakpoint_tool_caller}' not found")
+        
+        # append the breakpoint tool call result to the agent history
+        self.agent_histories[AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)].append({
+            "role": "tool",
+            "content": breakpoint_tool_call_result,
+        })
+
+        # submit an action complete broadcast to the task
+        await self.submit(
+            self._system_broadcast(
+                task_id=task_id,
+                subject="::action_complete_broadcast::",
+                body="",
+                recipients=[create_agent_address(breakpoint_tool_caller)],
+            )
+        )
 
     async def shutdown(self) -> None:
         """
