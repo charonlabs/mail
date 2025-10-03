@@ -611,6 +611,8 @@ async def receive_interswarm_message(request: Request):
 
     # MAIL process
     try:
+        metadata = data.get("metadata") or {}
+
         logger.info(f"creating MAIL message for swarm '{source_swarm}'...")
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
@@ -621,6 +623,14 @@ async def receive_interswarm_message(request: Request):
         logger.info(
             f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
         )
+        if metadata.get("stream"):
+            ignore_pings = bool(metadata.get("ignore_stream_pings"))
+            ping_interval = None if ignore_pings else 15000
+            return await swarm_mail.submit_message_stream(
+                new_message,
+                ping_interval=ping_interval,
+            )
+
         submit_result = await swarm_mail.submit_message(new_message)
         # Support both (response, events) and response-only returns
         if isinstance(submit_result, tuple) and len(submit_result) == 2:

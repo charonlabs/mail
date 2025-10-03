@@ -860,6 +860,8 @@ class MAILSwarm:
         message: MAILMessage,
         timeout: float = 3600.0,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        *,
+        ping_interval: int | None = 15000,
         **kwargs: Any,
     ) -> EventSourceResponse:
         """
@@ -878,7 +880,7 @@ class MAILSwarm:
 
         return EventSourceResponse(
             stream,
-            ping=15000,
+            ping=ping_interval,
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",

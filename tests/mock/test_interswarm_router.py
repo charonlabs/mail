@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Addison Kline
 
 import datetime
+import json
 import uuid
 
 import pytest
@@ -13,7 +14,7 @@ from mail.core.message import (
     format_agent_address,
 )
 from mail.net.registry import SwarmRegistry
-from mail.net.router import InterswarmRouter
+from mail.net.router import InterswarmRouter, StreamHandler
 
 
 def make_request_to(agent: str) -> MAILMessage:
@@ -78,7 +79,7 @@ async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPa
     # Capture remote route argument
     captured: dict[str, MAILMessage | None] = {"msg": None}
 
-    async def fake_remote(mm: MAILMessage, swarm: str):  # noqa: ANN001
+    async def fake_remote(mm: MAILMessage, swarm: str, stream_requested: bool = False, stream_handler: StreamHandler | None = None, ignore_stream_pings: bool = False):  # noqa: ANN001
         captured["msg"] = mm
         return mm
 
@@ -121,3 +122,116 @@ async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPa
     assert addrs == ["helper@remote"]
     assert remote_msg["message"]["recipient_swarms"] == ["remote"]  # type: ignore
     assert remote_msg["message"]["sender_swarm"] == "example"
+
+
+class _ChunkIterator:
+    """
+    Async iterator that yields predefined byte chunks.
+    """
+
+    def __init__(self, chunks: list[str]) -> None:
+        self._chunks = [chunk.encode("utf-8") for chunk in chunks]
+
+    def __aiter__(self):  # noqa: D401
+        return self
+
+    async def __anext__(self) -> bytes:
+        if not self._chunks:
+            raise StopAsyncIteration
+        return self._chunks.pop(0)
+
+
+class _FakeResponse:
+    """
+    Minimal stand-in for `aiohttp.ClientResponse`.
+    """
+
+    def __init__(self, chunks: list[str]):
+        self.headers = {"Content-Type": "text/event-stream"}
+        self.content = _ChunkIterator(chunks)
+
+    async def release(self) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_consume_stream_returns_final_message(monkeypatch: pytest.MonkeyPatch):
+    """
+    Ensure `_consume_stream` parses SSE events and returns the final message.
+    """
+    registry = SwarmRegistry("example", "http://localhost:8000")
+    router = InterswarmRouter(registry, "example")
+
+    original = make_request_to("helper@remote")
+    task_id = original["message"]["task_id"]
+
+    message_payload = {
+        "task_id": task_id,
+        "extra_data": {"full_message": original},
+    }
+    complete_payload = {"task_id": task_id, "response": "done"}
+
+    chunks = [
+        "event:new_message\n",
+        f"data:{json.dumps(message_payload)}\n",
+        "\n",
+        "event:task_complete\n",
+        f"data:{json.dumps(complete_payload)}\n",
+        "\n",
+    ]
+
+    fake_response = _FakeResponse(chunks)
+
+    received_events: list[tuple[str, str | None]] = []
+
+    async def handler(event: str, data: str | None) -> None:
+        received_events.append((event, data))
+
+    result = await router._consume_stream(  
+        fake_response, # type: ignore[arg-type]
+        original,
+        "remote",
+        stream_handler=handler,
+    )
+
+    assert result["message"]["task_id"] == task_id
+    assert any(evt == "new_message" for evt, _ in received_events)
+    assert any(evt == "task_complete" for evt, _ in received_events)
+
+
+@pytest.mark.asyncio
+async def test_iter_sse_ignores_ping(monkeypatch: pytest.MonkeyPatch):
+    """
+    Verify that ping frames can be ignored when requested.
+    """
+    registry = SwarmRegistry("example", "http://localhost:8000")
+    router = InterswarmRouter(registry, "example")
+
+    original = make_request_to("helper@remote")
+    task_id = original["message"]["task_id"]
+
+    chunks = [
+        "event:ping\n",
+        "data:{}\n",
+        "\n",
+        "event:task_complete\n",
+        f"data:{json.dumps({'task_id': task_id, 'response': 'ok'})}\n",
+        "\n",
+    ]
+
+    fake_response = _FakeResponse(chunks)
+
+    captured: list[str] = []
+
+    async def handler(event: str, data: str | None) -> None:
+        captured.append(event)
+
+    await router._consume_stream(
+        fake_response, # type: ignore[arg-type]
+        original,
+        "remote",
+        stream_handler=handler,
+        ignore_stream_pings=True,
+    )
+
+    assert captured == ["task_complete"]

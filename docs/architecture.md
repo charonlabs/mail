@@ -19,7 +19,7 @@ This section explains the runtime, server, and networking layers that make up a 
 - **Agent histories**: maintained per agent for context and multi-turn behavior
 - **Pending requests**: tracked futures keyed by task_id for correlating final responses and streaming
 - **Events and SSE**: events are collected and streamed via Server-Sent Events (SSE) with heartbeat pings
-- **Interswarm**: optional router that detects `agent@swarm` recipients and routes over HTTP
+- **Interswarm**: optional router that detects `agent@swarm` recipients, routes over HTTP, and can proxy streaming SSE responses from remote swarms when requested
 
 ## Server and API
 - **Persistent template**: built at startup from [swarms.json](/swarms.json) into `MAILSwarmTemplate`
