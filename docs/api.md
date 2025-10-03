@@ -24,13 +24,15 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/message` | `Bearer` token with role `agent` | `MAILInterswarmMessage { message_id, source_swarm, target_swarm, payload, ... }` | `MAILMessage` (task response) | Routes an inbound interswarm request into the local runtime and returns the generated response |
 | POST | `/interswarm/response` | `Bearer` token with role `agent` | `MAILMessage { id, msg_type, message }` | `types.PostInterswarmResponseResponse { status, task_id }` | Injects a remote swarm response into the pending task queue |
-| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { target_agent: str, message: str, user_token: str, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm request using an existing user runtime (same resume semantics as `/message`) |
+| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, message: str, subject?: str, msg_type?: str, target_agent?: str, targets?: list[str], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm message (request or broadcast) using an existing user runtime |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
 
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
 - When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_caller` / `breakpoint_tool_call_result` inside `kwargs`. The runtime reloads any stashed queue items for that task, appends the tool output to the agent’s history, and continues processing until a `task_complete` broadcast is emitted.
+- To stream interswarm interactions, set `metadata.stream = true` on the `MAILInterswarmMessage`. The receiving swarm will return a `text/event-stream` response; add `metadata.ignore_stream_pings = true` if you prefer to suppress heartbeat `ping` events.
+- `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single `target_agent`, or `msg_type="broadcast"` with `targets`. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field

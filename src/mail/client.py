@@ -373,18 +373,38 @@ class MAILClient:
 
     async def send_interswarm_message(
         self,
-        target_agent: str,
-        message: str,
+        body: str,
         user_token: str,
+        subject: str | None = None,
+        targets: list[str] | None = None,
+        msg_type: str | None = None,
+        task_id: str | None = None,
+        routing_info: dict[str, Any] | None = None,
+        stream: bool | None = None,
+        ignore_stream_pings: bool | None = None,
     ) -> PostInterswarmSendResponse:
         """
         Send an interswarm message to the MAIL server (`POST /interswarm/send`).
         """
-        payload = {
-            "target_agent": target_agent,
-            "message": message,
+        payload: dict[str, Any] = {
+            "body": body,
             "user_token": user_token,
         }
+
+        if targets is not None:
+            payload["targets"] = targets
+        if subject is not None:
+            payload["subject"] = subject
+        if msg_type is not None:
+            payload["msg_type"] = msg_type
+        if task_id is not None:
+            payload["task_id"] = task_id
+        if routing_info is not None:
+            payload["routing_info"] = routing_info
+        if stream is not None:
+            payload["stream"] = stream
+        if ignore_stream_pings is not None:
+            payload["ignore_stream_pings"] = ignore_stream_pings
 
         return cast(
             PostInterswarmSendResponse,
@@ -637,13 +657,13 @@ class MAILClientCLI:
             help="send an interswarm message to the MAIL server",
         )
         send_interswarm_message_parser.add_argument(
-            "--message",
+            "--body",
             type=str,
             help="the message to send",
         )
         send_interswarm_message_parser.add_argument(
-            "--target-agent",
-            type=str,
+            "--targets",
+            type=list[str],
             help="the target agent to send the message to",
         )
         send_interswarm_message_parser.add_argument(
@@ -770,7 +790,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.send_interswarm_message(
-                args.target_agent, args.message, args.user_token
+                args.body, args.targets, args.user_token
             )
             print(json.dumps(response, indent=2))
         except Exception as e:

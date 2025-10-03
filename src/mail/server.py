@@ -23,12 +23,15 @@ import mail.utils as utils
 from mail.config.server import ServerConfig
 from mail.core.message import (
     MAIL_MESSAGE_TYPES,
+    MAILAddress,
+    MAILBroadcast,
     MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
     MAILResponse,
-    create_agent_address,
     create_user_address,
+    format_agent_address,
+    parse_agent_address,
 )
 from mail.net import types as types
 from mail.net.registry import SwarmRegistry
@@ -133,16 +136,14 @@ async def _server_startup() -> None:
         raise e
 
     # ensure necessary auth endpoints are registered
-    auth_endpoints = ["AUTH_ENDPOINT", "TOKEN_INFO_ENDPOINT"]
-    for endpoint in auth_endpoints:
-        if endpoint not in os.environ:
-            logger.error(f"required environment variable '{endpoint}' is not set")
-            raise Exception(f"required environment variable '{endpoint}' is not set")
+    await utils.auth.check_auth_endpoints()
+    logger.info(f"endpoint 'AUTH_ENDPOINT' = {os.getenv('AUTH_ENDPOINT')}")
+    logger.info(f"endpoint 'TOKEN_INFO_ENDPOINT' = {os.getenv('TOKEN_INFO_ENDPOINT')}")
 
     # ensure necessary swarm endpoints are registered
     swarm_endpoints = ["SWARM_REGISTRY_FILE", "SWARM_SOURCE"]
     for endpoint in swarm_endpoints:
-        if endpoint not in os.environ:
+        if endpoint not in os.environ or os.getenv(endpoint) is None:
             logger.error(f"required environment variable '{endpoint}' is not set")
             raise Exception(f"required environment variable '{endpoint}' is not set")
 
@@ -400,6 +401,8 @@ async def message(request: Request):
             f"received message from user or admin '{caller_id}': '{body[:50]}...'"
         )
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"error parsing request: '{e}'")
         raise HTTPException(
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
@@ -536,6 +539,8 @@ async def register_swarm(request: Request):
         )
 
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"error registering swarm: '{e}'")
         raise HTTPException(
             status_code=500, detail=f"error registering swarm: '{str(e)}'"
@@ -600,6 +605,8 @@ async def receive_interswarm_message(request: Request):
             f"received message from {source_agent} to {target_agent}: {message.get('subject', 'unknown')}..."
         )
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"error parsing request: '{e}'")
         raise HTTPException(
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
@@ -611,6 +618,8 @@ async def receive_interswarm_message(request: Request):
 
     # MAIL process
     try:
+        metadata = data.get("metadata") or {}
+
         logger.info(f"creating MAIL message for swarm '{source_swarm}'...")
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
@@ -621,6 +630,14 @@ async def receive_interswarm_message(request: Request):
         logger.info(
             f"submitting message '{new_message['id']}' to agent MAIL and waiting for response..."
         )
+        if metadata.get("stream"):
+            ignore_pings = bool(metadata.get("ignore_stream_pings"))
+            ping_interval = None if ignore_pings else 15000
+            return await swarm_mail.submit_message_stream(
+                new_message,
+                ping_interval=ping_interval,
+            )
+
         submit_result = await swarm_mail.submit_message(new_message)
         # Support both (response, events) and response-only returns
         if isinstance(submit_result, tuple) and len(submit_result) == 2:
@@ -724,6 +741,20 @@ async def send_interswarm_message(request: Request):
     """
     Send an interswarm message to another swarm.
     Intended for users and admins.
+
+    Args:
+        targets: The targets to send the message to.
+        body: The message to send.
+        subject: The subject of the message.
+        msg_type: The type of the message.
+        task_id: The task ID of the message.
+        routing_info: The routing information for the message.
+        stream: Whether to stream the message.
+        ignore_stream_pings: Whether to ignore stream pings.
+        user_token: The user token to use for the message.
+
+    Returns:
+        The response from the message.
     """
     logger.info("endpoint accessed: 'POST /interswarm/send'")
 
@@ -735,37 +766,102 @@ async def send_interswarm_message(request: Request):
 
         # parse request
         data = await request.json()
-        target_agent = data.get("target_agent")
-        message_content = data.get("message")
+        targets = data.get("targets")
+        message_content = data.get("body")
+        subject = data.get("subject", "Interswarm Message")
+        msg_type = data.get("msg_type", "request")
+        task_id = data.get("task_id") or str(uuid.uuid4())
+        routing_info = data.get("routing_info") or {}
+        stream_requested = bool(data.get("stream"))
+        ignore_pings = bool(data.get("ignore_stream_pings"))
+        if stream_requested:
+            routing_info["stream"] = True
+            if ignore_pings:
+                routing_info["ignore_stream_pings"] = True
+        elif ignore_pings:
+            routing_info["ignore_stream_pings"] = True
+
         user_token = data.get("user_token")
 
-        if not target_agent or not message_content:
+        if message_content is not None and not isinstance(message_content, str):
+            message_content = str(message_content)
+
+        if subject is not None and not isinstance(subject, str):
+            subject = str(subject)
+
+        if not targets or not message_content:
             raise HTTPException(
-                status_code=400, detail="target_agent and message are required"
+                status_code=400,
+                detail="'targets' and 'body' are required",
             )
 
         if not user_token or user_token not in user_mail_instances:
-            raise HTTPException(status_code=400, detail="Valid user_token is required")
+            raise HTTPException(status_code=400, detail="valid user_token is required")
 
         mail_instance = user_mail_instances[user_token]
 
-        # Create MAIL message
-        mail_message = MAILMessage(
-            id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-            message=MAILRequest(
-                task_id=str(uuid.uuid4()),
-                request_id=str(uuid.uuid4()),
-                sender=create_user_address(f"{user_id}@{local_swarm_name}"),
-                recipient=create_agent_address(f"{target_agent}"),
-                subject="Interswarm Message",
-                body=message_content,
-                sender_swarm=local_swarm_name,
-                recipient_swarm=target_agent.split("@")[1],
-                routing_info={},
-            ),
-            msg_type="request",
-        )
+        sender_address = create_user_address(f"{user_id}@{local_swarm_name}")
+
+        def _build_request(target: str) -> MAILMessage:
+            recipient_agent, recipient_swarm = parse_agent_address(target)
+            recipient_address = format_agent_address(recipient_agent, recipient_swarm)
+            return MAILMessage(
+                id=str(uuid.uuid4()),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                message=MAILRequest(
+                    task_id=task_id,
+                    request_id=str(uuid.uuid4()),
+                    sender=sender_address,
+                    recipient=recipient_address,
+                    subject=subject,
+                    body=message_content,
+                    sender_swarm=local_swarm_name,
+                    recipient_swarm=recipient_swarm or local_swarm_name,
+                    routing_info=routing_info,
+                ),
+                msg_type="request",
+            )
+
+        def _build_broadcast() -> MAILMessage:
+            recipients: list[MAILAddress] = []
+            recipient_swarms: set[str] = set()
+            for target in targets:
+                agent, swarm = parse_agent_address(target)
+                recipients.append(format_agent_address(agent, swarm))
+                if swarm:
+                    recipient_swarms.add(swarm)
+            return MAILMessage(
+                id=str(uuid.uuid4()),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                message=MAILBroadcast(
+                    task_id=task_id,
+                    broadcast_id=str(uuid.uuid4()),
+                    sender=sender_address,
+                    recipients=recipients,
+                    subject=subject,
+                    body=message_content,
+                    sender_swarm=local_swarm_name,
+                    recipient_swarms=list(recipient_swarms) or [local_swarm_name],
+                    routing_info=routing_info,
+                ),
+                msg_type="broadcast",
+            )
+
+        match msg_type:
+            case "request":
+                if len(targets) != 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="'request' messages require exactly one target",
+                    )
+                mail_message = _build_request(targets[0])
+            case "broadcast":
+                mail_message = _build_broadcast()
+            case _:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"msg_type '{msg_type}' is not supported for interswarm send",
+                )
 
         # Route the message
         if mail_instance.enable_interswarm:
@@ -776,10 +872,12 @@ async def send_interswarm_message(request: Request):
             )
         else:
             raise HTTPException(
-                status_code=503, detail="Interswarm router not available"
+                status_code=503, detail="interswarm router not available"
             )
 
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         logger.error(f"error sending interswarm message: '{e}'")
         raise HTTPException(
             status_code=500, detail=f"error sending interswarm message: '{str(e)}'"

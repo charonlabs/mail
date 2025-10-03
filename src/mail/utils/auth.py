@@ -8,11 +8,21 @@ from typing import Any
 import aiohttp
 from fastapi import HTTPException, Request
 
-AUTH_ENDPOINT = os.getenv("AUTH_ENDPOINT")
-TOKEN_INFO_ENDPOINT = os.getenv("TOKEN_INFO_ENDPOINT")
 JWT_SECRET = os.getenv("JWT_SECRET")
 
 logger = logging.getLogger("mail.auth")
+
+
+async def check_auth_endpoints() -> None:
+    """
+    Check if the auth endpoints are set.
+    This is necessary for the server to start.
+    """
+    AUTH_ENDPOINTS = ["AUTH_ENDPOINT", "TOKEN_INFO_ENDPOINT"]
+    for endpoint in AUTH_ENDPOINTS:
+        if endpoint not in os.environ or os.getenv(endpoint) is None:
+            logger.error(f"required environment variable '{endpoint}' is not set")
+            raise Exception(f"required environment variable '{endpoint}' is not set")
 
 
 async def login(api_key: str) -> str:
@@ -28,6 +38,9 @@ async def login(api_key: str) -> str:
     Raises:
         ValueError: If the API key is invalid
     """
+    await check_auth_endpoints()
+    AUTH_ENDPOINT = os.getenv("AUTH_ENDPOINT")
+
     # hit the login endpoint in the auth service
     async with aiohttp.ClientSession() as session:
         response = await session.post(
@@ -44,6 +57,9 @@ async def get_token_info(token: str) -> dict[str, Any]:
     """
     Get information about a JWT.
     """
+    await check_auth_endpoints()
+    TOKEN_INFO_ENDPOINT = os.getenv("TOKEN_INFO_ENDPOINT")
+    
     async with aiohttp.ClientSession() as session:
         response = await session.get(
             f"{TOKEN_INFO_ENDPOINT}", headers={"Authorization": f"Bearer {token}"}

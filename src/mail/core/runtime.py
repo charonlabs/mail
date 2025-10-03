@@ -3,6 +3,7 @@
 
 import asyncio
 import datetime
+import json
 import logging
 import uuid
 from asyncio import PriorityQueue, Task
@@ -913,7 +914,59 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         if self.interswarm_router:
             try:
-                response = await self.interswarm_router.route_message(message)
+                msg_content = message["message"]
+                routing_info = (
+                    msg_content.get("routing_info")
+                    if isinstance(msg_content, dict)
+                    else None
+                )
+                stream_requested = (
+                    isinstance(routing_info, dict)
+                    and bool(routing_info.get("stream"))
+                )
+                ignore_stream_pings = (
+                    isinstance(routing_info, dict)
+                    and bool(routing_info.get("ignore_stream_pings"))
+                )
+
+                async def forward_remote_event(
+                    event_name: str, payload: str | None
+                ) -> None:
+                    if ignore_stream_pings and event_name == "ping":
+                        return
+
+                    try:
+                        data = json.loads(payload) if payload else {}
+                    except json.JSONDecodeError:
+                        data = {"raw": payload}
+
+                    if not isinstance(data, dict):
+                        data = {"raw": data}
+
+                    task_id = data.get("task_id")
+                    if not isinstance(task_id, str):
+                        return
+
+                    self._ensure_task_exists(task_id)
+
+                    sse = ServerSentEvent(data=data, event=event_name)
+
+                    try:
+                        self.mail_tasks[task_id].add_event(sse)
+                    except Exception:
+                        pass
+
+                    self.new_events.append(sse)
+                    try:
+                        self._events_available.set()
+                    except Exception:
+                        pass
+
+                response = await self.interswarm_router.route_message(
+                    message,
+                    stream_handler=forward_remote_event if stream_requested else None,
+                    ignore_stream_pings=ignore_stream_pings,
+                )
                 logger.info(
                     f"received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
                 )

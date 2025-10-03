@@ -288,24 +288,66 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [target_agent, message, user_token]
+              required: [user_token]
               properties:
-                target_agent: { 
-                  type: string, 
-                  description: "Use agent@swarm format" 
-                }
-                message: { type: string }
-                user_token: { 
-                  type: string, 
-                  description: "User instance key" 
-                }
+                user_token:
+                  type: string
+                  description: User runtime token returned by the `/message` endpoints
+                targets:
+                  type: array
+                  description: Optional list of agent addresses; use when sending broadcasts
+                  items:
+                    type: string
+                body:
+                  type: string
+                  description: Alternative field name for `message`
+                subject:
+                  type: string
+                  description: Subject line for the outgoing MAIL message
+                  default: Interswarm Message
+                msg_type:
+                  type: string
+                  description: MAIL message type to construct
+                  enum: [request, broadcast]
+                  default: request
+                task_id:
+                  type: string
+                  description: Optional task identifier to associate with the message
+                routing_info:
+                  type: object
+                  description: Additional routing metadata appended to the MAIL payload
+                  default: {}
+                stream:
+                  type: boolean
+                  description: Request interswarm streaming for this task
+                ignore_stream_pings:
+                  type: boolean
+                  description: Suppress heartbeat `ping` events when streaming is enabled
+              allOf:
+                - anyOf:
+                    - required: [body]
+                  description: message body must be supplied
+                - anyOf:
+                    - required: [targets]
+                  description: Provide a list of `targets`
       responses:
         '200':
           description: Routed MAIL message result
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MAILMessage'
+                type: object
+                additionalProperties: false
+                properties:
+                  response:
+                    $ref: '#/components/schemas/MAILMessage'
+                  events:
+                    type: array
+                    nullable: true
+                    items:
+                      type: object
+                      description: Server-sent event snapshot
+                      additionalProperties: true
         '400':
           description: Bad request
         '401':
