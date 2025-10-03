@@ -296,13 +296,11 @@ async def root():
     """
     logger.info("endpoint accessed: 'GET /'")
 
-    try:
-        version = load_toml("pyproject.toml")["project"]["version"]
-    except Exception as e:
-        logger.error(f"error loading version: '{e}'")
-        raise HTTPException(status_code=500, detail=f"error loading version: {e}")
-
-    return types.GetRootResponse(name="mail", status="ok", version=version)
+    return types.GetRootResponse(
+        name="mail",
+        status="ok",
+        version=utils.get_protocol_version(),
+    )
 
 
 @app.get("/status", dependencies=[Depends(utils.caller_is_admin_or_user)])
