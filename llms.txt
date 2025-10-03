@@ -60,6 +60,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 
 ### Key Features
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
+- **Task resume safety** via automatic queue snapshots that stash pending task messages on completion/breakpoints and restore them when the user resumes work.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
 - **CLI launcher** (`mail server`, `mail client`) for running the server and an interactive REPL without writing code.
 - **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.
@@ -295,8 +296,8 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 | `help` or `?` | Print CLI usage information without exiting the loop. |
 | `exit` / `quit` | Leave the REPL. |
 | `get-health` | Invoke `GET /health` and print the JSON body. |
-| `post-message --message "…" [--entrypoint …] [--show-events]` | Submit a message and print the structured response. |
-| `post-message-stream --message "…"` | Stream SSE events; each event is printed as it arrives. |
+| `post-message --message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
+| `post-message-stream --message "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
 | `get-swarms`, `register-swarm`, `dump-swarm` | Manage the swarm registry. |
 | `send-interswarm-message` | Send interswarm traffic by target agent. |
 | `load-swarm-from-json` | Submit a JSON payload to `POST /swarms/load`. |
@@ -317,6 +318,22 @@ When the server emits events, each `ServerSentEvent` object is printed in
 arrival order. This is particularly useful when you want to monitor `task_complete`
 notifications or inspect intermediate `new_message` / `action_call` events
 without leaving the terminal.
+
+### Working with Tasks and Breakpoint Resumes
+
+- Both messaging commands accept `--task-id`. Provide it to resume an existing task; omit it to let the server allocate one for a brand-new task.
+- To continue a task that paused on a breakpoint tool call, add the following flags:
+
+  ```shell
+  mail> post-message-stream \
+        --task-id weather-123 \
+        --resume-from breakpoint_tool_call \
+        --kwargs '{"breakpoint_tool_caller": "analyst", "breakpoint_tool_call_result": "Forecast: sunny"}'
+  ```
+
+- The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
+- Upon resuming, the runtime reloads any stashed queue entries for the task so the agents pick up exactly where they paused.
+- `--resume-from user_response` is reserved for future releases and currently raises an error if supplied.
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, and `--timeout`.
@@ -535,19 +552,20 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | --- | --- | --- | --- | --- | --- |
 | GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, version }` | Returns MAIL service metadata and version string |
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
-| POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { message: str, entrypoint?: str, show_events?: bool, stream?: bool }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues a user-scoped task, optionally returning runtime events or an SSE stream |
+| POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
 | GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpoint] }` | Lists swarms known to the local registry |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/message` | `Bearer` token with role `agent` | `MAILInterswarmMessage { message_id, source_swarm, target_swarm, payload, ... }` | `MAILMessage` (task response) | Routes an inbound interswarm request into the local runtime and returns the generated response |
 | POST | `/interswarm/response` | `Bearer` token with role `agent` | `MAILMessage { id, msg_type, message }` | `types.PostInterswarmResponseResponse { status, task_id }` | Injects a remote swarm response into the pending task queue |
-| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { target_agent: str, message: str, user_token: str }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm request using an existing user runtime |
+| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { target_agent: str, message: str, user_token: str, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm request using an existing user runtime (same resume semantics as `/message`) |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
 
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
+- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_caller` / `breakpoint_tool_call_result` inside `kwargs`. The runtime reloads any stashed queue items for that task, appends the tool output to the agent’s history, and continues processing until a `task_complete` broadcast is emitted.
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field
@@ -557,6 +575,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 - The server keeps a persistent `MAILSwarmTemplate` catalogue and per-user `MAILSwarm` instances
 - **Message schemas** are documented in [docs/message-format.md](/docs/message-format.md) and [spec/](/spec/SPEC.md)
 - The repository ships an asynchronous helper described in [docs/client.md](/docs/client.md) that wraps these endpoints and handles bearer auth + SSE parsing
+- **Task lifecycle**: Each `POST /message` participates in a long-lived task distinguished by `task_id`. Breakpoint-aware tools can pause a task; clients resume by reusing the same `task_id` with the `resume_from` contract described above. Additional resume modes (such as `user_response`) are reserved for future releases.
 
 ### MAILClient helper
 - `MAILClient` (see [client.md](/docs/client.md)) mirrors every route above with ergonomic async methods
@@ -1171,6 +1190,39 @@ async for event in stream:
 		print("done", event.data)
 ```
 
+## Task Lifecycle and Resuming from Breakpoints
+
+- Every call to `post_message`/`post_message_stream` participates in a **task** identified by `task_id`. If you omit the field, the server generates an ID. Reuse the same `task_id` to continue the conversation (for example, when running the runtime in continuous mode).
+- When an agent invokes a tool that has been marked as a **breakpoint tool**, the runtime pauses the task and waits for the caller to provide the tool result. Resume the task by sending another message with:
+  - The original `task_id`.
+  - `resume_from="breakpoint_tool_call"`.
+  - Extra keyword arguments `breakpoint_tool_caller` (the agent name) and `breakpoint_tool_call_result` (the stringified payload you want appended to the agent history).
+
+```python
+task_id = "weather-task"
+
+# Start a new task (runtime will mark it running until completion or a breakpoint)
+response = await client.post_message(
+	"Plan tomorrow's rehearsal dinner",
+	task_id=task_id,
+	entrypoint="supervisor",
+)
+
+# Later, resume the task after the breakpoint tool returns a value
+stream = await client.post_message_stream(
+	"",
+	task_id=task_id,
+	resume_from="breakpoint_tool_call",
+	breakpoint_tool_caller="analyst",
+	breakpoint_tool_call_result="Forecast: sunny with a high of 75°F",
+)
+async for event in stream:
+	...
+```
+
+- Additional resume styles (for example `resume_from="user_response"`) are reserved for future extensions; attempting to use them currently raises `NotImplementedError`.
+- The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
+
 ## Error Handling
 - HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
 - Non‑JSON responses raise `ValueError` annotated with the returned content type and body.
@@ -1483,6 +1535,7 @@ This section explains the runtime, server, and networking layers that make up a 
 
 ## Runtime
 - **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution
+- **Task queue snapshots**: task-specific messages are stashed when `task_complete` or breakpoint pauses occur and reloaded when the task resumes, preserving execution ordering
 - **Agent histories**: maintained per agent for context and multi-turn behavior
 - **Pending requests**: tracked futures keyed by task_id for correlating final responses and streaming
 - **Events and SSE**: events are collected and streamed via Server-Sent Events (SSE) with heartbeat pings
@@ -1505,7 +1558,6 @@ This section explains the runtime, server, and networking layers that make up a 
 - **Interswarm types**: [src/mail/net/types.py](/src/mail/net/types.py)
 - **Router and registry**: [src/mail/net/router.py](/src/mail/net/router.py), [src/mail/net/registry.py](/src/mail/net/registry.py)
 - **Message types**: [src/mail/core/message.py](/src/mail/core/message.py)
-
 
 
 ===== End of `docs/architecture.md` =====
@@ -1562,7 +1614,7 @@ timeout = 3600.0
 [
     {
         "name": "example",
-        "version": "1.0.2",
+        "version": "1.1.0",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
