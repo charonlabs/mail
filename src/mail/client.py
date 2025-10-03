@@ -373,10 +373,8 @@ class MAILClient:
 
     async def send_interswarm_message(
         self,
-        target_agent: str | None,
-        message: str,
+        body: str,
         user_token: str,
-        *,
         subject: str | None = None,
         targets: list[str] | None = None,
         msg_type: str | None = None,
@@ -389,12 +387,10 @@ class MAILClient:
         Send an interswarm message to the MAIL server (`POST /interswarm/send`).
         """
         payload: dict[str, Any] = {
-            "message": message,
+            "body": body,
             "user_token": user_token,
         }
 
-        if target_agent is not None:
-            payload["target_agent"] = target_agent
         if targets is not None:
             payload["targets"] = targets
         if subject is not None:
@@ -661,13 +657,13 @@ class MAILClientCLI:
             help="send an interswarm message to the MAIL server",
         )
         send_interswarm_message_parser.add_argument(
-            "--message",
+            "--body",
             type=str,
             help="the message to send",
         )
         send_interswarm_message_parser.add_argument(
-            "--target-agent",
-            type=str,
+            "--targets",
+            type=list[str],
             help="the target agent to send the message to",
         )
         send_interswarm_message_parser.add_argument(
@@ -794,7 +790,7 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.send_interswarm_message(
-                args.target_agent, args.message, args.user_token
+                args.body, args.targets, args.user_token
             )
             print(json.dumps(response, indent=2))
         except Exception as e:
