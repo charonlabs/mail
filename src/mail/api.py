@@ -28,6 +28,7 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
+from mail.core.tools import MAIL_TOOL_NAMES
 from mail.net import SwarmRegistry
 from mail.swarms_json import (
     SwarmsJSONAction,
@@ -516,6 +517,7 @@ class MAILSwarm:
         user_id: str = "default_user",
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
+        breakpoint_tools: list[str] = [],
     ) -> None:
         self.name = name
         self.agents = agents
@@ -524,6 +526,7 @@ class MAILSwarm:
         self.user_id = user_id
         self.swarm_registry = swarm_registry
         self.enable_interswarm = enable_interswarm
+        self.breakpoint_tools = breakpoint_tools
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
@@ -535,6 +538,7 @@ class MAILSwarm:
             swarm_registry=swarm_registry,
             enable_interswarm=enable_interswarm,
             entrypoint=entrypoint,
+            breakpoint_tools=breakpoint_tools,
         )
         self._validate()
 
@@ -590,6 +594,11 @@ class MAILSwarm:
                 f"swarm must have at least one supervisor, got {len(self.supervisors)}"
             )
 
+        # is each breakpoint tool valid?
+        for tool in self.breakpoint_tools:
+            if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
+                raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
+
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
         Build an adjacency matrix for the swarm.
@@ -610,7 +619,7 @@ class MAILSwarm:
 
     def update_from_adjacency_matrix(self, adj: list[list[int]]) -> None:
         """
-        Update comm_targets for all agents using an adjacency matrix.
+        Update `comm_targets` for all agents using an adjacency matrix.
         """
 
         if len(adj) != len(self.agents):
@@ -633,54 +642,94 @@ class MAILSwarm:
         self,
         body: str,
         subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
         show_events: bool = False,
         timeout: float = 3600.0,
+        task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Post a message to the swarm and return the task completion response.
+        This method is indented to be used when the swarm is running in continuous mode.
         """
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(
+            subject, body, [entrypoint], "user", msg_type, task_id
+        )
 
-        return await self.submit_message(message, timeout, show_events)
+        runtime_kwargs = dict(kwargs)
+        if resume_from is not None:
+            runtime_kwargs["resume_from"] = resume_from
+
+        return await self.submit_message(
+            message,
+            timeout=timeout,
+            show_events=show_events,
+            **runtime_kwargs,
+        )
 
     async def post_message_stream(
         self,
         body: str,
         subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
+        task_id: str | None = None,
         timeout: float = 3600.0,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> EventSourceResponse:
         """
         Post a message to the swarm and stream the response.
+        This method is indented to be used when the swarm is running in continuous mode.
         """
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(
+            subject, body, [entrypoint], "user", msg_type, task_id
+        )
 
-        return await self.submit_message_stream(message, timeout)
+        runtime_kwargs = dict(kwargs)
+        if resume_from is not None:
+            runtime_kwargs["resume_from"] = resume_from
+
+        return await self.submit_message_stream(
+            message,
+            timeout=timeout,
+            **runtime_kwargs,
+        )
 
     async def post_message_and_run(
         self,
         body: str,
         subject: str = "New Message",
+        msg_type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         entrypoint: str | None = None,
         show_events: bool = False,
+        task_id: str | None = None,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
-        Post a message to the swarm and run the swarm.
+        Post a message to the swarm and run until the task is complete.
+        This method cannot be used when the swarm is running in continuous mode.
         """
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", "request")
+        message = self.build_message(
+            subject, body, [entrypoint], "user", msg_type, task_id
+        )
 
         await self._runtime.submit(message)
-        task_response = await self._runtime.run()
+        task_response = await self._runtime.run_task(
+            task_id=task_id, resume_from=resume_from, **kwargs
+        )
 
         if show_events:
             return task_response, self._runtime.get_events_by_task_id(
@@ -696,6 +745,7 @@ class MAILSwarm:
         targets: list[str],
         sender_type: Literal["user", "agent"] = "user",
         type: Literal["request", "response", "broadcast", "interrupt"] = "request",
+        task_id: str | None = None,
     ) -> MAILMessage:
         """
         Build a MAIL message.
@@ -709,7 +759,7 @@ class MAILSwarm:
                     id=str(uuid.uuid4()),
                     timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                     message=MAILRequest(
-                        task_id=str(uuid.uuid4()),
+                        task_id=task_id or str(uuid.uuid4()),
                         request_id=str(uuid.uuid4()),
                         sender=create_user_address(self.user_id)
                         if sender_type == "user"
@@ -788,11 +838,15 @@ class MAILSwarm:
         message: MAILMessage,
         timeout: float = 3600.0,
         show_events: bool = False,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
         Submit a fully-formed MAILMessage to the swarm and return the response.
         """
-        response = await self._runtime.submit_and_wait(message, timeout)
+        response = await self._runtime.submit_and_wait(
+            message, timeout, resume_from, **kwargs
+        )
 
         if show_events:
             return response, self._runtime.get_events_by_task_id(
@@ -805,13 +859,17 @@ class MAILSwarm:
         self,
         message: MAILMessage,
         timeout: float = 3600.0,
+        resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> EventSourceResponse:
         """
         Submit a fully-formed MAILMessage to the swarm and stream the response.
         """
         # Support runtimes that either return an async generator directly
         # or coroutines that resolve to an async generator.
-        maybe_stream = self._runtime.submit_and_stream(message, timeout)
+        maybe_stream = self._runtime.submit_and_stream(
+            message, timeout, resume_from, **kwargs
+        )
         stream = (
             await maybe_stream  # type: ignore[func-returns-value]
             if inspect.isawaitable(maybe_stream)
@@ -937,12 +995,14 @@ class MAILSwarmTemplate:
         actions: list[MAILAction],
         entrypoint: str,
         enable_interswarm: bool = False,
+        breakpoint_tools: list[str] = [],
     ) -> None:
         self.name = name
         self.agents = agents
         self.actions = actions
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
+        self.breakpoint_tools = breakpoint_tools
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
@@ -988,6 +1048,11 @@ class MAILSwarmTemplate:
             raise ValueError(
                 f"swarm must have at least one supervisor, got {len(self.supervisors)}"
             )
+
+        # is each breakpoint tool valid?
+        for tool in self.breakpoint_tools:
+            if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
+                raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
@@ -1053,6 +1118,7 @@ class MAILSwarmTemplate:
             user_id=user_id,
             swarm_registry=swarm_registry,
             enable_interswarm=self.enable_interswarm,
+            breakpoint_tools=self.breakpoint_tools,
         )
 
     def get_subswarm(
@@ -1146,6 +1212,7 @@ class MAILSwarmTemplate:
             actions=actions,
             entrypoint=swarm_data["entrypoint"],
             enable_interswarm=swarm_data["enable_interswarm"],
+            breakpoint_tools=swarm_data["breakpoint_tools"],
         )
 
     @staticmethod

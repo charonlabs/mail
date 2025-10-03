@@ -76,6 +76,39 @@ async for event in stream:
 		print("done", event.data)
 ```
 
+## Task Lifecycle and Resuming from Breakpoints
+
+- Every call to `post_message`/`post_message_stream` participates in a **task** identified by `task_id`. If you omit the field, the server generates an ID. Reuse the same `task_id` to continue the conversation (for example, when running the runtime in continuous mode).
+- When an agent invokes a tool that has been marked as a **breakpoint tool**, the runtime pauses the task and waits for the caller to provide the tool result. Resume the task by sending another message with:
+  - The original `task_id`.
+  - `resume_from="breakpoint_tool_call"`.
+  - Extra keyword arguments `breakpoint_tool_caller` (the agent name) and `breakpoint_tool_call_result` (the stringified payload you want appended to the agent history).
+
+```python
+task_id = "weather-task"
+
+# Start a new task (runtime will mark it running until completion or a breakpoint)
+response = await client.post_message(
+	"Plan tomorrow's rehearsal dinner",
+	task_id=task_id,
+	entrypoint="supervisor",
+)
+
+# Later, resume the task after the breakpoint tool returns a value
+stream = await client.post_message_stream(
+	"",
+	task_id=task_id,
+	resume_from="breakpoint_tool_call",
+	breakpoint_tool_caller="analyst",
+	breakpoint_tool_call_result="Forecast: sunny with a high of 75°F",
+)
+async for event in stream:
+	...
+```
+
+- Additional resume styles (for example `resume_from="user_response"`) are reserved for future extensions; attempting to use them currently raises `NotImplementedError`.
+- The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
+
 ## Error Handling
 - HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
 - Non‑JSON responses raise `ValueError` annotated with the returned content type and body.

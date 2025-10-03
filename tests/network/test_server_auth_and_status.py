@@ -20,7 +20,15 @@ def test_message_requires_auth_missing_header():
     from mail.server import app
 
     with TestClient(app) as client:
-        r = client.post("/message", json={"message": "Hello"})
+        r = client.post(
+            "/message",
+            json={
+                "subject": "Test",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
+        )
         assert r.status_code == 401
         assert r.json()["detail"] in ("no API key provided", "invalid API key format")
 
@@ -36,7 +44,12 @@ def test_message_invalid_auth_format():
         r = client.post(
             "/message",
             headers={"Authorization": "invalid-token"},
-            json={"message": "Hello"},
+            json={
+                "subject": "Test",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
         )
         assert r.status_code == 401
         assert r.json()["detail"] == "invalid role"
@@ -59,7 +72,12 @@ def test_message_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
         r = client.post(
             "/message",
             headers={"Authorization": "Bearer test-key"},
-            json={"message": "Hello"},
+            json={
+                "subject": "Test",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
         )
         assert r.status_code == 401
         assert r.json()["detail"] == "invalid role"
@@ -82,7 +100,12 @@ def test_status_after_message_shows_user_ready_true(monkeypatch: pytest.MonkeyPa
         rc = client.post(
             "/message",
             headers={"Authorization": "Bearer test-key"},
-            json={"message": "Hello"},
+            json={
+                "subject": "Test",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
         )
         assert rc.status_code == 200
 

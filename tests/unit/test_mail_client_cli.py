@@ -11,7 +11,7 @@ from mail.client import MAILClientCLI
 
 
 def _make_cli() -> MAILClientCLI:
-    args = SimpleNamespace(url="http://example.com", api_key=None)
+    args = SimpleNamespace(url="http://example.com", api_key=None, verbose=False)
     return MAILClientCLI(args)  # type: ignore[arg-type]
 
 
@@ -69,13 +69,13 @@ async def test_cli_uses_shlex_for_tokenization(
     captured_messages: list[str] = []
 
     async def fake_post_message(self: MAILClientCLI, args) -> None:  # type: ignore[override]
-        captured_messages.append(args.message)
+        captured_messages.append(args.body)
 
     monkeypatch.setattr(MAILClientCLI, "_post_message", fake_post_message)
 
     cli = _make_cli()
 
-    inputs = iter(['post-message --message "hello world"', "exit"])
+    inputs = iter(['post-message "hello world"', "exit"])
 
     def fake_input(_prompt: str) -> str:
         return next(inputs)
