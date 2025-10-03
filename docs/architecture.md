@@ -15,6 +15,7 @@ This section explains the runtime, server, and networking layers that make up a 
 
 ## Runtime
 - **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution
+- **Task queue snapshots**: task-specific messages are stashed when `task_complete` or breakpoint pauses occur and reloaded when the task resumes, preserving execution ordering
 - **Agent histories**: maintained per agent for context and multi-turn behavior
 - **Pending requests**: tracked futures keyed by task_id for correlating final responses and streaming
 - **Events and SSE**: events are collected and streamed via Server-Sent Events (SSE) with heartbeat pings
@@ -37,4 +38,3 @@ This section explains the runtime, server, and networking layers that make up a 
 - **Interswarm types**: [src/mail/net/types.py](/src/mail/net/types.py)
 - **Router and registry**: [src/mail/net/router.py](/src/mail/net/router.py), [src/mail/net/registry.py](/src/mail/net/registry.py)
 - **Message types**: [src/mail/core/message.py](/src/mail/core/message.py)
-

@@ -78,6 +78,7 @@ without leaving the terminal.
   ```
 
 - The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
+- Upon resuming, the runtime reloads any stashed queue entries for the task so the agents pick up exactly where they paused.
 - `--resume-from user_response` is reserved for future releases and currently raises an error if supplied.
 
 ## Tips

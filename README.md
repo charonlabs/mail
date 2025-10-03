@@ -58,6 +58,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 
 ### Key Features
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
+- **Task resume safety** via automatic queue snapshots that stash pending task messages on completion/breakpoints and restore them when the user resumes work.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
 - **CLI launcher** (`mail server`, `mail client`) for running the server and an interactive REPL without writing code.
 - **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.

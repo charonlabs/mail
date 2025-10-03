@@ -107,7 +107,7 @@ async for event in stream:
 ```
 
 - Additional resume styles (for example `resume_from="user_response"`) are reserved for future extensions; attempting to use them currently raises `NotImplementedError`.
-- The runtime automatically resumes the task loop, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
+- The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
 
 ## Error Handling
 - HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
