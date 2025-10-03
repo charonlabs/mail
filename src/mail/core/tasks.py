@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
+from asyncio import PriorityQueue
 import datetime
+import heapq
 from typing import Literal, cast
 
 from sse_starlette import ServerSentEvent
 
 from mail.core.message import MAILMessage, create_agent_address
+
+
+QueueItem = tuple[int, int, MAILMessage]
 
 
 class MAILTask:
@@ -19,6 +24,7 @@ class MAILTask:
         self.start_time = datetime.datetime.now(datetime.UTC)
         self.events: list[ServerSentEvent] = []
         self.is_running = False
+        self.task_message_queue: list[QueueItem] = []
     
     def add_event(self, event: ServerSentEvent) -> None:
         """
@@ -103,3 +109,81 @@ class MAILTask:
         Get the lifetime of the task.
         """
         return datetime.datetime.now(datetime.UTC) - self.start_time
+
+    async def queue_stash(
+        self,
+        message_queue: PriorityQueue[QueueItem],
+    ) -> None:
+        """
+        Remove any queued messages for this task from the shared runtime queue and
+        store them for later restoration when the task resumes.
+        """
+        try:
+            raw_queue = list(getattr(message_queue, "_queue", []))
+        except Exception:
+            raw_queue = []
+
+        if not raw_queue:
+            self.task_message_queue = []
+            return
+
+        remaining: list[QueueItem] = []
+        stashed: list[QueueItem] = []
+
+        for item in raw_queue:
+            try:
+                queued_task_id = item[2]["message"]["task_id"]
+            except Exception:
+                remaining.append(item)
+                continue
+
+            if queued_task_id == self.task_id:
+                stashed.append(item)
+            else:
+                remaining.append(item)
+
+        if not stashed:
+            self.task_message_queue = []
+            return
+
+        try:
+            message_queue._queue.clear()  # type: ignore[attr-defined]
+            message_queue._queue.extend(remaining)  # type: ignore[attr-defined]
+            heapq.heapify(message_queue._queue)  # type: ignore[attr-defined]
+        except Exception:
+            # If direct manipulation fails, reassigning the queue isn't critical;
+            # continue with captured snapshot to avoid losing the task state.
+            pass
+
+        unfinished = getattr(message_queue, "_unfinished_tasks", None)
+        if isinstance(unfinished, int):
+            message_queue._unfinished_tasks = max(0, unfinished - len(stashed))  # type: ignore[attr-defined]
+
+        self.task_message_queue = stashed
+
+    async def queue_load(
+        self,
+        message_queue: PriorityQueue[QueueItem],
+    ) -> None:
+        """
+        Restore any previously stashed messages for this task back into the shared
+        runtime queue.
+        """
+        if not self.task_message_queue:
+            return
+
+        stashed = list(self.task_message_queue)
+
+        try:
+            message_queue._queue.extend(stashed)  # type: ignore[attr-defined]
+            heapq.heapify(message_queue._queue)  # type: ignore[attr-defined]
+        except Exception:
+            # If we cannot directly restore to the shared queue, keep the snapshot
+            # so that a future attempt can retry.
+            return
+
+        unfinished = getattr(message_queue, "_unfinished_tasks", None)
+        if isinstance(unfinished, int):
+            message_queue._unfinished_tasks = unfinished + len(stashed)  # type: ignore[attr-defined]
+
+        self.task_message_queue = []

@@ -157,7 +157,32 @@ class MAILRuntime:
         """
         match resume_from:
             case "user_response":
-                raise NotImplementedError
+                if task_id is None:
+                    logger.error("task_id is required when resuming from a user response")
+                    return self._system_broadcast(
+                        task_id="null",
+                        subject="Runtime Error",
+                        body="""The parameter 'task_id' is required when resuming from a user response.
+It is impossible to resume a task without `task_id` specified.""",
+                        task_complete=True,
+                    )
+                if task_id not in self.mail_tasks:
+                    logger.error(f"task '{task_id}' not found")
+                    return self._system_broadcast(
+                        task_id=task_id,
+                        subject="Runtime Error",
+                        body=f"The task '{task_id}' was not found.",
+                        task_complete=True,
+                    )
+
+                await self.mail_tasks[task_id].queue_load(self.message_queue)
+                self.mail_tasks[task_id].is_running = True
+
+                try:
+                    result = await self._run_loop_for_task(task_id, action_override)
+                finally:
+                    self.mail_tasks[task_id].is_running = False
+
             case "breakpoint_tool_call":
                 if task_id is None:
                     logger.error("task_id is required when resuming from a breakpoint tool call")
@@ -259,6 +284,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 )
 
                 if message["msg_type"] == "broadcast_complete":
+                    task_id_completed = message["message"].get("task_id")
+                    if isinstance(task_id_completed, str):
+                        self._ensure_task_exists(task_id_completed)
+                        await self.mail_tasks[task_id_completed].queue_stash(self.message_queue)
                     # Mark this message as done before breaking
                     self.message_queue.task_done()
                     return message
@@ -333,7 +362,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 body=f"The agent '{breakpoint_tool_caller}' was not found.",
                 task_complete=True,
             )
-        
+
+        await self.mail_tasks[task_id].queue_load(self.message_queue)
+
         # append the breakpoint tool call result to the agent history
         self.agent_histories[AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)].append({
             "role": "tool",
@@ -412,15 +443,19 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 if message["msg_type"] == "broadcast_complete":
                     # Check if this completes a pending request
                     msg_content = message["message"]
+                    task_id = msg_content.get("task_id")
+                    if isinstance(task_id, str):
+                        self._ensure_task_exists(task_id)
+                        await self.mail_tasks[task_id].queue_stash(self.message_queue)
                     if (
-                        "task_id" in msg_content
-                        and msg_content["task_id"] in self.pending_requests
+                        isinstance(task_id, str)
+                        and task_id in self.pending_requests
                     ):
                         # Resolve the pending request
                         logger.info(
-                            f"task '{msg_content['task_id']}' completed, resolving pending request"
+                            f"task '{task_id}' completed, resolving pending request"
                         )
-                        future = self.pending_requests.pop(msg_content["task_id"])
+                        future = self.pending_requests.pop(task_id)
                         if not future.done():
                             future.set_result(message)
                     else:
@@ -690,6 +725,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             "content": breakpoint_tool_call_result,
         })
 
+        await self.mail_tasks[task_id].queue_load(self.message_queue)
+
         # submit an action complete broadcast to the task
         await self.submit(
             self._system_broadcast(
@@ -913,6 +950,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                             )
 
                             # Resolve the pending future immediately to end the task
+                            self._ensure_task_exists(task_id)
+                            await self.mail_tasks[task_id].queue_stash(
+                                self.message_queue
+                            )
                             future = self.pending_requests.pop(task_id)
                             if not future.done():
                                 logger.info(
@@ -1283,7 +1324,11 @@ Use this information to decide how to complete your task.""",
                                     logger.info(
                                         f"resolving future for task '{task_id}'"
                                     )
+                                    self._ensure_task_exists(task_id)
                                     future.set_result(response_message)
+                                    await self.mail_tasks[task_id].queue_stash(
+                                        self.message_queue
+                                    )
                                 else:
                                     logger.warning(
                                         f"future for task '{task_id}' was already done"
