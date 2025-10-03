@@ -211,14 +211,14 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **`GET /`**: Server metadata. Returns `{ name, status, version }`.
 - **`GET /health`**: Health probe for interswarm peers. Returns `{ status, swarm_name, timestamp }`.
 - **`GET /status`** (`user|admin`): Server status, including swarm and user-instance indicators.
-- **`POST /message`** (`user|admin`): Body `{ message: string, entrypoint?: string, show_events?: boolean, stream?: boolean, resume_from?: user_response|breakpoint_tool_called, kwargs?: object }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
+- **`POST /message`** (`user|admin`): Body `{ body: string, subject?: string, task_id?: string, entrypoint?: string, show_events?: boolean, stream?: boolean, resume_from?: user_response|breakpoint_tool_call, kwargs?: object }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
 - **`GET /swarms`**: List known swarms from the registry.
 - **`POST /swarms`** (`admin`): Body `{ name, base_url, auth_token?, volatile?, metadata? }`. Registers or updates a remote swarm. Non-volatile entries persist across restarts.
 - **`GET /swarms/dump`** (`admin`): Logs the active persistent swarm and returns `{ status, swarm_name }`.
 - **`POST /swarms/load`** (`admin`): Body `{ json: string }`. Replaces the persistent swarm definition with the provided JSON payload.
 - **`POST /interswarm/message`** (`agent`): Body is `MAILInterswarmMessage`. Delivers the wrapped payload into local MAIL and returns a `MAILMessage` response for request/response flows.
 - **`POST /interswarm/response`** (`agent`): Body is `MAILMessage`. Submits a remote swarm response back into the origin MAIL pipeline; returns `{ status, task_id }`.
-- **`POST /interswarm/send`** (`user|admin`): Body `{ body: string, message: string, user_token: string }`. Routes a user-initiated interswarm request via the caller's MAIL instance; returns the remote response when available.
+- **`POST /interswarm/send`** (`user|admin`): Body `{ user_token: string, body: string, targets?: string[], subject?: string, msg_type?: request|broadcast, task_id?: string, routing_info?: object, stream?: boolean, ignore_stream_pings?: boolean }`. Callers MUST provide either `message` or `body`, and either `target_agent` (single-recipient request) or `targets` (broadcast). When `stream=true`, the runtime propagates interswarm streaming metadata (`routing_info.stream = true`) and returns `{ response: MAILMessage, events: ServerSentEvent[] | null }`.
 
 ## Swarm Registry
 
