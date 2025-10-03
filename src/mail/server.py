@@ -136,16 +136,14 @@ async def _server_startup() -> None:
         raise e
 
     # ensure necessary auth endpoints are registered
-    auth_endpoints = ["AUTH_ENDPOINT", "TOKEN_INFO_ENDPOINT"]
-    for endpoint in auth_endpoints:
-        if endpoint not in os.environ:
-            logger.error(f"required environment variable '{endpoint}' is not set")
-            raise Exception(f"required environment variable '{endpoint}' is not set")
+    await utils.auth.check_auth_endpoints()
+    logger.info(f"endpoint 'AUTH_ENDPOINT' = {os.getenv('AUTH_ENDPOINT')}")
+    logger.info(f"endpoint 'TOKEN_INFO_ENDPOINT' = {os.getenv('TOKEN_INFO_ENDPOINT')}")
 
     # ensure necessary swarm endpoints are registered
     swarm_endpoints = ["SWARM_REGISTRY_FILE", "SWARM_SOURCE"]
     for endpoint in swarm_endpoints:
-        if endpoint not in os.environ:
+        if endpoint not in os.environ or os.getenv(endpoint) is None:
             logger.error(f"required environment variable '{endpoint}' is not set")
             raise Exception(f"required environment variable '{endpoint}' is not set")
 
