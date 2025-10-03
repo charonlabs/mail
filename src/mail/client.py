@@ -373,18 +373,42 @@ class MAILClient:
 
     async def send_interswarm_message(
         self,
-        target_agent: str,
+        target_agent: str | None,
         message: str,
         user_token: str,
+        *,
+        subject: str | None = None,
+        targets: list[str] | None = None,
+        msg_type: str | None = None,
+        task_id: str | None = None,
+        routing_info: dict[str, Any] | None = None,
+        stream: bool | None = None,
+        ignore_stream_pings: bool | None = None,
     ) -> PostInterswarmSendResponse:
         """
         Send an interswarm message to the MAIL server (`POST /interswarm/send`).
         """
-        payload = {
-            "target_agent": target_agent,
+        payload: dict[str, Any] = {
             "message": message,
             "user_token": user_token,
         }
+
+        if target_agent is not None:
+            payload["target_agent"] = target_agent
+        if targets is not None:
+            payload["targets"] = targets
+        if subject is not None:
+            payload["subject"] = subject
+        if msg_type is not None:
+            payload["msg_type"] = msg_type
+        if task_id is not None:
+            payload["task_id"] = task_id
+        if routing_info is not None:
+            payload["routing_info"] = routing_info
+        if stream is not None:
+            payload["stream"] = stream
+        if ignore_stream_pings is not None:
+            payload["ignore_stream_pings"] = ignore_stream_pings
 
         return cast(
             PostInterswarmSendResponse,

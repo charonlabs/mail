@@ -255,6 +255,156 @@ def test_interswarm_message_streaming_ignores_pings(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.usefixtures("patched_server")
+def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
+    """
+    Users can customize subject, msg_type, and routing flags when sending interswarm messages.
+    """
+    from mail.server import app, user_mail_instances
+
+    monkeypatch.setattr(
+        "mail.utils.auth.get_token_info",
+        lambda token: _async_return({"role": "user", "id": "user-123"}),
+    )
+
+    captured: dict[str, MAILMessage] = {}
+
+    class DummyMail:
+        enable_interswarm = True
+
+        async def route_interswarm_message(self, message: MAILMessage) -> MAILMessage:
+            captured["message"] = message
+            return message
+        
+        async def shutdown(self) -> None:
+            pass
+
+    user_mail_instances["test-token"] = DummyMail() # type: ignore[assignment]
+
+    with TestClient(app) as client:
+        payload = {
+            "target_agent": "helper@remote",
+            "message": "Hello remote",
+            "subject": "Custom Subject",
+            "msg_type": "request",
+            "task_id": "task-xyz",
+            "stream": True,
+            "ignore_stream_pings": True,
+            "routing_info": {"foo": "bar"},
+            "user_token": "test-token",
+        }
+
+        r = client.post(
+            "/interswarm/send",
+            headers={"Authorization": "Bearer test-key"},
+            json=payload,
+        )
+
+        assert r.status_code == 200
+        assert "message" in captured
+        message = captured["message"]
+        assert message["msg_type"] == "request"
+        assert message["message"]["subject"] == "Custom Subject"
+        assert message["message"]["body"] == "Hello remote"
+        assert message["message"]["task_id"] == "task-xyz"
+        assert message["message"]["routing_info"]["foo"] == "bar" # type: ignore
+        assert message["message"]["routing_info"]["stream"] is True # type: ignore
+        assert message["message"]["routing_info"]["ignore_stream_pings"] is True # type: ignore
+        assert message["message"]["recipient"]["address"] == "helper@remote" # type: ignore
+        assert message["message"]["recipient_swarm"] == "remote" # type: ignore
+
+
+@pytest.mark.usefixtures("patched_server")
+def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
+    """
+    Users can send broadcast interswarm messages to multiple targets.
+    """
+    from mail.server import app, user_mail_instances
+
+    monkeypatch.setattr(
+        "mail.utils.auth.get_token_info",
+        lambda token: _async_return({"role": "user", "id": "user-456"}),
+    )
+
+    captured: dict[str, MAILMessage] = {}
+
+    class DummyMAILInstance:
+        enable_interswarm = True
+
+        async def route_interswarm_message(self, message: MAILMessage) -> MAILMessage:
+            captured["message"] = message
+            return message
+
+        async def shutdown(self) -> None:
+            pass
+
+    user_mail_instances["token-broadcast"] = DummyMAILInstance() # type: ignore[assignment]
+
+    with TestClient(app) as client:
+        payload = {
+            "targets": ["helper@remote", "analyst"],
+            "message": "Broadcast body",
+            "subject": "Broadcast",
+            "msg_type": "broadcast",
+            "user_token": "token-broadcast",
+        }
+
+        r = client.post(
+            "/interswarm/send",
+            headers={"Authorization": "Bearer test-key"},
+            json=payload,
+        )
+
+        assert r.status_code == 200
+        message = captured["message"]
+        assert message["msg_type"] == "broadcast"
+        recipients = message["message"]["recipients"]  # type: ignore
+        addresses = {recipient["address"] for recipient in recipients}
+        assert addresses == {"helper@remote", "analyst"}
+        assert "remote" in message["message"]["recipient_swarms"]  # type: ignore
+
+
+@pytest.mark.usefixtures("patched_server")
+def test_interswarm_send_invalid_msg_type(monkeypatch: pytest.MonkeyPatch):
+    """
+    Unsupported message types should return a 400 error.
+    """
+    from mail.server import app, user_mail_instances
+
+    monkeypatch.setattr(
+        "mail.utils.auth.get_token_info",
+        lambda token: _async_return({"role": "user", "id": "user-789"}),
+    )
+
+    class DummyMAILInstance:
+        enable_interswarm = True
+
+        async def route_interswarm_message(self, message: MAILMessage) -> MAILMessage:  # noqa: ARG002
+            return message
+
+        async def shutdown(self) -> None:
+            pass
+
+    user_mail_instances["token-invalid"] = DummyMAILInstance() # type: ignore[assignment]
+
+    with TestClient(app) as client:
+        payload = {
+            "target_agent": "helper@remote",
+            "message": "Body",
+            "msg_type": "interrupt",
+            "user_token": "token-invalid",
+        }
+
+        r = client.post(
+            "/interswarm/send",
+            headers={"Authorization": "Bearer test-key"},
+            json=payload,
+        )
+
+        assert r.status_code == 400
+        assert "not supported" in r.json()["detail"]
+
+
+@pytest.mark.usefixtures("patched_server")
 def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
     """
     Test that `POST /interswarm/response` works as expected when there is no MAIL instance.
