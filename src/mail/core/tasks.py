@@ -25,7 +25,7 @@ class MAILTask:
         self.events: list[ServerSentEvent] = []
         self.is_running = False
         self.task_message_queue: list[QueueItem] = []
-    
+
     def add_event(self, event: ServerSentEvent) -> None:
         """
         Add a new event to the task.
@@ -53,9 +53,9 @@ class MAILTask:
                 messages.append(cast(MAILMessage, full_message))
 
         return messages
-    
+
     def get_messages_by_agent(
-        self, 
+        self,
         agent: str,
         sent: bool = True,
         received: bool = True,
@@ -67,7 +67,11 @@ class MAILTask:
 
         sent_messages: list[MAILMessage] = []
         if sent:
-            sent_messages = [message for message in self.get_messages() if message["message"]["sender"] == agent_address]
+            sent_messages = [
+                message
+                for message in self.get_messages()
+                if message["message"]["sender"] == agent_address
+            ]
         received_messages: list[MAILMessage] = []
         if received:
             for message in self.get_messages():
@@ -84,25 +88,39 @@ class MAILTask:
         return sent_messages + received_messages
 
     def get_messages_by_type(
-        self, 
-        message_type: Literal["request", "response", "broadcast", "interrupt", "broadcast_complete"]
+        self,
+        message_type: Literal[
+            "request", "response", "broadcast", "interrupt", "broadcast_complete"
+        ],
     ) -> list[MAILMessage]:
         """
         Get all messages of a given type.
         """
-        return [message for message in self.get_messages() if message["msg_type"] == message_type]
+        return [
+            message
+            for message in self.get_messages()
+            if message["msg_type"] == message_type
+        ]
 
     def get_messages_by_system(self) -> list[MAILMessage]:
         """
         Get all messages from the system.
         """
-        return [message for message in self.get_messages() if message["message"]["sender"]["address_type"] == "system"]
+        return [
+            message
+            for message in self.get_messages()
+            if message["message"]["sender"]["address_type"] == "system"
+        ]
 
     def get_messages_by_user(self) -> list[MAILMessage]:
         """
         Get all messages from the user.
         """
-        return [message for message in self.get_messages() if message["message"]["sender"]["address_type"] == "user"]
+        return [
+            message
+            for message in self.get_messages()
+            if message["message"]["sender"]["address_type"] == "user"
+        ]
 
     def get_lifetime(self) -> datetime.timedelta:
         """

@@ -6,7 +6,13 @@ from typing import Any, Literal, TypedDict
 
 from dict2xml import dict2xml
 
-MAIL_MESSAGE_TYPES = ["request", "response", "broadcast", "interrupt", "broadcast_complete"]
+MAIL_MESSAGE_TYPES = [
+    "request",
+    "response",
+    "broadcast",
+    "interrupt",
+    "broadcast_complete",
+]
 
 
 class MAILAddress(TypedDict):

@@ -39,7 +39,11 @@ class FakeMAILRuntime:
 
     @pytest.mark.asyncio
     async def submit_and_wait(
-        self, message: dict[str, Any], _timeout: float = 3600.0, _resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None, **kwargs: Any
+        self,
+        message: dict[str, Any],
+        _timeout: float = 3600.0,
+        _resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """
         Replacement for `MAILRuntime.submit_and_wait`.
@@ -73,7 +77,11 @@ class FakeMAILRuntime:
 
     @pytest.mark.asyncio
     async def submit_and_stream(
-        self, _message: dict[str, Any], _timeout: float = 3600.0, _resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None, **kwargs: Any
+        self,
+        _message: dict[str, Any],
+        _timeout: float = 3600.0,
+        _resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        **kwargs: Any,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Replacement for `MAILRuntime.submit_and_stream`.

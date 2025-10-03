@@ -22,7 +22,12 @@ def test_message_requires_auth_missing_header():
     with TestClient(app) as client:
         r = client.post(
             "/message",
-            json={"subject": "Test", "body": "Hello", "msg_type": "request", "task_id": "test-task-id"},
+            json={
+                "subject": "Test",
+                "body": "Hello",
+                "msg_type": "request",
+                "task_id": "test-task-id",
+            },
         )
         assert r.status_code == 401
         assert r.json()["detail"] in ("no API key provided", "invalid API key format")

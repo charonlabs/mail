@@ -18,7 +18,6 @@ from contextlib import asynccontextmanager
 import aiohttp
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request
-from toml import load as load_toml
 
 import mail.utils as utils
 from mail.config.server import ServerConfig
@@ -87,6 +86,7 @@ async def lifespan(app: FastAPI):
     yield
 
     await _server_shutdown()
+
 
 async def _server_startup() -> None:
     """
@@ -197,6 +197,7 @@ async def _server_shutdown() -> None:
         except Exception:
             pass
         _http_session = None
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -391,7 +392,9 @@ async def message(request: Request):
 
         assert isinstance(msg_type, str)
         if msg_type not in MAIL_MESSAGE_TYPES:
-            raise HTTPException(status_code=400, detail=f"invalid message type: {msg_type}")
+            raise HTTPException(
+                status_code=400, detail=f"invalid message type: {msg_type}"
+            )
 
         logger.info(
             f"received message from user or admin '{caller_id}': '{body[:50]}...'"
@@ -422,7 +425,7 @@ async def message(request: Request):
             return await api_swarm.post_message_stream(
                 subject=subject,
                 body=body,
-                msg_type=msg_type, # type: ignore
+                msg_type=msg_type,  # type: ignore
                 entrypoint=chosen_entrypoint,
                 task_id=task_id,
                 resume_from=resume_from,
@@ -435,7 +438,7 @@ async def message(request: Request):
             result = await api_swarm.post_message(
                 subject=subject,
                 body=body,
-                msg_type=msg_type, # type: ignore
+                msg_type=msg_type,  # type: ignore
                 entrypoint=chosen_entrypoint,
                 show_events=show_events,
                 task_id=task_id,

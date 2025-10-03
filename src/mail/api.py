@@ -657,7 +657,9 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
+        message = self.build_message(
+            subject, body, [entrypoint], "user", msg_type, task_id
+        )
 
         runtime_kwargs = dict(kwargs)
         if resume_from is not None:
@@ -688,7 +690,9 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
+        message = self.build_message(
+            subject, body, [entrypoint], "user", msg_type, task_id
+        )
 
         runtime_kwargs = dict(kwargs)
         if resume_from is not None:
@@ -718,10 +722,14 @@ class MAILSwarm:
         if entrypoint is None:
             entrypoint = self.entrypoint
 
-        message = self.build_message(subject, body, [entrypoint], "user", msg_type, task_id)
+        message = self.build_message(
+            subject, body, [entrypoint], "user", msg_type, task_id
+        )
 
         await self._runtime.submit(message)
-        task_response = await self._runtime.run_task(task_id=task_id, resume_from=resume_from, **kwargs)
+        task_response = await self._runtime.run_task(
+            task_id=task_id, resume_from=resume_from, **kwargs
+        )
 
         if show_events:
             return task_response, self._runtime.get_events_by_task_id(
@@ -836,7 +844,9 @@ class MAILSwarm:
         """
         Submit a fully-formed MAILMessage to the swarm and return the response.
         """
-        response = await self._runtime.submit_and_wait(message, timeout, resume_from, **kwargs)
+        response = await self._runtime.submit_and_wait(
+            message, timeout, resume_from, **kwargs
+        )
 
         if show_events:
             return response, self._runtime.get_events_by_task_id(
@@ -857,7 +867,9 @@ class MAILSwarm:
         """
         # Support runtimes that either return an async generator directly
         # or coroutines that resolve to an async generator.
-        maybe_stream = self._runtime.submit_and_stream(message, timeout, resume_from, **kwargs)
+        maybe_stream = self._runtime.submit_and_stream(
+            message, timeout, resume_from, **kwargs
+        )
         stream = (
             await maybe_stream  # type: ignore[func-returns-value]
             if inspect.isawaitable(maybe_stream)

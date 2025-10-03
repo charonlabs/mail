@@ -270,9 +270,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
         return ("ack", [])
 
     runtime = MAILRuntime(
-        agents={
-            tool_caller: AgentCore(function=noop_agent, comm_targets=[])
-        },
+        agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-6",
         swarm_name="example",
@@ -293,7 +291,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
         action_override_called_with["override"] = override
         return expected_result
 
-    runtime._run_loop_for_task = MethodType(fake_run_loop, runtime) # type: ignore
+    runtime._run_loop_for_task = MethodType(fake_run_loop, runtime)  # type: ignore
 
     async def action_override(payload: dict[str, object]) -> dict[str, object] | str:
         return payload
@@ -318,7 +316,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
     runtime.message_queue.task_done()
     assert queued_message["message"]["subject"] == "::action_complete_broadcast::"
     assert queued_message["msg_type"] == "broadcast"
-    recipient = queued_message["message"]["recipients"][0] # type: ignore
+    recipient = queued_message["message"]["recipients"][0]  # type: ignore
     assert recipient["address"] == create_agent_address(tool_caller)["address"]
 
 
@@ -408,7 +406,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
     _priority, _seq, resume_message = runtime.message_queue.get_nowait()
     runtime.message_queue.task_done()
     assert resume_message["message"]["subject"] == "::action_complete_broadcast::"
-    recipient = resume_message["message"]["recipients"][0] # type: ignore
+    recipient = resume_message["message"]["recipients"][0]  # type: ignore
     assert recipient["address"] == create_agent_address(tool_caller)["address"]
 
     assert task_id not in runtime.pending_requests

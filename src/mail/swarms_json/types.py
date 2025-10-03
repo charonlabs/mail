@@ -32,6 +32,7 @@ class SwarmsJSONSwarm(TypedDict):
     breakpoint_tools: list[str]  # default: []
     """The tools that can be used to breakpoint the swarm."""
 
+
 class SwarmsJSONAgent(TypedDict):
     """
     A MAIL agent and its configuration, following the `swarms.json` format.

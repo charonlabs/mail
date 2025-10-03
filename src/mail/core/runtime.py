@@ -158,7 +158,9 @@ class MAILRuntime:
         match resume_from:
             case "user_response":
                 if task_id is None:
-                    logger.error("task_id is required when resuming from a user response")
+                    logger.error(
+                        "task_id is required when resuming from a user response"
+                    )
                     return self._system_broadcast(
                         task_id="null",
                         subject="Runtime Error",
@@ -185,7 +187,9 @@ It is impossible to resume a task without `task_id` specified.""",
 
             case "breakpoint_tool_call":
                 if task_id is None:
-                    logger.error("task_id is required when resuming from a breakpoint tool call")
+                    logger.error(
+                        "task_id is required when resuming from a breakpoint tool call"
+                    )
                     return self._system_broadcast(
                         task_id="null",
                         subject="Runtime Error",
@@ -202,10 +206,15 @@ It is impossible to resume a task without `task_id` specified.""",
                         task_complete=True,
                     )
 
-                REQUIRED_KWARGS = ["breakpoint_tool_caller", "breakpoint_tool_call_result"]
+                REQUIRED_KWARGS = [
+                    "breakpoint_tool_caller",
+                    "breakpoint_tool_call_result",
+                ]
                 for kwarg in REQUIRED_KWARGS:
                     if kwarg not in kwargs:
-                        logger.error(f"required keyword argument '{kwarg}' not provided")
+                        logger.error(
+                            f"required keyword argument '{kwarg}' not provided"
+                        )
                         return self._system_broadcast(
                             task_id=task_id,
                             subject="Runtime Error",
@@ -222,8 +231,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     breakpoint_tool_call_result,
                     action_override=action_override,
                 )
-                
-            case None: # start a new task
+
+            case None:  # start a new task
                 if task_id is None:
                     task_id = str(uuid.uuid4())
                 self._ensure_task_exists(task_id)
@@ -236,7 +245,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     self.mail_tasks[task_id].is_running = False
 
         return result
-
 
     async def _run_loop_for_task(
         self,
@@ -287,7 +295,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     task_id_completed = message["message"].get("task_id")
                     if isinstance(task_id_completed, str):
                         self._ensure_task_exists(task_id_completed)
-                        await self.mail_tasks[task_id_completed].queue_stash(self.message_queue)
+                        await self.mail_tasks[task_id_completed].queue_stash(
+                            self.message_queue
+                        )
                     # Mark this message as done before breaking
                     self.message_queue.task_done()
                     return message
@@ -366,10 +376,14 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
         # append the breakpoint tool call result to the agent history
-        self.agent_histories[AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)].append({
-            "role": "tool",
-            "content": breakpoint_tool_call_result,
-        })
+        self.agent_histories[
+            AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
+        ].append(
+            {
+                "role": "tool",
+                "content": breakpoint_tool_call_result,
+            }
+        )
 
         # send action complete broadcast to tool caller
         await self.submit(
@@ -447,10 +461,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(task_id, str):
                         self._ensure_task_exists(task_id)
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
-                    if (
-                        isinstance(task_id, str)
-                        and task_id in self.pending_requests
-                    ):
+                    if isinstance(task_id, str) and task_id in self.pending_requests:
                         # Resolve the pending request
                         logger.info(
                             f"task '{task_id}' completed, resolving pending request"
@@ -491,7 +502,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         logger.info(f"continuous MAIL operation stopped for user '{self.user_id}'.")
 
     async def submit_and_wait(
-        self, 
+        self,
         message: MAILMessage,
         timeout: float = 3600.0,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
@@ -517,7 +528,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     raise NotImplementedError
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
-                case None: # start a new task (task_id should be provided in the message)
+                case (
+                    None
+                ):  # start a new task (task_id should be provided in the message)
                     self._ensure_task_exists(task_id)
 
                     self.mail_tasks[task_id].is_running = True
@@ -563,7 +576,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
 
     async def submit_and_stream(
-        self, 
+        self,
         message: MAILMessage,
         timeout: float = 3600.0,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
@@ -588,7 +601,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     raise NotImplementedError
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
-                case None: # start a new task
+                case None:  # start a new task
                     await self.submit(message)
 
             # Stream events as they become available, emitting periodic heartbeats
@@ -718,12 +731,16 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         if breakpoint_tool_caller not in self.agents:
             logger.error(f"agent '{breakpoint_tool_caller}' not found")
             raise ValueError(f"agent '{breakpoint_tool_caller}' not found")
-        
+
         # append the breakpoint tool call result to the agent history
-        self.agent_histories[AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)].append({
-            "role": "tool",
-            "content": breakpoint_tool_call_result,
-        })
+        self.agent_histories[
+            AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
+        ].append(
+            {
+                "role": "tool",
+                "content": breakpoint_tool_call_result,
+            }
+        )
 
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
@@ -1151,7 +1168,9 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 task_id = message["message"]["task_id"]
 
                 # get agent history for this task
-                agent_history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=recipient)
+                agent_history_key = AGENT_HISTORY_KEY.format(
+                    task_id=task_id, agent_name=recipient
+                )
                 history = self.agent_histories[agent_history_key]
 
                 if not message["message"]["subject"].startswith(
@@ -1531,10 +1550,10 @@ Use this information to decide how to complete your task.""",
         )
 
     def _submit_event(
-        self, 
-        event: str, 
-        task_id: str, 
-        description: str, 
+        self,
+        event: str,
+        task_id: str,
+        description: str,
         extra_data: dict[str, Any] | None = None,
     ) -> None:
         """

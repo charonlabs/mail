@@ -439,7 +439,7 @@ class MAILClientCLI:
         Build the argument parser for the MAIL client.
         """
         parser = argparse.ArgumentParser(
-            prog="", # to make usage examples work inside the REPL
+            prog="",  # to make usage examples work inside the REPL
             description="Interact with a remote MAIL server",
             epilog="For more information, see `README.md` and `docs/`",
         )
