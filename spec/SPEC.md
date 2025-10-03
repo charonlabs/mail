@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
 - **Version**: 1.1
-- **Date**: October 3, 2025
+- **Date**: October 7, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -218,7 +218,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **`POST /swarms/load`** (`admin`): Body `{ json: string }`. Replaces the persistent swarm definition with the provided JSON payload.
 - **`POST /interswarm/message`** (`agent`): Body is `MAILInterswarmMessage`. Delivers the wrapped payload into local MAIL and returns a `MAILMessage` response for request/response flows.
 - **`POST /interswarm/response`** (`agent`): Body is `MAILMessage`. Submits a remote swarm response back into the origin MAIL pipeline; returns `{ status, task_id }`.
-- **`POST /interswarm/send`** (`user|admin`): Body `{ target_agent: string, message: string, user_token: string }`. Routes a user-initiated interswarm request via the caller's MAIL instance; returns the remote response when available.
+- **`POST /interswarm/send`** (`user|admin`): Body `{ body: string, message: string, user_token: string }`. Routes a user-initiated interswarm request via the caller's MAIL instance; returns the remote response when available.
 
 ## Swarm Registry
 

@@ -282,8 +282,8 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
 
     with TestClient(app) as client:
         payload = {
-            "target_agent": "helper@remote",
-            "message": "Hello remote",
+            "targets": ["helper@remote"],
+            "body": "Hello remote",
             "subject": "Custom Subject",
             "msg_type": "request",
             "task_id": "task-xyz",
@@ -342,7 +342,7 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
     with TestClient(app) as client:
         payload = {
             "targets": ["helper@remote", "analyst"],
-            "message": "Broadcast body",
+            "body": "Broadcast body",
             "subject": "Broadcast",
             "msg_type": "broadcast",
             "user_token": "token-broadcast",
@@ -388,8 +388,8 @@ def test_interswarm_send_invalid_msg_type(monkeypatch: pytest.MonkeyPatch):
 
     with TestClient(app) as client:
         payload = {
-            "target_agent": "helper@remote",
-            "message": "Body",
+            "targets": ["helper@remote"],
+            "body": "Body",
             "msg_type": "interrupt",
             "user_token": "token-invalid",
         }

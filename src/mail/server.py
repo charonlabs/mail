@@ -745,9 +745,8 @@ async def send_interswarm_message(request: Request):
     Intended for users and admins.
 
     Args:
-        target_agent: The target agent to send the message to.
         targets: The targets to send the message to.
-        message: The message to send.
+        body: The message to send.
         subject: The subject of the message.
         msg_type: The type of the message.
         task_id: The task ID of the message.
@@ -769,9 +768,8 @@ async def send_interswarm_message(request: Request):
 
         # parse request
         data = await request.json()
-        target_agent = data.get("target_agent")
         targets = data.get("targets")
-        message_content = data.get("message") or data.get("body")
+        message_content = data.get("body")
         subject = data.get("subject", "Interswarm Message")
         msg_type = data.get("msg_type", "request")
         task_id = data.get("task_id") or str(uuid.uuid4())
@@ -787,11 +785,6 @@ async def send_interswarm_message(request: Request):
 
         user_token = data.get("user_token")
 
-        if targets is None:
-            targets = [target_agent] if target_agent else []
-
-        targets = [t for t in targets if t]
-
         if message_content is not None and not isinstance(message_content, str):
             message_content = str(message_content)
 
@@ -801,7 +794,7 @@ async def send_interswarm_message(request: Request):
         if not targets or not message_content:
             raise HTTPException(
                 status_code=400,
-                detail="'targets' (or 'target_agent') and 'message' are required",
+                detail="'targets' and 'body' are required",
             )
 
         if not user_token or user_token not in user_mail_instances:
