@@ -305,6 +305,23 @@ async def root():
     )
 
 
+@app.get("/whoami", dependencies=[Depends(utils.caller_is_admin_or_user)])
+async def whoami(request: Request):
+    """
+    Get the username and role of the caller.
+    """
+    logger.info("endpoint accessed: 'GET /whoami'")
+    try:
+        caller_info = await utils.extract_token_info(request)
+        caller_id = utils.generate_user_id(caller_info)
+        return types.GetWhoamiResponse(username=caller_id, role=caller_info["role"])
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"error getting whoami: '{e}'")
+        raise HTTPException(status_code=500, detail=f"error getting whoami: {e.with_traceback(None)}")
+
+
 @app.get("/status", dependencies=[Depends(utils.caller_is_admin_or_user)])
 async def status(request: Request):
     """

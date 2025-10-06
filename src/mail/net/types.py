@@ -66,6 +66,18 @@ class GetRootResponse(TypedDict):
     """The version of MAIL that is running."""
 
 
+
+class GetWhoamiResponse(TypedDict):
+    """
+    Response for the MAIL server endpoint `GET /whoami`.
+    """
+    username: str
+    """The username of the caller."""
+
+    role: str
+    """The role of the caller."""
+
+
 class GetStatusResponse(TypedDict):
     """
     Response for the MAIL server endpoint `GET /status`.
