@@ -872,14 +872,16 @@ class MAILClientCLI:
         if attempt_login:
             try:
                 whoami = await self.client.get_whoami()
-                self.username = whoami["username"]
-                self.base_url = self.client.base_url
             except Exception as e:
-                self.client._console.print(f"[red bold]error[/red bold] logging into swarm: {e}")
-                return
+                self.client._console.print(
+                    f"[yellow]warning[/yellow]: unable to determine identity via /whoami ({e}). Continuing as anonymous."
+                )
+                self.username = "unknown"
+            else:
+                self.username = whoami.get("username", "unknown")
         else:
             self.username = "unknown"
-            self.base_url = self.client.base_url
+        self.base_url = self.client.base_url
 
         self._print_preamble()
 
