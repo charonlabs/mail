@@ -899,6 +899,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             has_interswarm_recipients = False
 
             if "recipients" in msg_content:
+                if msg_content["recipients"] == MAIL_ALL_LOCAL_AGENTS: # type: ignore
+                    msg_content["recipients"] = list(self.agents.keys()) # type: ignore
                 for recipient in msg_content["recipients"]:  # type: ignore
                     _, recipient_swarm = parse_agent_address(recipient["address"])
                     if recipient_swarm and recipient_swarm != self.swarm_name:
@@ -1142,8 +1144,6 @@ If your assigned task cannot be completed, inform your caller of this error and 
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
-                    self._send_message(recipient_agent, message, action_override)
-                elif recipient_agent == "all":
                     self._send_message(recipient_agent, message, action_override)
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")
