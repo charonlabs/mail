@@ -30,6 +30,7 @@
                 "name": "math",
                 "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
+                "actions": ["calculate_expression"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT"
@@ -49,6 +50,19 @@
                     }
                 },
                 "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
+            },
+            {
+                "name": "calculate_expression",
+                "description": "Evaluate a basic arithmetic expression inside the math agent.",
+                "parameters": { 
+                    "type": "object",
+                    "properties": {
+                        "expression": { "type": "string", "description": "Expression to evaluate" },
+                        "precision": { "type": "integer", "minimum": 0, "maximum": 12, "description": "Optional number of decimal places for the formatted result" }
+                    },
+                    "required": ["expression"]
+                },
+                "function": "python::mail.examples.math_dummy.actions:calculate_expression"
             }
         ]
     },
@@ -86,6 +100,7 @@
                 "name": "math",
                 "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
+                "actions": ["calculate_expression"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
@@ -106,6 +121,19 @@
                     }
                 },
                 "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
+            },
+            {
+                "name": "calculate_expression",
+                "description": "Evaluate a basic arithmetic expression inside the math agent.",
+                "parameters": { 
+                    "type": "object",
+                    "properties": {
+                        "expression": { "type": "string", "description": "Expression to evaluate" },
+                        "precision": { "type": "integer", "minimum": 0, "maximum": 12, "description": "Optional number of decimal places for the formatted result" }
+                    },
+                    "required": ["expression"]
+                },
+                "function": "python::mail.examples.math_dummy.actions:calculate_expression"
             }
         ]
     },
@@ -143,6 +171,7 @@
                 "name": "math",
                 "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
+                "actions": ["calculate_expression"],
                 "agent_params": { 
                     "llm": "openai/gpt-5-mini",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
@@ -163,6 +192,19 @@
                     }
                 },
                 "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
+            },
+            {
+                "name": "calculate_expression",
+                "description": "Evaluate a basic arithmetic expression inside the math agent.",
+                "parameters": { 
+                    "type": "object",
+                    "properties": {
+                        "expression": { "type": "string", "description": "Expression to evaluate" },
+                        "precision": { "type": "integer", "minimum": 0, "maximum": 12, "description": "Optional number of decimal places for the formatted result" }
+                    },
+                    "required": ["expression"]
+                },
+                "function": "python::mail.examples.math_dummy.actions:calculate_expression"
             }
         ]
     },
