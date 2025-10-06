@@ -68,6 +68,26 @@ paths:
                   active_users: { type: integer }
                   user_mail_ready: { type: boolean }
                   user_task_running: { type: boolean }
+  /whoami:
+    get:
+      summary: Caller identity
+      operationId: whoami
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Username and role bound to the supplied token
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [username, role]
+                properties:
+                  username: { type: string }
+                  role: { type: string }
+        '401':
+          description: Unauthorized
   /message:
     post:
       summary: Send a message to the swarm 

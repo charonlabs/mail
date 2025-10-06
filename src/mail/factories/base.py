@@ -197,7 +197,7 @@ def base_agent_factory(
         for output in res.output:
             if isinstance(output, dict):
                 if output["type"] == "function_call":
-                    tool_calls.append(output)
+                    tool_calls.append(output) # type: ignore
                 elif output["type"] == "message":
                     message = output["content"][0]["text"]
             elif output.type == "function_call":

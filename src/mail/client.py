@@ -949,12 +949,6 @@ class MAILClientCLI:
                         candidate = candidate.replace("\\n", "").replace("\\t", "\t").replace("[\\'", "").replace("\\']", "")
                         collected_set.add(candidate)
                 return
-            if hasattr(node, "data"):
-                try:
-                    _walk(getattr(node, "data"))
-                except Exception:
-                    pass
-                return
             if hasattr(node, "description"):
                 try:
                     _walk(getattr(node, "description"))

@@ -526,7 +526,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         try:
             match resume_from:
                 case "user_response":
-                    raise NotImplementedError
+                    await self._submit_user_response(task_id, **kwargs)
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
                 case (
@@ -599,7 +599,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         try:
             match resume_from:
                 case "user_response":
-                    raise NotImplementedError
+                    await self._submit_user_response(task_id, message, **kwargs)
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
                 case None:  # start a new task
@@ -703,6 +703,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 event="task_error",
             )
 
+    async def _submit_user_response(
+        self,
+        task_id: str,
+        message: MAILMessage,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Submit a user response to a pre-existing task.
+        """
+        if task_id not in self.mail_tasks:
+            logger.error(f"task '{task_id}' not found")
+            raise ValueError(f"task '{task_id}' not found")
+
+        await self.mail_tasks[task_id].queue_load(self.message_queue)
+
+        await self.submit(message)
+
     async def _submit_breakpoint_tool_call_result(
         self,
         task_id: str,
@@ -721,7 +738,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             "breakpoint_tool_caller": str,
             "breakpoint_tool_call_result": str,
         }
-        for kwarg, type in REQUIRED_KWARGS.items():
+        for kwarg, _type in REQUIRED_KWARGS.items():
             if kwarg not in kwargs:
                 logger.error(f"required keyword argument '{kwarg}' not provided")
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
@@ -1125,6 +1142,8 @@ If your assigned task cannot be completed, inform your caller of this error and 
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 if recipient_agent in self.agents:
+                    self._send_message(recipient_agent, message, action_override)
+                elif recipient_agent == "all":
                     self._send_message(recipient_agent, message, action_override)
                 else:
                     logger.warning(f"unknown local agent: '{recipient_agent}'")

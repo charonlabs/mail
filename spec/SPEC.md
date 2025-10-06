@@ -203,7 +203,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - HTTP Bearer[^rfc6750] authentication.
 - **Roles**:
   - `agent`: may call `/interswarm/message`, `/interswarm/response`.
-  - `user`: may call `/status`, `/message`, `/swarms`, `/interswarm/send`.
+  - `user`: may call `/status`, `/whoami`, `/message`, `/swarms`, `/interswarm/send`.
   - `admin`: inherits `user` access and may additionally call `/swarms` (POST), `/swarms/dump`, `/swarms/load`.
 
 ### Endpoints
@@ -211,6 +211,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **`GET /`**: Server metadata. Returns `{ name, status, version }`.
 - **`GET /health`**: Health probe for interswarm peers. Returns `{ status, swarm_name, timestamp }`.
 - **`GET /status`** (`user|admin`): Server status, including swarm and user-instance indicators.
+- **`GET /whoami`** (`user|admin`): Returns `{ username, role }` derived from the presented token. Useful for clients to confirm identity/role assignments.
 - **`POST /message`** (`user|admin`): Body `{ body: string, subject?: string, task_id?: string, entrypoint?: string, show_events?: boolean, stream?: boolean, resume_from?: user_response|breakpoint_tool_call, kwargs?: object }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
 - **`GET /swarms`**: List known swarms from the registry.
 - **`POST /swarms`** (`admin`): Body `{ name, base_url, auth_token?, volatile?, metadata? }`. Registers or updates a remote swarm. Non-volatile entries persist across restarts.
