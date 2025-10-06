@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 1.1
-- **Date**: October 3, 2025
+- **Version**: 1.1-pre2
+- **Date**: October 7, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -203,7 +203,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - HTTP Bearer[^rfc6750] authentication.
 - **Roles**:
   - `agent`: may call `/interswarm/message`, `/interswarm/response`.
-  - `user`: may call `/status`, `/message`, `/swarms`, `/interswarm/send`.
+  - `user`: may call `/status`, `/whoami`, `/message`, `/swarms`, `/interswarm/send`.
   - `admin`: inherits `user` access and may additionally call `/swarms` (POST), `/swarms/dump`, `/swarms/load`.
 
 ### Endpoints
@@ -211,14 +211,15 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **`GET /`**: Server metadata. Returns `{ name, status, version }`.
 - **`GET /health`**: Health probe for interswarm peers. Returns `{ status, swarm_name, timestamp }`.
 - **`GET /status`** (`user|admin`): Server status, including swarm and user-instance indicators.
-- **`POST /message`** (`user|admin`): Body `{ message: string, entrypoint?: string, show_events?: boolean, stream?: boolean, resume_from?: user_response|breakpoint_tool_called, kwargs?: object }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
+- **`GET /whoami`** (`user|admin`): Returns `{ username, role }` derived from the presented token. Useful for clients to confirm identity/role assignments.
+- **`POST /message`** (`user|admin`): Body `{ body: string, subject?: string, task_id?: string, entrypoint?: string, show_events?: boolean, stream?: boolean, resume_from?: user_response|breakpoint_tool_call, kwargs?: object }`. Creates a MAIL request to the swarm's default entrypoint (or user-specified `entrypoint`) and returns the final `response.body` when `broadcast_complete` resolves. When `stream=true`, the server responds with `text/event-stream` SSE events until completion.
 - **`GET /swarms`**: List known swarms from the registry.
 - **`POST /swarms`** (`admin`): Body `{ name, base_url, auth_token?, volatile?, metadata? }`. Registers or updates a remote swarm. Non-volatile entries persist across restarts.
 - **`GET /swarms/dump`** (`admin`): Logs the active persistent swarm and returns `{ status, swarm_name }`.
 - **`POST /swarms/load`** (`admin`): Body `{ json: string }`. Replaces the persistent swarm definition with the provided JSON payload.
 - **`POST /interswarm/message`** (`agent`): Body is `MAILInterswarmMessage`. Delivers the wrapped payload into local MAIL and returns a `MAILMessage` response for request/response flows.
 - **`POST /interswarm/response`** (`agent`): Body is `MAILMessage`. Submits a remote swarm response back into the origin MAIL pipeline; returns `{ status, task_id }`.
-- **`POST /interswarm/send`** (`user|admin`): Body `{ target_agent: string, message: string, user_token: string }`. Routes a user-initiated interswarm request via the caller's MAIL instance; returns the remote response when available.
+- **`POST /interswarm/send`** (`user|admin`): Body `{ user_token: string, body: string, targets?: string[], subject?: string, msg_type?: request|broadcast, task_id?: string, routing_info?: object, stream?: boolean, ignore_stream_pings?: boolean }`. Callers MUST provide either `message` or `body`, and either `target_agent` (single-recipient request) or `targets` (broadcast). When `stream=true`, the runtime propagates interswarm streaming metadata (`routing_info.stream = true`) and returns `{ response: MAILMessage, events: ServerSentEvent[] | null }`.
 
 ## Swarm Registry
 
@@ -253,7 +254,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Versioning
 
-- **Protocol version**: 1.1
+- **Protocol version**: 1.1-pre2
 - Backward-incompatible changes MUST bump the minor (or major) version and update OpenAPI `info.version`.
 
 ## References

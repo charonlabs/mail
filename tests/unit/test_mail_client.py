@@ -167,7 +167,7 @@ async def test_mail_client_rest_endpoints() -> None:
             await client.post_interswarm_message(EXAMPLE_INTERSWARM_MESSAGE)  # type: ignore[arg-type]
             await client.post_interswarm_response(EXAMPLE_MAIL_MESSAGE)  # type: ignore[arg-type]
             await client.send_interswarm_message(
-                "agent@remote", "hello", user_token="demo-user"
+                "hello", targets=["agent@remote"], user_token="demo-user"
             )
             load = await client.load_swarm_from_json("{}")
 
@@ -200,8 +200,8 @@ async def test_mail_client_rest_endpoints() -> None:
     assert captured["registrations"][0]["metadata"] == {"label": "alpha"}
     assert captured["interswarm_message"][0]["msg_type"] == "response"
     assert captured["interswarm_response"][0]["msg_type"] == "response"
-    assert captured["interswarm_send"][0]["target_agent"] == "agent@remote"
-    assert captured["interswarm_send"][0]["message"] == "hello"
+    assert captured["interswarm_send"][0]["targets"] == ["agent@remote"]
+    assert captured["interswarm_send"][0]["body"] == "hello"
     assert captured["interswarm_send"][0]["user_token"] == "demo-user"
     assert captured["swarm_load"][0]["json"] == "{}"
 

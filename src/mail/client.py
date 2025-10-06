@@ -16,6 +16,8 @@ from aiohttp import (
     ClientTimeout,
     ContentTypeError,
 )
+from rich import console
+from rich.syntax import Syntax
 from sse_starlette import ServerSentEvent
 
 import mail.utils as utils
@@ -27,6 +29,7 @@ from mail.net.types import (
     GetStatusResponse,
     GetSwarmsDumpResponse,
     GetSwarmsResponse,
+    GetWhoamiResponse,
     PostInterswarmResponseResponse,
     PostInterswarmSendResponse,
     PostMessageResponse,
@@ -61,6 +64,17 @@ class MAILClient:
         self._timeout = ClientTimeout(total=timeout_float)
         self._session = session
         self._owns_session = session is None
+        self._console = console.Console()
+
+    async def _register_user_info(self) -> None:
+        """
+        Attempt to login and fetch user info.
+        """
+        try:
+            self.username = await self._request_json("POST", "/auth/login")
+            self.user_info = await self._request_json("GET", "/auth/check")
+        except Exception as e:
+            self.logger.error(f"error registering user info: {e}")
 
     async def __aenter__(self) -> MAILClient:
         await self._ensure_session()
@@ -154,6 +168,12 @@ class MAILClient:
         Get basic metadata about the MAIL server (`GET /`).
         """
         return cast(GetRootResponse, await self._request_json("GET", "/"))
+
+    async def get_whoami(self) -> GetWhoamiResponse:
+        """
+        Get the username and role of the caller (`GET /whoami`).
+        """
+        return cast(GetWhoamiResponse, await self._request_json("GET", "/whoami"))
 
     async def get_status(self) -> GetStatusResponse:
         """
@@ -373,18 +393,38 @@ class MAILClient:
 
     async def send_interswarm_message(
         self,
-        target_agent: str,
-        message: str,
+        body: str,
         user_token: str,
+        subject: str | None = None,
+        targets: list[str] | None = None,
+        msg_type: str | None = None,
+        task_id: str | None = None,
+        routing_info: dict[str, Any] | None = None,
+        stream: bool | None = None,
+        ignore_stream_pings: bool | None = None,
     ) -> PostInterswarmSendResponse:
         """
         Send an interswarm message to the MAIL server (`POST /interswarm/send`).
         """
-        payload = {
-            "target_agent": target_agent,
-            "message": message,
+        payload: dict[str, Any] = {
+            "body": body,
             "user_token": user_token,
         }
+
+        if targets is not None:
+            payload["targets"] = targets
+        if subject is not None:
+            payload["subject"] = subject
+        if msg_type is not None:
+            payload["msg_type"] = msg_type
+        if task_id is not None:
+            payload["task_id"] = task_id
+        if routing_info is not None:
+            payload["routing_info"] = routing_info
+        if stream is not None:
+            payload["stream"] = stream
+        if ignore_stream_pings is not None:
+            payload["ignore_stream_pings"] = ignore_stream_pings
 
         return cast(
             PostInterswarmSendResponse,
@@ -452,6 +492,12 @@ class MAILClientCLI:
             "get-root", help="get the root of the MAIL server"
         )
         get_root_parser.set_defaults(func=self._get_root)
+
+        # command `get-whoami`
+        get_whoami_parser = subparsers.add_parser(
+            "get-whoami", help="get the username and role of the caller"
+        )
+        get_whoami_parser.set_defaults(func=self._get_whoami)
 
         # command `post-message`
         post_message_parser = subparsers.add_parser(
@@ -637,13 +683,13 @@ class MAILClientCLI:
             help="send an interswarm message to the MAIL server",
         )
         send_interswarm_message_parser.add_argument(
-            "--message",
+            "--body",
             type=str,
             help="the message to send",
         )
         send_interswarm_message_parser.add_argument(
-            "--target-agent",
-            type=str,
+            "--targets",
+            type=list[str],
             help="the target agent to send the message to",
         )
         send_interswarm_message_parser.add_argument(
@@ -672,9 +718,19 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.get_root()
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error getting root: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] getting root: {e}")
+
+    async def _get_whoami(self, _args: argparse.Namespace) -> None:
+        """
+        Get the username and role of the caller.
+        """
+        try:
+            response = await self.client.get_whoami()
+            self.client._console.print(json.dumps(response, indent=2))
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] getting whoami: {e}")
 
     async def _post_message(self, args: argparse.Namespace) -> None:
         """
@@ -691,9 +747,12 @@ class MAILClientCLI:
                 resume_from=args.resume_from,
                 **args.kwargs,
             )
-            print(json.dumps(response, indent=2))
+            self.client._console.print(
+                json.dumps(response, indent=2, ensure_ascii=False)
+            )
+            self._print_embedded_xml(response)
         except Exception as e:
-            print(f"error posting message: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] posting message: {e}")
 
     async def _post_message_stream(self, args: argparse.Namespace) -> None:
         """
@@ -714,9 +773,12 @@ class MAILClientCLI:
                     "event": event.event,
                     "data": event.data,
                 }
-                print(json.dumps(parsed_event, indent=2))
+                self.client._console.print(
+                    json.dumps(parsed_event, indent=2, ensure_ascii=False)
+                )
+                self._print_embedded_xml(parsed_event)
         except Exception as e:
-            print(f"error posting message: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] posting message: {e}")
 
     async def _get_health(self, _args: argparse.Namespace) -> None:
         """
@@ -724,9 +786,9 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.get_health()
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error getting health: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] getting health: {e}")
 
     async def _get_swarms(self, _args: argparse.Namespace) -> None:
         """
@@ -734,9 +796,9 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.get_swarms()
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error getting swarms: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] getting swarms: {e}")
 
     async def _register_swarm(self, args: argparse.Namespace) -> None:
         """
@@ -750,9 +812,9 @@ class MAILClientCLI:
                 volatile=args.volatile,
                 metadata=None,
             )
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error registering swarm: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] registering swarm: {e}")
 
     async def _dump_swarm(self, _args: argparse.Namespace) -> None:
         """
@@ -760,9 +822,9 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.dump_swarm()
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error dumping swarm: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] dumping swarm: {e}")
 
     async def _send_interswarm_message(self, args: argparse.Namespace) -> None:
         """
@@ -770,11 +832,11 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.send_interswarm_message(
-                args.target_agent, args.message, args.user_token
+                args.body, args.targets, args.user_token
             )
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error sending interswarm message: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] sending interswarm message: {e}")
 
     async def _load_swarm_from_json(self, args: argparse.Namespace) -> None:
         """
@@ -782,32 +844,61 @@ class MAILClientCLI:
         """
         try:
             response = await self.client.load_swarm_from_json(args.swarm_json)
-            print(json.dumps(response, indent=2))
+            self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            print(f"error loading swarm from JSON: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] loading swarm from JSON: {e}")
 
     def _print_preamble(self) -> None:
         """
         Print the preamble for the MAIL client.
         """
-        print(f"MAIL CLIent v{utils.get_version()}")
-        print("Enter `help` for help and `exit` to quit")
-        print("==========")
+        self.client._console.print(f"[bold]MAIL CLIent v[cyan]{utils.get_version()}[/cyan][/bold]")
+        self.client._console.print("Enter [cyan]`help`[/cyan] for help and [cyan]`exit`[/cyan] to quit")
+        self.client._console.print("==========")
 
-    async def run(self) -> None:
+    def _repl_input_string(
+        self,
+        username: str,
+        base_url: str,
+    ) -> str:
+        """
+        Get the input string for the REPL.
+        """
+        base_url = base_url.removeprefix("http://")
+        base_url = base_url.removeprefix("https://")
+        return f"[cyan bold]mail[/cyan bold]::[green bold]{username}@{base_url}[/green bold]> "
+
+    async def run(
+        self,
+        attempt_login: bool = True,
+    ) -> None:
         """
         Run the MAIL client as a REPL in the terminal.
         """
+        if attempt_login:
+            try:
+                whoami = await self.client.get_whoami()
+            except Exception as e:
+                self.client._console.print(
+                    f"[yellow]warning[/yellow]: unable to determine identity via /whoami ({e}). Continuing as anonymous."
+                )
+                self.username = "unknown"
+            else:
+                self.username = whoami.get("username", "unknown")
+        else:
+            self.username = "unknown"
+        self.base_url = self.client.base_url
+
         self._print_preamble()
 
         while True:
             try:
-                raw_command = input("mail> ")
+                raw_command = self.client._console.input(self._repl_input_string(self.username, self.base_url))
             except EOFError:
-                print()
+                self.client._console.print()
                 break
             except KeyboardInterrupt:
-                print()
+                self.client._console.print()
                 continue
 
             if not raw_command.strip():
@@ -816,7 +907,7 @@ class MAILClientCLI:
             try:
                 tokens = shlex.split(raw_command)
             except ValueError as exc:
-                print(f"error parsing command: {exc}")
+                self.client._console.print(f"[red bold]error[/red bold] parsing command: {exc}")
                 continue
 
             command = tokens[0]
@@ -838,3 +929,60 @@ class MAILClientCLI:
                 continue
 
             await func(args)
+
+    @staticmethod
+    def _collect_xml_strings(candidate: Any) -> list[str]:
+        """
+        Recursively gather XML-like strings from nested data.
+        """
+
+        collected_set: set[str] = set()
+
+        def _walk(node: Any) -> None:
+            if isinstance(node, str):
+                snippet = node.strip()
+                if "<" in snippet and ">" in snippet:
+                    start = snippet.find("<")
+                    end = snippet.rfind(">")
+                    if start != -1 and end != -1 and start < end:
+                        candidate = snippet[start : end + 1]
+                        candidate = candidate.replace("\\n", "").replace("\\t", "\t").replace("[\\'", "").replace("\\']", "")
+                        collected_set.add(candidate)
+                return
+            if hasattr(node, "description"):
+                try:
+                    _walk(getattr(node, "description"))
+                except Exception:
+                    pass
+                return
+            if isinstance(node, dict):
+                for value in node.values():
+                    _walk(value)
+                return
+            if isinstance(node, list | tuple | set):
+                for value in node:
+                    _walk(value)
+
+        _walk(candidate)
+        return list(collected_set)
+
+    @staticmethod
+    def _pretty_format_xml(xml_text: str) -> str | None:
+        try:
+            from xml.dom import minidom
+
+            parsed = minidom.parseString(xml_text)
+            pretty = parsed.toprettyxml(indent="  ", encoding="utf-8")
+        except Exception:
+            return None
+
+        try:
+            return pretty.decode("utf-8").strip()
+        except AttributeError:
+            return pretty.strip().decode("utf-8")
+
+    def _print_embedded_xml(self, payload: Any) -> None:
+        for snippet in self._collect_xml_strings(payload):
+            pretty = self._pretty_format_xml(snippet)
+            if pretty:
+                self.client._console.print(Syntax(pretty, "xml"))

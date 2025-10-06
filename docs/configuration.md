@@ -77,6 +77,7 @@ timeout = 3600.0
                 "name": "math",
                 "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
+                "actions": ["calculate_expression"],
                 "agent_params": {
                     "llm": "openai/gpt-5-mini",
                     "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
@@ -96,6 +97,19 @@ timeout = 3600.0
                     }
                 },
                 "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
+            },
+            {
+                "name": "calculate_expression",
+                "description": "Evaluate a basic arithmetic expression inside the math agent",
+                "parameters": { 
+                    "type": "object",
+                    "properties": {
+                        "expression": { "type": "string", "description": "Expression to evaluate" },
+                        "precision": { "type": "integer", "minimum": 0, "maximum": 12, "description": "Optional number of decimal places" }
+                    },
+                    "required": ["expression"]
+                },
+                "function": "mail.examples.math_dummy.actions:calculate_expression"
             }
         ]
     }

@@ -30,6 +30,7 @@ from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
 from mail.core.tools import MAIL_TOOL_NAMES
 from mail.net import SwarmRegistry
+from mail.net.router import StreamHandler
 from mail.swarms_json import (
     SwarmsJSONAction,
     SwarmsJSONAgent,
@@ -160,12 +161,6 @@ class MAILAgentTemplate:
         if len(self.name) < 1:
             raise ValueError(
                 f"agent name must be at least 1 character long, got {len(self.name)}"
-            )
-        if len(self.comm_targets) < 1 and (
-            self.can_complete_tasks is False or self.enable_entrypoint is False
-        ):
-            raise ValueError(
-                f"agent must have at least one communication target, got {len(self.comm_targets)}. If should be a solo agent, set can_complete_tasks and enable_entrypoint to True."
             )
 
     def _top_level_params(self) -> dict[str, Any]:
@@ -860,6 +855,8 @@ class MAILSwarm:
         message: MAILMessage,
         timeout: float = 3600.0,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        *,
+        ping_interval: int | None = 15000,
         **kwargs: Any,
     ) -> EventSourceResponse:
         """
@@ -878,7 +875,7 @@ class MAILSwarm:
 
         return EventSourceResponse(
             stream,
-            ping=15000,
+            ping=ping_interval,
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
@@ -898,7 +895,13 @@ class MAILSwarm:
         """
         return self._runtime.pending_requests
 
-    async def route_interswarm_message(self, message: MAILMessage) -> MAILMessage:
+    async def route_interswarm_message(
+        self,
+        message: MAILMessage,
+        *,
+        stream_handler: StreamHandler | None = None,
+        ignore_stream_pings: bool = False,
+    ) -> MAILMessage:
         """
         Route an interswarm message to the appropriate destination.
         """
@@ -906,7 +909,11 @@ class MAILSwarm:
         if router is None:
             raise ValueError("interswarm router not available")
 
-        return await router.route_message(message)
+        return await router.route_message(
+            message,
+            stream_handler=stream_handler,
+            ignore_stream_pings=ignore_stream_pings,
+        )
 
     def get_subswarm(
         self, names: list[str], name_suffix: str, entrypoint: str | None = None

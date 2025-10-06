@@ -61,7 +61,7 @@ class SwarmRegistry:
             volatile=False,  # Local swarm is never volatile
         )
         logger.info(
-            f"registered local swarm: '{self.local_swarm_name}' at '{base_url}'"
+            f"registered local swarm: '{self.local_swarm_name}' at {base_url}"
         )
 
     def register_swarm(
@@ -98,7 +98,7 @@ class SwarmRegistry:
             volatile=volatile,
         )
         logger.info(
-            f"registered remote swarm: '{swarm_name}' at '{base_url}' (volatile: '{volatile}')"
+            f"registered remote swarm: '{swarm_name}' at {base_url} (volatile: '{volatile}')"
         )
 
         # Save persistent endpoints if this swarm is non-volatile

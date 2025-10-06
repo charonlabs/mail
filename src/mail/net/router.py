@@ -2,10 +2,11 @@
 # Copyright (c) 2025 Addison Kline
 
 import datetime
+import json
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
-from typing import Any
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any, cast
 
 import aiohttp
 
@@ -22,6 +23,9 @@ from mail.core.message import (
 from .registry import SwarmRegistry
 
 logger = logging.getLogger("mail.router")
+
+
+StreamHandler = Callable[[str, str | None], Awaitable[None]]
 
 
 class InterswarmRouter:
@@ -67,7 +71,13 @@ class InterswarmRouter:
         self.message_handlers[message_type] = handler
         logger.info(f"registered handler for message type: '{message_type}'")
 
-    async def route_message(self, message: MAILMessage) -> MAILMessage:
+    async def route_message(
+        self,
+        message: MAILMessage,
+        *,
+        stream_handler: StreamHandler | None = None,
+        ignore_stream_pings: bool = False,
+    ) -> MAILMessage:
         """
         Route a message to the appropriate destination (local or remote).
 
@@ -79,6 +89,16 @@ class InterswarmRouter:
             msg_content = message["message"]
 
             # Check if recipient is in interswarm format
+            routing_info = msg_content.get("routing_info")
+            stream_requested = (
+                isinstance(routing_info, dict) and bool(routing_info.get("stream"))
+            )
+            ignore_pings_flag = (
+                isinstance(routing_info, dict)
+                and bool(routing_info.get("ignore_stream_pings"))
+            )
+            ignore_pings = ignore_stream_pings or ignore_pings_flag
+
             if "recipient" in msg_content:
                 recipient = msg_content["recipient"]  # type: ignore
                 recipient_agent, recipient_swarm = parse_agent_address(
@@ -88,7 +108,11 @@ class InterswarmRouter:
                 # If recipient is in a different swarm, route via HTTP
                 if recipient_swarm and recipient_swarm != self.local_swarm_name:
                     response = await self._route_to_remote_swarm(
-                        message, recipient_swarm
+                        message,
+                        recipient_swarm,
+                        stream_requested=stream_requested,
+                        stream_handler=stream_handler,
+                        ignore_stream_pings=ignore_pings,
                     )
                 else:
                     # Local message, handle normally
@@ -129,7 +153,11 @@ class InterswarmRouter:
                         message, agents, swarm_name
                     )
                     response = await self._route_to_remote_swarm(
-                        remote_message, swarm_name
+                        remote_message,
+                        swarm_name,
+                        stream_requested=stream_requested,
+                        stream_handler=stream_handler,
+                        ignore_stream_pings=ignore_pings,
                     )
 
                 return response
@@ -165,7 +193,13 @@ class InterswarmRouter:
             )
 
     async def _route_to_remote_swarm(
-        self, message: MAILMessage, swarm_name: str
+        self,
+        message: MAILMessage,
+        swarm_name: str,
+        *,
+        stream_requested: bool = False,
+        stream_handler: StreamHandler | None = None,
+        ignore_stream_pings: bool = False,
     ) -> MAILMessage:
         """
         Route a message to a remote swarm via HTTP.
@@ -190,6 +224,16 @@ class InterswarmRouter:
             )
 
             # Create interswarm message wrapper
+            metadata: dict[str, Any] = {
+                "original_message_id": message["id"],
+                "routing_info": message["message"].get("routing_info", {}),
+                "expect_response": True,
+            }
+            if stream_requested:
+                metadata["stream"] = True
+                if ignore_stream_pings:
+                    metadata["ignore_stream_pings"] = True
+
             interswarm_message = MAILInterswarmMessage(
                 message_id=str(uuid.uuid4()),
                 source_swarm=self.local_swarm_name,
@@ -198,11 +242,7 @@ class InterswarmRouter:
                 payload=message["message"],
                 msg_type=message["msg_type"],  # type: ignore
                 auth_token=self.swarm_registry.get_resolved_auth_token(swarm_name),
-                metadata={
-                    "original_message_id": message["id"],
-                    "routing_info": message["message"].get("routing_info", {}),
-                    "expect_response": True,
-                },
+                metadata=metadata,
             )
 
             # Send via HTTP
@@ -211,6 +251,9 @@ class InterswarmRouter:
                 "Content-Type": "application/json",
                 "User-Agent": f"MAIL-Interswarm-Router/{self.local_swarm_name}",
             }
+
+            if stream_requested:
+                headers["Accept"] = "text/event-stream"
 
             auth_token = self.swarm_registry.get_resolved_auth_token(swarm_name)
             if auth_token:
@@ -221,18 +264,34 @@ class InterswarmRouter:
             async with self.session.post(
                 url, json=interswarm_message, headers=headers, timeout=timeout
             ) as response:
+                content_type = response.headers.get("Content-Type", "")
+                if (
+                    stream_requested
+                    and response.status == 200
+                    and "text/event-stream" in content_type
+                ):
+                    final_message = await self._consume_stream(
+                        response,
+                        message,
+                        swarm_name,
+                        stream_handler=stream_handler,
+                        ignore_stream_pings=ignore_stream_pings,
+                    )
+                    await response.release()
+                    return final_message
+
                 if response.status == 200:
                     logger.info(f"successfully routed message to swarm: '{swarm_name}'")
                     response_json = await response.json()
                     return MAILMessage(**response_json)  # type: ignore
-                else:
-                    logger.error(
-                        f"failed to route message to swarm '{swarm_name}' with status: '{response.status}'"
-                    )
-                    return self._system_router_message(
-                        message,
-                        f"failed to route message to swarm '{swarm_name}' with status: '{response.status}'",
-                    )
+
+                logger.error(
+                    f"failed to route message to swarm '{swarm_name}' with status: '{response.status}'"
+                )
+                return self._system_router_message(
+                    message,
+                    f"failed to route message to swarm '{swarm_name}' with status: '{response.status}'",
+                )
 
         except Exception as e:
             logger.error(
@@ -288,6 +347,128 @@ class InterswarmRouter:
             message=msg_content,
             msg_type=original_message["msg_type"],
         )
+
+    async def _consume_stream(
+        self,
+        response: aiohttp.ClientResponse,
+        original_message: MAILMessage,
+        swarm_name: str,
+        *,
+        stream_handler: StreamHandler | None = None,
+        ignore_stream_pings: bool = False,
+    ) -> MAILMessage:
+        """
+        Consume an SSE response from a remote swarm and return the final MAILMessage.
+        """
+
+        final_message: MAILMessage | None = None
+        task_failed = False
+        failure_reason: str | None = None
+
+        async for event_name, payload in self._iter_sse(response):
+            if event_name == "ping" and ignore_stream_pings:
+                continue
+
+            if stream_handler is not None:
+                await stream_handler(event_name, payload)
+
+            if event_name == "new_message" and payload:
+                try:
+                    data = json.loads(payload)
+                except json.JSONDecodeError:
+                    logger.debug(
+                        f"unable to parse streaming 'new_message' payload from swarm '{swarm_name}'"
+                    )
+                    continue
+
+                message_data = (
+                    data.get("extra_data", {}).get("full_message")
+                    if isinstance(data, dict)
+                    else None
+                )
+
+                if isinstance(message_data, dict):
+                    try:
+                        candidate = cast(MAILMessage, message_data)
+                    except TypeError:
+                        logger.debug(
+                            f"received non-conforming message in stream from '{swarm_name}'"
+                        )
+                        continue
+
+                    task_id = (
+                        candidate["message"].get("task_id")
+                        if isinstance(candidate.get("message"), dict)
+                        else None
+                    )
+                    original_task_id = (
+                        original_message["message"].get("task_id")
+                        if isinstance(original_message.get("message"), dict)
+                        else None
+                    )
+                    if task_id and task_id == original_task_id:
+                        final_message = candidate
+
+            elif event_name == "task_error":
+                task_failed = True
+                if payload:
+                    try:
+                        data = json.loads(payload)
+                        failure_reason = data.get("response") if isinstance(data, dict) else None
+                    except json.JSONDecodeError:
+                        failure_reason = payload
+                break
+            elif event_name == "task_complete":
+                break
+
+        if final_message is not None:
+            return final_message
+
+        if task_failed:
+            reason = failure_reason or "remote task reported an error"
+            return self._system_router_message(original_message, reason)
+
+        logger.error(
+            "streamed interswarm response from '%s' ended without delivering a final message",
+            swarm_name,
+        )
+        return self._system_router_message(
+            original_message,
+            "stream ended before a final response was received",
+        )
+
+    async def _iter_sse(
+        self, response: aiohttp.ClientResponse
+    ) -> AsyncIterator[tuple[str, str | None]]:
+        """Yield (event, data) tuples from an SSE response."""
+
+        event_name = "message"
+        data_lines: list[str] = []
+
+        async for raw_line in response.content:
+            line = raw_line.decode("utf-8", errors="ignore").rstrip("\n")
+            if line.endswith("\r"):
+                line = line[:-1]
+
+            if line == "":
+                if data_lines or event_name != "message":
+                    data = "\n".join(data_lines) if data_lines else None
+                    yield event_name, data
+                event_name = "message"
+                data_lines = []
+                continue
+
+            if line.startswith(":"):
+                continue
+
+            if line.startswith("event:"):
+                event_name = line[len("event:") :].strip() or "message"
+            elif line.startswith("data:"):
+                data_lines.append(line[len("data:") :].lstrip())
+
+        if data_lines or event_name != "message":
+            data = "\n".join(data_lines) if data_lines else None
+            yield event_name, data
 
     def _create_remote_message(
         self, original_message: MAILMessage, remote_agents: list[str], swarm_name: str

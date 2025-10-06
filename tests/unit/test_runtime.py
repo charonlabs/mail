@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import tempfile
 import uuid
 from types import MethodType
 
@@ -17,6 +18,7 @@ from mail.core.message import (
     create_user_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
+from mail.net.registry import SwarmRegistry
 
 
 def _make_request(
@@ -410,3 +412,96 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
     assert recipient["address"] == create_agent_address(tool_caller)["address"]
 
     assert task_id not in runtime.pending_requests
+
+
+async def _noop_agent_fn(
+    history: list[dict[str, object]], tool_choice: str
+) -> tuple[str | None, list]:
+    return None, []
+
+
+def _make_runtime_agents() -> dict[str, AgentCore]:
+    return {
+        "supervisor": AgentCore(_noop_agent_fn, comm_targets=["analyst", "math"]),
+        "analyst": AgentCore(_noop_agent_fn, comm_targets=["supervisor", "math"]),
+        "math": AgentCore(_noop_agent_fn, comm_targets=["supervisor", "analyst"]),
+    }
+
+
+def _make_broadcast_all(task_id: str, sender: str = "supervisor") -> MAILMessage:
+    return MAILMessage(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message=MAILBroadcast(
+            task_id=task_id,
+            broadcast_id=str(uuid.uuid4()),
+            sender=create_agent_address(sender),
+            recipients=[create_agent_address("all")],
+            subject="Announcement",
+            body="payload",
+            sender_swarm=None,
+            recipient_swarms=None,
+            routing_info={},
+        ),
+        msg_type="broadcast",
+    )
+
+
+@pytest.mark.asyncio
+async def test_broadcast_all_excludes_sender_locally(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = MAILRuntime(
+        agents=_make_runtime_agents(),
+        actions={},
+        user_id="user-1",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    dispatched: list[str] = []
+
+    def record_send(self: MAILRuntime, recipient: str, message: MAILMessage, _override=None) -> None:  # type: ignore[override]
+        dispatched.append(recipient)
+
+    monkeypatch.setattr(runtime, "_send_message", MethodType(record_send, runtime))
+
+    broadcast = _make_broadcast_all("task-broadcast")
+    await runtime._process_message(broadcast)
+
+    assert set(dispatched) == {"analyst", "math"}
+    assert "supervisor" not in dispatched
+    assert broadcast["message"]["recipients"] == [create_agent_address("all")] # type: ignore
+
+
+@pytest.mark.asyncio
+async def test_broadcast_all_excludes_sender_with_interswarm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        registry = SwarmRegistry(
+            "example", "http://example.test", persistence_file=f"{tmpdir}/registry.json"
+        )
+        runtime = MAILRuntime(
+            agents=_make_runtime_agents(),
+            actions={},
+            user_id="user-1",
+            swarm_name="example",
+            entrypoint="supervisor",
+            swarm_registry=registry,
+            enable_interswarm=True,
+        )
+
+        dispatched: list[str] = []
+
+        def record_send(
+            self: MAILRuntime, recipient: str, message: MAILMessage, _override=None
+        ) -> None:  # type: ignore[override]
+            dispatched.append(recipient)
+
+        monkeypatch.setattr(runtime, "_send_message", MethodType(record_send, runtime))
+
+        broadcast = _make_broadcast_all("task-broadcast-remote")
+        await runtime._process_message(broadcast)
+
+        assert set(dispatched) == {"analyst", "math"}
+        assert "supervisor" not in dispatched
+        assert broadcast["message"]["recipients"] == [create_agent_address("all")] # type: ignore

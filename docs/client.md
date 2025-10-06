@@ -58,6 +58,7 @@ The class implements `__aenter__` / `__aexit__`, so `async with` automatically o
 | Category | Methods | Notes |
 | --- | --- | --- |
 | Service metadata | `get_root()`, `get_status()` | Mirrors `GET /` and `GET /status`. |
+| Identity | `get_whoami()` | Fetches the caller's username and role via `GET /whoami`. |
 | Health | `get_health()` | Returns interswarm readiness info. |
 | Messaging | `post_message(message, entrypoint=None, show_events=False)`, `post_message_stream(message, entrypoint=None)` | Handles synchronous responses and SSE streaming. |
 | Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |

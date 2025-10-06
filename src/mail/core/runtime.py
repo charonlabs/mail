@@ -3,6 +3,7 @@
 
 import asyncio
 import datetime
+import json
 import logging
 import uuid
 from asyncio import PriorityQueue, Task
@@ -525,7 +526,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         try:
             match resume_from:
                 case "user_response":
-                    raise NotImplementedError
+                    await self._submit_user_response(task_id, **kwargs)
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
                 case (
@@ -598,7 +599,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         try:
             match resume_from:
                 case "user_response":
-                    raise NotImplementedError
+                    await self._submit_user_response(task_id, message, **kwargs)
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
                 case None:  # start a new task
@@ -702,6 +703,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 event="task_error",
             )
 
+    async def _submit_user_response(
+        self,
+        task_id: str,
+        message: MAILMessage,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Submit a user response to a pre-existing task.
+        """
+        if task_id not in self.mail_tasks:
+            logger.error(f"task '{task_id}' not found")
+            raise ValueError(f"task '{task_id}' not found")
+
+        await self.mail_tasks[task_id].queue_load(self.message_queue)
+
+        await self.submit(message)
+
     async def _submit_breakpoint_tool_call_result(
         self,
         task_id: str,
@@ -720,7 +738,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             "breakpoint_tool_caller": str,
             "breakpoint_tool_call_result": str,
         }
-        for kwarg, type in REQUIRED_KWARGS.items():
+        for kwarg, _type in REQUIRED_KWARGS.items():
             if kwarg not in kwargs:
                 logger.error(f"required keyword argument '{kwarg}' not provided")
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
@@ -881,7 +899,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             has_interswarm_recipients = False
 
             if "recipients" in msg_content:
-                for recipient in msg_content["recipients"]:  # type: ignore
+                recipients_for_routing = msg_content["recipients"]  # type: ignore
+                if recipients_for_routing == [MAIL_ALL_LOCAL_AGENTS]:  # type: ignore[comparison-overlap]
+                    recipients_for_routing = [
+                        create_agent_address(agent) for agent in self.agents.keys()
+                    ]
+
+                for recipient in recipients_for_routing:  # type: ignore[assignment]
                     _, recipient_swarm = parse_agent_address(recipient["address"])
                     if recipient_swarm and recipient_swarm != self.swarm_name:
                         has_interswarm_recipients = True
@@ -913,7 +937,59 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         if self.interswarm_router:
             try:
-                response = await self.interswarm_router.route_message(message)
+                msg_content = message["message"]
+                routing_info = (
+                    msg_content.get("routing_info")
+                    if isinstance(msg_content, dict)
+                    else None
+                )
+                stream_requested = (
+                    isinstance(routing_info, dict)
+                    and bool(routing_info.get("stream"))
+                )
+                ignore_stream_pings = (
+                    isinstance(routing_info, dict)
+                    and bool(routing_info.get("ignore_stream_pings"))
+                )
+
+                async def forward_remote_event(
+                    event_name: str, payload: str | None
+                ) -> None:
+                    if ignore_stream_pings and event_name == "ping":
+                        return
+
+                    try:
+                        data = json.loads(payload) if payload else {}
+                    except json.JSONDecodeError:
+                        data = {"raw": payload}
+
+                    if not isinstance(data, dict):
+                        data = {"raw": data}
+
+                    task_id = data.get("task_id")
+                    if not isinstance(task_id, str):
+                        return
+
+                    self._ensure_task_exists(task_id)
+
+                    sse = ServerSentEvent(data=data, event=event_name)
+
+                    try:
+                        self.mail_tasks[task_id].add_event(sse)
+                    except Exception:
+                        pass
+
+                    self.new_events.append(sse)
+                    try:
+                        self._events_available.set()
+                    except Exception:
+                        pass
+
+                response = await self.interswarm_router.route_message(
+                    message,
+                    stream_handler=forward_remote_event if stream_requested else None,
+                    ignore_stream_pings=ignore_stream_pings,
+                )
                 logger.info(
                     f"received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
                 )
@@ -1056,14 +1132,36 @@ If your assigned task cannot be completed, inform your caller of this error and 
         """
         msg_content = message["message"]
 
+        # Normalise recipients into a list of address strings (agent names or interswarm ids)
+        raw_recipients: list[MAILAddress]
         if "recipients" in msg_content:
-            if msg_content["recipients"] == MAIL_ALL_LOCAL_AGENTS:  # type: ignore
-                recipients = list(self.agents.keys())
-                recipients.remove(message["message"]["sender"]["address"])
-            else:
-                recipients = [agent["address"] for agent in msg_content["recipients"]]  # type: ignore
+            raw_recipients = msg_content["recipients"]  # type: ignore[assignment]
         else:
-            recipients = [msg_content["recipient"]["address"]]
+            raw_recipients = [msg_content["recipient"]]  # type: ignore[list-item]
+
+        sender_address = message["message"]["sender"]["address"]
+
+        recipient_addresses: list[str] = []
+        for address in raw_recipients:
+            addr_str = address["address"]
+            if (
+                addr_str == MAIL_ALL_LOCAL_AGENTS["address"]
+                and address["address_type"] == "agent"
+            ):
+                recipient_addresses.extend(self.agents.keys())
+            else:
+                recipient_addresses.append(addr_str)
+
+        # Drop duplicate addresses while preserving order
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for addr in recipient_addresses:
+            if addr not in seen:
+                seen.add(addr)
+                deduped.append(addr)
+
+        # Prevent agents from broadcasting to themselves
+        recipients = [addr for addr in deduped if addr != sender_address]
 
         for recipient in recipients:
             # Parse recipient address to get local agent name
@@ -1088,7 +1186,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
                             sender_agent,
                             self._system_response(
                                 task_id=message["message"]["task_id"],
-                                recipient=create_agent_address(recipient),
+                                recipient=create_agent_address(sender_agent),
                                 subject="Improper response to user",
                                 body=f"""The user ('{self.user_id}') is unable to respond to your message. 
 If the user's task is complete, use the 'task_complete' tool.
@@ -1125,7 +1223,7 @@ In order to prevent infinite loops, system-to-system messages immediately end th
                             sender_agent,
                             self._system_response(
                                 task_id=message["message"]["task_id"],
-                                recipient=create_agent_address(recipient),
+                                recipient=create_agent_address(sender_agent),
                                 subject=f"Unknown Agent: '{recipient_agent}'",
                                 body=f"""The agent '{recipient_agent}' is not known to this swarm.
 Your directly reachable agents can be found in the tool definitions for `send_request` and `send_response`.""",

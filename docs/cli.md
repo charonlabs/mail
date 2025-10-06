@@ -42,6 +42,7 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 | `help` or `?` | Print CLI usage information without exiting the loop. |
 | `exit` / `quit` | Leave the REPL. |
 | `get-health` | Invoke `GET /health` and print the JSON body. |
+| `get-whoami` | Invoke `GET /whoami` and display the caller's username and role. |
 | `post-message --message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
 | `post-message-stream --message "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
 | `get-swarms`, `register-swarm`, `dump-swarm` | Manage the swarm registry. |
