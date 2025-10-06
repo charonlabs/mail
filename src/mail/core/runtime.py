@@ -1141,7 +1141,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
                             sender_agent,
                             self._system_response(
                                 task_id=message["message"]["task_id"],
-                                recipient=create_agent_address(recipient),
+                                recipient=create_agent_address(sender_agent),
                                 subject="Improper response to user",
                                 body=f"""The user ('{self.user_id}') is unable to respond to your message. 
 If the user's task is complete, use the 'task_complete' tool.
@@ -1178,7 +1178,7 @@ In order to prevent infinite loops, system-to-system messages immediately end th
                             sender_agent,
                             self._system_response(
                                 task_id=message["message"]["task_id"],
-                                recipient=create_agent_address(recipient),
+                                recipient=create_agent_address(sender_agent),
                                 subject=f"Unknown Agent: '{recipient_agent}'",
                                 body=f"""The agent '{recipient_agent}' is not known to this swarm.
 Your directly reachable agents can be found in the tool definitions for `send_request` and `send_response`.""",

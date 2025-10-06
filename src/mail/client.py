@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
 import shlex
@@ -18,6 +17,7 @@ from aiohttp import (
     ContentTypeError,
 )
 from rich import console
+from rich.syntax import Syntax
 from sse_starlette import ServerSentEvent
 
 import mail.utils as utils
@@ -747,7 +747,10 @@ class MAILClientCLI:
                 resume_from=args.resume_from,
                 **args.kwargs,
             )
-            self.client._console.print(json.dumps(response, indent=2))
+            self.client._console.print(
+                json.dumps(response, indent=2, ensure_ascii=False)
+            )
+            self._print_embedded_xml(response)
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] posting message: {e}")
 
@@ -770,7 +773,10 @@ class MAILClientCLI:
                     "event": event.event,
                     "data": event.data,
                 }
-                self.client._console.print(json.dumps(parsed_event, indent=2))
+                self.client._console.print(
+                    json.dumps(parsed_event, indent=2, ensure_ascii=False)
+                )
+                self._print_embedded_xml(parsed_event)
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] posting message: {e}")
 
@@ -846,7 +852,7 @@ class MAILClientCLI:
         """
         Print the preamble for the MAIL client.
         """
-        self.client._console.print(f"MAIL CLIent v[cyan bold]{utils.get_version()}[/cyan bold]")
+        self.client._console.print(f"[bold]MAIL CLIent v[cyan]{utils.get_version()}[/cyan][/bold]")
         self.client._console.print("Enter [cyan]`help`[/cyan] for help and [cyan]`exit`[/cyan] to quit")
         self.client._console.print("==========")
 
@@ -923,3 +929,66 @@ class MAILClientCLI:
                 continue
 
             await func(args)
+
+    @staticmethod
+    def _collect_xml_strings(candidate: Any) -> list[str]:
+        """
+        Recursively gather XML-like strings from nested data.
+        """
+
+        collected_set: set[str] = set()
+
+        def _walk(node: Any) -> None:
+            if isinstance(node, str):
+                snippet = node.strip()
+                if "<" in snippet and ">" in snippet:
+                    start = snippet.find("<")
+                    end = snippet.rfind(">")
+                    if start != -1 and end != -1 and start < end:
+                        candidate = snippet[start : end + 1]
+                        candidate = candidate.replace("\\n", "").replace("\\t", "\t").replace("[\\'", "").replace("\\']", "")
+                        collected_set.add(candidate)
+                return
+            if hasattr(node, "data"):
+                try:
+                    _walk(getattr(node, "data"))
+                except Exception:
+                    pass
+                return
+            if hasattr(node, "description"):
+                try:
+                    _walk(getattr(node, "description"))
+                except Exception:
+                    pass
+                return
+            if isinstance(node, dict):
+                for value in node.values():
+                    _walk(value)
+                return
+            if isinstance(node, list | tuple | set):
+                for value in node:
+                    _walk(value)
+
+        _walk(candidate)
+        return list(collected_set)
+
+    @staticmethod
+    def _pretty_format_xml(xml_text: str) -> str | None:
+        try:
+            from xml.dom import minidom
+
+            parsed = minidom.parseString(xml_text)
+            pretty = parsed.toprettyxml(indent="  ", encoding="utf-8")
+        except Exception:
+            return None
+
+        try:
+            return pretty.decode("utf-8").strip()
+        except AttributeError:
+            return pretty.strip().decode("utf-8")
+
+    def _print_embedded_xml(self, payload: Any) -> None:
+        for snippet in self._collect_xml_strings(payload):
+            pretty = self._pretty_format_xml(snippet)
+            if pretty:
+                self.client._console.print(Syntax(pretty, "xml"))
