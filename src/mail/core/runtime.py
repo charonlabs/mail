@@ -899,9 +899,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             has_interswarm_recipients = False
 
             if "recipients" in msg_content:
-                if msg_content["recipients"] == MAIL_ALL_LOCAL_AGENTS: # type: ignore
-                    msg_content["recipients"] = list(self.agents.keys()) # type: ignore
-                for recipient in msg_content["recipients"]:  # type: ignore
+                recipients_for_routing = msg_content["recipients"]  # type: ignore
+                if recipients_for_routing == [MAIL_ALL_LOCAL_AGENTS]:  # type: ignore[comparison-overlap]
+                    recipients_for_routing = [
+                        create_agent_address(agent) for agent in self.agents.keys()
+                    ]
+
+                for recipient in recipients_for_routing:  # type: ignore[assignment]
                     _, recipient_swarm = parse_agent_address(recipient["address"])
                     if recipient_swarm and recipient_swarm != self.swarm_name:
                         has_interswarm_recipients = True
@@ -1128,14 +1132,36 @@ If your assigned task cannot be completed, inform your caller of this error and 
         """
         msg_content = message["message"]
 
+        # Normalise recipients into a list of address strings (agent names or interswarm ids)
+        raw_recipients: list[MAILAddress]
         if "recipients" in msg_content:
-            if msg_content["recipients"] == MAIL_ALL_LOCAL_AGENTS:  # type: ignore
-                recipients = list(self.agents.keys())
-                recipients.remove(message["message"]["sender"]["address"])
-            else:
-                recipients = [agent["address"] for agent in msg_content["recipients"]]  # type: ignore
+            raw_recipients = msg_content["recipients"]  # type: ignore[assignment]
         else:
-            recipients = [msg_content["recipient"]["address"]]
+            raw_recipients = [msg_content["recipient"]]  # type: ignore[list-item]
+
+        sender_address = message["message"]["sender"]["address"]
+
+        recipient_addresses: list[str] = []
+        for address in raw_recipients:
+            addr_str = address["address"]
+            if (
+                addr_str == MAIL_ALL_LOCAL_AGENTS["address"]
+                and address["address_type"] == "agent"
+            ):
+                recipient_addresses.extend(self.agents.keys())
+            else:
+                recipient_addresses.append(addr_str)
+
+        # Drop duplicate addresses while preserving order
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for addr in recipient_addresses:
+            if addr not in seen:
+                seen.add(addr)
+                deduped.append(addr)
+
+        # Prevent agents from broadcasting to themselves
+        recipients = [addr for addr in deduped if addr != sender_address]
 
         for recipient in recipients:
             # Parse recipient address to get local agent name
