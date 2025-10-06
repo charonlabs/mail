@@ -162,12 +162,6 @@ class MAILAgentTemplate:
             raise ValueError(
                 f"agent name must be at least 1 character long, got {len(self.name)}"
             )
-        if len(self.comm_targets) < 1 and (
-            self.can_complete_tasks is False or self.enable_entrypoint is False
-        ):
-            raise ValueError(
-                f"agent must have at least one communication target, got {len(self.comm_targets)}. If should be a solo agent, set can_complete_tasks and enable_entrypoint to True."
-            )
 
     def _top_level_params(self) -> dict[str, Any]:
         return {
