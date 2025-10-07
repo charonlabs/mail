@@ -7,6 +7,7 @@ import pytest
 
 from mail.core.tools import (
     convert_call_to_mail_message,
+    create_await_message_tool,
     create_mail_tools,
     create_request_tool,
     create_supervisor_tools,
@@ -78,6 +79,7 @@ def test_create_mail_tools_set():
         "send_response",
         "acknowledge_broadcast",
         "ignore_broadcast",
+        "await_message",
     }
 
 
@@ -98,3 +100,21 @@ def test_convert_call_unknown_tool_raises():
     """
     with pytest.raises(ValueError):
         convert_call_to_mail_message(_call("not_a_tool", {}), sender="a", task_id="t")
+
+
+def test_create_await_message_tool_shape():
+    """
+    The await_message tool exposes an optional reason field for both styles.
+    """
+
+    completions_tool = create_await_message_tool(style="completions")
+    assert completions_tool["function"]["name"] == "await_message"
+    reason_field = completions_tool["function"]["parameters"]["properties"]["reason"]
+    assert "string" in [any_of["type"] for any_of in reason_field["anyOf"]]
+    assert "Optional" in reason_field["description"]
+
+    responses_tool = create_await_message_tool(style="responses")
+    assert responses_tool["name"] == "await_message"
+    responses_reason = responses_tool["parameters"]["properties"]["reason"]
+    assert "string" in [any_of["type"] for any_of in responses_reason["anyOf"]]
+    assert "Optional" in responses_reason["description"]

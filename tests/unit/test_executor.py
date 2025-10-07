@@ -43,17 +43,17 @@ def test_execute_action_tool_normal_and_override():
 
     async def run():
         # Normal path: resolves through actions mapping and wraps as tool response
-        res1 = await _action_echo_core.execute(
+        res1_status, res1_message = await _action_echo_core.execute(
             _call("echo", {"x": 3}),
             {"echo": _action_echo_core},
         )
-        assert res1["role"] == "tool" and "echo:3" in res1["content"]
+        assert res1_status == "success" and "echo:3" in res1_message["content"]
 
         # Override returns a string or dict directly
-        res2 = await _action_echo_core.execute(
+        res2_status, res2_message = await _action_echo_core.execute(
             _call("echo", {"x": "hi"}),
             action_override=_override_upper,
         )
-        assert res2["content"].startswith("OVERRIDE:")
+        assert res2_status == "success" and res2_message["content"].startswith("OVERRIDE:")
 
     asyncio.run(run())

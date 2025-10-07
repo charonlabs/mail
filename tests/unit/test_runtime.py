@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
 
 import asyncio
 import datetime
@@ -18,6 +19,7 @@ from mail.core.message import (
     create_user_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
+from mail.core.tools import AgentToolCall
 from mail.net.registry import SwarmRegistry
 
 
@@ -184,6 +186,63 @@ async def test_submit_and_stream_handles_timeout_and_events(
         runtime.message_queue.task_done()
 
     await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_agent_can_await_message_records_event() -> None:
+    """
+    Agents using `await_message` should emit an event and record tool history.
+    """
+
+    wait_reason = "waiting for coordinator"
+
+    async def waiting_agent(
+        history: list[dict[str, str]], task: str
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        call = AgentToolCall(
+            tool_name="await_message",
+            tool_args={"reason": wait_reason},
+            tool_call_id="await-1",
+            completion={
+                "role": "assistant",
+                "content": "I'll wait for the next message.",
+            },
+        )
+        return (None, [call])
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
+        actions={},
+        user_id="user-await",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-await"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name="analyst")
+    history = runtime.agent_histories[history_key]
+    assert history[-1]["role"] == "tool"
+    assert "waiting for a new message" in history[-1]["content"]
+
+    events = runtime.get_events_by_task_id(task_id)
+    await_events = [event for event in events if event.event == "await_message"]
+    assert await_events, "expected await_message event to be emitted"
+    await_event = await_events[-1]
+    assert await_event.data is not None
+    assert (
+        await_event.data["description"]
+        == f"agent 'analyst' is awaiting a new message: {wait_reason}"
+    )
+    assert await_event.data["extra_data"]["reason"] == wait_reason
 
 
 def test_system_broadcast_requires_recipients_for_non_completion() -> None:

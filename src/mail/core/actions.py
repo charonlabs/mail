@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Addison Kline, Ryan Heaton
 
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Literal
 
 from mail.core.tools import AgentToolCall
 
@@ -38,7 +38,7 @@ class ActionCore:
         call: AgentToolCall,
         actions: dict[str, "ActionCore"] | None = None,
         action_override: ActionOverrideFunction | None = None,
-    ) -> dict[str, str]:
+    ) -> tuple[Literal["success", "error"], dict[str, str]]:
         """
         Execute an action tool and return the response within a MAIL runtime.
         """
@@ -50,16 +50,37 @@ class ActionCore:
         if not action_override:
             try:
                 content = await self.function(call.tool_args)
-                return call.create_response_msg(content)
+                return (
+                    "success",
+                    {
+                        "content": content
+                    }
+                )
             except Exception as e:
-                return call.create_response_msg(f"Error executing action tool: {e}")
+                return (
+                    "error",
+                    {
+                        "content": f"failed to execute action tool: {e}"
+                    }
+                )
         else:
             try:
                 response = await action_override(call.tool_args)
                 if isinstance(response, str):
-                    return call.create_response_msg(response)
-                return response
+                    return (
+                        "success",
+                        {
+                            "content": response
+                        }
+                    )
+                return (
+                    "success",
+                    response
+                )
             except Exception as e:
-                return call.create_response_msg(
-                    f"Error executing action override tool: {e}"
+                return (
+                    "error",
+                    {
+                        "content": f"failed to execute action override tool: {e}"
+                    }
                 )

@@ -38,6 +38,7 @@ from .message import (
 from .tasks import MAILTask
 from .tools import (
     MAIL_TOOL_NAMES,
+    AgentToolCall,
     convert_call_to_mail_message,
 )
 
@@ -1285,14 +1286,6 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 else:
                     history.extend(tool_calls[0].responses)
 
-                # append the agent's tool responses to the history
-                for tc in tool_calls:
-                    if tc.tool_name in MAIL_TOOL_NAMES:
-                        result_message = tc.create_response_msg(
-                            "Message sent. The response, if any, will be sent in the next user message."
-                        )
-                        history.append(result_message)
-
                 # handle tool calls
                 for call in tool_calls:
                     if call.tool_name in self.breakpoint_tools:
@@ -1348,15 +1341,29 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                                                 ]
                                             }
                                         )
+                                    self._tool_call_response(
+                                        task_id=task_id,
+                                        caller=recipient,
+                                        tool_call=call,
+                                        status="success",
+                                        details="broadcast acknowledged",
+                                    )
                                 else:
                                     logger.debug(
                                         f"agent '{recipient}' used 'acknowledge_broadcast' on a '{message['msg_type']}'"
+                                    )
+                                    self._tool_call_response(
+                                        task_id=task_id,
+                                        caller=recipient,
+                                        tool_call=call,
+                                        status="error",
+                                        details="improper use of `acknowledge_broadcast`",
                                     )
                                     await self.submit(
                                         self._system_response(
                                             task_id=task_id,
                                             recipient=create_agent_address(recipient),
-                                            subject="Improper use of `acknowledge_broadcast`",
+                                            subject="::tool_call_error::",
                                             body=f"""The `acknowledge_broadcast` tool cannot be used in response to a message of type '{message["msg_type"]}'.
 If your sender's message is a 'request', consider using `send_response` instead.
 Otherwise, determine the best course of action to complete your task.""",
@@ -1365,6 +1372,13 @@ Otherwise, determine the best course of action to complete your task.""",
                             except Exception as e:
                                 logger.error(
                                     f"error acknowledging broadcast for agent '{recipient}': '{e}'"
+                                )
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details=f"error acknowledging broadcast: '{e}'",
                                 )
                                 self._submit_event(
                                     "agent_error",
@@ -1375,7 +1389,7 @@ Otherwise, determine the best course of action to complete your task.""",
                                     self._system_response(
                                         task_id=task_id,
                                         recipient=create_agent_address(recipient),
-                                        subject=f"Error acknowledging broadcast from '{message['message']['sender']['address']}'",
+                                        subject="::tool_call_error::",
                                         body=f"""An error occurred while acknowledging the broadcast from '{message["message"]["sender"]["address"]}'.
 Specifically, the MAIL runtime encountered the following error: '{e}'.
 It is possible that the `acknowledge_broadcast` tool is not implemented properly.
@@ -1388,29 +1402,98 @@ Use this information to decide how to complete your task.""",
                             logger.info(
                                 "broadcast ignored by agent via ignore_broadcast tool"
                             )
+                            self._tool_call_response(
+                                task_id=task_id,
+                                caller=recipient,
+                                tool_call=call,
+                                status="success",
+                                details="broadcast ignored",
+                            )
+                            self._submit_event(
+                                "broadcast_ignored",
+                                task_id,
+                                f"broadcast ignored by agent '{recipient}' via ignore_broadcast tool",
+                            )
                             # No further action
-                        case "send_request":
-                            await self.submit(
-                                convert_call_to_mail_message(call, recipient, task_id)
+                        case "await_message":
+                            # Wait for a message to be received
+                            wait_reason = call.tool_args.get("reason")
+                            logger.info(
+                                "agent '%s' is awaiting a message%s",
+                                recipient,
+                                f": {wait_reason}" if wait_reason else "",
                             )
-                        case "send_response":
-                            await self.submit(
-                                convert_call_to_mail_message(call, recipient, task_id)
+                            details = "waiting for a new message"
+                            if wait_reason:
+                                details = f"{details} (reason: {wait_reason})"
+                            self._tool_call_response(
+                                task_id=task_id,
+                                caller=recipient,
+                                tool_call=call,
+                                status="success",
+                                details=details,
                             )
-                        case "send_interrupt":
-                            await self.submit(
-                                convert_call_to_mail_message(call, recipient, task_id)
+                            event_description = (
+                                f"agent '{recipient}' is awaiting a new message"
                             )
-                        case "send_broadcast":
-                            await self.submit(
-                                convert_call_to_mail_message(call, recipient, task_id)
+                            if wait_reason:
+                                event_description = (
+                                    f"{event_description}: {wait_reason}"
+                                )
+                            self._submit_event(
+                                "await_message",
+                                task_id,
+                                event_description,
+                                extra_data={"reason": wait_reason}
+                                if wait_reason
+                                else {},
                             )
+                            # No further action
+                            return
+                        case "send_request" | "send_response" | "send_interrupt" | "send_broadcast":
+                            try:
+                                await self.submit(
+                                    convert_call_to_mail_message(call, recipient, task_id)
+                                )
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="success",
+                                    details="message sent",
+                                )
+                            except Exception as e:
+                                logger.error(f"error sending message for agent '{recipient}': '{e}'")
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details=f"error sending message: '{e}'",
+                                )
+                                self._submit_event(
+                                    "agent_error",
+                                    task_id,
+                                    f"error sending message for agent '{recipient}': '{e}'",
+                                )
+                                await self.submit(
+                                    self._system_response(
+                                        task_id=task_id,
+                                        recipient=create_agent_address(recipient),
+                                        subject="::tool_call_error::",
+                                        body=f"""An error occurred while sending the message from '{message["message"]["sender"]["address"]}'.
+Specifically, the MAIL runtime encountered the following error: '{e}'.
+It is possible that the message sending tool is not implemented properly.
+Use this information to decide how to complete your task.""",
+                                    )
+                                )
                         case "task_complete":
                             # Check if this completes a pending request
                             if task_id and task_id in self.pending_requests:
                                 logger.info(
                                     f"task '{task_id}' completed, resolving pending request for user '{self.user_id}'"
                                 )
+
                                 # Create a response message for the user
                                 response_message = MAILMessage(
                                     id=str(uuid.uuid4()),
@@ -1420,9 +1503,9 @@ Use this information to decide how to complete your task.""",
                                     message=MAILBroadcast(
                                         task_id=task_id,
                                         broadcast_id=str(uuid.uuid4()),
-                                        sender=create_agent_address(self.entrypoint),
-                                        recipients=[create_agent_address("all")],
-                                        subject="Task complete",
+                                        sender=create_agent_address(recipient),
+                                        recipients=[MAIL_ALL_LOCAL_AGENTS],
+                                        subject="::task_complete::",
                                         body=call.tool_args.get(
                                             "finish_message",
                                             "Task completed successfully",
@@ -1433,6 +1516,7 @@ Use this information to decide how to complete your task.""",
                                     ),
                                     msg_type="broadcast_complete",
                                 )
+
                                 # Resolve the pending request
                                 future = self.pending_requests.pop(task_id)
                                 if not future.done():
@@ -1448,15 +1532,38 @@ Use this information to decide how to complete your task.""",
                                     logger.warning(
                                         f"future for task '{task_id}' was already done"
                                     )
-                                # Don't submit the duplicate message - we've already resolved the request
-                            else:
-                                logger.info(
-                                    f"task '{task_id}' completed but no pending request found, submitting message"
+                                    
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="success",
+                                    details="task completed",
                                 )
-                                # Only submit the message if there's no pending request to resolve
+                                
+                            else:
+                                logger.error(
+                                    f"task '{task_id}' completed but no pending request found"
+                                )
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details="no pending request found",
+                                )
+                                self._submit_event(
+                                    "task_error",
+                                    task_id,
+                                    f"task '{task_id}' completed but no pending request found",
+                                )
                                 await self.submit(
-                                    convert_call_to_mail_message(
-                                        call, recipient, task_id
+                                    self._system_broadcast(
+                                        task_id=task_id,
+                                        subject="Runtime Error",
+                                        body="""An agent called `task_complete` but the corresponding task was not found.
+This should never happen; consider informing the MAIL developers of this issue if you see it.""",
+                                        task_complete=True
                                     )
                                 )
                         case _:
@@ -1465,24 +1572,62 @@ Use this information to decide how to complete your task.""",
 
                             if action_caller is None:
                                 logger.error(f"agent '{recipient}' not found")
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details="agent not found",
+                                )
                                 self._submit_event(
                                     "action_error",
                                     task_id,
                                     f"agent '{recipient}' not found",
                                 )
+                                await self.submit(
+                                    self._system_broadcast(
+                                        task_id=task_id,
+                                        subject="Runtime Error",
+                                        body=f"""An agent called `{call.tool_name}` but the agent was not found.
+This should never happen; consider informing the MAIL developers of this issue if you see it.""",
+                                        task_complete=True
+                                    )
+                                )
                                 continue
+
                             action = self.actions.get(action_name)
                             if action is None:
                                 logger.error(f"action '{action_name}' not found")
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details="action not found",
+                                )
                                 self._submit_event(
                                     "action_error",
                                     task_id,
                                     f"action '{action_name}' not found",
                                 )
+                                self._system_response(
+                                    task_id=task_id,
+                                    recipient=create_agent_address(recipient),
+                                    subject="::action_error::",
+                                    body=f"""The action '{action_name}' cannot be found for this swarm.""",
+                                )
                                 continue
+
                             if not action_caller.can_access_action(action_name):
                                 logger.error(
                                     f"agent '{action_caller}' cannot access action '{action_name}'"
+                                )
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details="agent cannot access action",
                                 )
                                 self._submit_event(
                                     "action_error",
@@ -1493,7 +1638,7 @@ Use this information to decide how to complete your task.""",
                                     self._system_response(
                                         task_id=task_id,
                                         recipient=create_agent_address(recipient),
-                                        subject=f"Action Error: '{action_name}'",
+                                        subject="::action_error::",
                                         body=f"The action '{action_name}' is not available.",
                                     )
                                 )
@@ -1509,22 +1654,23 @@ Use this information to decide how to complete your task.""",
                             )
                             try:
                                 # execute the action function
-                                result_message = await action.execute(
+                                result_status, result_message = await action.execute(
                                     call,
                                     actions=self.actions,
                                     action_override=action_override,
                                 )
-                                history.append(result_message)
 
-                                result_content = (
-                                    result_message.get("content")
-                                    if call.completion
-                                    else result_message.get("output")
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status=result_status,
+                                    details=result_message.get("content", ""),
                                 )
                                 self._submit_event(
                                     "action_complete",
                                     task_id,
-                                    f"action complete (caller = '{recipient}'):\n'{result_content}'",
+                                    f"action complete (caller = '{recipient}'):\n'{result_message.get("content")}'",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -1534,8 +1680,16 @@ Use this information to decide how to complete your task.""",
                                         recipients=[create_agent_address(recipient)],
                                     )
                                 )
+                                continue
                             except Exception as e:
                                 logger.error(f"error executing action tool: '{e}'")
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details=f"failed to execute action tool: '{e}'",
+                                )
                                 self._submit_event(
                                     "action_error",
                                     task_id,
@@ -1544,18 +1698,27 @@ Use this information to decide how to complete your task.""",
                                 await self.submit(
                                     self._system_broadcast(
                                         task_id=task_id,
-                                        subject=f"Error executing action tool `{call.tool_name}`",
+                                        subject="::action_error::",
                                         body=f"""An error occurred while executing the action tool `{call.tool_name}`.
 Specifically, the MAIL runtime encountered the following error: '{e}'.
 It is possible that the action tool `{call.tool_name}` is not implemented properly.
 Use this information to decide how to complete your task.""",
+                                        task_complete=True,
                                         recipients=[create_agent_address(recipient)],
                                     )
                                 )
+                                continue
 
                 self.agent_histories.setdefault(agent_history_key, [])
             except Exception as e:
                 logger.error(f"error scheduling message for agent '{recipient}': '{e}'")
+                self._tool_call_response(
+                    task_id=task_id,
+                    caller=recipient,
+                    tool_call=call,
+                    status="error",
+                    details=f"failed to schedule message: '{e}'",
+                )
                 self._submit_event(
                     "agent_error",
                     task_id,
@@ -1565,7 +1728,7 @@ Use this information to decide how to complete your task.""",
                     self._system_response(
                         task_id=task_id,
                         recipient=message["message"]["sender"],
-                        subject=f"Agent Error: '{recipient}'",
+                        subject="::agent_error::",
                         body=f"""An error occurred while scheduling the message for agent '{recipient}'.
 Specifically, the MAIL runtime encountered the following error: '{e}'.
 It is possible that the agent function for '{recipient}' is not valid.
@@ -1644,6 +1807,25 @@ Use this information to decide how to complete your task.""",
             ),
             msg_type="response",
         )
+
+    def _tool_call_response(
+        self,
+        task_id: str,
+        caller: str,
+        tool_call: AgentToolCall,
+        status: Literal["success", "error"],
+        details: str | None = None,
+    ) -> None:
+        """
+        Create a tool call response message for a caller and append to its agent history.
+        """
+        agent_history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=caller)
+
+        status_str = "SUCCESS" if status == "success" else "ERROR"
+        response_content = f"{status_str}: {details}" if details else status_str
+        self.agent_histories[agent_history_key].append(tool_call.create_response_msg(response_content))
+
+        return
 
     def _submit_event(
         self,
