@@ -3,6 +3,7 @@ from .auth import (
     caller_is_admin_or_user,
     caller_is_agent,
     caller_is_user,
+    extract_token,
     extract_token_info,
     generate_agent_id,
     generate_user_id,
@@ -42,6 +43,7 @@ __all__ = [
     "caller_is_admin_or_user",
     "caller_is_agent",
     "extract_token_info",
+    "extract_token",
     "get_version",
     "get_protocol_version",
 ]

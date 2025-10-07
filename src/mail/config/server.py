@@ -75,8 +75,8 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         with config_path.open("rb") as config_file:
             raw_config = tomllib.load(config_file)
-    except Exception as exc:  # pragma: no cover - uncommon failure
-        logger.warning(f"failed to load {config_path}: {exc}")
+    except Exception as e:  # pragma: no cover - uncommon failure
+        logger.warning(f"failed to load {config_path}: {e}")
         return server_defaults, swarm_defaults
 
     server_section = raw_config.get("server")

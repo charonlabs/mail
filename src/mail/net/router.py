@@ -39,13 +39,19 @@ class InterswarmRouter:
         self.session: aiohttp.ClientSession | None = None
         self.message_handlers: dict[str, Callable[[MAILMessage], Awaitable[None]]] = {}
 
+    def _log_prelude(self) -> str:
+        """
+        Get the log prelude for the router.
+        """
+        return f"[{self.local_swarm_name}@{self.swarm_registry.local_base_url}]"
+
     async def start(self) -> None:
         """
         Start the interswarm router.
         """
         if self.session is None:
             self.session = aiohttp.ClientSession()
-        logger.info(f"started interswarm router for swarm: '{self.local_swarm_name}'")
+        logger.info(f"{self._log_prelude()} started interswarm router")
 
     async def stop(self) -> None:
         """
@@ -54,7 +60,7 @@ class InterswarmRouter:
         if self.session:
             await self.session.close()
             self.session = None
-        logger.info(f"stopped interswarm router for swarm: '{self.local_swarm_name}'")
+        logger.info(f"{self._log_prelude()} stopped interswarm router")
 
     async def is_running(self) -> bool:
         """
@@ -69,7 +75,7 @@ class InterswarmRouter:
         Register a handler for a specific message type.
         """
         self.message_handlers[message_type] = handler
-        logger.info(f"registered handler for message type: '{message_type}'")
+        logger.info(f"{self._log_prelude()} registered handler for message type: '{message_type}'")
 
     async def route_message(
         self,
@@ -163,11 +169,11 @@ class InterswarmRouter:
 
             else:
                 # No recipients found
-                logger.error("message has no recipients")
+                logger.error(f"{self._log_prelude()} message '{message['id']}' has no recipients")
                 return self._system_router_message(message, "message has no recipients")
 
         except Exception as e:
-            logger.error(f"error routing message: '{e}'")
+            logger.error(f"{self._log_prelude()} error routing message '{message['id']}': '{e}'")
             return self._system_router_message(message, f"error routing message: '{e}'")
 
     async def _route_to_local_agent(self, message: MAILMessage) -> MAILMessage:
@@ -181,12 +187,12 @@ class InterswarmRouter:
                 await self.message_handlers["local_message_handler"](message)
                 return message
             else:
-                logger.warning("no local message handler registered")
+                logger.warning(f"{self._log_prelude()} no local message handler registered")
                 return self._system_router_message(
                     message, "no local message handler registered"
                 )
         except Exception as e:
-            logger.error(f"error routing to local agent: '{e}'")
+            logger.error(f"{self._log_prelude()} error routing message '{message['id']}' to local agent: '{e}'")
             return self._system_router_message(
                 message, f"error routing to local agent: '{e}'"
             )
@@ -206,13 +212,13 @@ class InterswarmRouter:
         try:
             endpoint = self.swarm_registry.get_swarm_endpoint(swarm_name)
             if not endpoint:
-                logger.error(f"unknown swarm endpoint: '{swarm_name}'")
+                logger.error(f"{self._log_prelude()} unknown swarm endpoint: '{swarm_name}'")
                 return self._system_router_message(
                     message, f"unknown swarm endpoint: '{swarm_name}'"
                 )
 
             if not endpoint["is_active"]:
-                logger.warning(f"swarm '{swarm_name}' is not active")
+                logger.warning(f"{self._log_prelude()} swarm '{swarm_name}' is not active")
                 return self._system_router_message(
                     message, f"swarm '{swarm_name}' is not active"
                 )
@@ -280,12 +286,12 @@ class InterswarmRouter:
                     return final_message
 
                 if response.status == 200:
-                    logger.info(f"successfully routed message to swarm: '{swarm_name}'")
+                    logger.info(f"{self._log_prelude()} successfully routed message '{message['id']}' to swarm: '{swarm_name}'")
                     response_json = await response.json()
                     return MAILMessage(**response_json)  # type: ignore
 
                 logger.error(
-                    f"failed to route message to swarm '{swarm_name}' with status: '{response.status}'"
+                    f"{self._log_prelude()} failed to route message '{message['id']}' to swarm '{swarm_name}' with status: '{response.status}'"
                 )
                 return self._system_router_message(
                     message,
@@ -294,11 +300,11 @@ class InterswarmRouter:
 
         except Exception as e:
             logger.error(
-                f"error routing to remote swarm '{swarm_name}' with error: '{e}'"
+                f"{self._log_prelude()} error routing message '{message['id']}' to remote swarm '{swarm_name}' with error: '{e}'"
             )
             return self._system_router_message(
                 message,
-                f"error routing to remote swarm '{swarm_name}' with error: '{e}'",
+                f"error routing message '{message['id']}' to remote swarm '{swarm_name}' with error: '{e}'",
             )
 
     async def handle_incoming_response(self, response_message: MAILMessage) -> bool:
@@ -309,16 +315,16 @@ class InterswarmRouter:
             # Route the response to the local MAIL instance
             if "local_message_handler" in self.message_handlers:
                 await self.message_handlers["local_message_handler"](response_message)
-                logger.info("successfully handled incoming response from remote swarm")
+                logger.info(f"{self._log_prelude()} successfully handled incoming response from remote swarm")
                 return True
             else:
                 logger.warning(
-                    "no local message handler registered for incoming responses"
+                    f"{self._log_prelude()} no local message handler registered for incoming responses"
                 )
                 return False
 
         except Exception as e:
-            logger.error(f"error handling incoming response: '{e}'")
+            logger.error(f"{self._log_prelude()} error handling incoming response '{response_message['id']}': '{e}'")
             return False
 
     def _create_local_message(
@@ -376,7 +382,7 @@ class InterswarmRouter:
                     data = json.loads(payload)
                 except json.JSONDecodeError:
                     logger.debug(
-                        f"unable to parse streaming 'new_message' payload from swarm '{swarm_name}'"
+                        f"{self._log_prelude()} unable to parse streaming 'new_message' payload from swarm '{swarm_name}'"
                     )
                     continue
 
@@ -391,7 +397,7 @@ class InterswarmRouter:
                         candidate = cast(MAILMessage, message_data)
                     except TypeError:
                         logger.debug(
-                            f"received non-conforming message in stream from '{swarm_name}'"
+                            f"{self._log_prelude()} received non-conforming message in stream from '{swarm_name}'"
                         )
                         continue
 
@@ -430,8 +436,7 @@ class InterswarmRouter:
             return self._system_router_message(original_message, reason)
 
         logger.error(
-            "streamed interswarm response from '%s' ended without delivering a final message",
-            swarm_name,
+            f"{self._log_prelude()} streamed interswarm response from '{swarm_name}' ended without delivering a final message",
         )
         return self._system_router_message(
             original_message,
@@ -441,7 +446,9 @@ class InterswarmRouter:
     async def _iter_sse(
         self, response: aiohttp.ClientResponse
     ) -> AsyncIterator[tuple[str, str | None]]:
-        """Yield (event, data) tuples from an SSE response."""
+        """
+        Yield (event, data) tuples from an SSE response.
+        """
 
         event_name = "message"
         data_lines: list[str] = []
@@ -513,7 +520,7 @@ class InterswarmRouter:
             # Validate the message
             if interswarm_message["target_swarm"] != self.local_swarm_name:
                 logger.error(
-                    f"message intended for '{interswarm_message['target_swarm']}', but we are '{self.local_swarm_name}'"
+                    f"{self._log_prelude()} received message intended for '{interswarm_message['target_swarm']}'"
                 )
                 return False
 
@@ -529,17 +536,17 @@ class InterswarmRouter:
             if "local_message_handler" in self.message_handlers:
                 await self.message_handlers["local_message_handler"](original_message)
                 logger.info(
-                    f"successfully handled incoming interswarm message from '{interswarm_message['source_swarm']}'"
+                    f"{self._log_prelude()} successfully handled incoming interswarm message '{interswarm_message['message_id']}' from '{interswarm_message['source_swarm']}'"
                 )
                 return True
             else:
                 logger.warning(
-                    "no local message handler registered for incoming interswarm messages"
+                    f"{self._log_prelude()} no local message handler registered for incoming interswarm messages"
                 )
                 return False
 
         except Exception as e:
-            logger.error(f"error handling incoming interswarm message: '{e}'")
+            logger.error(f"{self._log_prelude()} error handling incoming interswarm message '{interswarm_message['message_id']}': '{e}'")
             return False
 
     def _determine_message_type(self, payload: dict[str, Any]) -> str:

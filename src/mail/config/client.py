@@ -32,7 +32,7 @@ def _resolve_mail_config_path() -> Path | None:
         candidate = Path(env_path).expanduser()
         if candidate.is_file():
             return candidate
-        logger.debug("MAIL_CONFIG_PATH set to %s but file missing", candidate)
+        logger.debug(f"MAIL_CONFIG_PATH set to {candidate} but file missing")
 
     cwd_candidate = Path.cwd() / "mail.toml"
     if cwd_candidate.is_file():
@@ -69,8 +69,8 @@ def _client_defaults() -> dict[str, Any]:
     try:
         with config_path.open("rb") as config_file:
             raw_config = tomllib.load(config_file)
-    except Exception as exc:  # pragma: no cover - uncommon failure
-        logger.warning("failed to load %s: %s", config_path, exc)
+    except Exception as e:  # pragma: no cover - uncommon failure
+        logger.warning(f"failed to load {config_path}: {e}")
         return defaults
 
     client_section = raw_config.get("client")
