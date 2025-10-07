@@ -5,7 +5,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 ## Addressing
 - **Local**: `agent`
 - **Remote**: `agent@swarm`
-- **Helpers**: `parse_agent_address`, `format_agent_address` ([src/mail/core/message.py](/src/mail/core/message.py))
+- **Helper functions**: `parse_agent_address`, `format_agent_address` ([src/mail/core/message.py](/src/mail/core/message.py))
 
 ## Router ([src/mail/net/router.py](/src/mail/net/router.py))
 - Detects remote recipients and wraps messages into `MAILInterswarmMessage`
@@ -24,13 +24,15 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 - **POST `/interswarm/send`** (admin/user): convenience endpoint to send to `agent@remote-swarm` via a local user instance
 
 ## Enabling interswarm
-- Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
+- Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
 - Ensure your persistent swarm template enables interswarm where needed (see agents & supervisor tools)
 - Start two servers on different ports; register them with each other using `/swarms` endpoints
 
 ## Example flow
 1. User calls `POST /message` locally
-2. Supervisor sends a tool call to `target@remote-swarm`
-3. Router wraps the message and POSTs to the remote `POST /interswarm/message`
-4. Remote swarm processes and returns a `MAILMessage` response
-5. Local server correlates and completes the user’s task
+2. (optional) If the entrypoint agent is not interswarm-enabled, forward the user's message to one that it
+3. Interswarm-enabled agent sends a message to `target@remote-swarm` using otherwise-equal MAIL syntax
+4. Router wraps the message and POSTs to the remote `POST /interswarm/message`
+5. Remote swarm processes and returns a `MAILMessage` response
+6. Local server correlates the response to the user’s original task, and feeds the response back to that swarm
+7. Local swarm calls `task_complete` upon finishing the task

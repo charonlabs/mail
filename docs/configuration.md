@@ -19,11 +19,12 @@ registry = "registries/example-no-proxy.json"
 
 [client]
 timeout = 3600.0
+verbose = false
 ```
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`).
 - The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry`), and the runtime swarm name (`name`).
-- The `[client]` table currently exposes a single `timeout` option (seconds). It feeds `ClientConfig` which in turn sets the default timeout for `MAILClient` and the CLI REPL.
+- The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
 - The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
 - The CLI command `mail client` honors `timeout` from `[client]` and allows `--timeout` to override it per invocation.
@@ -35,6 +36,7 @@ timeout = 3600.0
 - `TOKEN_INFO_ENDPOINT`: URL for token info endpoint (Bearer temporary token -> {role,id,api_key})
 - `SWARM_NAME`: Name of this swarm instance. Overrides the value calculated from `mail.toml`.
 - `BASE_URL`: Base URL for this server. Overrides the derived value (defaults to `http://localhost:<port>`).
+- `SWARM_SOURCE`: Path to the swarm template JSON loaded on startup. Overrides `[server.swarm.source]` from `mail.toml`.
 - `SWARM_REGISTRY_FILE`: Path used by the server to persist non-volatile registry entries. Overrides the `mail.toml` default.
 - Optional provider keys consumed by your proxy (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
@@ -42,6 +44,7 @@ timeout = 3600.0
 - Defines the persistent swarm template loaded on server startup
 - Sets the entrypoint agent and the set of available agents and actions
 - Agents are built via factories referenced by import path strings; prompts and actions are configured per agent
+- A formal JSON schema for `swarms.json` can be found in [docs/swarms-schema.json](/docs/swarms-schema.json)
 
 ### Minimal example
 ```json
@@ -54,33 +57,33 @@ timeout = 3600.0
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:supervisor_factory",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.supervisor.prompts:SYSPROMPT"
+                    "system": "url::https://example.com/sysprompts/supervisor.json"
                 }
             },
             {
                 "name": "weather",
-                "factory": "mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "python::mail.examples.weather_dummy.agent:factory_weather_dummy",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
                 "agent_params": {
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT"
+                    "system": "url::https://example.com/sysprompts/weather.json"
                 }
             },
             {
                 "name": "math",
-                "factory": "mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
                 "agent_params": {
                     "llm": "openai/gpt-5-mini",
-                    "system": "mail.examples.math_dummy.prompts:SYSPROMPT"
+                    "system": "url::https://example.com/sysprompts/supervisor.json"
                 }
             }
         ],
@@ -96,7 +99,7 @@ timeout = 3600.0
                         "metric": { "type": "boolean", "description": "Whether to use metric units" }
                     }
                 },
-                "function": "mail.examples.weather_dummy.actions:get_weather_forecast"
+                "function": "python::mail.examples.weather_dummy.actions:get_weather_forecast"
             },
             {
                 "name": "calculate_expression",
@@ -109,22 +112,36 @@ timeout = 3600.0
                     },
                     "required": ["expression"]
                 },
-                "function": "mail.examples.math_dummy.actions:calculate_expression"
+                "function": "python::mail.examples.math_dummy.actions:calculate_expression"
             }
         ]
     }
 ]
 ```
 
-### Notes
-- `comm_targets` must reference existing agents by name, or interswarm addresses if interswarm is enabled
-- Exactly one or more entrypoint-capable agents must be present; the top-level `entrypoint` names which one to use by default
-- Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
-- `version` is required and should match the MAIL package you are targeting so migrations can gate incompatible swarm definitions
-- The helpers in `mail.swarms_json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
-
 ### Prefixed string references
+
+#### python::
 - `python::package.module:attribute` strings resolve to Python objects at load time; use this for reusing constants such as prompts or tool factories
 - `url::https://example.com/prompt.json` strings are fetched with `httpx` and replaced by the response JSON encoded as a string
 - Nested dictionaries and lists inside `agent_params` (and other configuration blocks) are resolved recursively, so you can mix plain literals with both prefix formats
+
+#### url::
 - `url::` fetch failures return the original URL unless you set `raise_on_error` when calling `mail.utils.parsing.read_url_string`, which converts errors into descriptive `RuntimeError`s
+
+### Validity of `comm_targets`
+- In the code, none of the `MAILSwarmTemplate`,`SwarmsJSONSwarm`, `MAILAgentTemplate`, or `SwarmsJSONAgent` types automatically check that the provided `comm_targets` are valid (reference existing agent names, interswarm only if allowed, etc.)
+- Instead, `comm_targets` are only thoroughly checked when a `MAILSwarm` is instantiated from a `MAILSwarmTemplate`
+- Invalid `comm_targets` are allowed in template types for debugging purposes; however, they will not run
+
+### Validity of `entrypoint`
+- The swarm parameter `entrypoint` is required; it must reference exactly one agent with `enable_entrypoint = True` by name
+- Default swarm entrypoints are not automatically inferred from the swarm configuration--you must specify this default yourself
+
+### Versioning
+- Though a `version` string is required for every swarm, conformance is not strictly enforced by the swarm builder
+- Therefore, it is best practice to keep your swarm versions up to date with the MAIL reference implementation version you are using
+
+### Other notes
+- Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
+- The helpers in `mail.swarms_json.utils` can be used to validate and load `swarms.json` prior to instantiating templates

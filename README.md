@@ -87,7 +87,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail
+git clone https://github.com/charonlabs/mail --branch v1.1.0
 cd mail
 
 # Install dependencies (preferred)
@@ -115,6 +115,7 @@ export ANTHROPIC_API_KEY=sk-your-anthropic-key
 # Swarm identity & networking
 export SWARM_NAME=my-swarm            # default: "default"
 export BASE_URL=http://localhost:8000
+export SWARM_SOURCE=swarms.json       # default aligns with [server.swarm.source]
 export SWARM_REGISTRY_FILE=registries/example.json
 # Optional persistence (set to "none" to disable)
 export DATABASE_URL=postgresql://...
@@ -127,7 +128,7 @@ MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it
 ### Run a Local Swarm
 ```bash
 # Start the FastAPI server (includes SSE + registry)
-uv run mail
+uv run mail server
 # or explicitly
 uv run -m mail.server
 ```
@@ -162,13 +163,13 @@ mail/
 ├── swarms.json            # Default swarm configurations
 ├── tests/                 # Pytest suite covering protocol + runtime behaviors
 ├── scripts/               # Operational helpers (deploy, smoke tests, tooling)
--├── registries/            # Swarm registry persistence (created as needed)
+├── registries/            # Swarm registry persistence (created as needed)
 ├── assets/                # Diagrams and static assets (README image, etc.)
 └── pyproject.toml         # Project metadata and dependency definitions
 ```
 
 ## 5. Development Workflow
-- **`uv run mail`** – run the reference server locally.
+- **`uv run mail server`** – run the reference server locally.
 - **`uv run pytest -q`** – execute the automated test suite.
 - **`uv run ruff check --fix .`** – lint and auto-fix style issues.
 - **`uv run spec/validate_samples.py`** – validate example MAIL payloads against the schemas.
