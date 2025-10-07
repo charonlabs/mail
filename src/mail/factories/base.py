@@ -16,7 +16,7 @@ from litellm import (
 from mail.core.agents import AgentFunction
 from mail.core.tools import AgentToolCall, create_mail_tools
 
-logger = logging.getLogger("mail")
+logger = logging.getLogger("mail.factories.base")
 
 
 def base_agent_factory(
@@ -210,7 +210,6 @@ def base_agent_factory(
         outputs = res_dict["output"]
 
         # make sure outputs with type "output_text" have type "text"
-        # logger.debug(f"outputs: {json.dumps(outputs, indent=2)}")
         for output in outputs:
             if output["type"] == "message":
                 if output["content"][0]["type"] == "output_text":
