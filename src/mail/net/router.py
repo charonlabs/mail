@@ -90,12 +90,11 @@ class InterswarmRouter:
 
             # Check if recipient is in interswarm format
             routing_info = msg_content.get("routing_info")
-            stream_requested = (
-                isinstance(routing_info, dict) and bool(routing_info.get("stream"))
+            stream_requested = isinstance(routing_info, dict) and bool(
+                routing_info.get("stream")
             )
-            ignore_pings_flag = (
-                isinstance(routing_info, dict)
-                and bool(routing_info.get("ignore_stream_pings"))
+            ignore_pings_flag = isinstance(routing_info, dict) and bool(
+                routing_info.get("ignore_stream_pings")
             )
             ignore_pings = ignore_stream_pings or ignore_pings_flag
 
@@ -414,7 +413,9 @@ class InterswarmRouter:
                 if payload:
                     try:
                         data = json.loads(payload)
-                        failure_reason = data.get("response") if isinstance(data, dict) else None
+                        failure_reason = (
+                            data.get("response") if isinstance(data, dict) else None
+                        )
                     except json.JSONDecodeError:
                         failure_reason = payload
                 break

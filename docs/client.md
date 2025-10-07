@@ -18,40 +18,39 @@ from mail.client import MAILClient
 
 
 async def main() -> None:
-	async with MAILClient("http://localhost:8000", api_key="user-token") as client:
-		root = await client.get_root()
-		print(root["version"])
+    async with MAILClient("http://localhost:8000", api_key="user-token") as client:
+        root = await client.get_root()
+        print(root["version"])
 
-		response = await client.post_message(
-			"Hello from MAILClient",
-			entrypoint="supervisor",
-			show_events=True,
-		)
-		print(response)
+        response = await client.post_message(
+            "Hello from MAILClient",
+            entrypoint="supervisor",
+            show_events=True,
+        )
+        print(response)
 
-	stream = await client.post_message_stream("Stream this task")
-	async for event in stream:
-		print(event.event, event.data)
+        stream = await client.post_message_stream("Stream this task")
+        async for event in stream:
+            print(event.event, event.data)
 
 
 if __name__ == "__main__":
-	asyncio.run(main())
+    asyncio.run(main())
 ```
 
 ## Connection Options
-- `MAILClient(base_url, api_key=None, timeout=60.0, session=None, config=None)`
+- `MAILClient(base_url, api_key=None, session=None, config=None)`
   - `base_url`: Root URL for the MAIL server (no trailing slash).
   - `api_key`: Optional JWT or API key. When provided, every request includes `Authorization: Bearer <api_key>`.
-  - `timeout`: Float seconds or an `aiohttp.ClientTimeout`. Applies to the internally managed session.
   - `session`: Provide your own `aiohttp.ClientSession` to share connections or customise connectors. The client will not close externally supplied sessions.
-  - `config`: Pass a `ClientConfig` instance to reuse defaults hydrated from `mail.toml` (see below).
+  - `config`: Pass a `ClientConfig` instance (for example `ClientConfig(timeout=120.0, verbose=True)`) to reuse or override defaults hydrated from `mail.toml`.
 
 The class implements `__aenter__` / `__aexit__`, so `async with` automatically opens and closes the HTTP session (`aclose()` is also available).
 
 ### ClientConfig and mail.toml
-- `ClientConfig` pulls its defaults from the `[client]` table in `mail.toml` (default `timeout = 3600.0`).
+- `ClientConfig` pulls its defaults from the `[client]` table in `mail.toml` (`timeout` and `verbose`).
 - `MAILClient` uses these defaults automatically when you omit the `config` argument; the CLI REPL (`mail client`) follows the same behavior.
-- Override per run by passing `timeout=` directly or by exporting/pointing `MAIL_CONFIG_PATH` to an alternate config file.
+- Override per run by constructing `ClientConfig(timeout=..., verbose=...)` or by exporting/pointing `MAIL_CONFIG_PATH` to an alternate config file.
 
 ## Endpoint Coverage
 
@@ -73,11 +72,11 @@ All helpers return deserialised `dict` objects matching the schemas in `spec/ope
 ```python
 stream = await client.post_message_stream("Need live updates")
 async for event in stream:
-	if event.event == "task_complete":
-		print("done", event.data)
+    if event.event == "task_complete":
+        print("done", event.data)
 ```
 
-## Task Lifecycle and Resuming from Breakpoints
+## Task Lifecycle and Resuming Previous Tasks
 
 - Every call to `post_message`/`post_message_stream` participates in a **task** identified by `task_id`. If you omit the field, the server generates an ID. Reuse the same `task_id` to continue the conversation (for example, when running the runtime in continuous mode).
 - When an agent invokes a tool that has been marked as a **breakpoint tool**, the runtime pauses the task and waits for the caller to provide the tool result. Resume the task by sending another message with:
@@ -90,30 +89,47 @@ task_id = "weather-task"
 
 # Start a new task (runtime will mark it running until completion or a breakpoint)
 response = await client.post_message(
-	"Plan tomorrow's rehearsal dinner",
-	task_id=task_id,
-	entrypoint="supervisor",
+    "Plan tomorrow's rehearsal dinner",
+    task_id=task_id,
+    entrypoint="supervisor",
 )
 
 # Later, resume the task after the breakpoint tool returns a value
 stream = await client.post_message_stream(
-	"",
-	task_id=task_id,
-	resume_from="breakpoint_tool_call",
-	breakpoint_tool_caller="analyst",
-	breakpoint_tool_call_result="Forecast: sunny with a high of 75°F",
+    "Continuing after breakpoint",
+    task_id=task_id,
+    resume_from="breakpoint_tool_call",
+    breakpoint_tool_caller="weather",
+    breakpoint_tool_call_result="Forecast: sunny with a high of 75°F",
 )
 async for event in stream:
-	...
+    ...
 ```
 
-- Additional resume styles (for example `resume_from="user_response"`) are reserved for future extensions; attempting to use them currently raises `NotImplementedError`.
+- The other supported value of `resume_from` is `"user_response"`. Use this for handling cases when a user wants to follow up on a previous task.
+  - Note that the `msg_type` of a `user_response` *does not necessarily* need to be a `response`--the default message type is `request`, which works perfectly fine here.
+
+```python
+task_id = "weather-task-2"
+
+response = await client.post_message(
+    "What will the weather in San Francisco be tomorrow?",
+    task_id=task_id,
+)
+
+follow_up = await client.post_message(
+    "How does that compare to the forecast for Los Angeles?",
+    task_id=task_id,
+    resume_from="user_response",
+) # msg_type = "request" here
+```
+
 - The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
 
 ## Error Handling
 - HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
 - Non‑JSON responses raise `ValueError` annotated with the returned content type and body.
-- Always wrap calls in try/except when the network may be flaky or when tokens can expire.
+- Always wrap calls in `try/except` when the network may be flaky or when tokens can expire.
 
 ## Testing & Utilities
 - Unit coverage lives in `tests/unit/test_mail_client.py`, using an in‑process aiohttp server to validate payloads and streaming behaviour.

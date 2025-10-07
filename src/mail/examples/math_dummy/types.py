@@ -21,4 +21,3 @@ action_calculate_expression = MAILAction(
     },
     function="mail.examples.math_dummy.actions:calculate_expression",
 )
-

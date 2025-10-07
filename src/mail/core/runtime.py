@@ -943,13 +943,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(msg_content, dict)
                     else None
                 )
-                stream_requested = (
-                    isinstance(routing_info, dict)
-                    and bool(routing_info.get("stream"))
+                stream_requested = isinstance(routing_info, dict) and bool(
+                    routing_info.get("stream")
                 )
-                ignore_stream_pings = (
-                    isinstance(routing_info, dict)
-                    and bool(routing_info.get("ignore_stream_pings"))
+                ignore_stream_pings = isinstance(routing_info, dict) and bool(
+                    routing_info.get("ignore_stream_pings")
                 )
 
                 async def forward_remote_event(
@@ -1135,7 +1133,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
         # Normalise recipients into a list of address strings (agent names or interswarm ids)
         raw_recipients: list[MAILAddress]
         if "recipients" in msg_content:
-            raw_recipients = msg_content["recipients"]  # type: ignore[assignment]
+            raw_recipients = msg_content["recipients"]  # type: ignore
         else:
             raw_recipients = [msg_content["recipient"]]  # type: ignore[list-item]
 

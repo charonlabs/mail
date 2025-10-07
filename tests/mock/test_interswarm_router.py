@@ -79,7 +79,13 @@ async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPa
     # Capture remote route argument
     captured: dict[str, MAILMessage | None] = {"msg": None}
 
-    async def fake_remote(mm: MAILMessage, swarm: str, stream_requested: bool = False, stream_handler: StreamHandler | None = None, ignore_stream_pings: bool = False):  # noqa: ANN001
+    async def fake_remote(
+        mm: MAILMessage,
+        swarm: str,
+        stream_requested: bool = False,
+        stream_handler: StreamHandler | None = None,
+        ignore_stream_pings: bool = False,
+    ):  # noqa: ANN001
         captured["msg"] = mm
         return mm
 
@@ -187,8 +193,8 @@ async def test_consume_stream_returns_final_message(monkeypatch: pytest.MonkeyPa
     async def handler(event: str, data: str | None) -> None:
         received_events.append((event, data))
 
-    result = await router._consume_stream(  
-        fake_response, # type: ignore[arg-type]
+    result = await router._consume_stream(
+        fake_response,  # type: ignore[arg-type]
         original,
         "remote",
         stream_handler=handler,
@@ -227,7 +233,7 @@ async def test_iter_sse_ignores_ping(monkeypatch: pytest.MonkeyPatch):
         captured.append(event)
 
     await router._consume_stream(
-        fake_response, # type: ignore[arg-type]
+        fake_response,  # type: ignore[arg-type]
         original,
         "remote",
         stream_handler=handler,

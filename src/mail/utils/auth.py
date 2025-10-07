@@ -59,7 +59,7 @@ async def get_token_info(token: str) -> dict[str, Any]:
     """
     await check_auth_endpoints()
     TOKEN_INFO_ENDPOINT = os.getenv("TOKEN_INFO_ENDPOINT")
-    
+
     async with aiohttp.ClientSession() as session:
         response = await session.get(
             f"{TOKEN_INFO_ENDPOINT}", headers={"Authorization": f"Bearer {token}"}

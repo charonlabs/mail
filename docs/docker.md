@@ -8,9 +8,7 @@ This guide explains how to build and run the MAIL reference server in a Docker c
 - Access to the MAIL repository source tree when building the image
 
 ## Example Dockerfile
-Place the following `Dockerfile` at the repository root or in a build-specific
-folder. It mirrors the workflow used throughout the docs (`uv sync` for
-dependency resolution):
+Place the following `Dockerfile` at the repository root or in a build-specific folder. It mirrors the workflow used throughout the docs (`uv sync` for dependency resolution):
 
 ```Dockerfile
 FROM python:3.12-slim AS base
@@ -46,7 +44,7 @@ CMD ["uv", "run", "mail", "server", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ### Multi-stage tip
-If you want a smaller runtime image, split the Dockerfile into build and final stages. Copy `.venv` from the build stage to the runtime stage and strip out build-essential packages there.
+If you want a smaller runtime image, split the `Dockerfile` into build and final stages. Copy `.venv` from the build stage to the runtime stage and strip out build-essential packages there.
 
 ## Build the image
 ```bash
@@ -84,6 +82,8 @@ ENVVARS
 
 docker run --rm -p 8000:8000 --env-file .env.mail mail-server
 ```
+
+`mail server` seeds `SWARM_SOURCE` and `SWARM_REGISTRY_FILE` from `mail.toml`; set them explicitly if you mount alternative swarm definitions or persistence paths into the container.
 
 ### Persisting registries and logs
 Mount host directories if you want the container to keep swarm registry data or logs between runs:

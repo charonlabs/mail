@@ -319,7 +319,9 @@ async def whoami(request: Request):
         if isinstance(e, HTTPException):
             raise e
         logger.error(f"error getting whoami: '{e}'")
-        raise HTTPException(status_code=500, detail=f"error getting whoami: {e.with_traceback(None)}")
+        raise HTTPException(
+            status_code=500, detail=f"error getting whoami: {e.with_traceback(None)}"
+        )
 
 
 @app.get("/status", dependencies=[Depends(utils.caller_is_admin_or_user)])

@@ -16,7 +16,7 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 - Configuration defaults are read from `mail.toml` (see
   [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
-- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them.
+- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
 - Example:
 
   ```bash
@@ -26,10 +26,10 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 ### `mail client`
 Launching `mail client` starts the interactive REPL.
 
-- The default timeout comes from the `[client]` table in `mail.toml`; override
-  it per invocation with `--timeout`.
-- The `--config` flag is shared with `mail server`, allowing you to point both
-  commands at the same config file if you keep multiple TOML profiles.
+- Provide `--url` so the client knows which base URL to contact; the CLI does not infer it automatically.
+- The default timeout comes from the `[client]` table in `mail.toml`; override it per invocation with `--timeout`.
+- The `--config` flag is shared with `mail server`, allowing you to point both commands at the same config file if you keep multiple TOML profiles.
+- Toggle verbose HTTP logging for the REPL with `--verbose`; it mirrors `[client].verbose` from `mail.toml`.
 
 ```shell
 uv run mail client --url http://localhost:8000 --api-key $USER_TOKEN
@@ -43,8 +43,8 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 | `exit` / `quit` | Leave the REPL. |
 | `get-health` | Invoke `GET /health` and print the JSON body. |
 | `get-whoami` | Invoke `GET /whoami` and display the caller's username and role. |
-| `post-message --message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
-| `post-message-stream --message "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
+| `post-message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
+| `post-message-stream "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
 | `get-swarms`, `register-swarm`, `dump-swarm` | Manage the swarm registry. |
 | `send-interswarm-message` | Send interswarm traffic by target agent. |
 | `load-swarm-from-json` | Submit a JSON payload to `POST /swarms/load`. |
@@ -52,12 +52,10 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 The REPL uses `shlex.split`, so quoting works as expected:
 
 ```shell
-mail> post-message --message "Forecast for tomorrow" --entrypoint supervisor
+mail> post-message "Forecast for tomorrow" --entrypoint supervisor
 ```
 
-Errors raised by `argparse` are caught and reported without exiting the loop,
-letting you adjust the command and retry. Blank lines are ignored, and
-`Ctrl+C` returns you to the prompt without killing the process.
+Errors raised by `argparse` are caught and reported without exiting the loop, letting you adjust the command and retry. Blank lines are ignored, and `Ctrl+C` returns you to the prompt without killing the process.
 
 ### Streaming inside the REPL
 `post-message-stream` mirrors the behaviour of `MAILClient.post_message_stream`.
@@ -72,7 +70,7 @@ without leaving the terminal.
 - To continue a task that paused on a breakpoint tool call, add the following flags:
 
   ```shell
-  mail> post-message-stream \
+  mail> post-message-stream "Continuing after breakpoint" \
         --task-id weather-123 \
         --resume-from breakpoint_tool_call \
         --kwargs '{"breakpoint_tool_caller": "analyst", "breakpoint_tool_call_result": "Forecast: sunny"}'
@@ -83,7 +81,7 @@ without leaving the terminal.
 - `--resume-from user_response` is reserved for future releases and currently raises an error if supplied.
 
 ## Tips
-- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, and `--timeout`.
+- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
 - Combine with `uv run` for isolated environments, e.g. `uv run mail client …`.
 - Logging inherits the standard logging configuration. Setting `MAIL_LOG_LEVEL=DEBUG` will surface detailed request/response traces while you use the REPL.
 
