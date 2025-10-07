@@ -730,7 +730,9 @@ class MAILClientCLI:
             response = await self.client.get_whoami()
             self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] getting whoami: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] getting whoami: {e}"
+            )
 
     async def _post_message(self, args: argparse.Namespace) -> None:
         """
@@ -752,7 +754,9 @@ class MAILClientCLI:
             )
             self._print_embedded_xml(response)
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] posting message: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] posting message: {e}"
+            )
 
     async def _post_message_stream(self, args: argparse.Namespace) -> None:
         """
@@ -778,7 +782,9 @@ class MAILClientCLI:
                 )
                 self._print_embedded_xml(parsed_event)
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] posting message: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] posting message: {e}"
+            )
 
     async def _get_health(self, _args: argparse.Namespace) -> None:
         """
@@ -788,7 +794,9 @@ class MAILClientCLI:
             response = await self.client.get_health()
             self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] getting health: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] getting health: {e}"
+            )
 
     async def _get_swarms(self, _args: argparse.Namespace) -> None:
         """
@@ -798,7 +806,9 @@ class MAILClientCLI:
             response = await self.client.get_swarms()
             self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] getting swarms: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] getting swarms: {e}"
+            )
 
     async def _register_swarm(self, args: argparse.Namespace) -> None:
         """
@@ -814,7 +824,9 @@ class MAILClientCLI:
             )
             self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] registering swarm: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] registering swarm: {e}"
+            )
 
     async def _dump_swarm(self, _args: argparse.Namespace) -> None:
         """
@@ -836,7 +848,9 @@ class MAILClientCLI:
             )
             self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] sending interswarm message: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] sending interswarm message: {e}"
+            )
 
     async def _load_swarm_from_json(self, args: argparse.Namespace) -> None:
         """
@@ -846,14 +860,20 @@ class MAILClientCLI:
             response = await self.client.load_swarm_from_json(args.swarm_json)
             self.client._console.print(json.dumps(response, indent=2))
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] loading swarm from JSON: {e}")
+            self.client._console.print(
+                f"[red bold]error[/red bold] loading swarm from JSON: {e}"
+            )
 
     def _print_preamble(self) -> None:
         """
         Print the preamble for the MAIL client.
         """
-        self.client._console.print(f"[bold]MAIL CLIent v[cyan]{utils.get_version()}[/cyan][/bold]")
-        self.client._console.print("Enter [cyan]`help`[/cyan] for help and [cyan]`exit`[/cyan] to quit")
+        self.client._console.print(
+            f"[bold]MAIL CLIent v[cyan]{utils.get_version()}[/cyan][/bold]"
+        )
+        self.client._console.print(
+            "Enter [cyan]`help`[/cyan] for help and [cyan]`exit`[/cyan] to quit"
+        )
         self.client._console.print("==========")
 
     def _repl_input_string(
@@ -893,7 +913,9 @@ class MAILClientCLI:
 
         while True:
             try:
-                raw_command = self.client._console.input(self._repl_input_string(self.username, self.base_url))
+                raw_command = self.client._console.input(
+                    self._repl_input_string(self.username, self.base_url)
+                )
             except EOFError:
                 self.client._console.print()
                 break
@@ -907,7 +929,9 @@ class MAILClientCLI:
             try:
                 tokens = shlex.split(raw_command)
             except ValueError as exc:
-                self.client._console.print(f"[red bold]error[/red bold] parsing command: {exc}")
+                self.client._console.print(
+                    f"[red bold]error[/red bold] parsing command: {exc}"
+                )
                 continue
 
             command = tokens[0]
@@ -946,7 +970,12 @@ class MAILClientCLI:
                     end = snippet.rfind(">")
                     if start != -1 and end != -1 and start < end:
                         candidate = snippet[start : end + 1]
-                        candidate = candidate.replace("\\n", "").replace("\\t", "\t").replace("[\\'", "").replace("\\']", "")
+                        candidate = (
+                            candidate.replace("\\n", "")
+                            .replace("\\t", "\t")
+                            .replace("[\\'", "")
+                            .replace("\\']", "")
+                        )
                         collected_set.add(candidate)
                 return
             if hasattr(node, "description"):

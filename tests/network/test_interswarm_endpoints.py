@@ -114,7 +114,9 @@ def test_interswarm_message_streaming_response(monkeypatch: pytest.MonkeyPatch):
 
         return EventSourceResponse(event_gen(), ping=ping_interval)
 
-    monkeypatch.setattr("mail.MAILSwarm.submit_message_stream", fake_stream, raising=True)
+    monkeypatch.setattr(
+        "mail.MAILSwarm.submit_message_stream", fake_stream, raising=True
+    )
 
     with TestClient(app) as client:
         payload: MAILRequest = MAILRequest(
@@ -156,11 +158,13 @@ def test_interswarm_message_streaming_response(monkeypatch: pytest.MonkeyPatch):
                 raw_events.append(line.strip())
 
         assert any(
-            line.startswith("event:new_message") or line.startswith("event: new_message")
+            line.startswith("event:new_message")
+            or line.startswith("event: new_message")
             for line in raw_events
         )
         assert any(
-            line.startswith("event:task_complete") or line.startswith("event: task_complete")
+            line.startswith("event:task_complete")
+            or line.startswith("event: task_complete")
             for line in raw_events
         )
 
@@ -202,7 +206,9 @@ def test_interswarm_message_streaming_ignores_pings(monkeypatch: pytest.MonkeyPa
 
         return EventSourceResponse(event_gen(), ping=ping_interval)
 
-    monkeypatch.setattr("mail.MAILSwarm.submit_message_stream", fake_stream, raising=True)
+    monkeypatch.setattr(
+        "mail.MAILSwarm.submit_message_stream", fake_stream, raising=True
+    )
 
     with TestClient(app) as client:
         payload: MAILRequest = MAILRequest(
@@ -249,7 +255,8 @@ def test_interswarm_message_streaming_ignores_pings(monkeypatch: pytest.MonkeyPa
 
         assert captured_ping == [None]
         assert any(
-            line.startswith("event:task_complete") or line.startswith("event: task_complete")
+            line.startswith("event:task_complete")
+            or line.startswith("event: task_complete")
             for line in events
         )
 
@@ -274,11 +281,11 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
         async def route_interswarm_message(self, message: MAILMessage) -> MAILMessage:
             captured["message"] = message
             return message
-        
+
         async def shutdown(self) -> None:
             pass
 
-    user_mail_instances["test-token"] = DummyMail() # type: ignore[assignment]
+    user_mail_instances["test-token"] = DummyMail()  # type: ignore[assignment]
 
     with TestClient(app) as client:
         payload = {
@@ -306,11 +313,11 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
         assert message["message"]["subject"] == "Custom Subject"
         assert message["message"]["body"] == "Hello remote"
         assert message["message"]["task_id"] == "task-xyz"
-        assert message["message"]["routing_info"]["foo"] == "bar" # type: ignore
-        assert message["message"]["routing_info"]["stream"] is True # type: ignore
-        assert message["message"]["routing_info"]["ignore_stream_pings"] is True # type: ignore
-        assert message["message"]["recipient"]["address"] == "helper@remote" # type: ignore
-        assert message["message"]["recipient_swarm"] == "remote" # type: ignore
+        assert message["message"]["routing_info"]["foo"] == "bar"  # type: ignore
+        assert message["message"]["routing_info"]["stream"] is True  # type: ignore
+        assert message["message"]["routing_info"]["ignore_stream_pings"] is True  # type: ignore
+        assert message["message"]["recipient"]["address"] == "helper@remote"  # type: ignore
+        assert message["message"]["recipient_swarm"] == "remote"  # type: ignore
 
 
 @pytest.mark.usefixtures("patched_server")
@@ -337,7 +344,7 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    user_mail_instances["token-broadcast"] = DummyMAILInstance() # type: ignore[assignment]
+    user_mail_instances["token-broadcast"] = DummyMAILInstance()  # type: ignore[assignment]
 
     with TestClient(app) as client:
         payload = {
@@ -384,7 +391,7 @@ def test_interswarm_send_invalid_msg_type(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    user_mail_instances["token-invalid"] = DummyMAILInstance() # type: ignore[assignment]
+    user_mail_instances["token-invalid"] = DummyMAILInstance()  # type: ignore[assignment]
 
     with TestClient(app) as client:
         payload = {

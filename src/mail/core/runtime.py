@@ -943,13 +943,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(msg_content, dict)
                     else None
                 )
-                stream_requested = (
-                    isinstance(routing_info, dict)
-                    and bool(routing_info.get("stream"))
+                stream_requested = isinstance(routing_info, dict) and bool(
+                    routing_info.get("stream")
                 )
-                ignore_stream_pings = (
-                    isinstance(routing_info, dict)
-                    and bool(routing_info.get("ignore_stream_pings"))
+                ignore_stream_pings = isinstance(routing_info, dict) and bool(
+                    routing_info.get("ignore_stream_pings")
                 )
 
                 async def forward_remote_event(

@@ -60,9 +60,7 @@ class SwarmRegistry:
             metadata=None,
             volatile=False,  # Local swarm is never volatile
         )
-        logger.info(
-            f"registered local swarm: '{self.local_swarm_name}' at {base_url}"
-        )
+        logger.info(f"registered local swarm: '{self.local_swarm_name}' at {base_url}")
 
     def register_swarm(
         self,

@@ -448,7 +448,9 @@ def _make_broadcast_all(task_id: str, sender: str = "supervisor") -> MAILMessage
 
 
 @pytest.mark.asyncio
-async def test_broadcast_all_excludes_sender_locally(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_broadcast_all_excludes_sender_locally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runtime = MAILRuntime(
         agents=_make_runtime_agents(),
         actions={},
@@ -459,7 +461,9 @@ async def test_broadcast_all_excludes_sender_locally(monkeypatch: pytest.MonkeyP
 
     dispatched: list[str] = []
 
-    def record_send(self: MAILRuntime, recipient: str, message: MAILMessage, _override=None) -> None:  # type: ignore[override]
+    def record_send(
+        self: MAILRuntime, recipient: str, message: MAILMessage, _override=None
+    ) -> None:  # type: ignore[override]
         dispatched.append(recipient)
 
     monkeypatch.setattr(runtime, "_send_message", MethodType(record_send, runtime))
@@ -469,7 +473,7 @@ async def test_broadcast_all_excludes_sender_locally(monkeypatch: pytest.MonkeyP
 
     assert set(dispatched) == {"analyst", "math"}
     assert "supervisor" not in dispatched
-    assert broadcast["message"]["recipients"] == [create_agent_address("all")] # type: ignore
+    assert broadcast["message"]["recipients"] == [create_agent_address("all")]  # type: ignore
 
 
 @pytest.mark.asyncio
@@ -504,4 +508,4 @@ async def test_broadcast_all_excludes_sender_with_interswarm(
 
         assert set(dispatched) == {"analyst", "math"}
         assert "supervisor" not in dispatched
-        assert broadcast["message"]["recipients"] == [create_agent_address("all")] # type: ignore
+        assert broadcast["message"]["recipients"] == [create_agent_address("all")]  # type: ignore
