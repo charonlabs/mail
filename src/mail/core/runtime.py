@@ -1135,7 +1135,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
         # Normalise recipients into a list of address strings (agent names or interswarm ids)
         raw_recipients: list[MAILAddress]
         if "recipients" in msg_content:
-            raw_recipients = msg_content["recipients"]  # type: ignore[assignment]
+            raw_recipients = msg_content["recipients"]  # type: ignore
         else:
             raw_recipients = [msg_content["recipient"]]  # type: ignore[list-item]
 
