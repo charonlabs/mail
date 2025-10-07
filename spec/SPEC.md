@@ -194,6 +194,12 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **Optional Parameters**: `reason` (string)
 - **Returns**: None mandated by this spec.
 
+### `await_message`
+
+- Indicate that the agent is finished with its current turn and should be scheduled again once a new MAIL message arrives.
+- **Optional Parameters**: `reason` (string)
+- **Returns**: None mandated by this spec.
+
 ## REST Transport
 
 **Authoritative contract**: [spec/openapi.yaml](/spec/openapi.yaml) (OpenAPI 3.1[^openapi]).
