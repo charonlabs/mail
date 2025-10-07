@@ -29,6 +29,7 @@ MAIL_TOOL_NAMES = [
     "task_complete",
     "acknowledge_broadcast",
     "ignore_broadcast",
+    "await_message",
 ]
 
 
@@ -446,6 +447,23 @@ Furthermore, this broadcast will be sent to all agents in the swarm to notify th
     return pydantic_model_to_tool(task_complete, name="task_complete", style=style)
 
 
+def create_await_message_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
+    """
+    Create a MAIL await message tool to wait for a message.
+    """
+    class await_message(BaseModel):
+        """Wait until another message is received."""
+
+        reason: Optional[str] = Field(  # noqa: UP045
+            default=None,
+            description="Optional reason for waiting.",
+        )
+
+
+    return pydantic_model_to_tool(await_message, name="await_message", style=style)
+
 def create_mail_tools(
     targets: list[str],
     enable_interswarm: bool = False,
@@ -464,6 +482,7 @@ def create_mail_tools(
         create_response_tool(targets, enable_interswarm, style),
         create_acknowledge_broadcast_tool(style),
         create_ignore_broadcast_tool(style),
+        create_await_message_tool(style),
     ]
 
 
