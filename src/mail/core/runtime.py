@@ -1590,7 +1590,7 @@ Use this information to decide how to complete your task.""",
                                         details="task completed",
                                     )
 
-                                else:
+                                elif self._is_continuous:
                                     logger.error(
                                         f"{self._log_prelude()} task '{task_id}' completed but no pending request found"
                                     )
