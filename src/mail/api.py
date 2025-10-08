@@ -168,7 +168,9 @@ class MAILAgentTemplate:
                 f"agent name must be at least 1 character long, got {len(self.name)}"
             )
 
-    def _top_level_params(self, exclude_tools: list[str] | None = None) -> dict[str, Any]:
+    def _top_level_params(
+        self, exclude_tools: list[str] | None = None
+    ) -> dict[str, Any]:
         final_exclude = self.exclude_tools if exclude_tools is None else exclude_tools
         return {
             "name": self.name,
@@ -735,6 +737,7 @@ class MAILSwarm:
         show_events: bool = False,
         task_id: str | None = None,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        max_steps: int | None = None,
         **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
@@ -750,7 +753,7 @@ class MAILSwarm:
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run_task(
-            task_id=task_id, resume_from=resume_from, **kwargs
+            task_id=task_id, resume_from=resume_from, max_steps=max_steps, **kwargs
         )
 
         if show_events:

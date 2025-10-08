@@ -122,11 +122,13 @@ async def test_submit_prioritizes_message_types() -> None:
         ordered_types.append((priority, seq, message["msg_type"]))
 
     msg_types = [m for (_, _, m) in ordered_types]
-    assert (msg_types == ["interrupt", "broadcast_complete", "broadcast", "request"]) or (msg_types == ["broadcast_complete", "interrupt", "broadcast", "request"])
+    assert (
+        msg_types == ["interrupt", "broadcast_complete", "broadcast", "request"]
+    ) or (msg_types == ["broadcast_complete", "interrupt", "broadcast", "request"])
     # Ensure FIFO ordering for equal priority (interrupt before completion because it was submitted first)
     assert ordered_types[0][0] == ordered_types[1][0] == 3
     assert ordered_types[0][1] < ordered_types[1][1]
-    
+
 
 @pytest.mark.asyncio
 async def test_submit_and_stream_handles_timeout_and_events(
@@ -304,7 +306,11 @@ async def test_await_message_errors_when_queue_empty() -> None:
     assert error_events, "expected agent_error event when queue is empty"
     assert "message queue is empty" in error_events[-1].data["description"]  # type: ignore[index]
 
-    response_priority, response_seq, response_message = await runtime.message_queue.get()
+    (
+        response_priority,
+        response_seq,
+        response_message,
+    ) = await runtime.message_queue.get()
     assert response_message["msg_type"] == "response"
     assert response_message["message"]["subject"] == "::tool_call_error::"
     assert "message queue is empty" in response_message["message"]["body"]

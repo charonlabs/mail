@@ -162,6 +162,7 @@ class MAILRuntime:
         task_id: str | None = None,
         action_override: ActionOverrideFunction | None = None,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        max_steps: int | None = None,
         **kwargs: Any,
     ) -> MAILMessage:
         """
@@ -253,7 +254,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self.mail_tasks[task_id].is_running = True
 
                 try:
-                    result = await self._run_loop_for_task(task_id, action_override)
+                    result = await self._run_loop_for_task(
+                        task_id, action_override, max_steps
+                    )
                 finally:
                     self.mail_tasks[task_id].is_running = False
 
@@ -263,11 +266,25 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self,
         task_id: str,
         action_override: ActionOverrideFunction | None = None,
+        max_steps: int | None = None,
     ) -> MAILMessage:
         """
         Run the MAIL system for a specific task until the task is complete or shutdown is requested.
         """
+        steps = 0
         while True:
+            steps += 1
+            if max_steps is not None and steps > max_steps:
+                logger.info(
+                    f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', initiating shutdown..."
+                )
+                return self._system_broadcast(
+                    task_id=task_id,
+                    subject="Maximum Steps Reached",
+                    body="The maximum number of steps was reached and the agent loop was terminated. The task was not completed.",
+                    task_complete=True,
+                )
+
             try:
                 # Wait for either a message or shutdown signal
                 get_message_task = asyncio.create_task(self.message_queue.get())
@@ -943,9 +960,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     for agent in self.agents:
                         self.agent_histories[
                             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=agent)
-                        ].append(
-                            build_mail_xml(message)
-                        )
+                        ].append(build_mail_xml(message))
                     return
 
                 recipients_for_routing = msg_content["recipients"]  # type: ignore
@@ -1073,7 +1088,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                             complete_message = self._agent_task_complete(
                                 task_id=task_id,
                                 caller=self.entrypoint,
-                                finish_message=msg.get("body", "Task completed successfully"),
+                                finish_message=msg.get(
+                                    "body", "Task completed successfully"
+                                ),
                             )
 
                             await self.submit(complete_message)
@@ -1159,7 +1176,9 @@ If your assigned task cannot be completed, inform your caller of this error and 
         if message["msg_type"] == "broadcast_complete":
             for agent in self.agents:
                 self.agent_histories[
-                    AGENT_HISTORY_KEY.format(task_id=message["message"]["task_id"], agent_name=agent)
+                    AGENT_HISTORY_KEY.format(
+                        task_id=message["message"]["task_id"], agent_name=agent
+                    )
                 ].append(build_mail_xml(message))
             return
 
