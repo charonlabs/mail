@@ -873,9 +873,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         Add a message to the priority queue
         Priority order:
         1. System message of any type
-        2. Interrupt, broadcast_complete
-        3. Broadcast
-        4. Request, response
+        2. User message of any type
+        3. Agent interrupt, broadcast_complete
+        4. Agent broadcast
+        5. Agent request, response
         Within each category, messages are processed in FIFO order using a
         monotonically increasing sequence number to avoid dict comparisons.
         """
@@ -889,13 +890,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         )
 
         priority = 0
-        match message["msg_type"]:
-            case "interrupt" | "broadcast_complete":
-                priority = 1
-            case "broadcast":
-                priority = 2
-            case "request" | "response":
-                priority = 3
+        if message["message"]["sender"]["address_type"] == "system":
+            priority = 1
+        elif message["message"]["sender"]["address_type"] == "user":
+            priority = 2
+        elif message["message"]["sender"]["address_type"] == "agent":
+            match message["msg_type"]:
+                case "interrupt" | "broadcast_complete":
+                    priority = 3
+                case "broadcast":
+                    priority = 4
+                case "request" | "response":
+                    priority = 5
 
         # Monotonic sequence to break ties for same priority
         self._message_seq += 1
@@ -931,6 +937,17 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             has_interswarm_recipients = False
 
             if "recipients" in msg_content:
+                # if the message is a `broadcast_complete`, don't send it to the recipient agents
+                # but DO append it to the agent history as tool calls (the actual broadcast)
+                if message["msg_type"] == "broadcast_complete":
+                    for agent in self.agents:
+                        self.agent_histories[
+                            AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=agent)
+                        ].append(
+                            build_mail_xml(message)
+                        )
+                    return
+
                 recipients_for_routing = msg_content["recipients"]  # type: ignore
                 if recipients_for_routing == [MAIL_ALL_LOCAL_AGENTS]:  # type: ignore[comparison-overlap]
                     recipients_for_routing = [
@@ -1137,6 +1154,15 @@ If your assigned task cannot be completed, inform your caller of this error and 
         """
         Process a message locally (original _process_message logic)
         """
+        # if the message is a `broadcast_complete`, don't send it to the recipient agents
+        # but DO append it to the agent history as tool calls (the actual broadcast)
+        if message["msg_type"] == "broadcast_complete":
+            for agent in self.agents:
+                self.agent_histories[
+                    AGENT_HISTORY_KEY.format(task_id=message["message"]["task_id"], agent_name=agent)
+                ].append(build_mail_xml(message))
+            return
+
         msg_content = message["message"]
 
         # Normalise recipients into a list of address strings (agent names or interswarm ids)
@@ -1531,9 +1557,9 @@ Use this information to decide how to complete your task.""",
 
                                 if not self._is_continuous:
                                     self._submit_event(
-                                        "task_complete",
+                                        "task_complete_call",
                                         task_id,
-                                        f"task '{task_id}' completed",
+                                        f"agent '{recipient}' called 'task_complete', full response to follow",
                                     )
                                     await self.submit(response_message)
                                 elif (
@@ -1541,15 +1567,15 @@ Use this information to decide how to complete your task.""",
                                     and task_id in self.pending_requests
                                 ):
                                     self._submit_event(
-                                        "task_complete",
+                                        "task_complete_call",
                                         task_id,
-                                        f"task '{task_id}' completed",
+                                        f"agent '{recipient}' called 'task_complete', full response to follow",
                                     )
                                     await self.submit(response_message)
 
                                 elif self._is_continuous:
                                     logger.error(
-                                        f"{self._log_prelude()} task '{task_id}' completed but no pending request found"
+                                        f"{self._log_prelude()} agent '{recipient}' called 'task_complete' but no pending request found"
                                     )
                                     self._tool_call_response(
                                         task_id=task_id,
@@ -1561,7 +1587,7 @@ Use this information to decide how to complete your task.""",
                                     self._submit_event(
                                         "task_error",
                                         task_id,
-                                        f"task '{task_id}' completed but no pending request found",
+                                        f"agent '{recipient}' called 'task_complete' but no pending request found",
                                     )
                                     await self.submit(
                                         self._system_broadcast(
