@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
-from asyncio import PriorityQueue
 import datetime
 import heapq
+from asyncio import PriorityQueue
 from typing import Literal, cast
 
 from sse_starlette import ServerSentEvent
 
 from mail.core.message import MAILMessage, create_agent_address
-
 
 QueueItem = tuple[int, int, MAILMessage]
 

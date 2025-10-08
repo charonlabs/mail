@@ -19,6 +19,10 @@ from .parsing import (
     resolve_prefixed_string_references,
     target_address_is_interswarm,
 )
+from .serialize import (
+    export,
+    serialize_mail_value,
+)
 from .store import (
     get_langmem_store,
 )
@@ -46,4 +50,6 @@ __all__ = [
     "extract_token",
     "get_version",
     "get_protocol_version",
+    "export",
+    "serialize_mail_value",
 ]

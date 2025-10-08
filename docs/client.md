@@ -63,7 +63,7 @@ The class implements `__aenter__` / `__aexit__`, so `async with` automatically o
 | Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |
 | Interswarm | `post_interswarm_message(...)`, `post_interswarm_response(...)`, `send_interswarm_message(...)` | Submit or receive interswarm traffic. |
 
-All helpers return deserialised `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
+All helpers return deserialized `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
 
 ## Streaming Responses
 
