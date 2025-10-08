@@ -52,6 +52,7 @@ class AgentCore:
                 | "send_broadcast"
                 | "acknowledge_broadcast"
                 | "ignore_broadcast"
+                | "help"
             ):
                 return True
             case "task_complete":

@@ -1,12 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
+from pathlib import Path
+
+from mail.core.tools import get_tool_help
+
+SPEC_PATH = Path(__file__).resolve().parents[3] / "spec" / "SPEC.md"
+
 
 def build_mail_help_string(
     name: str,
     swarm: str,
     get_summary: bool = True,
     get_identity: bool = False,
+    get_tool_help: list[str] = [],
     get_full_protocol: bool = False,
 ) -> str:
     """
@@ -17,6 +24,8 @@ def build_mail_help_string(
         string += _get_summary()
     if get_identity:
         string += _get_identity(name, swarm)
+    if get_tool_help:
+        string += _get_tool_help(get_tool_help)
     if get_full_protocol:
         string += _get_full_protocol()
 
@@ -38,12 +47,22 @@ def _get_identity(name: str, swarm: str) -> str:
     return _create_section("your identity", IDENTITY_STRING.format(name=name, swarm=swarm))
 
 
+def _get_tool_help(tool_help: list[str] = []) -> str:
+    """
+    Get the help for the given tools.
+    """
+    return _create_section("tool help", f"\n{get_tool_help(tool_help)}")
+
+
 def _get_full_protocol() -> str:
     """
     Get the full MAIL protocol specification.
     """
-    with open("spec/SPEC.md") as file:
-        return _create_section("full MAIL protocol specification", file.read())
+    if SPEC_PATH.is_file():
+        content = SPEC_PATH.read_text(encoding="utf-8")
+    else:
+        content = "The MAIL protocol specification could not be located on disk."
+    return _create_section("full MAIL protocol specification", content)
 
 
 def _create_section(title: str, content: str, capitalize: bool = True) -> str:

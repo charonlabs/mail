@@ -24,6 +24,7 @@
 - `acknowledge_broadcast(note=None)` → records the broadcast in agent memory without replying; the optional note stays internal.
 - `ignore_broadcast(reason=None)` → explicitly drops the broadcast and skips both memory storage and outbound mail; optional reason is internal only.
 - `await_message(reason=None)` → signals that the agent has no further output this turn and should be rescheduled when new mail arrives; an optional reason is surfaced in SSE events and tool-call history for debugging.
+- `help(get_summary=True, get_identity=False, get_tool_help=None, get_full_protocol=False)` → generates a MAIL primer for the calling agent, optionally including identity info, per-tool guides, and the full protocol spec; the runtime streams the result back as a system broadcast.
 - `send_interswarm_broadcast(subject, body, target_swarms=[])` → (supervisor + interswarm) sends a broadcast to selected remote swarms, defaulting to all when the list is empty.
 - `discover_swarms(discovery_urls)` → (supervisor + interswarm) hands discovery endpoints to the registry so it can import additional swarms.
 - `task_complete(finish_message)` → (supervisor) broadcasts the final answer and tells the runtime the task loop is finished.

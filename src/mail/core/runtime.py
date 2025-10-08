@@ -1578,6 +1578,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     swarm=self.swarm_name,
                                     get_summary=call.tool_args.get("get_summary", True),
                                     get_identity=call.tool_args.get("get_identity", False),
+                                    get_tool_help=call.tool_args.get("get_tool_help", []),
                                     get_full_protocol=call.tool_args.get("get_full_protocol", False),
                                 )
                                 self._tool_call_response(
