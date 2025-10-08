@@ -5,7 +5,7 @@ from typing import Any
 import ujson
 from sse_starlette import ServerSentEvent
 
-from mail import MAILMessage
+from mail.core.message import MAILMessage
 from mail.utils.version import get_version
 
 _REDACT_KEYS = {
@@ -190,7 +190,7 @@ def extract_task_body(raw_result: Any, serialized_result: Any | None = None) -> 
     return None
 
 
-def export(swarm: Any) -> str:
+def export(swarms: list[Any]) -> str:
     """
     Export a `MAILSwarm` or `MAILSwarmTemplate` to a JSON string compatible
     with the client-side `Generation`/`Swarm` interfaces.
@@ -251,33 +251,39 @@ def export(swarm: Any) -> str:
             action_dict["function"] = function_ref
         return action_dict
 
-    agent_payloads = [_serialize_agent(agent) for agent in getattr(swarm, "agents", [])]
-    action_payloads = [
-        _serialize_action(action) for action in getattr(swarm, "actions", [])
-    ]
+    swarm_payloads: list[dict[str, Any]] = []
+    for swarm in swarms:
+        agent_payloads = [
+            _serialize_agent(agent) for agent in getattr(swarm, "agents", [])
+        ]
+        action_payloads = [
+            _serialize_action(action) for action in getattr(swarm, "actions", [])
+        ]
 
-    swarm_payload: dict[str, Any] = {
-        "name": getattr(swarm, "name", ""),
-        "version": get_version(),
-        "entrypoint": getattr(swarm, "entrypoint", ""),
-        "enable_interswarm": bool(getattr(swarm, "enable_interswarm", False)),
-        "agents": agent_payloads,
-    }
+        swarm_payload: dict[str, Any] = {
+            "name": getattr(swarm, "name", ""),
+            "version": get_version(),
+            "entrypoint": getattr(swarm, "entrypoint", ""),
+            "enable_interswarm": bool(getattr(swarm, "enable_interswarm", False)),
+            "agents": agent_payloads,
+        }
 
-    breakpoint_tools = getattr(swarm, "breakpoint_tools", None)
-    if breakpoint_tools is not None:
-        swarm_payload["breakpoint_tools"] = list(breakpoint_tools)
+        breakpoint_tools = getattr(swarm, "breakpoint_tools", None)
+        if breakpoint_tools is not None:
+            swarm_payload["breakpoint_tools"] = list(breakpoint_tools)
 
-    if action_payloads:
-        swarm_payload["actions"] = action_payloads
+        if action_payloads:
+            swarm_payload["actions"] = action_payloads
 
-    user_id = getattr(swarm, "user_id", None)
-    if user_id is not None:
-        swarm_payload["user_id"] = user_id
+        user_id = getattr(swarm, "user_id", None)
+        if user_id is not None:
+            swarm_payload["user_id"] = user_id
+
+        swarm_payloads.append(swarm_payload)
 
     swarms_payload = {
-        "swarms": [swarm_payload],
-        "n": 1,
+        "swarms": swarm_payloads,
+        "n": len(swarm_payloads),
     }
 
     return ujson.dumps(swarms_payload)
