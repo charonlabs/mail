@@ -163,11 +163,10 @@ async def test_submit_and_stream_handles_timeout_and_events(
     assert update_event.data["task_id"] == task_id
     assert update_event.data["description"] == "intermediate status"
 
-    completion_message = runtime._system_broadcast(
+    completion_message = runtime._agent_task_complete(
         task_id=task_id,
-        subject="Done",
-        body="All good",
-        task_complete=True,
+        caller="supervisor",
+        finish_message="All good",
     )
     future = runtime.pending_requests[task_id]
     future.set_result(completion_message)

@@ -1053,40 +1053,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
                         if should_autocomplete and task_id is not None:
                             # Build a broadcast_complete-style message for consistency
-                            complete_message = MAILMessage(
-                                id=str(uuid.uuid4()),
-                                timestamp=datetime.datetime.now(
-                                    datetime.UTC
-                                ).isoformat(),
-                                message=MAILBroadcast(
-                                    task_id=task_id,
-                                    broadcast_id=str(uuid.uuid4()),
-                                    sender=create_agent_address(self.entrypoint),
-                                    recipients=[create_agent_address("all")],
-                                    subject="::task_complete::",
-                                    body=msg.get("body", "(empty body)"),
-                                    sender_swarm=self.swarm_name,
-                                    recipient_swarms=[self.swarm_name],
-                                    routing_info={},
-                                ),
-                                msg_type="broadcast_complete",
+                            complete_message = self._agent_task_complete(
+                                task_id=task_id,
+                                caller=self.entrypoint,
+                                finish_message=msg.get("body", "Task completed successfully"),
                             )
 
-                            # Resolve the pending future immediately to end the task
-                            self._ensure_task_exists(task_id)
-                            await self.mail_tasks[task_id].queue_stash(
-                                self.message_queue
-                            )
-                            future = self.pending_requests.pop(task_id)
-                            if not future.done():
-                                logger.info(
-                                    f"{self._log_prelude()} auto-completing task '{task_id}' from interswarm response to '{recipient_addr}'"
-                                )
-                                future.set_result(complete_message)
-                            else:
-                                logger.warning(
-                                    f"{self._log_prelude()} future for task '{task_id}' already done when auto-completing"
-                                )
+                            await self.submit(complete_message)
 
                             # Do not enqueue the raw response; we've completed the task
                             return
@@ -1540,28 +1513,14 @@ Use this information to decide how to complete your task.""",
                                 )
 
                                 # Create a response message for the user
-                                response_message = MAILMessage(
-                                    id=str(uuid.uuid4()),
-                                    timestamp=datetime.datetime.now(
-                                        datetime.UTC
-                                    ).isoformat(),
-                                    message=MAILBroadcast(
-                                        task_id=task_id,
-                                        broadcast_id=str(uuid.uuid4()),
-                                        sender=create_agent_address(recipient),
-                                        recipients=[MAIL_ALL_LOCAL_AGENTS],
-                                        subject="::task_complete::",
-                                        body=call.tool_args.get(
-                                            "finish_message",
-                                            "Task completed successfully",
-                                        ),
-                                        sender_swarm=self.swarm_name,
-                                        recipient_swarms=[self.swarm_name],
-                                        routing_info={},
+                                response_message = self._agent_task_complete(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    finish_message=call.tool_args.get(
+                                        "finish_message",
+                                        "Task completed successfully",
                                     ),
-                                    msg_type="broadcast_complete",
                                 )
-
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -1569,6 +1528,7 @@ Use this information to decide how to complete your task.""",
                                     status="success",
                                     details="task completed",
                                 )
+
                                 if not self._is_continuous:
                                     self._submit_event(
                                         "task_complete",
@@ -1926,6 +1886,32 @@ Use this information to decide how to complete your task.""",
                 routing_info={},
             ),
             msg_type="response",
+        )
+
+    def _agent_task_complete(
+        self,
+        task_id: str,
+        caller: str,
+        finish_message: str,
+    ) -> MAILMessage:
+        """
+        Create a task complete message for an agent.
+        """
+        return MAILMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+            message=MAILBroadcast(
+                task_id=task_id,
+                broadcast_id=str(uuid.uuid4()),
+                sender=create_agent_address(caller),
+                recipients=[create_agent_address("all")],
+                subject="::task_complete::",
+                body=finish_message,
+                sender_swarm=self.swarm_name,
+                recipient_swarms=[self.swarm_name],
+                routing_info={},
+            ),
+            msg_type="broadcast_complete",
         )
 
     def _tool_call_response(
