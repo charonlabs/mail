@@ -27,6 +27,7 @@ def action_agent_factory(
     enable_interswarm: bool = False,
     can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
+    exclude_tools: list[str] = [],
     # instance params
     # ...
     # internal params
@@ -63,6 +64,7 @@ def action_agent_factory(
         name=name,
         enable_entrypoint=enable_entrypoint,
         enable_interswarm=enable_interswarm,
+        exclude_tools=exclude_tools,
         _debug_include_mail_tools=_debug_include_mail_tools,
     )
     return agent
