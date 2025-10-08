@@ -82,6 +82,11 @@ def test_create_mail_tools_set():
         "await_message",
     }
 
+    # now test with tool exclusion
+    tools = create_mail_tools(["analyst", "helper"], exclude_tools=["send_request"])
+    names = [t["function"]["name"] for t in tools]
+    assert "send_request" not in names
+
 
 def test_create_task_complete_tool_shape():
     """

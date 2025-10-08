@@ -33,6 +33,21 @@ MAIL_TOOL_NAMES = [
 ]
 
 
+def get_tool_spec_name(tool: dict[str, Any]) -> str | None:
+    """
+    Extract the logical tool name from either responses or completions tool specs.
+    """
+    name = tool.get("name")
+    if isinstance(name, str):
+        return name
+    maybe_function = tool.get("function")
+    if isinstance(maybe_function, dict):
+        function_name = maybe_function.get("name")
+        if isinstance(function_name, str):
+            return function_name
+    return None
+
+
 def pydantic_model_to_tool(
     model_cls: type[BaseModel],
     name: str | None = None,
@@ -468,6 +483,7 @@ def create_mail_tools(
     targets: list[str],
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
+    exclude_tools: list[str] = [],
 ) -> list[dict[str, Any]]:
     """
     Create MAIL tools. These should be used for all agents.
@@ -476,8 +492,9 @@ def create_mail_tools(
         targets: The agents that the agent can send messages to.
         enable_interswarm: Whether the agent can send interswarm messages.
         style: The style of the tools to create.
+        exclude_tools: The names of MAIL tools that should not be available.
     """
-    return [
+    all_tools = [
         create_request_tool(targets, enable_interswarm, style),
         create_response_tool(targets, enable_interswarm, style),
         create_acknowledge_broadcast_tool(style),
@@ -485,11 +502,21 @@ def create_mail_tools(
         create_await_message_tool(style),
     ]
 
+    # filter out the excluded tools
+    final_tools: list[dict[str, Any]] = []
+    for tool in all_tools:
+        tool_name = get_tool_spec_name(tool)
+        if tool_name is None or tool_name not in exclude_tools:
+            final_tools.append(tool)
+
+    return final_tools
+
 
 def create_supervisor_tools(
     targets: list[str],
     can_complete_tasks: bool = True,
     enable_interswarm: bool = False,
+    exclude_tools: list[str] = [],
     style: Literal["completions", "responses"] = "completions",
     _debug_include_intraswarm: bool = True,
 ) -> list[dict[str, Any]]:
@@ -500,6 +527,7 @@ def create_supervisor_tools(
         targets: The agents that the supervisor can send messages to.
         can_complete_tasks: Whether the supervisor can complete tasks.
         enable_interswarm: Whether the supervisor can send interswarm messages.
+        exclude_tools: The names of MAIL tools that should not be available.
         style: The style of the tools to create.
     """
     tools: list[dict[str, Any]] = []
@@ -518,4 +546,11 @@ def create_supervisor_tools(
     if can_complete_tasks:
         tools.append(create_task_complete_tool(style))
 
-    return tools
+    # filter out the excluded tools
+    final_tools: list[dict[str, Any]] = []
+    for tool in tools:
+        tool_name = get_tool_spec_name(tool)
+        if tool_name is None or tool_name not in exclude_tools:
+            final_tools.append(tool)
+
+    return final_tools

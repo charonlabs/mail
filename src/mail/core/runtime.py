@@ -62,6 +62,7 @@ class MAILRuntime:
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
+        exclude_tools: list[str] = [],
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
         # Structure: (priority, seq, message)
@@ -98,6 +99,7 @@ class MAILRuntime:
                 "local_message_handler", self._handle_local_message
             )
         self.breakpoint_tools = breakpoint_tools
+        self.exclude_tools = exclude_tools
 
     def _log_prelude(self) -> str:
         """

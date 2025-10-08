@@ -27,6 +27,7 @@ def supervisor_factory(
     enable_interswarm: bool = False,
     can_complete_tasks: bool = True,
     tool_format: Literal["completions", "responses"] = "responses",
+    exclude_tools: list[str] = [],
     # instance params
     # ...
     # internal params
@@ -60,6 +61,7 @@ def supervisor_factory(
         comm_targets,
         can_complete_tasks,
         enable_interswarm,
+        exclude_tools,
         style=tool_format,
         _debug_include_intraswarm=_debug_include_intraswarm,
     )
@@ -76,6 +78,7 @@ def supervisor_factory(
         memory=memory,
         use_proxy=use_proxy,
         tool_format=tool_format,
+        exclude_tools=exclude_tools,
         name=name,
         enable_entrypoint=enable_entrypoint,
         enable_interswarm=enable_interswarm,
