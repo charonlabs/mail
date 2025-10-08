@@ -8,7 +8,7 @@ from typing import Any, Literal
 import pytest
 from pydantic import ValidationError
 
-from mail.api import MAILAction, MAILAgent
+from mail.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate
 from tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
 
@@ -27,6 +27,7 @@ class FakeMAILRuntime:
         swarm_registry: Any | None = None,  # noqa: ARG002
         enable_interswarm: bool | None = None,  # noqa: ARG002
         breakpoint_tools: list[str] | None = None,  # noqa: ARG002
+        exclude_tools: list[str] | None = None,  # noqa: ARG002
     ) -> None:
         self.agents = agents
         self.actions = actions
@@ -36,7 +37,8 @@ class FakeMAILRuntime:
         self.submitted: list[dict[str, Any]] = []
         self._events: dict[str, list[Any]] = {}
         self.breakpoint_tools = breakpoint_tools
-
+        self.exclude_tools = exclude_tools
+        
     @pytest.mark.asyncio
     async def submit_and_wait(
         self,
@@ -109,8 +111,6 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     """
     Test that `MAILSwarmTemplate.from_swarm_json` works as expected.
     """
-    from mail import MAILSwarmTemplate
-
     data = {
         "name": "myswarm",
         "version": "1.1.0",
@@ -147,12 +147,54 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     assert swarm._runtime.swarm_name == "myswarm"
 
 
+def test_swarm_level_exclude_tools_union() -> None:
+    """
+    Swarm-level tool exclusions should be merged with agent-level exclusions.
+    """
+    captured: dict[str, list[str]] = {}
+
+    def stub_factory(**kwargs: Any):
+        captured["exclude_tools"] = kwargs["exclude_tools"]
+
+        async def agent(_history: list[dict[str, Any]], _tool_choice: str = "required"):
+            return None, []
+
+        return agent
+
+    agent_template = MAILAgentTemplate(
+        name="supervisor",
+        factory=stub_factory,
+        comm_targets=["supervisor"],
+        actions=[],
+        agent_params={},
+        enable_entrypoint=True,
+        enable_interswarm=False,
+        can_complete_tasks=True,
+        tool_format="responses",
+        exclude_tools=["send_request"],
+    )
+
+    swarm_template = MAILSwarmTemplate(
+        name="myswarm",
+        agents=[agent_template],
+        actions=[],
+        entrypoint="supervisor",
+        enable_interswarm=False,
+        breakpoint_tools=[],
+        exclude_tools=["send_response"],
+    )
+
+    swarm = swarm_template.instantiate(instance_params={}, user_id="tester")
+
+    assert "exclude_tools" in captured
+    assert set(captured["exclude_tools"]) == {"send_request", "send_response"}
+    assert set(swarm.agents[0].exclude_tools) == {"send_request", "send_response"}
+
+
 def test_agent_params_prefixed_python_strings_resolved() -> None:
     """
     Ensure agent_params values with the python prefix are resolved.
     """
-    from mail import MAILSwarmTemplate
-
     data = {
         "name": "myswarm",
         "version": "1.1.0",

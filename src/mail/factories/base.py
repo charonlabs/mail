@@ -36,6 +36,7 @@ def base_agent_factory(
     enable_interswarm: bool = False,
     can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
+    exclude_tools: list[str] = [],
     # instance params
     # ...
     # internal params
@@ -76,7 +77,9 @@ def base_agent_factory(
         }
 
     def preprocess(
-        messages: list[dict[str, Any]], style: Literal["completions", "responses"]
+        messages: list[dict[str, Any]],
+        style: Literal["completions", "responses"],
+        exclude_tools: list[str] = [],
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         # set up system prompt
         if not messages[0]["role"] == "system" and not system == "":
@@ -85,7 +88,7 @@ def base_agent_factory(
         # add the agent's tools to the list of tools
         if _debug_include_mail_tools:
             agent_tools = (
-                create_mail_tools(comm_targets, enable_interswarm, style=style) + tools
+                create_mail_tools(comm_targets, enable_interswarm, style=style, exclude_tools=exclude_tools) + tools
             )
         else:
             agent_tools = tools
@@ -97,7 +100,9 @@ def base_agent_factory(
         async def run_completions(
             messages: list[dict[str, Any]], tool_choice: str = "required"
         ) -> tuple[str | None, list[AgentToolCall]]:
-            messages, agent_tools = preprocess(messages, "completions")
+            messages, agent_tools = preprocess(
+                messages, "completions", exclude_tools=exclude_tools
+            )
 
             with ls.trace(
                 name=f"{name}_completions",
@@ -162,7 +167,9 @@ def base_agent_factory(
     async def run_responses(
         messages: list[dict[str, Any]], tool_choice: str = "required"
     ) -> tuple[str | None, list[AgentToolCall]]:
-        messages, agent_tools = preprocess(messages, "responses")
+        messages, agent_tools = preprocess(
+            messages, "responses", exclude_tools=exclude_tools
+        )
 
         with ls.trace(
             name=f"{name}_responses",

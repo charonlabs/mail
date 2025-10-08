@@ -100,6 +100,7 @@ def make_stub_agent(
     enable_interswarm: bool = False,
     can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
+    exclude_tools: list[str] = [],
     # instance params
     # ...
     # internal params
@@ -126,6 +127,9 @@ def make_stub_agent(
             completion={"role": "assistant", "content": "ok"},
         )
         return None, [call]
+
+    if exclude_tools:
+        tools = [tool for tool in tools if tool["name"] not in exclude_tools]
 
     return agent
 
@@ -182,6 +186,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
                 can_complete_tasks=True,
                 enable_entrypoint=True,
                 enable_interswarm=False,
+                exclude_tools=[],
             ),
             MAILAgentTemplate(
                 name="analyst",
@@ -189,6 +194,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
                 comm_targets=["supervisor"],
                 actions=[],
                 agent_params={},
+                exclude_tools=[],
             ),
         ],
         actions=[],

@@ -383,9 +383,18 @@ def create_await_message_tool(
     style="completions"
 ) -> dict[str, Any]
 ```
-  - **Parameters**: `style: Literal["completions", "responses"]` – specifies the OpenAI schema flavor to emit.
-  - **Returns**: `dict[str, Any]` – Tool description for `await_message` with an optional `reason` field.
-  - **Summary**: Gives agents a MAIL-native way to yield their turn once they have no additional output; the optional reason is surfaced in runtime events and tool-call history for observability.
+- **Parameters**: `style: Literal["completions", "responses"]` – specifies the OpenAI schema flavor to emit.
+- **Returns**: `dict[str, Any]` – Tool description for `await_message` with an optional `reason` field.
+- **Summary**: Gives agents a MAIL-native way to yield their turn once they have no additional output; the optional reason is surfaced in runtime events and tool-call history for observability.
+##### `create_help_tool`
+```python
+def create_help_tool(
+    style="completions"
+) -> dict[str, Any]
+```
+  - **Parameters**: `style: Literal["completions", "responses"]` – determines the OpenAI schema format returned.
+  - **Returns**: `dict[str, Any]` – Tool specification for `help` with toggles for summary, identity, per-tool guidance, and full protocol output.
+  - **Summary**: Produces the diagnostic helper that agents can call to learn about their identity, available MAIL tools, and optionally the entire protocol specification; the runtime relays the generated content back via a system broadcast.
 ##### `create_task_complete_tool`
 ```python
 def create_task_complete_tool(
@@ -404,8 +413,8 @@ def create_mail_tools(
 ) -> list[dict[str, Any]]
 ```
   - **Parameters**: `targets: list[str]` – baseline intra-swarm recipients; `enable_interswarm: bool` – toggles remote routing support; `style: Literal["completions", "responses"]` – OpenAI schema variant shared by all generated tools.
-  - **Returns**: `list[dict[str, Any]]` – Bundled request, response, acknowledgement, ignore, and await tools configured with the provided options.
-  - **Summary**: Supplies a ready-to-install toolkit for standard agents so they can message peers, manage broadcasts, or explicitly wait for new mail without bespoke configuration.
+  - **Returns**: `list[dict[str, Any]]` – Bundled request, response, acknowledgement, ignore, await, and help tools configured with the provided options.
+  - **Summary**: Supplies a ready-to-install toolkit for standard agents so they can message peers, manage broadcasts, request runtime help, or explicitly wait for new mail without bespoke configuration.
 ##### `create_supervisor_tools`
 ```python
 def create_supervisor_tools(

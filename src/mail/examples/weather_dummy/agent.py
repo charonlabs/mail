@@ -29,6 +29,7 @@ def factory_weather_dummy(
     enable_interswarm: bool = False,
     can_complete_tasks: bool = False,
     tool_format: Literal["completions", "responses"] = "responses",
+    exclude_tools: list[str] = [],
     # instance params
     # ...
     # internal params
@@ -55,5 +56,6 @@ def factory_weather_dummy(
         enable_interswarm=enable_interswarm,
         can_complete_tasks=can_complete_tasks,
         tool_format=tool_format,
+        exclude_tools=exclude_tools,
         use_proxy=use_proxy,
     )
