@@ -80,6 +80,7 @@ def test_create_mail_tools_set():
         "acknowledge_broadcast",
         "ignore_broadcast",
         "await_message",
+        "help",
     }
 
     # now test with tool exclusion

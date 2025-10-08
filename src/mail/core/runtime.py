@@ -16,6 +16,7 @@ from sse_starlette import ServerSentEvent
 
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.store import get_langmem_store
+from mail.utils.string_builder import build_mail_help_string
 
 from .actions import (
     ActionCore,
@@ -1570,6 +1571,63 @@ This should never happen; consider informing the MAIL developers of this issue i
                                         task_complete=True
                                     )
                                 )
+                        case "help":
+                            try:
+                                help_string = build_mail_help_string(
+                                    name=recipient,
+                                    swarm=self.swarm_name,
+                                    get_summary=call.tool_args.get("get_summary", True),
+                                    get_identity=call.tool_args.get("get_identity", False),
+                                    get_full_protocol=call.tool_args.get("get_full_protocol", False),
+                                )
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="success",
+                                    details="help string generated; will be sent to you in a subsequent prompt",
+                                )
+                                self._submit_event(
+                                    "help_called",
+                                    task_id,
+                                    f"agent '{recipient}' called 'help'",
+                                )
+                                await self.submit(
+                                    self._system_broadcast(
+                                        task_id=task_id,
+                                        subject="::help::",
+                                        body=help_string,
+                                        recipients=[create_agent_address(recipient)],
+                                    )
+                                )
+                            except Exception as e:
+                                logger.error(f"{self._log_prelude()} error calling help tool for agent '{recipient}': '{e}'")
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details=f"error calling help tool: '{e}'",
+                                )
+                                self._submit_event(
+                                    "agent_error",
+                                    task_id,
+                                    f"error calling help tool for agent '{recipient}': '{e}'",
+                                )
+                                await self.submit(
+                                    self._system_broadcast(
+                                        task_id=task_id,
+                                        subject="Runtime Error",
+                                        body=f"""An error occurred while calling the help tool for agent '{recipient}'.
+Specifically, the MAIL runtime encountered the following error: '{e}'.
+This should never happen; consider informing the MAIL developers of this issue if you see it.""",
+                                        task_complete=True,
+                                    )
+                                )
+                                continue
+
+                            continue
+
                         case _:
                             action_name = call.tool_name
                             action_caller = self.agents.get(recipient)

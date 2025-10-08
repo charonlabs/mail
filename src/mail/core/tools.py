@@ -479,6 +479,24 @@ def create_await_message_tool(
 
     return pydantic_model_to_tool(await_message, name="await_message", style=style)
 
+
+def create_help_tool(
+    style: Literal["completions", "responses"] = "completions",
+) -> dict[str, Any]:
+    """
+    Create a MAIL help tool to get help with MAIL.
+    """
+
+    class help(BaseModel):
+        """Get help with MAIL."""
+
+        get_summary: bool = Field(default=True, description="Whether to get a short summary of MAIL.")
+        get_identity: bool = Field(default=False, description="Whether to get your identity (agent name, swarm, etc.).")
+        get_full_protocol: bool = Field(default=False, description="Whether to get the full MAIL protocol specification.")
+
+    return pydantic_model_to_tool(help, name="help", style=style)
+
+
 def create_mail_tools(
     targets: list[str],
     enable_interswarm: bool = False,
@@ -500,6 +518,7 @@ def create_mail_tools(
         create_acknowledge_broadcast_tool(style),
         create_ignore_broadcast_tool(style),
         create_await_message_tool(style),
+        create_help_tool(style),
     ]
 
     # filter out the excluded tools
