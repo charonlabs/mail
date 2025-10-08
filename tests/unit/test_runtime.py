@@ -287,7 +287,7 @@ async def test_help_tool_emits_broadcast_and_event() -> None:
     help_body = help_message["message"]["body"]
     assert "YOUR IDENTITY" in help_body
     assert "Name" in help_body and "example" in help_body
-    assert help_message["message"]["recipients"] == [
+    assert help_message["message"]["recipients"] == [  # type: ignore
         create_agent_address("analyst")
     ]
     runtime.message_queue.task_done()

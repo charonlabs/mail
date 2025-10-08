@@ -488,8 +488,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                             f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
                         )
                         future = self.pending_requests.pop(task_id)
-                        if not future.done():
-                            future.set_result(message)
+                        future.set_result(message)
                     else:
                         # Mark this message as done and continue processing
                         self.message_queue.task_done()
@@ -1570,25 +1569,23 @@ Use this information to decide how to complete your task.""",
                                     status="success",
                                     details="task completed",
                                 )
-                                if (
+                                if not self._is_continuous:
+                                    self._submit_event(
+                                        "task_complete",
+                                        task_id,
+                                        f"task '{task_id}' completed",
+                                    )
+                                    await self.submit(response_message)
+                                elif (
                                     self._is_continuous
                                     and task_id in self.pending_requests
                                 ):
-                                    # Resolve the pending request
-                                    future = self.pending_requests.pop(task_id)
-                                    if not future.done():
-                                        logger.info(
-                                            f"{self._log_prelude()} resolving future for task '{task_id}'"
-                                        )
-                                        self._ensure_task_exists(task_id)
-                                        future.set_result(response_message)
-                                        await self.mail_tasks[task_id].queue_stash(
-                                            self.message_queue
-                                        )
-                                    else:
-                                        logger.warning(
-                                            f"{self._log_prelude()} future for task '{task_id}' was already done"
-                                        )
+                                    self._submit_event(
+                                        "task_complete",
+                                        task_id,
+                                        f"task '{task_id}' completed",
+                                    )
+                                    await self.submit(response_message)
 
                                 elif self._is_continuous:
                                     logger.error(
