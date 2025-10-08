@@ -98,6 +98,7 @@ class MAILRuntime:
                 "local_message_handler", self._handle_local_message
             )
         self.breakpoint_tools = breakpoint_tools
+        self._is_continuous = False
 
     def _log_prelude(self) -> str:
         """
@@ -139,7 +140,9 @@ class MAILRuntime:
         """
         Handle an incoming response from a remote swarm.
         """
-        logger.info(f"{self._log_prelude()} handling interswarm response with task ID '{response_message['message']['task_id']}'")
+        logger.info(
+            f"{self._log_prelude()} handling interswarm response with task ID '{response_message['message']['task_id']}'"
+        )
 
         # Submit the response to the local message queue for processing
         # This will allow the local supervisor agent to process the response
@@ -328,9 +331,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     task_complete=True,
                 )
             except Exception as e:
-                logger.error(
-                    f"{self._log_prelude()} error in run loop: '{e}'"
-                )
+                logger.error(f"{self._log_prelude()} error in run loop: '{e}'")
                 self._submit_event(
                     "run_loop_error",
                     message["message"]["task_id"],
@@ -354,7 +355,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         Resume a task from a breakpoint tool call.
         """
         if not isinstance(breakpoint_tool_caller, str):
-            logger.error(f"{self._log_prelude()} breakpoint_tool_caller must be a string")
+            logger.error(
+                f"{self._log_prelude()} breakpoint_tool_caller must be a string"
+            )
             return self._system_broadcast(
                 task_id=task_id,
                 subject="Runtime Error",
@@ -363,7 +366,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 task_complete=True,
             )
         if not isinstance(breakpoint_tool_call_result, str):
-            logger.error(f"{self._log_prelude()} breakpoint_tool_call_result must be a string")
+            logger.error(
+                f"{self._log_prelude()} breakpoint_tool_call_result must be a string"
+            )
             return self._system_broadcast(
                 task_id=task_id,
                 subject="Runtime Error",
@@ -372,7 +377,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 task_complete=True,
             )
         if breakpoint_tool_caller not in self.agents:
-            logger.error(f"{self._log_prelude()} agent '{breakpoint_tool_caller}' not found")
+            logger.error(
+                f"{self._log_prelude()} agent '{breakpoint_tool_caller}' not found"
+            )
             return self._system_broadcast(
                 task_id=task_id,
                 subject="Runtime Error",
@@ -418,11 +425,15 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
         """
-        logger.info(f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'...")
-
+        logger.info(
+            f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'..."
+        )
+        self._is_continuous = True
         while not self.shutdown_event.is_set():
             try:
-                logger.debug(f"{self._log_prelude()} pending requests: {self.pending_requests.keys()}")
+                logger.debug(
+                    f"{self._log_prelude()} pending requests: {self.pending_requests.keys()}"
+                )
 
                 # Wait for either a message or shutdown signal
                 get_message_task = asyncio.create_task(self.message_queue.get())
@@ -485,14 +496,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 # Note: task_done() is called by the schedule function for regular messages
 
             except asyncio.CancelledError:
-                logger.info(
-                    f"{self._log_prelude()} continuous run loop cancelled"
-                )
+                logger.info(f"{self._log_prelude()} continuous run loop cancelled")
                 self._submit_event(
                     "run_loop_cancelled",
                     "*",
                     "continuous run loop cancelled",
                 )
+                self._is_continuous = False
                 break
             except Exception as e:
                 logger.error(
@@ -503,6 +513,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     "*",
                     f"continuous run loop error: '{e}'",
                 )
+                self._is_continuous = False
                 # Continue processing other messages instead of shutting down
                 continue
 
@@ -545,7 +556,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     await self.submit(message)
 
             # Wait for the response with timeout
-            logger.info(f"{self._log_prelude()} `submit_and_wait`: waiting for future for task '{task_id}'")
+            logger.info(
+                f"{self._log_prelude()} `submit_and_wait`: waiting for future for task '{task_id}'"
+            )
             response = await asyncio.wait_for(future, timeout=timeout)
             logger.info(
                 f"{self._log_prelude()} `submit_and_wait`: got response for task '{task_id}' with body: '{response['message']['body'][:50]}...'..."
@@ -560,7 +573,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         except TimeoutError:
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
-            logger.error(f"{self._log_prelude()} `submit_and_wait`: timeout for task '{task_id}'")
+            logger.error(
+                f"{self._log_prelude()} `submit_and_wait`: timeout for task '{task_id}'"
+            )
             self._submit_event("task_error", task_id, f"timeout for task '{task_id}'")
             return self._system_broadcast(
                 task_id=task_id,
@@ -685,7 +700,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         except TimeoutError:
             self.pending_requests.pop(task_id, None)
-            logger.error(f"{self._log_prelude()} `submit_and_stream`: timeout for task '{task_id}'")
+            logger.error(
+                f"{self._log_prelude()} `submit_and_stream`: timeout for task '{task_id}'"
+            )
             yield ServerSentEvent(
                 data={
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -719,7 +736,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         Submit a user response to a pre-existing task.
         """
         if task_id not in self.mail_tasks:
-            logger.error(f"{self._log_prelude()} `submit_user_response`: task '{task_id}' not found")
+            logger.error(
+                f"{self._log_prelude()} `submit_user_response`: task '{task_id}' not found"
+            )
             raise ValueError(f"task '{task_id}' not found")
 
         await self.mail_tasks[task_id].queue_load(self.message_queue)
@@ -736,7 +755,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         # ensure the task exists already
         if task_id not in self.mail_tasks:
-            logger.error(f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: task '{task_id}' not found")
+            logger.error(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: task '{task_id}' not found"
+            )
             raise ValueError(f"task '{task_id}' not found")
 
         # ensure valid kwargs
@@ -746,14 +767,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         }
         for kwarg, _type in REQUIRED_KWARGS.items():
             if kwarg not in kwargs:
-                logger.error(f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided")
+                logger.error(
+                    f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided"
+                )
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
         breakpoint_tool_caller = kwargs["breakpoint_tool_caller"]
         breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
         # ensure the agent exists already
         if breakpoint_tool_caller not in self.agents:
-            logger.error(f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: agent '{breakpoint_tool_caller}' not found")
+            logger.error(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: agent '{breakpoint_tool_caller}' not found"
+            )
             raise ValueError(f"agent '{breakpoint_tool_caller}' not found")
 
         # append the breakpoint tool call result to the agent history
@@ -783,6 +808,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         Request a graceful shutdown of the MAIL system.
         """
         logger.info(f"{self._log_prelude()} requesting shutdown")
+        self._is_continuous = False
 
         # Stop interswarm messaging first
         if self.enable_interswarm:
@@ -820,9 +846,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 # Cancel any remaining tasks
                 for task in tasks_to_wait:
                     if not task.done():
-                        logger.info(
-                            f"{self._log_prelude()} cancelling task: {task}"
-                        )
+                        logger.info(f"{self._log_prelude()} cancelling task: {task}")
                         task.cancel()
                 # Wait a bit more for cancellation to complete
                 try:
@@ -1066,7 +1090,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                             return
 
                 except Exception as e:
-                    logger.error(f"{self._log_prelude()} error during interswarm auto-complete check: '{e}'")
+                    logger.error(
+                        f"{self._log_prelude()} error during interswarm auto-complete check: '{e}'"
+                    )
                     self._submit_event(
                         "router_error",
                         message["message"]["task_id"],
@@ -1086,7 +1112,9 @@ Use this information to decide how to complete your task.""",
                 # Default behavior: enqueue response for local processing
                 await self.submit(response)
             except Exception as e:
-                logger.error(f"{self._log_prelude()} error in interswarm routing: '{e}'")
+                logger.error(
+                    f"{self._log_prelude()} error in interswarm routing: '{e}'"
+                )
 
                 self._submit_event(
                     "router_error",
@@ -1176,7 +1204,9 @@ If your assigned task cannot be completed, inform your caller of this error and 
                 if recipient_agent in self.agents:
                     self._send_message(recipient_agent, message, action_override)
                 else:
-                    logger.warning(f"{self._log_prelude()} unknown local agent: '{recipient_agent}'")
+                    logger.warning(
+                        f"{self._log_prelude()} unknown local agent: '{recipient_agent}'"
+                    )
                     sender_agent = message["message"]["sender"]["address"]
 
                     # if the recipient is actually the user, indicate that
@@ -1235,7 +1265,9 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                             action_override,
                         )
             else:
-                logger.debug(f"{self._log_prelude()} skipping remote agent '{recipient}' in local processing")
+                logger.debug(
+                    f"{self._log_prelude()} skipping remote agent '{recipient}' in local processing"
+                )
 
         return None
 
@@ -1423,7 +1455,7 @@ Use this information to decide how to complete your task.""",
                             # Wait for a message to be received
                             wait_reason = call.tool_args.get("reason")
                             logger.info(
-                                f"{self._log_prelude()} agent '{recipient}' called 'await_message'{f": {wait_reason}" if wait_reason else ""}",
+                                f"{self._log_prelude()} agent '{recipient}' called 'await_message'{f': {wait_reason}' if wait_reason else ''}",
                             )
                             details = "waiting for a new message"
                             if wait_reason:
@@ -1452,10 +1484,17 @@ Use this information to decide how to complete your task.""",
                             )
                             # No further action
                             return
-                        case "send_request" | "send_response" | "send_interrupt" | "send_broadcast":
+                        case (
+                            "send_request"
+                            | "send_response"
+                            | "send_interrupt"
+                            | "send_broadcast"
+                        ):
                             try:
                                 await self.submit(
-                                    convert_call_to_mail_message(call, recipient, task_id)
+                                    convert_call_to_mail_message(
+                                        call, recipient, task_id
+                                    )
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
@@ -1465,7 +1504,9 @@ Use this information to decide how to complete your task.""",
                                     details="message sent",
                                 )
                             except Exception as e:
-                                logger.error(f"{self._log_prelude()} error sending message for agent '{recipient}': '{e}'")
+                                logger.error(
+                                    f"{self._log_prelude()} error sending message for agent '{recipient}': '{e}'"
+                                )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -1491,7 +1532,7 @@ Use this information to decide how to complete your task.""",
                                 )
                         case "task_complete":
                             # Check if this completes a pending request
-                            if task_id and task_id in self.pending_requests:
+                            if task_id:
                                 logger.info(
                                     f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
                                 )
@@ -1518,62 +1559,67 @@ Use this information to decide how to complete your task.""",
                                     ),
                                     msg_type="broadcast_complete",
                                 )
+                                if (
+                                    self._is_continuous
+                                    and task_id in self.pending_requests
+                                ):
+                                    # Resolve the pending request
+                                    future = self.pending_requests.pop(task_id)
+                                    if not future.done():
+                                        logger.info(
+                                            f"{self._log_prelude()} resolving future for task '{task_id}'"
+                                        )
+                                        self._ensure_task_exists(task_id)
+                                        future.set_result(response_message)
+                                        await self.mail_tasks[task_id].queue_stash(
+                                            self.message_queue
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"{self._log_prelude()} future for task '{task_id}' was already done"
+                                        )
 
-                                # Resolve the pending request
-                                future = self.pending_requests.pop(task_id)
-                                if not future.done():
-                                    logger.info(
-                                        f"{self._log_prelude()} resolving future for task '{task_id}'"
-                                    )
-                                    self._ensure_task_exists(task_id)
-                                    future.set_result(response_message)
-                                    await self.mail_tasks[task_id].queue_stash(
-                                        self.message_queue
-                                    )
-                                else:
-                                    logger.warning(
-                                        f"{self._log_prelude()} future for task '{task_id}' was already done"
-                                    )
-                                    
-                                self._tool_call_response(
-                                    task_id=task_id,
-                                    caller=recipient,
-                                    tool_call=call,
-                                    status="success",
-                                    details="task completed",
-                                )
-                                
-                            else:
-                                logger.error(
-                                    f"{self._log_prelude()} task '{task_id}' completed but no pending request found"
-                                )
-                                self._tool_call_response(
-                                    task_id=task_id,
-                                    caller=recipient,
-                                    tool_call=call,
-                                    status="error",
-                                    details="no pending request found",
-                                )
-                                self._submit_event(
-                                    "task_error",
-                                    task_id,
-                                    f"task '{task_id}' completed but no pending request found",
-                                )
-                                await self.submit(
-                                    self._system_broadcast(
+                                    self._tool_call_response(
                                         task_id=task_id,
-                                        subject="Runtime Error",
-                                        body="""An agent called `task_complete` but the corresponding task was not found.
-This should never happen; consider informing the MAIL developers of this issue if you see it.""",
-                                        task_complete=True
+                                        caller=recipient,
+                                        tool_call=call,
+                                        status="success",
+                                        details="task completed",
                                     )
-                                )
+
+                                else:
+                                    logger.error(
+                                        f"{self._log_prelude()} task '{task_id}' completed but no pending request found"
+                                    )
+                                    self._tool_call_response(
+                                        task_id=task_id,
+                                        caller=recipient,
+                                        tool_call=call,
+                                        status="error",
+                                        details="no pending request found",
+                                    )
+                                    self._submit_event(
+                                        "task_error",
+                                        task_id,
+                                        f"task '{task_id}' completed but no pending request found",
+                                    )
+                                    await self.submit(
+                                        self._system_broadcast(
+                                            task_id=task_id,
+                                            subject="Runtime Error",
+                                            body="""An agent called `task_complete` but the corresponding task was not found.
+This should never happen; consider informing the MAIL developers of this issue if you see it.""",
+                                            task_complete=True,
+                                        )
+                                    )
                         case _:
                             action_name = call.tool_name
                             action_caller = self.agents.get(recipient)
 
                             if action_caller is None:
-                                logger.error(f"{self._log_prelude()} agent '{recipient}' not found")
+                                logger.error(
+                                    f"{self._log_prelude()} agent '{recipient}' not found"
+                                )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -1592,14 +1638,16 @@ This should never happen; consider informing the MAIL developers of this issue i
                                         subject="Runtime Error",
                                         body=f"""An agent called `{call.tool_name}` but the agent was not found.
 This should never happen; consider informing the MAIL developers of this issue if you see it.""",
-                                        task_complete=True
+                                        task_complete=True,
                                     )
                                 )
                                 continue
 
                             action = self.actions.get(action_name)
                             if action is None:
-                                logger.warning(f"{self._log_prelude()} action '{action_name}' not found")
+                                logger.warning(
+                                    f"{self._log_prelude()} action '{action_name}' not found"
+                                )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -1672,7 +1720,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 self._submit_event(
                                     "action_complete",
                                     task_id,
-                                    f"action complete (caller = '{recipient}'):\n'{result_message.get("content")}'",
+                                    f"action complete (caller = '{recipient}'):\n'{result_message.get('content')}'",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -1684,7 +1732,9 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 )
                                 continue
                             except Exception as e:
-                                logger.error(f"{self._log_prelude()} error executing action tool '{call.tool_name}': '{e}'")
+                                logger.error(
+                                    f"{self._log_prelude()} error executing action tool '{call.tool_name}': '{e}'"
+                                )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -1713,7 +1763,9 @@ Use this information to decide how to complete your task.""",
 
                 self.agent_histories.setdefault(agent_history_key, [])
             except Exception as e:
-                logger.error(f"{self._log_prelude()} error scheduling message for agent '{recipient}': '{e}'")
+                logger.error(
+                    f"{self._log_prelude()} error scheduling message for agent '{recipient}': '{e}'"
+                )
                 self._tool_call_response(
                     task_id=task_id,
                     caller=recipient,
@@ -1825,7 +1877,9 @@ Use this information to decide how to complete your task.""",
 
         status_str = "SUCCESS" if status == "success" else "ERROR"
         response_content = f"{status_str}: {details}" if details else status_str
-        self.agent_histories[agent_history_key].append(tool_call.create_response_msg(response_content))
+        self.agent_histories[agent_history_key].append(
+            tool_call.create_response_msg(response_content)
+        )
 
         return
 
