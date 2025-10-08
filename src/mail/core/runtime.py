@@ -1562,6 +1562,14 @@ Use this information to decide how to complete your task.""",
                                     ),
                                     msg_type="broadcast_complete",
                                 )
+
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="success",
+                                    details="task completed",
+                                )
                                 if (
                                     self._is_continuous
                                     and task_id in self.pending_requests
@@ -1581,14 +1589,6 @@ Use this information to decide how to complete your task.""",
                                         logger.warning(
                                             f"{self._log_prelude()} future for task '{task_id}' was already done"
                                         )
-
-                                    self._tool_call_response(
-                                        task_id=task_id,
-                                        caller=recipient,
-                                        tool_call=call,
-                                        status="success",
-                                        details="task completed",
-                                    )
 
                                 elif self._is_continuous:
                                     logger.error(
