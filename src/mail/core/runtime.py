@@ -273,18 +273,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         steps = 0
         while True:
-            steps += 1
-            if max_steps is not None and steps > max_steps:
-                logger.info(
-                    f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', initiating shutdown..."
-                )
-                return self._system_broadcast(
-                    task_id=task_id,
-                    subject="Maximum Steps Reached",
-                    body="The maximum number of steps was reached and the agent loop was terminated. The task was not completed.",
-                    task_complete=True,
-                )
-
             try:
                 # Wait for either a message or shutdown signal
                 get_message_task = asyncio.create_task(self.message_queue.get())
@@ -320,6 +308,21 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 logger.info(
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}': '{message['message']['subject']}'"
                 )
+                if (
+                    not message["message"]["subject"].startswith("::")
+                    and not message["message"]["sender"]["address_type"] == "system"
+                ):
+                    steps += 1
+                    if max_steps is not None and steps > max_steps:
+                        logger.info(
+                            f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', initiating shutdown..."
+                        )
+                        return self._system_broadcast(
+                            task_id=task_id,
+                            subject="Maximum Steps Reached",
+                            body="The maximum number of steps was reached and the agent loop was terminated. The task was not completed.",
+                            task_complete=True,
+                        )
 
                 if message["msg_type"] == "broadcast_complete":
                     task_id_completed = message["message"].get("task_id")
