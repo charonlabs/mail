@@ -97,7 +97,6 @@ async def test_submit_prioritizes_message_types() -> None:
     5. Agent request, response
 
     Within each category, messages are processed in FIFO order using a monotonically increasing sequence number to avoid dict comparisons.
-
     This test ensures that the runtime correctly prioritizes messages based on their type.
     """
     runtime = MAILRuntime(
@@ -231,6 +230,7 @@ async def test_agent_can_await_message_records_event() -> None:
     message = _make_request(task_id, sender="supervisor", recipient="analyst")
 
     await runtime.submit(message)
+    await runtime.submit(_make_broadcast(task_id))
     _priority, _seq, queued_message = await runtime.message_queue.get()
     await runtime._process_message(queued_message)
 
@@ -252,6 +252,63 @@ async def test_agent_can_await_message_records_event() -> None:
         == f"agent 'analyst' is awaiting a new message: {wait_reason}"
     )
     assert await_event.data["extra_data"]["reason"] == wait_reason
+
+    # clean up broadcast queued for backlog
+    while not runtime.message_queue.empty():
+        runtime.message_queue.get_nowait()
+        runtime.message_queue.task_done()
+
+
+@pytest.mark.asyncio
+async def test_await_message_errors_when_queue_empty() -> None:
+    """
+    Awaiting with an empty queue should surface a tool error and notify the agent.
+    """
+
+    async def waiting_agent(
+        history: list[dict[str, Any]], task: str
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        call = AgentToolCall(
+            tool_name="await_message",
+            tool_args={},
+            tool_call_id="await-empty",
+            completion={"role": "assistant", "content": "waiting"},
+        )
+        return None, [call]
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
+        actions={},
+        user_id="user-await",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-await-empty"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name="analyst")
+    history = runtime.agent_histories[history_key]
+    assert history[-1]["role"] == "tool"
+    assert "message queue is empty" in history[-1]["content"]
+
+    events = runtime.get_events_by_task_id(task_id)
+    error_events = [event for event in events if event.event == "agent_error"]
+    assert error_events, "expected agent_error event when queue is empty"
+    assert "message queue is empty" in error_events[-1].data["description"]  # type: ignore[index]
+
+    response_priority, response_seq, response_message = await runtime.message_queue.get()
+    assert response_message["msg_type"] == "response"
+    assert response_message["message"]["subject"] == "::tool_call_error::"
+    assert "message queue is empty" in response_message["message"]["body"]
+    runtime.message_queue.task_done()
 
 
 @pytest.mark.asyncio

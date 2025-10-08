@@ -1453,7 +1453,34 @@ Use this information to decide how to complete your task.""",
                             )
                             # No further action
                         case "await_message":
-                            # Wait for a message to be received
+                            # only works if the message queue is not empty
+                            if self.message_queue.empty():
+                                logger.warning(
+                                    f"{self._log_prelude()} agent '{recipient}' called 'await_message' but the message queue is empty"
+                                )
+                                self._tool_call_response(
+                                    task_id=task_id,
+                                    caller=recipient,
+                                    tool_call=call,
+                                    status="error",
+                                    details="message queue is empty",
+                                )
+                                self._submit_event(
+                                    "agent_error",
+                                    task_id,
+                                    f"agent '{recipient}' called 'await_message' but the message queue is empty",
+                                )
+                                await self.submit(
+                                    self._system_response(
+                                        task_id=task_id,
+                                        recipient=create_agent_address(recipient),
+                                        subject="::tool_call_error::",
+                                        body="""The tool call `await_message` was attempted but the message queue is empty.
+In order to prevent frozen tasks, the `await_message` tool will only work if the message queue is not empty.
+Consider sending a message to another agent to keep the task alive.""",
+                                    )
+                                )
+                                return
                             wait_reason = call.tool_args.get("reason")
                             logger.info(
                                 f"{self._log_prelude()} agent '{recipient}' called 'await_message'{f': {wait_reason}' if wait_reason else ''}",
