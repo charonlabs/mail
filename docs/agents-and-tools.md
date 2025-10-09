@@ -41,5 +41,5 @@
 
 ## Factories and prompts
 - **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
-- **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
+- **Add your own agent** by creating a MAIL-compatible agent function and listing it in [swarms.json](/swarms.json)
 - When referencing shared prompt text or other dynamic values, prefer the `python::` and `url::` prefixes so they stay in sync with code or remote configuration without manual duplication

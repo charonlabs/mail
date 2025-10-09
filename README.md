@@ -71,7 +71,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 - **[src/mail/server.py](/src/mail/server.py)**: FastAPI application with REST + SSE endpoints and interswarm routing.
 - **[src/mail/net/router.py](/src/mail/net/router.py)**: HTTP federation between swarms, including metadata rewriting.
 - **[src/mail/net/registry.py](/src/mail/net/registry.py)**: Service registry and liveness monitoring for remote swarms.
-- **[src/mail/factories/](/src/mail/factories/__init__.py)**: Factory functions that instantiate agents with their LLM/tool configuration.
+- **[src/mail/factories/](/src/mail/factories/__init__.py)**: Agent functions that instantiate agents with their LLM/tool configuration.
 - **[src/mail/examples/](/src/mail/examples/__init__.py)**: Example agents and prompts.
 
 The runtime processes MAIL messages **asynchronously**, tracks per-task state, and produces `broadcast_complete` events to signal overall task completion.
