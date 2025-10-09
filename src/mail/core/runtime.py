@@ -333,12 +333,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                             body=f"The swarm has reached the maximum number of steps allowed. You must now call `task_complete` and provide a response to the best of your ability. Below is a transcript of the entire swarm conversation for context:\n\n{event_sections}",
                             recipient=create_agent_address(self.entrypoint),
                         )
-                        return self._system_broadcast(
-                            task_id=task_id,
-                            subject="Maximum Steps Reached",
-                            body="The maximum number of steps was reached and the agent loop was terminated. The task was not completed.",
-                            task_complete=True,
-                        )
 
                 if message["msg_type"] == "broadcast_complete":
                     task_id_completed = message["message"].get("task_id")
