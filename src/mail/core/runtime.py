@@ -1333,7 +1333,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             try:
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
-                tool_choice = "required"
+                tool_choice: str | dict[str, str] = "required"
 
                 # get agent history for this task
                 agent_history_key = AGENT_HISTORY_KEY.format(
@@ -1345,7 +1345,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     message["message"]["sender"]["address_type"] == "system"
                     and message["message"]["subject"] == "Maximum Steps Reached"
                 ):
-                    tool_choice = "task_complete"
+                    tool_choice = {"type": "function", "name": "task_complete"}
                 if not message["message"]["subject"].startswith(
                     "::action_complete_broadcast::"
                 ):
@@ -1354,7 +1354,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
 
                 # agent function is called here
                 agent_fn = self.agents[recipient].function
-                _output_text, tool_calls = await agent_fn(history, tool_choice)
+                _output_text, tool_calls = await agent_fn(history, tool_choice)  # type: ignore
 
                 # append the agent's response to the history
                 if tool_calls[0].completion:

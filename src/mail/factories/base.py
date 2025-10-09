@@ -88,7 +88,13 @@ def base_agent_factory(
         # add the agent's tools to the list of tools
         if _debug_include_mail_tools:
             agent_tools = (
-                create_mail_tools(comm_targets, enable_interswarm, style=style, exclude_tools=exclude_tools) + tools
+                create_mail_tools(
+                    comm_targets,
+                    enable_interswarm,
+                    style=style,
+                    exclude_tools=exclude_tools,
+                )
+                + tools
             )
         else:
             agent_tools = tools
@@ -98,7 +104,8 @@ def base_agent_factory(
     if tool_format == "completions":
 
         async def run_completions(
-            messages: list[dict[str, Any]], tool_choice: str = "required"
+            messages: list[dict[str, Any]],
+            tool_choice: str | dict[str, str] = "required",
         ) -> tuple[str | None, list[AgentToolCall]]:
             messages, agent_tools = preprocess(
                 messages, "completions", exclude_tools=exclude_tools
@@ -165,7 +172,7 @@ def base_agent_factory(
         return run_completions
 
     async def run_responses(
-        messages: list[dict[str, Any]], tool_choice: str = "required"
+        messages: list[dict[str, Any]], tool_choice: str | dict[str, str] = "required"
     ) -> tuple[str | None, list[AgentToolCall]]:
         messages, agent_tools = preprocess(
             messages, "responses", exclude_tools=exclude_tools

@@ -8,7 +8,8 @@ from .actions import ActionCore
 from .tools import AgentToolCall
 
 AgentFunction = Callable[
-    [list[dict[str, Any]], str], Awaitable[tuple[str | None, list[AgentToolCall]]]
+    [list[dict[str, Any]], str | dict[str, str]],
+    Awaitable[tuple[str | None, list[AgentToolCall]]],
 ]
 """
 A function that takes a chat history and returns a response and tool calls.

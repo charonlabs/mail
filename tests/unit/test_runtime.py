@@ -207,7 +207,7 @@ async def test_agent_can_await_message_records_event() -> None:
     wait_reason = "waiting for coordinator"
 
     async def waiting_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list[AgentToolCall]]:
         call = AgentToolCall(
             tool_name="await_message",
@@ -268,7 +268,7 @@ async def test_await_message_errors_when_queue_empty() -> None:
     """
 
     async def waiting_agent(
-        history: list[dict[str, Any]], task: str
+        history: list[dict[str, Any]], task: str | dict[str, str]
     ) -> tuple[str | None, list[AgentToolCall]]:
         call = AgentToolCall(
             tool_name="await_message",
@@ -324,7 +324,7 @@ async def test_help_tool_emits_broadcast_and_event() -> None:
     """
 
     async def helper_agent(
-        history: list[dict[str, Any]], tool_choice: str
+        history: list[dict[str, Any]], tool_choice: str | dict[str, str]
     ) -> tuple[str | None, list[AgentToolCall]]:
         call = AgentToolCall(
             tool_name="help",
@@ -456,7 +456,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
     tool_caller = "analyst"
 
     async def noop_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list]:
         return ("ack", [])
 
@@ -517,7 +517,7 @@ async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> Non
     tool_caller = "analyst"
 
     async def noop_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list]:
         return ("ack", [])
 
@@ -550,7 +550,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
     tool_caller = "analyst"
 
     async def noop_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list]:
         return ("ack", [])
 
@@ -604,7 +604,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
 
 
 async def _noop_agent_fn(
-    history: list[dict[str, object]], tool_choice: str
+    history: list[dict[str, object]], tool_choice: str | dict[str, str]
 ) -> tuple[str | None, list]:
     return None, []
 
