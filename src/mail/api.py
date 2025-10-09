@@ -684,6 +684,7 @@ class MAILSwarm:
         message = self.build_message(
             subject, body, [entrypoint], "user", msg_type, task_id
         )
+        task_id = message["message"]["task_id"]
 
         runtime_kwargs = dict(kwargs)
         if resume_from is not None:
@@ -852,12 +853,13 @@ class MAILSwarm:
 
     async def run_continuous(
         self,
+        max_steps: int | None = None,
         action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         Run the MAILSwarm in continuous mode.
         """
-        await self._runtime.run_continuous(action_override)
+        await self._runtime.run_continuous(max_steps, action_override)
 
     async def submit_message(
         self,

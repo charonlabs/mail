@@ -452,7 +452,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         return result
 
     async def run_continuous(
-        self, action_override: ActionOverrideFunction | None = None
+        self,
+        max_steps: int | None = None,
+        action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         Run the MAIL system continuously, handling multiple requests.
@@ -462,6 +464,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'..."
         )
         self._is_continuous = True
+        steps = 0
         while not self.shutdown_event.is_set():
             try:
                 logger.debug(
@@ -504,11 +507,34 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 logger.info(
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' in continuous mode: '{message['message']['subject']}'"
                 )
+                task_id = message["message"]["task_id"]
+                if (
+                    not message["message"]["subject"].startswith("::")
+                    and not message["message"]["sender"]["address_type"] == "system"
+                ):
+                    steps += 1
+                    if max_steps is not None and steps > max_steps:
+                        ev = self.get_events_by_task_id(task_id)
+                        serialized_events = []
+                        for event in ev:
+                            serialized = _serialize_event(
+                                event, exclude_keys=_REDACT_KEYS
+                            )
+                            if serialized is not None:
+                                serialized_events.append(serialized)
+                        event_sections = _format_event_sections(serialized_events)
+                        message = self._system_response(
+                            task_id=task_id,
+                            subject="Maximum Steps Reached",
+                            body=f"The swarm has reached the maximum number of steps allowed. You must now call `task_complete` and provide a response to the best of your ability. Below is a transcript of the entire swarm conversation for context:\n\n{event_sections}",
+                            recipient=create_agent_address(self.entrypoint),
+                        )
+                        logger.info(
+                            f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', sending system response"
+                        )
 
                 if message["msg_type"] == "broadcast_complete":
                     # Check if this completes a pending request
-                    msg_content = message["message"]
-                    task_id = msg_content.get("task_id")
                     if isinstance(task_id, str):
                         self._ensure_task_exists(task_id)
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
