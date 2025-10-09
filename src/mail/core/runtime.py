@@ -15,9 +15,9 @@ from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
 
 from mail.net import InterswarmRouter, SwarmRegistry
+from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
 from mail.utils.store import get_langmem_store
 from mail.utils.string_builder import build_mail_help_string
-from mail.utils.serialize import _serialize_event, _REDACT_KEYS, _format_event_sections
 
 from .actions import (
     ActionCore,
@@ -178,7 +178,7 @@ class MAILRuntime:
                     )
                     return self._system_broadcast(
                         task_id="null",
-                        subject="Runtime Error",
+                        subject="::runtime_error::",
                         body="""The parameter 'task_id' is required when resuming from a user response.
 It is impossible to resume a task without `task_id` specified.""",
                         task_complete=True,
@@ -187,7 +187,7 @@ It is impossible to resume a task without `task_id` specified.""",
                     logger.error(f"{self._log_prelude()} task '{task_id}' not found")
                     return self._system_broadcast(
                         task_id=task_id,
-                        subject="Runtime Error",
+                        subject="::runtime_error::",
                         body=f"The task '{task_id}' was not found.",
                         task_complete=True,
                     )
@@ -207,7 +207,7 @@ It is impossible to resume a task without `task_id` specified.""",
                     )
                     return self._system_broadcast(
                         task_id="null",
-                        subject="Runtime Error",
+                        subject="::runtime_error::",
                         body="""The parameter 'task_id' is required when resuming from a breakpoint tool call.
 It is impossible to resume a task without `task_id` specified.""",
                         task_complete=True,
@@ -216,7 +216,7 @@ It is impossible to resume a task without `task_id` specified.""",
                     logger.error(f"{self._log_prelude()} task '{task_id}' not found")
                     return self._system_broadcast(
                         task_id=task_id,
-                        subject="Runtime Error",
+                        subject="::runtime_error::",
                         body=f"The task '{task_id}' was not found.",
                         task_complete=True,
                     )
@@ -297,7 +297,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     logger.info(f"{self._log_prelude()} shutdown requested")
                     return self._system_broadcast(
                         task_id="null",
-                        subject="Shutdown Requested",
+                        subject="::shutdown_requested::",
                         body="The shutdown was requested.",
                         task_complete=True,
                     )
@@ -326,7 +326,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         event_sections = _format_event_sections(serialized_events)
                         message = self._system_response(
                             task_id=task_id,
-                            subject="Maximum Steps Reached",
+                            subject="::maximum_steps_reached::",
                             body=f"The swarm has reached the maximum number of steps allowed. You must now call `task_complete` and provide a response to the best of your ability. Below is a transcript of the entire swarm conversation for context:\n\n{event_sections}",
                             recipient=create_agent_address(self.entrypoint),
                         )
@@ -359,7 +359,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 )
                 return self._system_broadcast(
                     task_id=message["message"]["task_id"],
-                    subject="Run Loop Cancelled",
+                    subject="::run_loop_cancelled::",
                     body="The run loop was cancelled.",
                     task_complete=True,
                 )
@@ -372,7 +372,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 )
                 return self._system_broadcast(
                     task_id=message["message"]["task_id"],
-                    subject="Run Loop Error",
+                    subject="::run_loop_error::",
                     body=f"An error occurred while running the MAIL system: '{e}'",
                     task_complete=True,
                 )
@@ -393,7 +393,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             return self._system_broadcast(
                 task_id=task_id,
-                subject="Runtime Error",
+                subject="::runtime_error::",
                 body="""The parameter 'breakpoint_tool_caller' must be a string.
 `breakpoint_tool_caller` specifies the name of the agent that called the breakpoint tool.""",
                 task_complete=True,
@@ -404,7 +404,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             return self._system_broadcast(
                 task_id=task_id,
-                subject="Runtime Error",
+                subject="::runtime_error::",
                 body="""The parameter 'breakpoint_tool_call_result' must be a string.
 `breakpoint_tool_call_result` specifies the result of the breakpoint tool call.""",
                 task_complete=True,
@@ -415,7 +415,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             return self._system_broadcast(
                 task_id=task_id,
-                subject="Runtime Error",
+                subject="::runtime_error::",
                 body=f"The agent '{breakpoint_tool_caller}' was not found.",
                 task_complete=True,
             )
@@ -525,7 +525,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         event_sections = _format_event_sections(serialized_events)
                         message = self._system_response(
                             task_id=task_id,
-                            subject="Maximum Steps Reached",
+                            subject="::maximum_steps_reached::",
                             body=f"The swarm has reached the maximum number of steps allowed. You must now call `task_complete` and provide a response to the best of your ability. Below is a transcript of the entire swarm conversation for context:\n\n{event_sections}",
                             recipient=create_agent_address(self.entrypoint),
                         )
@@ -637,7 +637,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             self._submit_event("task_error", task_id, f"timeout for task '{task_id}'")
             return self._system_broadcast(
                 task_id=task_id,
-                subject="Task Timeout",
+                subject="::task_timeout::",
                 body="The task timed out.",
                 task_complete=True,
             )
@@ -650,7 +650,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             self._submit_event("task_error", task_id, f"error for task: '{e}'")
             return self._system_broadcast(
                 task_id=task_id,
-                subject="Task Error",
+                subject="::task_error::",
                 body=f"The task encountered an error: '{e}'.",
                 task_complete=True,
             )
@@ -1150,7 +1150,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         self._system_response(
                             task_id=message["message"]["task_id"],
                             recipient=message["message"]["sender"],
-                            subject="Router Error",
+                            subject="::router_error::",
                             body=f"""An error occurred while auto-completing task '{task_id}' from interswarm response to '{recipient_addr}'.
 The MAIL interswarm router encountered the following error: '{e}'
 Use this information to decide how to complete your task.""",
@@ -1175,7 +1175,7 @@ Use this information to decide how to complete your task.""",
                     self._system_response(
                         task_id=message["message"]["task_id"],
                         recipient=message["message"]["sender"],
-                        subject="Router Error",
+                        subject="::router_error::",
                         body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
 The MAIL interswarm router encountered the following error: '{e}'
 If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
@@ -1195,7 +1195,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
                 self._system_response(
                     task_id=message["message"]["task_id"],
                     recipient=message["message"]["sender"],
-                    subject="Router Error",
+                    subject="::router_error::",
                     body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
 The MAIL interswarm router is not currently available.
 If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
@@ -1280,7 +1280,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
                             self._system_response(
                                 task_id=message["message"]["task_id"],
                                 recipient=create_agent_address(sender_agent),
-                                subject="Improper response to user",
+                                subject="::improper_response_to_user::",
                                 body=f"""The user ('{self.user_id}') is unable to respond to your message. 
 If the user's task is complete, use the 'task_complete' tool.
 Otherwise, continue working with your agents to complete the user's task.""",
@@ -1296,7 +1296,7 @@ Otherwise, continue working with your agents to complete the user's task.""",
                         await self.submit(
                             self._system_broadcast(
                                 task_id=message["message"]["task_id"],
-                                subject="Error: System-to-system message",
+                                subject="::runtime_error::",
                                 body=f"""A message was detected with sender '{message["message"]["sender"]["address"]}' and recipient '{recipient_agent}'.
 This likely means that an error message intended for an agent was sent to the system.
 This, in turn, was probably caused by an agent failing to respond to a system response.
@@ -1317,7 +1317,7 @@ In order to prevent infinite loops, system-to-system messages immediately end th
                             self._system_response(
                                 task_id=message["message"]["task_id"],
                                 recipient=create_agent_address(sender_agent),
-                                subject=f"Unknown Agent: '{recipient_agent}'",
+                                subject="::agent_error::",
                                 body=f"""The agent '{recipient_agent}' is not known to this swarm.
 Your directly reachable agents can be found in the tool definitions for `send_request` and `send_response`.""",
                             ),
@@ -1369,7 +1369,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
 
                 if (
                     message["message"]["sender"]["address_type"] == "system"
-                    and message["message"]["subject"] == "Maximum Steps Reached"
+                    and message["message"]["subject"] == "::maximum_steps_reached::"
                 ):
                     tool_choice = {"type": "function", "name": "task_complete"}
 
@@ -1403,7 +1403,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                         await self.submit(
                             self._system_broadcast(
                                 task_id=task_id,
-                                subject=f"Breakpoint Tool Call: '{call.tool_name}'",
+                                subject="::breakpoint_tool_call::",
                                 body=f"{call.model_dump_json()}",
                                 task_complete=True,
                             )
@@ -1684,7 +1684,7 @@ Use this information to decide how to complete your task.""",
                                     await self.submit(
                                         self._system_broadcast(
                                             task_id=task_id,
-                                            subject="Runtime Error",
+                                            subject="::tool_call_error::",
                                             body="""An agent called `task_complete` but the corresponding task was not found.
 This should never happen; consider informing the MAIL developers of this issue if you see it.""",
                                             task_complete=True,
@@ -1745,7 +1745,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 await self.submit(
                                     self._system_broadcast(
                                         task_id=task_id,
-                                        subject="Runtime Error",
+                                        subject="::tool_call_error::",
                                         body=f"""An error occurred while calling the help tool for agent '{recipient}'.
 Specifically, the MAIL runtime encountered the following error: '{e}'.
 This should never happen; consider informing the MAIL developers of this issue if you see it.""",
@@ -1779,7 +1779,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 await self.submit(
                                     self._system_broadcast(
                                         task_id=task_id,
-                                        subject="Runtime Error",
+                                        subject="::tool_call_error::",
                                         body=f"""An agent called `{call.tool_name}` but the agent was not found.
 This should never happen; consider informing the MAIL developers of this issue if you see it.""",
                                         task_complete=True,

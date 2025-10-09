@@ -158,7 +158,7 @@ async def test_breakpoint_tool_triggers_task_complete() -> None:
             pass
 
     assert result["msg_type"] == "broadcast_complete"
-    assert result["message"]["subject"] == "Breakpoint Tool Call: 'pause_for_debug'"
+    assert result["message"]["subject"] == "::breakpoint_tool_call::"
 
     payload = json.loads(result["message"]["body"])
     assert payload["tool_name"] == "pause_for_debug"

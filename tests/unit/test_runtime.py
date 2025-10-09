@@ -446,7 +446,7 @@ async def test_run_task_breakpoint_resume_requires_task_id() -> None:
     response = await runtime.run_task(resume_from="breakpoint_tool_call")
 
     assert response["msg_type"] == "broadcast_complete"
-    assert response["message"]["subject"] == "Runtime Error"
+    assert response["message"]["subject"] == "::runtime_error::"
     assert "parameter 'task_id' is required" in response["message"]["body"]
 
 
@@ -539,7 +539,7 @@ async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> Non
     )
 
     assert response["msg_type"] == "broadcast_complete"
-    assert response["message"]["subject"] == "Task Error"
+    assert response["message"]["subject"] == "::task_error::"
     assert "task 'missing-task' not found" in response["message"]["body"]
     assert task_id not in runtime.pending_requests
 
