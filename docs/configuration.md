@@ -57,7 +57,7 @@ verbose = false
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "python::mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:LiteLLMSupervisorFunction",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
@@ -68,7 +68,7 @@ verbose = false
             },
             {
                 "name": "weather",
-                "factory": "python::mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
                 "agent_params": {
@@ -78,7 +78,7 @@ verbose = false
             },
             {
                 "name": "math",
-                "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
                 "agent_params": {
