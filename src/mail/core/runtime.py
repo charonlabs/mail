@@ -315,9 +315,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 ):
                     steps += 1
                     if max_steps is not None and steps > max_steps:
-                        logger.info(
-                            f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', initiating shutdown..."
-                        )
                         ev = self.get_events_by_task_id(task_id)
                         serialized_events = []
                         for event in ev:
@@ -332,6 +329,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                             subject="Maximum Steps Reached",
                             body=f"The swarm has reached the maximum number of steps allowed. You must now call `task_complete` and provide a response to the best of your ability. Below is a transcript of the entire swarm conversation for context:\n\n{event_sections}",
                             recipient=create_agent_address(self.entrypoint),
+                        )
+                        logger.info(
+                            f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', sending system response"
                         )
 
                 if message["msg_type"] == "broadcast_complete":
@@ -1346,6 +1346,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     and message["message"]["subject"] == "Maximum Steps Reached"
                 ):
                     tool_choice = {"type": "function", "name": "task_complete"}
+
                 if not message["message"]["subject"].startswith(
                     "::action_complete_broadcast::"
                 ):

@@ -750,6 +750,7 @@ class MAILSwarm:
         message = self.build_message(
             subject, body, [entrypoint], "user", msg_type, task_id
         )
+        task_id = message["message"]["task_id"]
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run_task(
