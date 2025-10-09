@@ -17,6 +17,7 @@ from sse_starlette import ServerSentEvent
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.store import get_langmem_store
 from mail.utils.string_builder import build_mail_help_string
+from mail.utils.serialize import _serialize_event, _REDACT_KEYS, _format_event_sections
 
 from .actions import (
     ActionCore,
@@ -316,6 +317,21 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if max_steps is not None and steps > max_steps:
                         logger.info(
                             f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', initiating shutdown..."
+                        )
+                        ev = self.get_events_by_task_id(task_id)
+                        serialized_events = []
+                        for event in ev:
+                            serialized = _serialize_event(
+                                event, exclude_keys=_REDACT_KEYS
+                            )
+                            if serialized is not None:
+                                serialized_events.append(serialized)
+                        event_sections = _format_event_sections(serialized_events)
+                        message = self._system_response(
+                            task_id=task_id,
+                            subject="Maximum Steps Reached",
+                            body=f"The swarm has reached the maximum number of steps allowed. You must now call `task_complete` and provide a response to the best of your ability. Below is a transcript of the entire swarm conversation for context:\n\n{event_sections}",
+                            recipient=create_agent_address(self.entrypoint),
                         )
                         return self._system_broadcast(
                             task_id=task_id,
@@ -1323,6 +1339,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             try:
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
+                tool_choice = "required"
 
                 # get agent history for this task
                 agent_history_key = AGENT_HISTORY_KEY.format(
@@ -1330,6 +1347,11 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 )
                 history = self.agent_histories[agent_history_key]
 
+                if (
+                    message["message"]["sender"]["address_type"] == "system"
+                    and message["message"]["subject"] == "Maximum Steps Reached"
+                ):
+                    tool_choice = "task_complete"
                 if not message["message"]["subject"].startswith(
                     "::action_complete_broadcast::"
                 ):
@@ -1338,7 +1360,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
 
                 # agent function is called here
                 agent_fn = self.agents[recipient].function
-                _output_text, tool_calls = await agent_fn(history, "required")
+                _output_text, tool_calls = await agent_fn(history, tool_choice)
 
                 # append the agent's response to the history
                 if tool_calls[0].completion:
