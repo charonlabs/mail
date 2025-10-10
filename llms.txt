@@ -73,7 +73,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 - **[src/mail/server.py](/src/mail/server.py)**: FastAPI application with REST + SSE endpoints and interswarm routing.
 - **[src/mail/net/router.py](/src/mail/net/router.py)**: HTTP federation between swarms, including metadata rewriting.
 - **[src/mail/net/registry.py](/src/mail/net/registry.py)**: Service registry and liveness monitoring for remote swarms.
-- **[src/mail/factories/](/src/mail/factories/__init__.py)**: Factory functions that instantiate agents with their LLM/tool configuration.
+- **[src/mail/factories/](/src/mail/factories/__init__.py)**: Agent functions that instantiate agents with their LLM/tool configuration.
 - **[src/mail/examples/](/src/mail/examples/__init__.py)**: Example agents and prompts.
 
 The runtime processes MAIL messages **asynchronously**, tracks per-task state, and produces `broadcast_complete` events to signal overall task completion.
@@ -122,6 +122,8 @@ export SWARM_REGISTRY_FILE=registries/example.json
 # Optional persistence (set to "none" to disable)
 export DATABASE_URL=postgresql://...
 ```
+
+Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment.
 
 MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
 
@@ -309,7 +311,8 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 The REPL uses `shlex.split`, so quoting works as expected:
 
 ```shell
-mail> post-message "Forecast for tomorrow" --entrypoint supervisor
+mail> post-message "Forecast for tomorrow" \
+      --entrypoint supervisor
 ```
 
 Errors raised by `argparse` are caught and reported without exiting the loop, letting you adjust the command and retry. Blank lines are ignored, and `Ctrl+C` returns you to the prompt without killing the process.
@@ -335,7 +338,13 @@ without leaving the terminal.
 
 - The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
 - Upon resuming, the runtime reloads any stashed queue entries for the task so the agents pick up exactly where they paused.
-- `--resume-from user_response` is reserved for future releases and currently raises an error if supplied.
+- For manual follow-ups, use `--resume-from user_response` to inject a new user message into the same task without losing queued events:
+
+  ```shell
+  mail> post-message "Add a final summary" \
+        --task-id weather-123 \
+        --resume-from user_response
+  ```
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
@@ -346,6 +355,151 @@ For deeper programmatic examples refer to [docs/client.md](./client.md).
 
 
 ===== End of `docs/cli.md` =====
+
+===== `docs/factories.md` =====
+
+# MAIL Factories
+
+MAIL factories encapsulate the boilerplate required to build agent callables that the runtime can schedule. They translate agent configuration—model selection, tool access, routing flags—into an async callable that conforms to `mail.core.agents.AgentFunction`.
+
+Factories live under `src/mail/factories/` and are organized by concern:
+
+- `base.py` provides the shared factory base classes and the `base_agent_factory` convenience function (now deprecated).
+- `action.py` layers action-specific validation (e.g., pydantic tool schemas).
+- `supervisor.py` wires in supervisor-only tools and policies.
+- `mail.examples/*/agent.py` demonstrates how to compose these factories for concrete agents.
+
+## Quick Start
+
+LLM agents can be easily built with the `LiteLLMAgentFunction`. `LiteLLMAgentFunction.__init__` corresponds to the agent factory; `LiteLLMAgentFunction.__call__` represents the agent function itelf. This class wires the given tools and LiteLLM configuration into a coroutine that the runtime can invoke:
+
+```python
+from mail.factories import LiteLLMAgentFunction
+
+analytics_agent = LiteLLMAgentFunction(
+    # top-level wiring
+    name="analyst",
+    comm_targets=["consultant@mail", "supervisor@mail"],
+    tools=[{"type": "function", "function": {"name": "fetch_report", "description": "...", "parameters": {...}}}],
+    # LiteLLM config
+    llm="openai/gpt-5-mini",
+    system="system prompt string",
+    tool_format="responses",
+    enable_entrypoint=False,
+    enable_interswarm=False,
+    can_complete_tasks=False,
+    # runtime instance parameter defaults
+    user_token="", # overridden per invocation
+    reasoning_effort="low",
+    thinking_budget=4000,
+    max_tokens=6000,
+    memory=True,
+    use_proxy=True,
+)
+```
+
+At runtime, `LiteLLMAgentFunction` receives `messages`, an optional `tool_choice`, and may be passed a per-request `user_token` override by the scheduler.
+
+The agent shown above can be directly run as follows:
+
+```python
+messages: list[dict[str, Any]] = [
+    {
+        "role": "user",
+        "content": "Test message"
+    }
+]
+
+tool_choice: str | dict[str, str] = "auto"
+
+agent_output = await analytics_agent(
+    messages=messages,
+    tool_choice=tool_choice, # default = "required"
+)
+```
+
+## Agent Function Class Hierarchy
+
+When you need specialized behavior, inherit from the agent function classes defined in `src/mail/factories/base.py`:
+
+- **`MAILAgentFunction`** — abstract base storing common configuration (communication targets, tool sets, scheduling flags).
+- **`LiteLLMAgentFunction`** — concrete implementation that prepares LiteLLM requests for either `completions` or `responses` tool formats.
+
+From these, `action.py` and `supervisor.py` define more specific flavors:
+
+- **`ActionAgentFunction` / `LiteLLMActionAgentFunction`** — validate and normalize action tool schemas before delegating to LiteLLM.
+- **`SupervisorFunction` / `LiteLLMSupervisorFunction`** — append supervisor control tools (`task_complete`, broadcast helpers) and enable task completion.
+
+Extending an agent function lets you share configuration defaults while allowing callers to override instance-level settings. For example, the sample analyst agent exposes additional metadata but ultimately delegates to `LiteLLMAgentFunction`:
+
+```python
+from collections.abc import Awaitable
+from typing import Any
+
+from mail.core.tools import AgentToolCall
+from mail.factories.base import LiteLLMAgentFactory
+
+
+class LiteLLMAnalystFunction(LiteLLMAgentFunction):
+    def __call__(
+        self,
+        messages: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> Awaitable[tuple[str | None, list[AgentToolCall]]]:
+        # Leverage LiteLLMAgentFactory's async implementation
+        return super().__call__(messages, tool_choice)
+```
+
+This pattern keeps all LiteLLM handling inside the shared implementation while leaving room to hook custom behavior if needed (e.g., adding traces, rewriting messages).
+
+## Tool Handling
+
+Factories rely on utilities in `mail.core.tools` to expose MAIL-native tools and normalize user-provided actions:
+
+- `create_mail_tools(...)` returns runtime utilities (send, ack, task_complete) and respects the `exclude_tools` list.
+- `pydantic_function_tool` and `_make_tools` ensure OpenAI-style tool definitions match LiteLLM expectations.
+- Supervisor factories append additional control tools via `create_supervisor_tools`.
+
+When building custom agent functions, consider reusing these helpers instead of reimplementing tool coercion logic. That keeps behavior consistent across agents and ensures new dispatcher features (like inter-swarm messaging) propagate automatically.
+
+## Instance Parameters vs. Top-Level Wiring
+
+Factory call signatures follow a convention:
+
+- **Top-level parameters** (`comm_targets`, `tools`, `name`, `enable_entrypoint`, etc.) describe the agent's static wiring and are typically supplied from `swarms.json` or other configuration.
+- **Instance parameters** (`user_token`, per-request overrides) are filled by the runtime on each invocation.
+- **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`) control the LLM call and are often set by package defaults or environment configuration.
+
+`LiteLLMAgentFunction` closes over the supplied top-level settings and produces a coroutine that merges invocation-time overrides—specifically, it prioritizes an incoming `user_token` while keeping the default captured during factory construction.
+
+## Integrating with Swarms
+
+Agent definitions in `swarms.json` reference factories via import strings, for example:
+
+```json
+{
+  "name": "analyst",
+  "factory": "python::mail.examples.analyst_dummy.agent:LiteLLMAnalystFunction",
+  "comm_targets": ["consultant", "supervisor"],
+  "agent_params": {
+    "llm": "openai/gpt-5-mini",
+    "system": "mail.examples.analyst_dummy.prompts:SYSPROMPT"
+  }
+}
+```
+
+The runtime instantiates these factories through `mail.api.MAILAgentTemplate`, passing shared top-level configuration. Custom agent functions should maintain function signatures compatible with the templates so they can be plugged into swarms without additional glue code.
+
+## Testing and Validation
+
+- Use `uv run pytest -q` (or the scoped `tests/unit`) to exercise factory behavior. The sample agents demonstrate how to cover agent execution paths.
+- Run `uv run ruff check .` and `uv run mypy src/mail` to keep style and types aligned with project standards.
+- When factories introduce new tool schemas, update JSON schema fixtures under `spec/` and validate with `uv run spec/validate_samples.py`.
+
+Keeping agent functions small and composable makes it easy to add new agent personas or capabilities without duplicating LiteLLM interaction logic. Start with `LiteLLMAgentFunction`, and lean on the shared utilities to stay consistent with the rest of MAIL.
+
+
+===== End of `docs/factories.md` =====
 
 ===== `docs/troubleshooting.md` =====
 
@@ -405,7 +559,8 @@ This guide gets you running a local MAIL swarm and interacting with it.
 
 ### Cloning the repo
 ```bash
-git clone https://github.com/charonlabs/mail.git --branch v1.1.0-pre2
+git clone https://github.com/charonlabs/mail.git \
+--branch v1.1.0
 ```
 
 ### Installing dependencies
@@ -418,7 +573,7 @@ pip install -e .
 ```
 
 ## Environment & Config
-- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, and client timeout. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
+- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings.task_message_limit]`. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access via the proxy
@@ -506,8 +661,9 @@ This repo includes example agents and demo scripts you can run locally.
 - **Consultant**: [src/mail/examples/consultant_dummy/](/src/mail/examples/consultant_dummy/__init__.py)
 - **Analyst**: [src/mail/examples/analyst_dummy/](/src/mail/examples/analyst_dummy/__init__.py)
 
-## Factories
-- **Factory functions** in [src/mail/factories/](/src/mail/factories/__init__.py) build agent callables used by `MAILAgentTemplate`
+## Agent functions and factories
+- **Agent functions** in [src/mail/factories/](/src/mail/factories/__init__.py) represent MAIL-compatible agent callables, with factories in `__init__` and agent functions in `__call__`
+- **Agent factories** in [src/mail/factories/](/src/mail/factories/__init__.py) build agent callables used by `MAILAgentTemplate`
 
 ## Demo scripts
 - **Single swarm**: [scripts/single_swarm_demo.py](/scripts/single_swarm_demo.py)
@@ -636,7 +792,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 - The server keeps a persistent `MAILSwarmTemplate` catalogue and per-user `MAILSwarm` instances
 - **Message schemas** are documented in [docs/message-format.md](/docs/message-format.md) and [spec/](/spec/SPEC.md)
 - The repository ships an asynchronous helper described in [docs/client.md](/docs/client.md) that wraps these endpoints and handles bearer auth + SSE parsing
-- **Task lifecycle**: Each `POST /message` participates in a long-lived task distinguished by `task_id`. Breakpoint-aware tools can pause a task; clients resume by reusing the same `task_id` with the `resume_from` contract described above. Additional resume modes (such as `user_response`) are reserved for future releases.
+- **Task lifecycle**: Each `POST /message` participates in a long-lived task distinguished by `task_id`. Breakpoint-aware tools can pause a task; clients resume by reusing the same `task_id` with the `resume_from` contract described above. Both `resume_from="breakpoint_tool_call"` (supply tool output via `kwargs`) and `resume_from="user_response"` (send another user-authored message) are supported.
 
 ### MAILClient helper
 - `MAILClient` (see [client.md](/docs/client.md)) mirrors every route above with ergonomic async methods
@@ -678,7 +834,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   ```python
   from mail.core import AgentCore, ActionCore
   ```
-- `mail.utils` bundles token helpers, logging utilities, dynamic factory loading via `read_python_string`, and interswarm address parsing
+- `mail.utils` bundles token helpers, logging utilities, dynamic function loading via `read_python_string`, and interswarm address parsing
 - `mail.swarms_json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
 
 ### Class reference
@@ -970,6 +1126,24 @@ def create_ignore_broadcast_tool(
   - **Parameters**: `style: Literal["completions", "responses"]` – determines returned schema format.
   - **Returns**: `dict[str, Any]` – Tool metadata for `ignore_broadcast`.
   - **Summary**: Allows agents to discard a broadcast intentionally, optionally recording an internal reason while ensuring no acknowledgement is emitted.
+##### `create_await_message_tool`
+```python
+def create_await_message_tool(
+    style="completions"
+) -> dict[str, Any]
+```
+- **Parameters**: `style: Literal["completions", "responses"]` – specifies the OpenAI schema flavor to emit.
+- **Returns**: `dict[str, Any]` – Tool description for `await_message` with an optional `reason` field.
+- **Summary**: Gives agents a MAIL-native way to yield their turn once they have no additional output; the optional reason is surfaced in runtime events and tool-call history for observability.
+##### `create_help_tool`
+```python
+def create_help_tool(
+    style="completions"
+) -> dict[str, Any]
+```
+  - **Parameters**: `style: Literal["completions", "responses"]` – determines the OpenAI schema format returned.
+  - **Returns**: `dict[str, Any]` – Tool specification for `help` with toggles for summary, identity, per-tool guidance, and full protocol output.
+  - **Summary**: Produces the diagnostic helper that agents can call to learn about their identity, available MAIL tools, and optionally the entire protocol specification; the runtime relays the generated content back via a system broadcast.
 ##### `create_task_complete_tool`
 ```python
 def create_task_complete_tool(
@@ -988,8 +1162,8 @@ def create_mail_tools(
 ) -> list[dict[str, Any]]
 ```
   - **Parameters**: `targets: list[str]` – baseline intra-swarm recipients; `enable_interswarm: bool` – toggles remote routing support; `style: Literal["completions", "responses"]` – OpenAI schema variant shared by all generated tools.
-  - **Returns**: `list[dict[str, Any]]` – Bundled request, response, acknowledgement, and ignore tools configured with the provided options.
-  - **Summary**: Supplies a ready-to-install toolkit for standard agents so they can message peers, acknowledge broadcasts, or silence them without bespoke configuration.
+  - **Returns**: `list[dict[str, Any]]` – Bundled request, response, acknowledgement, ignore, await, and help tools configured with the provided options.
+  - **Summary**: Supplies a ready-to-install toolkit for standard agents so they can message peers, manage broadcasts, request runtime help, or explicitly wait for new mail without bespoke configuration.
 ##### `create_supervisor_tools`
 ```python
 def create_supervisor_tools(
@@ -1394,7 +1568,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Core runtime, tools, messages**: [src/mail/core/runtime.py](/src/mail/core/runtime.py), [src/mail/core/tools.py](/src/mail/core/tools.py), [src/mail/core/message.py](/src/mail/core/message.py)
 - **Interswarm**: [src/mail/net/router.py](/src/mail/net/router.py), [src/mail/net/registry.py](/src/mail/net/registry.py), [src/mail/net/types.py](/src/mail/net/types.py)
 - **Utilities**: [src/mail/utils/](/src/mail/utils/__init__.py)
-- **Examples and factories**: [src/mail/examples/](/src/mail/examples/__init__.py), [src/mail/factories/](/src/mail/factories/__init__.py)
+- **Examples and agent functions**: [src/mail/examples/](/src/mail/examples/__init__.py), [src/mail/factories/](/src/mail/factories/__init__.py)
 
 
 ===== End of `docs/README.md` =====
@@ -1426,6 +1600,8 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - `send_broadcast(subject, body)` → fans a `MAILBroadcast` out to every agent in the local swarm.
 - `acknowledge_broadcast(note=None)` → records the broadcast in agent memory without replying; the optional note stays internal.
 - `ignore_broadcast(reason=None)` → explicitly drops the broadcast and skips both memory storage and outbound mail; optional reason is internal only.
+- `await_message(reason=None)` → signals that the agent has no further output this turn and should be rescheduled when new mail arrives; an optional reason is surfaced in SSE events and tool-call history for debugging.
+- `help(get_summary=True, get_identity=False, get_tool_help=None, get_full_protocol=False)` → generates a MAIL primer for the calling agent, optionally including identity info, per-tool guides, and the full protocol spec; the runtime streams the result back as a system broadcast.
 - `send_interswarm_broadcast(subject, body, target_swarms=[])` → (supervisor + interswarm) sends a broadcast to selected remote swarms, defaulting to all when the list is empty.
 - `discover_swarms(discovery_urls)` → (supervisor + interswarm) hands discovery endpoints to the registry so it can import additional swarms.
 - `task_complete(finish_message)` → (supervisor) broadcasts the final answer and tells the runtime the task loop is finished.
@@ -1442,7 +1618,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 
 ## Factories and prompts
 - **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
-- **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
+- **Add your own agent** by creating a MAIL-compatible agent function and listing it in [swarms.json](/swarms.json)
 - When referencing shared prompt text or other dynamic values, prefer the `python::` and `url::` prefixes so they stay in sync with code or remote configuration without manual duplication
 
 
@@ -1659,7 +1835,10 @@ reload = false
 [server.swarm]
 name = "example-no-proxy"
 source = "swarms.json"
-registry = "registries/example-no-proxy.json"
+registry_file = "registries/example-no-proxy.json"
+
+[server.settings]
+task_message_limit = 15
 
 [client]
 timeout = 3600.0
@@ -1667,7 +1846,8 @@ verbose = false
 ```
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`).
-- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry`), and the runtime swarm name (`name`).
+- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry_file`, also accepted as legacy `registry`), and the runtime swarm name (`name`).
+- The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
 - The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
@@ -1701,7 +1881,7 @@ verbose = false
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "python::mail.factories.supervisor:supervisor_factory",
+                "factory": "python::mail.factories.supervisor:LiteLLMSupervisorFunction",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
@@ -1712,7 +1892,7 @@ verbose = false
             },
             {
                 "name": "weather",
-                "factory": "python::mail.examples.weather_dummy.agent:factory_weather_dummy",
+                "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
                 "agent_params": {
@@ -1722,7 +1902,7 @@ verbose = false
             },
             {
                 "name": "math",
-                "factory": "python::mail.examples.math_dummy.agent:factory_math_dummy",
+                "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
                 "agent_params": {
@@ -1789,6 +1969,7 @@ verbose = false
 ### Other notes
 - Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
 - The helpers in `mail.swarms_json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
+
 
 ===== End of `docs/configuration.md` =====
 

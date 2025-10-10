@@ -15,7 +15,10 @@ reload = false
 [server.swarm]
 name = "example-no-proxy"
 source = "swarms.json"
-registry = "registries/example-no-proxy.json"
+registry_file = "registries/example-no-proxy.json"
+
+[server.settings]
+task_message_limit = 15
 
 [client]
 timeout = 3600.0
@@ -23,7 +26,8 @@ verbose = false
 ```
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`).
-- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry`), and the runtime swarm name (`name`).
+- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry_file`, also accepted as legacy `registry`), and the runtime swarm name (`name`).
+- The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
 - The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.

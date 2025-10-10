@@ -121,6 +121,8 @@ export SWARM_REGISTRY_FILE=registries/example.json
 export DATABASE_URL=postgresql://...
 ```
 
+Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment.
+
 MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
 
 **Swarm definitions** live in [swarms.json](/swarms.json). Each entry declares the agents, entrypoint, tools, and default models for a swarm.

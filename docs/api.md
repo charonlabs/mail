@@ -43,7 +43,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 - The server keeps a persistent `MAILSwarmTemplate` catalogue and per-user `MAILSwarm` instances
 - **Message schemas** are documented in [docs/message-format.md](/docs/message-format.md) and [spec/](/spec/SPEC.md)
 - The repository ships an asynchronous helper described in [docs/client.md](/docs/client.md) that wraps these endpoints and handles bearer auth + SSE parsing
-- **Task lifecycle**: Each `POST /message` participates in a long-lived task distinguished by `task_id`. Breakpoint-aware tools can pause a task; clients resume by reusing the same `task_id` with the `resume_from` contract described above. Additional resume modes (such as `user_response`) are reserved for future releases.
+- **Task lifecycle**: Each `POST /message` participates in a long-lived task distinguished by `task_id`. Breakpoint-aware tools can pause a task; clients resume by reusing the same `task_id` with the `resume_from` contract described above. Both `resume_from="breakpoint_tool_call"` (supply tool output via `kwargs`) and `resume_from="user_response"` (send another user-authored message) are supported.
 
 ### MAILClient helper
 - `MAILClient` (see [client.md](/docs/client.md)) mirrors every route above with ergonomic async methods

@@ -12,7 +12,8 @@ This guide gets you running a local MAIL swarm and interacting with it.
 
 ### Cloning the repo
 ```bash
-git clone https://github.com/charonlabs/mail.git --branch v1.1.0-pre3
+git clone https://github.com/charonlabs/mail.git \
+--branch v1.1.0
 ```
 
 ### Installing dependencies
@@ -25,7 +26,7 @@ pip install -e .
 ```
 
 ## Environment & Config
-- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, and client timeout. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
+- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings.task_message_limit]`. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access via the proxy

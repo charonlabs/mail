@@ -52,7 +52,8 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 The REPL uses `shlex.split`, so quoting works as expected:
 
 ```shell
-mail> post-message "Forecast for tomorrow" --entrypoint supervisor
+mail> post-message "Forecast for tomorrow" \
+      --entrypoint supervisor
 ```
 
 Errors raised by `argparse` are caught and reported without exiting the loop, letting you adjust the command and retry. Blank lines are ignored, and `Ctrl+C` returns you to the prompt without killing the process.
@@ -78,7 +79,13 @@ without leaving the terminal.
 
 - The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
 - Upon resuming, the runtime reloads any stashed queue entries for the task so the agents pick up exactly where they paused.
-- `--resume-from user_response` is reserved for future releases and currently raises an error if supplied.
+- For manual follow-ups, use `--resume-from user_response` to inject a new user message into the same task without losing queued events:
+
+  ```shell
+  mail> post-message "Add a final summary" \
+        --task-id weather-123 \
+        --resume-from user_response
+  ```
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
