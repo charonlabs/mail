@@ -1022,6 +1022,10 @@ class MAILSwarm:
             enable_interswarm=self.enable_interswarm,
         )
 
+    def get_response_message(self, task_id: str) -> MAILMessage | None:
+        """Get the response message for a given task ID. Mostly used after streaming response events."""
+        return self._runtime.get_response_message(task_id)
+
 
 class MAILSwarmTemplate:
     """

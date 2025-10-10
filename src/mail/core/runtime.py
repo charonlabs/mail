@@ -103,6 +103,7 @@ class MAILRuntime:
         self.breakpoint_tools = breakpoint_tools
         self._is_continuous = False
         self.exclude_tools = exclude_tools
+        self.response_messages: dict[str, MAILMessage] = {}
 
     def _log_prelude(self) -> str:
         """
@@ -309,6 +310,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 logger.info(
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}': '{message['message']['subject']}'"
                 )
+                if message["msg_type"] == "broadcast_complete":
+                    task_id_completed = message["message"].get("task_id")
+                    if isinstance(task_id_completed, str):
+                        self.response_messages[task_id_completed] = message
+                        self._ensure_task_exists(task_id_completed)
+                        await self.mail_tasks[task_id_completed].queue_stash(
+                            self.message_queue
+                        )
+                    # Mark this message as done before breaking
+                    self.message_queue.task_done()
+                    return message
+
                 if (
                     not message["message"]["subject"].startswith("::")
                     and not message["message"]["sender"]["address_type"] == "system"
@@ -333,17 +346,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         logger.info(
                             f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', sending system response"
                         )
-
-                if message["msg_type"] == "broadcast_complete":
-                    task_id_completed = message["message"].get("task_id")
-                    if isinstance(task_id_completed, str):
-                        self._ensure_task_exists(task_id_completed)
-                        await self.mail_tasks[task_id_completed].queue_stash(
-                            self.message_queue
-                        )
-                    # Mark this message as done before breaking
-                    self.message_queue.task_done()
-                    return message
 
                 await self._process_message(message, action_override)
                 # Note: task_done() is called by the schedule function for regular messages
@@ -508,6 +510,25 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' in continuous mode: '{message['message']['subject']}'"
                 )
                 task_id = message["message"]["task_id"]
+
+                if message["msg_type"] == "broadcast_complete":
+                    # Check if this completes a pending request
+                    self.response_messages[task_id] = message
+                    if isinstance(task_id, str):
+                        self._ensure_task_exists(task_id)
+                        await self.mail_tasks[task_id].queue_stash(self.message_queue)
+                    if isinstance(task_id, str) and task_id in self.pending_requests:
+                        # Resolve the pending request
+                        logger.info(
+                            f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
+                        )
+                        future = self.pending_requests.pop(task_id)
+                        future.set_result(message)
+                    else:
+                        # Mark this message as done and continue processing
+                        self.message_queue.task_done()
+                        continue
+
                 if (
                     not message["message"]["subject"].startswith("::")
                     and not message["message"]["sender"]["address_type"] == "system"
@@ -532,23 +553,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         logger.info(
                             f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', sending system response"
                         )
-
-                if message["msg_type"] == "broadcast_complete":
-                    # Check if this completes a pending request
-                    if isinstance(task_id, str):
-                        self._ensure_task_exists(task_id)
-                        await self.mail_tasks[task_id].queue_stash(self.message_queue)
-                    if isinstance(task_id, str) and task_id in self.pending_requests:
-                        # Resolve the pending request
-                        logger.info(
-                            f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
-                        )
-                        future = self.pending_requests.pop(task_id)
-                        future.set_result(message)
-                    else:
-                        # Mark this message as done and continue processing
-                        self.message_queue.task_done()
-                        continue
 
                 await self._process_message(message, action_override)
                 # Note: task_done() is called by the schedule function for regular messages
@@ -2110,3 +2114,9 @@ Use this information to decide how to complete your task.""",
         Get a task by ID.
         """
         return self.mail_tasks.get(task_id)
+
+    def get_response_message(self, task_id: str) -> MAILMessage | None:
+        """
+        Get the response message for a given task ID. Mostly used after streaming response events.
+        """
+        return self.response_messages.get(task_id, None)
