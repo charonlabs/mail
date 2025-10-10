@@ -1026,6 +1026,10 @@ class MAILSwarm:
         """Get the response message for a given task ID. Mostly used after streaming response events."""
         return self._runtime.get_response_message(task_id)
 
+    def get_events(self, task_id: str) -> list[ServerSentEvent]:
+        """Get the events for a given task ID. Mostly used after streaming response events."""
+        return self._runtime.get_events_by_task_id(task_id)
+
 
 class MAILSwarmTemplate:
     """
