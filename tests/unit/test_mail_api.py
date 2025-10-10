@@ -38,7 +38,7 @@ class FakeMAILRuntime:
         self._events: dict[str, list[Any]] = {}
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
-        
+
     @pytest.mark.asyncio
     async def submit_and_wait(
         self,

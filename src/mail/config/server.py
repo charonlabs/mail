@@ -105,7 +105,9 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
             settings_section = server_section.get("settings")
             if isinstance(settings_section, dict):
                 settings_defaults = {
-                    "task_message_limit": settings_section.get("task_message_limit", settings_defaults["task_message_limit"]),
+                    "task_message_limit": settings_section.get(
+                        "task_message_limit", settings_defaults["task_message_limit"]
+                    ),
                 }
 
     logger.info(
@@ -135,7 +137,9 @@ class SwarmConfig(BaseModel):
 
 
 class SettingsConfig(BaseModel):
-    task_message_limit: int = Field(default_factory=lambda: _settings_defaults()["task_message_limit"])
+    task_message_limit: int = Field(
+        default_factory=lambda: _settings_defaults()["task_message_limit"]
+    )
 
 
 class ServerConfig(BaseModel):

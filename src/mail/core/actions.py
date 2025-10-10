@@ -50,37 +50,17 @@ class ActionCore:
         if not action_override:
             try:
                 content = await self.function(call.tool_args)
-                return (
-                    "success",
-                    {
-                        "content": content
-                    }
-                )
+                return ("success", {"content": content})
             except Exception as e:
-                return (
-                    "error",
-                    {
-                        "content": f"failed to execute action tool: {e}"
-                    }
-                )
+                return ("error", {"content": f"failed to execute action tool: {e}"})
         else:
             try:
                 response = await action_override(call.tool_args)
                 if isinstance(response, str):
-                    return (
-                        "success",
-                        {
-                            "content": response
-                        }
-                    )
-                return (
-                    "success",
-                    response
-                )
+                    return ("success", {"content": response})
+                return ("success", response)
             except Exception as e:
                 return (
                     "error",
-                    {
-                        "content": f"failed to execute action override tool: {e}"
-                    }
+                    {"content": f"failed to execute action override tool: {e}"},
                 )

@@ -547,7 +547,9 @@ def create_broadcast_tool(
 
         subject: str = Field(description="The subject of the broadcast.")
         body: str = Field(description="The message content to send.")
-        targets: list[str] = Field(description="The list of agents to broadcast to. Use ['all'] to broadcast to all agents in the swarm.")
+        targets: list[str] = Field(
+            description="The list of agents to broadcast to. Use ['all'] to broadcast to all agents in the swarm."
+        )
 
     return pydantic_model_to_tool(send_broadcast, name="send_broadcast", style=style)
 
@@ -605,6 +607,7 @@ Alternatively, `supervisor` can send a broadcast to all agents in the swarm (inc
 Broadcast recipients can then acknowledge the broadcast and continue with their work.
 When the user's task is done, `task_complete` is called by `supervisor`.
 """
+
 
 def create_acknowledge_broadcast_tool(
     style: Literal["completions", "responses"] = "completions",
@@ -847,6 +850,7 @@ def create_await_message_tool(
     """
     Create a MAIL await message tool to wait for a message.
     """
+
     class await_message(BaseModel):
         """Wait until another message is received."""
 
@@ -854,7 +858,6 @@ def create_await_message_tool(
             default=None,
             description="Optional reason for waiting.",
         )
-
 
     return pydantic_model_to_tool(await_message, name="await_message", style=style)
 
@@ -935,19 +938,29 @@ def create_help_tool(
     class help(BaseModel):
         """Get help with MAIL."""
 
-        get_summary: bool = Field(default=True, description="Whether to get a short summary of MAIL.")
-        get_identity: bool = Field(default=False, description="Whether to get your identity (agent name, swarm, etc.).")
-        get_tool_help: list[Literal[
-            "send_request",
-            "send_response",
-            "send_broadcast",
-            "send_interrupt",
-            "acknowledge_broadcast",
-            "ignore_broadcast",
-            "await_message",
-            "task_complete",
-        ]] = Field(default=[], description="The tools to get help for.")
-        get_full_protocol: bool = Field(default=False, description="Whether to get the full MAIL protocol specification.")
+        get_summary: bool = Field(
+            default=True, description="Whether to get a short summary of MAIL."
+        )
+        get_identity: bool = Field(
+            default=False,
+            description="Whether to get your identity (agent name, swarm, etc.).",
+        )
+        get_tool_help: list[
+            Literal[
+                "send_request",
+                "send_response",
+                "send_broadcast",
+                "send_interrupt",
+                "acknowledge_broadcast",
+                "ignore_broadcast",
+                "await_message",
+                "task_complete",
+            ]
+        ] = Field(default=[], description="The tools to get help for.")
+        get_full_protocol: bool = Field(
+            default=False,
+            description="Whether to get the full MAIL protocol specification.",
+        )
 
     return pydantic_model_to_tool(help, name="help", style=style)
 

@@ -102,7 +102,7 @@ class SwarmRegistry:
             volatile=volatile,
         )
         logger.info(
-            f"{self._log_prelude()} registered remote swarm: {swarm_name} at {base_url} {"(volatile)" if volatile else ""}"
+            f"{self._log_prelude()} registered remote swarm: {swarm_name} at {base_url} {'(volatile)' if volatile else ''}"
         )
 
         # Save persistent endpoints if this swarm is non-volatile
@@ -205,7 +205,9 @@ class SwarmRegistry:
             )
 
         except Exception as e:
-            logger.error(f"{self._log_prelude()} failed to save persistent endpoints: '{e}'")
+            logger.error(
+                f"{self._log_prelude()} failed to save persistent endpoints: '{e}'"
+            )
 
     def _get_auth_token_ref(
         self, swarm_name: str, auth_token: str | None
@@ -328,7 +330,9 @@ class SwarmRegistry:
         """
         try:
             if not os.path.exists(self.persistence_file):
-                logger.error(f"{self._log_prelude()} no persistence file found at '{self.persistence_file}'")
+                logger.error(
+                    f"{self._log_prelude()} no persistence file found at '{self.persistence_file}'"
+                )
                 return
 
             with open(self.persistence_file) as f:
@@ -365,7 +369,9 @@ class SwarmRegistry:
             )
 
         except Exception as e:
-            logger.error(f"{self._log_prelude()} failed to load persistent endpoints: '{e}'")
+            logger.error(
+                f"{self._log_prelude()} failed to load persistent endpoints: '{e}'"
+            )
 
     def cleanup_volatile_endpoints(self) -> None:
         """
@@ -380,7 +386,9 @@ class SwarmRegistry:
         for name in volatile_endpoints:
             del self.endpoints[name]
 
-        logger.info(f"{self._log_prelude()} cleaned up {len(volatile_endpoints)} volatile endpoints")
+        logger.info(
+            f"{self._log_prelude()} cleaned up {len(volatile_endpoints)} volatile endpoints"
+        )
 
         # Save the remaining persistent endpoints
         self.save_persistent_endpoints()
@@ -464,7 +472,9 @@ class SwarmRegistry:
                     endpoint["last_seen"] = datetime.datetime.now(datetime.UTC)
                     if not endpoint["is_active"]:
                         endpoint["is_active"] = True
-                        logger.info(f"{self._log_prelude()} swarm '{swarm_name}' is now active")
+                        logger.info(
+                            f"{self._log_prelude()} swarm '{swarm_name}' is now active"
+                        )
                 else:
                     if endpoint["is_active"]:
                         endpoint["is_active"] = False
@@ -474,7 +484,9 @@ class SwarmRegistry:
         except Exception as e:
             if endpoint["is_active"]:
                 endpoint["is_active"] = False
-                logger.warning(f"{self._log_prelude()} swarm '{swarm_name}' is now inactive (error: '{e}')")
+                logger.warning(
+                    f"{self._log_prelude()} swarm '{swarm_name}' is now inactive (error: '{e}')"
+                )
 
     async def discover_swarms(self, discovery_urls: list[str]) -> None:
         """
@@ -518,7 +530,9 @@ class SwarmRegistry:
                                 metadata=swarm_info.get("metadata"),
                             )
         except Exception as e:
-            logger.error(f"{self._log_prelude()} failed to discover from '{url}' with error: '{e}'")
+            logger.error(
+                f"{self._log_prelude()} failed to discover from '{url}' with error: '{e}'"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """

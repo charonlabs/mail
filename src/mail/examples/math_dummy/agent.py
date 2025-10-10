@@ -48,7 +48,7 @@ def factory_math_dummy(
         DeprecationWarning,
         stacklevel=2,
     )
-    
+
     litellm_math = LiteLLMMathFunction(
         name=name,
         comm_targets=comm_targets,

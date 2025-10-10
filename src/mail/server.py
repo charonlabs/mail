@@ -146,14 +146,20 @@ async def _server_startup() -> None:
 
     # ensure necessary auth endpoints are registered
     await utils.auth.check_auth_endpoints()
-    logger.info(f"{_log_prelude()} endpoint 'AUTH_ENDPOINT' = {os.getenv('AUTH_ENDPOINT')}")
-    logger.info(f"{_log_prelude()} endpoint 'TOKEN_INFO_ENDPOINT' = {os.getenv('TOKEN_INFO_ENDPOINT')}")
+    logger.info(
+        f"{_log_prelude()} endpoint 'AUTH_ENDPOINT' = {os.getenv('AUTH_ENDPOINT')}"
+    )
+    logger.info(
+        f"{_log_prelude()} endpoint 'TOKEN_INFO_ENDPOINT' = {os.getenv('TOKEN_INFO_ENDPOINT')}"
+    )
 
     # ensure necessary swarm endpoints are registered
     swarm_endpoints = ["SWARM_REGISTRY_FILE", "SWARM_SOURCE"]
     for endpoint in swarm_endpoints:
         if endpoint not in os.environ or os.getenv(endpoint) is None:
-            logger.error(f"{_log_prelude()} required environment variable '{endpoint}' is not set")
+            logger.error(
+                f"{_log_prelude()} required environment variable '{endpoint}' is not set"
+            )
             raise Exception(f"required environment variable '{endpoint}' is not set")
 
 
@@ -172,7 +178,9 @@ async def _server_shutdown() -> None:
     # Clean up all user MAIL instances
     global user_mail_instances, user_mail_tasks
     for user_id, mail_instance in user_mail_instances.items():
-        logger.info(f"{_log_prelude()} shutting down MAIL instance for user '{user_id}'")
+        logger.info(
+            f"{_log_prelude()} shutting down MAIL instance for user '{user_id}'"
+        )
         await mail_instance.shutdown()
 
     for user_id, mail_task in user_mail_tasks.items():
@@ -187,7 +195,9 @@ async def _server_shutdown() -> None:
     # Clean up all swarm MAIL instances
     global swarm_mail_instances, swarm_mail_tasks
     for swarm_id, mail_instance in swarm_mail_instances.items():
-        logger.info(f"{_log_prelude()} shutting down MAIL instance for swarm '{swarm_id}'")
+        logger.info(
+            f"{_log_prelude()} shutting down MAIL instance for swarm '{swarm_id}'"
+        )
         await mail_instance.shutdown()
 
     for swarm_id, mail_task in swarm_mail_tasks.items():
@@ -241,11 +251,19 @@ async def get_or_create_user_mail(user_id: str, jwt: str) -> MAILSwarm:
             await mail_instance.start_interswarm()
 
             # Start the MAIL instance in continuous mode for this user
-            logger.info(f"{_log_prelude()} starting MAIL continuous mode for user '{user_id}'")
-            mail_task = asyncio.create_task(mail_instance.run_continuous(max_steps=persistent_swarm.task_message_limit))
+            logger.info(
+                f"{_log_prelude()} starting MAIL continuous mode for user '{user_id}'"
+            )
+            mail_task = asyncio.create_task(
+                mail_instance.run_continuous(
+                    max_steps=persistent_swarm.task_message_limit
+                )
+            )
             user_mail_tasks[user_id] = mail_task
 
-            logger.info(f"{_log_prelude()} MAIL instance created and started for user '{user_id}'")
+            logger.info(
+                f"{_log_prelude()} MAIL instance created and started for user '{user_id}'"
+            )
 
         except Exception as e:
             logger.error(
@@ -268,7 +286,9 @@ async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAILSwarm:
 
     if swarm_id not in swarm_mail_instances:
         try:
-            logger.info(f"{_log_prelude()} creating MAIL instance for swarm '{swarm_id}'")
+            logger.info(
+                f"{_log_prelude()} creating MAIL instance for swarm '{swarm_id}'"
+            )
 
             # Create a new MAIL instance for this swarm with interswarm support
             mail_instance = persistent_swarm.instantiate(
@@ -285,11 +305,19 @@ async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAILSwarm:
             await mail_instance.start_interswarm()
 
             # Start the MAIL instance in continuous mode for this swarm
-            logger.info(f"{_log_prelude()} starting MAIL continuous mode for swarm '{swarm_id}'")
-            mail_task = asyncio.create_task(mail_instance.run_continuous(max_steps=persistent_swarm.task_message_limit))
+            logger.info(
+                f"{_log_prelude()} starting MAIL continuous mode for swarm '{swarm_id}'"
+            )
+            mail_task = asyncio.create_task(
+                mail_instance.run_continuous(
+                    max_steps=persistent_swarm.task_message_limit
+                )
+            )
             swarm_mail_tasks[swarm_id] = mail_task
 
-            logger.info(f"{_log_prelude()} MAIL instance created and started for swarm '{swarm_id}'")
+            logger.info(
+                f"{_log_prelude()} MAIL instance created and started for swarm '{swarm_id}'"
+            )
 
         except Exception as e:
             logger.error(
@@ -614,7 +642,9 @@ async def receive_interswarm_message(request: Request):
     try:
         swarm_mail = await get_or_create_swarm_mail(caller_id, jwt)
     except Exception as e:
-        logger.error(f"{_log_prelude()} error getting swarm MAIL instance for '{caller_id}': '{e}'")
+        logger.error(
+            f"{_log_prelude()} error getting swarm MAIL instance for '{caller_id}': '{e}'"
+        )
         raise HTTPException(
             status_code=500,
             detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
@@ -648,7 +678,9 @@ async def receive_interswarm_message(request: Request):
     try:
         metadata = data.get("metadata") or {}
 
-        logger.info(f"{_log_prelude()} creating MAIL message for swarm '{source_swarm}'")
+        logger.info(
+            f"{_log_prelude()} creating MAIL message for swarm '{source_swarm}'"
+        )
         new_message = MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
@@ -694,7 +726,9 @@ async def receive_interswarm_message(request: Request):
         )
 
         # Return the MAILMessage directly to match expected shape.
-        logger.info(f"{_log_prelude()} MAIL completed successfully for swarm '{source_swarm}'")
+        logger.info(
+            f"{_log_prelude()} MAIL completed successfully for swarm '{source_swarm}'"
+        )
         return response_message
 
     except Exception as e:
@@ -724,27 +758,31 @@ async def receive_interswarm_response(request: Request):
     except Exception as e:
         logger.error(f"{_log_prelude()} error parsing interswarm response: '{e}'")
         raise HTTPException(
-            status_code=400, detail=f"error parsing interswarm response: {e.with_traceback(None)}"
+            status_code=400,
+            detail=f"error parsing interswarm response: {e.with_traceback(None)}",
         )
 
     # Get the swarm MAIL instance for the sender
     # If one doesn't exist, return
     try:
         swarm_jwt = utils.extract_token(request)
-        mail_instance = swarm_mail_instances.get(response_message["message"]["sender_swarm"])
+        mail_instance = swarm_mail_instances.get(
+            response_message["message"]["sender_swarm"]
+        )
         if not mail_instance:
             return types.PostInterswarmResponseResponse(
                 status="no_mail_instance",
                 task_id=response_message["message"]["task_id"],
             )
         mail_instance = await get_or_create_swarm_mail(
-            response_message["message"]["sender_swarm"], 
-            swarm_jwt
+            response_message["message"]["sender_swarm"], swarm_jwt
         )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude()} error getting swarm MAIL instance for '{response_message['message']['sender_swarm']}': '{e}'")
+        logger.error(
+            f"{_log_prelude()} error getting swarm MAIL instance for '{response_message['message']['sender_swarm']}': '{e}'"
+        )
         raise HTTPException(
             status_code=500,
             detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
@@ -754,7 +792,9 @@ async def receive_interswarm_response(request: Request):
     # with a proper MAILAddress. Route it into the runtime as-is.
     task_id = response_message["message"]["task_id"]
     await mail_instance.handle_interswarm_response(response_message)
-    logger.info(f"{_log_prelude()} response submitted to MAIL instance for task '{task_id}'")
+    logger.info(
+        f"{_log_prelude()} response submitted to MAIL instance for task '{task_id}'"
+    )
 
     return types.PostInterswarmResponseResponse(
         status="response_processed",

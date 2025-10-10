@@ -1255,7 +1255,9 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarms_json(swarm_data: SwarmsJSONSwarm, task_message_limit: int | None = None) -> "MAILSwarmTemplate":
+    def from_swarms_json(
+        swarm_data: SwarmsJSONSwarm, task_message_limit: int | None = None
+    ) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
         """
@@ -1280,7 +1282,9 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarm_json(json_dump: str, task_message_limit: int | None = None) -> "MAILSwarmTemplate":
+    def from_swarm_json(
+        json_dump: str, task_message_limit: int | None = None
+    ) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
         """

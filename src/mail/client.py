@@ -154,7 +154,9 @@ class MAILClient:
                 response.raise_for_status()
                 return await self._read_json(response)
         except Exception as e:
-            self.logger.error(f"{self._log_prelude()} exception during request to remote HTTP, aborting")
+            self.logger.error(
+                f"{self._log_prelude()} exception during request to remote HTTP, aborting"
+            )
             raise RuntimeError(f"MAIL client request failed: {e}")
 
     @staticmethod
@@ -256,13 +258,17 @@ class MAILClient:
                 headers=self._build_headers({"Accept": "text/event-stream"}),
             )
         except Exception as e:
-            self.logger.error(f"{self._log_prelude()} exception in POST request, aborting")
+            self.logger.error(
+                f"{self._log_prelude()} exception in POST request, aborting"
+            )
             raise RuntimeError(f"MAIL client request failed: {e}")
 
         try:
             response.raise_for_status()
         except Exception as e:
-            self.logger.error(f"{self._log_prelude()} exception in POST response, aborting")
+            self.logger.error(
+                f"{self._log_prelude()} exception in POST response, aborting"
+            )
             response.close()
             raise RuntimeError(f"MAIL client request failed: {e}") from e
 

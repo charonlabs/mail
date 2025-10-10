@@ -76,7 +76,7 @@ def factory_consultant_dummy(
         Execute the LiteLLM-based consultant agent function.
         """
         return await litellm_consultant(messages, tool_choice)
-        
+
     return run
 
 

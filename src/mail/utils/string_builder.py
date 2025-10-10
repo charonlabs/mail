@@ -44,7 +44,9 @@ def _get_identity(name: str, swarm: str) -> str:
     """
     Get the identity of the agent.
     """
-    return _create_section("your identity", IDENTITY_STRING.format(name=name, swarm=swarm))
+    return _create_section(
+        "your identity", IDENTITY_STRING.format(name=name, swarm=swarm)
+    )
 
 
 def _get_tool_help(tool_help: list[str] = []) -> str:

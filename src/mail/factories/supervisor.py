@@ -65,7 +65,7 @@ def supervisor_factory(
         user_token=user_token,
         enable_entrypoint=enable_entrypoint,
         enable_interswarm=enable_interswarm,
-        can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+        can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
         reasoning_effort=reasoning_effort,
         thinking_budget=thinking_budget,
         max_tokens=max_tokens,
@@ -123,7 +123,7 @@ class SupervisorFunction(MAILAgentFunction):
         # add supervisor tools to user-provided tools
         parsed_tools += create_supervisor_tools(
             targets=comm_targets,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             enable_interswarm=enable_interswarm,
             exclude_tools=exclude_tools,
             style=tool_format,
@@ -136,12 +136,12 @@ class SupervisorFunction(MAILAgentFunction):
             tools=parsed_tools,
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             tool_format=tool_format,
             exclude_tools=exclude_tools,
-            **kwargs
+            **kwargs,
         )
-    
+
     @abstractmethod
     def __call__(
         self,
@@ -185,7 +185,7 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
             tools=tools,
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             tool_format=tool_format,
             exclude_tools=exclude_tools,
         )

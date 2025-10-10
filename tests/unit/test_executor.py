@@ -54,6 +54,8 @@ def test_execute_action_tool_normal_and_override():
             _call("echo", {"x": "hi"}),
             action_override=_override_upper,
         )
-        assert res2_status == "success" and res2_message["content"].startswith("OVERRIDE:")
+        assert res2_status == "success" and res2_message["content"].startswith(
+            "OVERRIDE:"
+        )
 
     asyncio.run(run())

@@ -48,7 +48,7 @@ def factory_weather_dummy(
         DeprecationWarning,
         stacklevel=2,
     )
-    
+
     litellm_weather = LiteLLMWeatherFunction(
         name=name,
         comm_targets=comm_targets,

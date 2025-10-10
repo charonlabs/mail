@@ -109,7 +109,7 @@ class ActionAgentFunction(MAILAgentFunction):
 
         else:
             parsed_tools = tools  # type: ignore
-    
+
         super().__init__(
             name=name,
             comm_targets=comm_targets,
@@ -119,7 +119,7 @@ class ActionAgentFunction(MAILAgentFunction):
             can_complete_tasks=can_complete_tasks,
             tool_format=tool_format,
             exclude_tools=exclude_tools,
-            **kwargs
+            **kwargs,
         )
 
     @abstractmethod

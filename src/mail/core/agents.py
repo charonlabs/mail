@@ -20,6 +20,7 @@ AgentFunction = Callable[
 A function that takes a chat history and returns a response and tool calls.
 """
 
+
 class AgentCore:
     """
     A bare-bones agent structure.
