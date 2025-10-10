@@ -535,6 +535,7 @@ class MAILSwarm:
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
         exclude_tools: list[str] = [],
+        task_message_limit: int | None = None,
     ) -> None:
         self.name = name
         self.agents = agents
@@ -545,6 +546,7 @@ class MAILSwarm:
         self.enable_interswarm = enable_interswarm
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
+        self.task_message_limit = task_message_limit
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
@@ -1038,6 +1040,7 @@ class MAILSwarmTemplate:
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
         exclude_tools: list[str] = [],
+        task_message_limit: int | None = None,
     ) -> None:
         self.name = name
         self.agents = agents
@@ -1046,6 +1049,7 @@ class MAILSwarmTemplate:
         self.enable_interswarm = enable_interswarm
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
+        self.task_message_limit = task_message_limit
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
@@ -1173,6 +1177,7 @@ class MAILSwarmTemplate:
             enable_interswarm=self.enable_interswarm,
             breakpoint_tools=self.breakpoint_tools,
             exclude_tools=self.exclude_tools,
+            task_message_limit=self.task_message_limit,
         )
 
     def get_subswarm(
@@ -1250,7 +1255,7 @@ class MAILSwarmTemplate:
         )
 
     @staticmethod
-    def from_swarms_json(swarm_data: SwarmsJSONSwarm) -> "MAILSwarmTemplate":
+    def from_swarms_json(swarm_data: SwarmsJSONSwarm, task_message_limit: int | None = None) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
         """
@@ -1271,10 +1276,11 @@ class MAILSwarmTemplate:
             enable_interswarm=swarm_data["enable_interswarm"],
             breakpoint_tools=swarm_data["breakpoint_tools"],
             exclude_tools=swarm_data["exclude_tools"],
+            task_message_limit=task_message_limit,
         )
 
     @staticmethod
-    def from_swarm_json(json_dump: str) -> "MAILSwarmTemplate":
+    def from_swarm_json(json_dump: str, task_message_limit: int | None = None) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
         """
@@ -1282,12 +1288,13 @@ class MAILSwarmTemplate:
 
         swarm_candidate = _json.loads(json_dump)
         parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
-        return MAILSwarmTemplate.from_swarms_json(parsed_swarm)
+        return MAILSwarmTemplate.from_swarms_json(parsed_swarm, task_message_limit)
 
     @staticmethod
     def from_swarm_json_file(
         swarm_name: str,
         json_filepath: str = "swarms.json",
+        task_message_limit: int | None = None,
     ) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a JSON file following the `swarms.json` format.
@@ -1296,5 +1303,5 @@ class MAILSwarmTemplate:
         swarms = build_swarms_from_swarms_json(swarms_file["swarms"])
         for swarm in swarms:
             if swarm["name"] == swarm_name:
-                return MAILSwarmTemplate.from_swarms_json(swarm)
+                return MAILSwarmTemplate.from_swarms_json(swarm, task_message_limit)
         raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")

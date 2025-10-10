@@ -242,7 +242,7 @@ async def get_or_create_user_mail(user_id: str, jwt: str) -> MAILSwarm:
 
             # Start the MAIL instance in continuous mode for this user
             logger.info(f"{_log_prelude()} starting MAIL continuous mode for user '{user_id}'")
-            mail_task = asyncio.create_task(mail_instance.run_continuous())
+            mail_task = asyncio.create_task(mail_instance.run_continuous(max_steps=persistent_swarm.task_message_limit))
             user_mail_tasks[user_id] = mail_task
 
             logger.info(f"{_log_prelude()} MAIL instance created and started for user '{user_id}'")
@@ -286,7 +286,7 @@ async def get_or_create_swarm_mail(swarm_id: str, jwt: str) -> MAILSwarm:
 
             # Start the MAIL instance in continuous mode for this swarm
             logger.info(f"{_log_prelude()} starting MAIL continuous mode for swarm '{swarm_id}'")
-            mail_task = asyncio.create_task(mail_instance.run_continuous())
+            mail_task = asyncio.create_task(mail_instance.run_continuous(max_steps=persistent_swarm.task_message_limit))
             swarm_mail_tasks[swarm_id] = mail_task
 
             logger.info(f"{_log_prelude()} MAIL instance created and started for swarm '{swarm_id}'")
