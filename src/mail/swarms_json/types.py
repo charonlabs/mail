@@ -31,6 +31,8 @@ class SwarmsJSONSwarm(TypedDict):
     """The actions in this swarm."""
     breakpoint_tools: list[str]  # default: []
     """The tools that can be used to breakpoint the swarm."""
+    exclude_tools: list[str]  # default: []
+    """The names of MAIL tools that should not be available to the swarm."""
 
 
 class SwarmsJSONAgent(TypedDict):
@@ -56,6 +58,8 @@ class SwarmsJSONAgent(TypedDict):
     """The names of the actions this agent can use."""
     agent_params: dict[str, Any]
     """The parameters for this agent."""
+    exclude_tools: list[str]  # default: []
+    """The names ofMAIL tools that should not be available to this agent."""
 
 
 class SwarmsJSONAction(TypedDict):

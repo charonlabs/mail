@@ -47,7 +47,7 @@ def _resolve_mail_config_path() -> Path | None:
 
 
 @lru_cache(maxsize=1)
-def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any]]:
+def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """
     Read default server + swarm fields from `mail.toml` if available.
     """
@@ -62,22 +62,25 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any]]:
         "source": "swarms.json",
         "registry_file": "registries/example-no-proxy.json",
     }
+    settings_defaults: dict[str, Any] = {
+        "task_message_limit": 15,
+    }
 
     if tomllib is None:
         logger.warning("tomllib not available; using built-in defaults")
-        return server_defaults, swarm_defaults
+        return server_defaults, swarm_defaults, settings_defaults
 
     config_path = _resolve_mail_config_path()
     if config_path is None:
         logger.warning("mail.toml not found; using built-in defaults")
-        return server_defaults, swarm_defaults
+        return server_defaults, swarm_defaults, settings_defaults
 
     try:
         with config_path.open("rb") as config_file:
             raw_config = tomllib.load(config_file)
-    except Exception as exc:  # pragma: no cover - uncommon failure
-        logger.warning(f"failed to load {config_path}: {exc}")
-        return server_defaults, swarm_defaults
+    except Exception as e:  # pragma: no cover - uncommon failure
+        logger.warning(f"failed to load {config_path}: {e}")
+        return server_defaults, swarm_defaults, settings_defaults
 
     server_section = raw_config.get("server")
     if isinstance(server_section, dict):
@@ -99,10 +102,18 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any]]:
                 "registry_file": registry_value or swarm_defaults["registry_file"],
             }
 
+            settings_section = server_section.get("settings")
+            if isinstance(settings_section, dict):
+                settings_defaults = {
+                    "task_message_limit": settings_section.get(
+                        "task_message_limit", settings_defaults["task_message_limit"]
+                    ),
+                }
+
     logger.info(
         f"server defaults resolved to {server_defaults} with swarm defaults {swarm_defaults}",
     )
-    return server_defaults, swarm_defaults
+    return server_defaults, swarm_defaults, settings_defaults
 
 
 def _server_defaults() -> dict[str, Any]:
@@ -113,11 +124,21 @@ def _swarm_defaults() -> dict[str, Any]:
     return _load_defaults_from_toml()[1]
 
 
+def _settings_defaults() -> dict[str, Any]:
+    return _load_defaults_from_toml()[2]
+
+
 class SwarmConfig(BaseModel):
     name: str = Field(default_factory=lambda: _swarm_defaults()["name"])
     source: str = Field(default_factory=lambda: _swarm_defaults()["source"])
     registry_file: str = Field(
         default_factory=lambda: _swarm_defaults()["registry_file"]
+    )
+
+
+class SettingsConfig(BaseModel):
+    task_message_limit: int = Field(
+        default_factory=lambda: _settings_defaults()["task_message_limit"]
     )
 
 
@@ -127,3 +148,4 @@ class ServerConfig(BaseModel):
     reload: bool = Field(default_factory=lambda: _server_defaults()["reload"])
 
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
+    settings: SettingsConfig = Field(default_factory=SettingsConfig)

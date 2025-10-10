@@ -25,6 +25,17 @@ async def check_auth_endpoints() -> None:
             raise Exception(f"required environment variable '{endpoint}' is not set")
 
 
+def extract_token(request: Request) -> str:
+    """
+    Extract the token from the request.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header.split(" ")[1]
+    else:
+        raise HTTPException(status_code=401, detail="invalid API key format")
+
+
 async def login(api_key: str) -> str:
     """
     Authenticate a user with an API key.
@@ -49,7 +60,7 @@ async def login(api_key: str) -> str:
         response.raise_for_status()
         data = await response.json()
 
-        logger.info(f"user or agent authenticated with API key: '{api_key[:8]}...'")
+        logger.info(f"[{api_key[:8]}...] user or agent authenticated with API key")
         return data["token"]
 
 
@@ -92,8 +103,8 @@ async def caller_is_role(
 
     token_info = await get_token_info(jwt)
     if token_info["role"] != role:
-        logger.warning(f"invalid role: '{token_info['role']}' != '{role}'")
         if raise_on_false:
+            logger.warning(f"invalid role: '{token_info['role']}' != '{role}'")
             raise HTTPException(status_code=401, detail="invalid role")
         return False
 
@@ -123,7 +134,7 @@ async def caller_is_admin_or_user(request: Request) -> bool:
     if is_admin or is_user:
         return True
 
-    logger.warning("invalid role: 'admin' or 'user' is not admin or user")
+    logger.warning("invalid role: caller is not admin or user")
     raise HTTPException(status_code=401, detail="invalid role")
 
 

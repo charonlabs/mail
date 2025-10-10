@@ -63,6 +63,7 @@ class MAILAgent:
         enable_interswarm: bool = False,
         can_complete_tasks: bool = False,
         tool_format: Literal["completions", "responses"] = "responses",
+        exclude_tools: list[str] = [],
     ) -> None:
         self.name = name
         self.factory = factory
@@ -74,6 +75,7 @@ class MAILAgent:
         self.agent_params = agent_params
         self.tool_format = tool_format
         self.can_complete_tasks = can_complete_tasks
+        self.exclude_tools = exclude_tools
         self._validate()
 
     def _validate(self) -> None:
@@ -106,6 +108,7 @@ class MAILAgent:
             enable_interswarm=self.enable_interswarm,
             tool_format=self.tool_format,
             can_complete_tasks=self.can_complete_tasks,
+            exclude_tools=self.exclude_tools,
         )
 
     async def __call__(
@@ -145,6 +148,7 @@ class MAILAgentTemplate:
         enable_interswarm: bool = False,
         can_complete_tasks: bool = False,
         tool_format: Literal["completions", "responses"] = "responses",
+        exclude_tools: list[str] = [],
     ) -> None:
         self.name = name
         self.factory = factory
@@ -155,6 +159,7 @@ class MAILAgentTemplate:
         self.enable_interswarm = enable_interswarm
         self.tool_format = tool_format
         self.can_complete_tasks = can_complete_tasks
+        self.exclude_tools = exclude_tools
         self._validate()
 
     def _validate(self) -> None:
@@ -163,7 +168,10 @@ class MAILAgentTemplate:
                 f"agent name must be at least 1 character long, got {len(self.name)}"
             )
 
-    def _top_level_params(self) -> dict[str, Any]:
+    def _top_level_params(
+        self, exclude_tools: list[str] | None = None
+    ) -> dict[str, Any]:
+        final_exclude = self.exclude_tools if exclude_tools is None else exclude_tools
         return {
             "name": self.name,
             "comm_targets": self.comm_targets,
@@ -174,17 +182,23 @@ class MAILAgentTemplate:
             "enable_interswarm": self.enable_interswarm,
             "tool_format": self.tool_format,
             "can_complete_tasks": self.can_complete_tasks,
+            "exclude_tools": final_exclude,
         }
 
     def instantiate(
         self,
         instance_params: dict[str, Any],
+        additional_exclude_tools: list[str] | None = None,
     ) -> MAILAgent:
+        combined_exclude = sorted(
+            set(self.exclude_tools + (additional_exclude_tools or []))
+        )
         full_params = {
-            **self._top_level_params(),
+            **self._top_level_params(combined_exclude),
             **self.agent_params,
             **instance_params,
         }
+        full_params["exclude_tools"] = combined_exclude
         if isinstance(self.factory, str):
             factory_func = read_python_string(self.factory)
         else:
@@ -202,6 +216,7 @@ class MAILAgentTemplate:
             enable_interswarm=self.enable_interswarm,
             tool_format=self.tool_format,
             can_complete_tasks=self.can_complete_tasks,
+            exclude_tools=combined_exclude,
         )
 
     @staticmethod
@@ -237,6 +252,7 @@ class MAILAgentTemplate:
             enable_interswarm=agent_data["enable_interswarm"],
             tool_format=agent_data["tool_format"],
             can_complete_tasks=agent_data["can_complete_tasks"],
+            exclude_tools=agent_data["exclude_tools"],
         )
 
     @staticmethod
@@ -278,6 +294,7 @@ class MAILAgentTemplate:
                     enable_interswarm=False,
                     tool_format="responses",
                     can_complete_tasks=True,
+                    exclude_tools=[],
                 )
             case "weather":
                 from mail.examples import weather_dummy as weather
@@ -295,6 +312,7 @@ class MAILAgentTemplate:
                     enable_interswarm=False,
                     tool_format="responses",
                     can_complete_tasks=False,
+                    exclude_tools=[],
                 )
             case "math":
                 from mail.examples import math_dummy as math
@@ -311,6 +329,7 @@ class MAILAgentTemplate:
                     enable_interswarm=False,
                     tool_format="responses",
                     can_complete_tasks=False,
+                    exclude_tools=[],
                 )
             case "consultant":
                 from mail.examples import consultant_dummy as consultant
@@ -327,6 +346,7 @@ class MAILAgentTemplate:
                     enable_interswarm=False,
                     tool_format="responses",
                     can_complete_tasks=False,
+                    exclude_tools=[],
                 )
             case "analyst":
                 from mail.examples import analyst_dummy as analyst
@@ -343,6 +363,7 @@ class MAILAgentTemplate:
                     enable_interswarm=False,
                     tool_format="responses",
                     can_complete_tasks=False,
+                    exclude_tools=[],
                 )
             case _:
                 raise ValueError(f"invalid agent name: {name}")
@@ -513,6 +534,8 @@ class MAILSwarm:
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
+        exclude_tools: list[str] = [],
+        task_message_limit: int | None = None,
     ) -> None:
         self.name = name
         self.agents = agents
@@ -522,6 +545,8 @@ class MAILSwarm:
         self.swarm_registry = swarm_registry
         self.enable_interswarm = enable_interswarm
         self.breakpoint_tools = breakpoint_tools
+        self.exclude_tools = exclude_tools
+        self.task_message_limit = task_message_limit
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
@@ -534,6 +559,7 @@ class MAILSwarm:
             enable_interswarm=enable_interswarm,
             entrypoint=entrypoint,
             breakpoint_tools=breakpoint_tools,
+            exclude_tools=exclude_tools,
         )
         self._validate()
 
@@ -593,6 +619,11 @@ class MAILSwarm:
         for tool in self.breakpoint_tools:
             if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
                 raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
+
+        # are the excluded tools valid?
+        for tool in self.exclude_tools:
+            if tool not in MAIL_TOOL_NAMES:
+                raise ValueError(f"excluded tool '{tool}' is not valid")
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
@@ -655,6 +686,7 @@ class MAILSwarm:
         message = self.build_message(
             subject, body, [entrypoint], "user", msg_type, task_id
         )
+        task_id = message["message"]["task_id"]
 
         runtime_kwargs = dict(kwargs)
         if resume_from is not None:
@@ -708,6 +740,7 @@ class MAILSwarm:
         show_events: bool = False,
         task_id: str | None = None,
         resume_from: Literal["user_response", "breakpoint_tool_call"] | None = None,
+        max_steps: int | None = None,
         **kwargs: Any,
     ) -> tuple[MAILMessage, list[ServerSentEvent]]:
         """
@@ -720,10 +753,11 @@ class MAILSwarm:
         message = self.build_message(
             subject, body, [entrypoint], "user", msg_type, task_id
         )
+        task_id = message["message"]["task_id"]
 
         await self._runtime.submit(message)
         task_response = await self._runtime.run_task(
-            task_id=task_id, resume_from=resume_from, **kwargs
+            task_id=task_id, resume_from=resume_from, max_steps=max_steps, **kwargs
         )
 
         if show_events:
@@ -821,12 +855,13 @@ class MAILSwarm:
 
     async def run_continuous(
         self,
+        max_steps: int | None = None,
         action_override: ActionOverrideFunction | None = None,
     ) -> None:
         """
         Run the MAILSwarm in continuous mode.
         """
-        await self._runtime.run_continuous(action_override)
+        await self._runtime.run_continuous(max_steps, action_override)
 
     async def submit_message(
         self,
@@ -950,6 +985,7 @@ class MAILSwarm:
                     enable_interswarm=agent.enable_interswarm,
                     can_complete_tasks=agent.can_complete_tasks,
                     tool_format=agent.tool_format,
+                    exclude_tools=agent.exclude_tools,
                 )
             )
 
@@ -1003,6 +1039,8 @@ class MAILSwarmTemplate:
         entrypoint: str,
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
+        exclude_tools: list[str] = [],
+        task_message_limit: int | None = None,
     ) -> None:
         self.name = name
         self.agents = agents
@@ -1010,6 +1048,8 @@ class MAILSwarmTemplate:
         self.entrypoint = entrypoint
         self.enable_interswarm = enable_interswarm
         self.breakpoint_tools = breakpoint_tools
+        self.exclude_tools = exclude_tools
+        self.task_message_limit = task_message_limit
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
@@ -1060,6 +1100,11 @@ class MAILSwarmTemplate:
         for tool in self.breakpoint_tools:
             if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
                 raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
+
+        # are the excluded tools valid?
+        for tool in self.exclude_tools:
+            if tool not in MAIL_TOOL_NAMES:
+                raise ValueError(f"excluded tool '{tool}' is not valid")
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
@@ -1115,7 +1160,12 @@ class MAILSwarmTemplate:
         else:
             swarm_registry = None
 
-        agents = [agent.instantiate(instance_params) for agent in self.agents]
+        agents = [
+            agent.instantiate(
+                instance_params, additional_exclude_tools=self.exclude_tools
+            )
+            for agent in self.agents
+        ]
 
         return MAILSwarm(
             name=self.name,
@@ -1126,6 +1176,8 @@ class MAILSwarmTemplate:
             swarm_registry=swarm_registry,
             enable_interswarm=self.enable_interswarm,
             breakpoint_tools=self.breakpoint_tools,
+            exclude_tools=self.exclude_tools,
+            task_message_limit=self.task_message_limit,
         )
 
     def get_subswarm(
@@ -1163,6 +1215,7 @@ class MAILSwarmTemplate:
                     enable_interswarm=agent.enable_interswarm,
                     can_complete_tasks=agent.can_complete_tasks,
                     tool_format=agent.tool_format,
+                    exclude_tools=agent.exclude_tools,
                 )
             )
 
@@ -1197,10 +1250,14 @@ class MAILSwarmTemplate:
             actions=actions,
             entrypoint=entrypoint_agent.name,
             enable_interswarm=self.enable_interswarm,
+            breakpoint_tools=self.breakpoint_tools,
+            exclude_tools=self.exclude_tools,
         )
 
     @staticmethod
-    def from_swarms_json(swarm_data: SwarmsJSONSwarm) -> "MAILSwarmTemplate":
+    def from_swarms_json(
+        swarm_data: SwarmsJSONSwarm, task_message_limit: int | None = None
+    ) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
         """
@@ -1220,10 +1277,14 @@ class MAILSwarmTemplate:
             entrypoint=swarm_data["entrypoint"],
             enable_interswarm=swarm_data["enable_interswarm"],
             breakpoint_tools=swarm_data["breakpoint_tools"],
+            exclude_tools=swarm_data["exclude_tools"],
+            task_message_limit=task_message_limit,
         )
 
     @staticmethod
-    def from_swarm_json(json_dump: str) -> "MAILSwarmTemplate":
+    def from_swarm_json(
+        json_dump: str, task_message_limit: int | None = None
+    ) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a JSON dump following the `swarms.json` format.
         """
@@ -1231,12 +1292,13 @@ class MAILSwarmTemplate:
 
         swarm_candidate = _json.loads(json_dump)
         parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
-        return MAILSwarmTemplate.from_swarms_json(parsed_swarm)
+        return MAILSwarmTemplate.from_swarms_json(parsed_swarm, task_message_limit)
 
     @staticmethod
     def from_swarm_json_file(
         swarm_name: str,
         json_filepath: str = "swarms.json",
+        task_message_limit: int | None = None,
     ) -> "MAILSwarmTemplate":
         """
         Create a `MAILSwarmTemplate` from a JSON file following the `swarms.json` format.
@@ -1245,5 +1307,5 @@ class MAILSwarmTemplate:
         swarms = build_swarms_from_swarms_json(swarms_file["swarms"])
         for swarm in swarms:
             if swarm["name"] == swarm_name:
-                return MAILSwarmTemplate.from_swarms_json(swarm)
+                return MAILSwarmTemplate.from_swarms_json(swarm, task_message_limit)
         raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")

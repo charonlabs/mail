@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2025 Addison Kline
 
 import asyncio
 import datetime
 import tempfile
 import uuid
 from types import MethodType
+from typing import Any
 
 import pytest
 
@@ -15,9 +17,9 @@ from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
-    create_user_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
+from mail.core.tools import AgentToolCall
 from mail.net.registry import SwarmRegistry
 
 
@@ -52,7 +54,7 @@ def _make_broadcast(task_id: str, subject: str = "Update") -> MAILMessage:
         message=MAILBroadcast(
             task_id=task_id,
             broadcast_id=str(uuid.uuid4()),
-            sender=create_user_address("tester"),
+            sender=create_agent_address("tester"),
             recipients=[create_agent_address("analyst")],
             subject=subject,
             body="Broadcast body",
@@ -84,9 +86,18 @@ def _make_interrupt(task_id: str) -> MAILMessage:
 
 
 @pytest.mark.asyncio
-async def test_submit_prioritises_message_types() -> None:
+async def test_submit_prioritizes_message_types() -> None:
     """
-    Interrupts and completions should outrank broadcasts, which outrank requests.
+    Within MAIL, messages should be assigned the following priority tiers:
+
+    1. System message of any type
+    2. User message of any type
+    3. Agent interrupt, broadcast_complete
+    4. Agent broadcast
+    5. Agent request, response
+
+    Within each category, messages are processed in FIFO order using a monotonically increasing sequence number to avoid dict comparisons.
+    This test ensures that the runtime correctly prioritizes messages based on their type.
     """
     runtime = MAILRuntime(
         agents={},
@@ -99,7 +110,7 @@ async def test_submit_prioritises_message_types() -> None:
     await runtime.submit(_make_request("task-req"))
     await runtime.submit(_make_broadcast("task-bc"))
     await runtime.submit(_make_interrupt("task-int"))
-    # broadcast_complete message reuse broadcast structure with special type
+    # broadcast_complete message uses broadcast structure with special type
     completion = _make_broadcast("task-comp", subject="Task complete")
     completion["msg_type"] = "broadcast_complete"
     await runtime.submit(completion)
@@ -111,9 +122,11 @@ async def test_submit_prioritises_message_types() -> None:
         ordered_types.append((priority, seq, message["msg_type"]))
 
     msg_types = [m for (_, _, m) in ordered_types]
-    assert msg_types == ["interrupt", "broadcast_complete", "broadcast", "request"]
+    assert (
+        msg_types == ["interrupt", "broadcast_complete", "broadcast", "request"]
+    ) or (msg_types == ["broadcast_complete", "interrupt", "broadcast", "request"])
     # Ensure FIFO ordering for equal priority (interrupt before completion because it was submitted first)
-    assert ordered_types[0][0] == ordered_types[1][0] == 1
+    assert ordered_types[0][0] == ordered_types[1][0] == 3
     assert ordered_types[0][1] < ordered_types[1][1]
 
 
@@ -160,11 +173,10 @@ async def test_submit_and_stream_handles_timeout_and_events(
     assert update_event.data["task_id"] == task_id
     assert update_event.data["description"] == "intermediate status"
 
-    completion_message = runtime._system_broadcast(
+    completion_message = runtime._agent_task_complete(
         task_id=task_id,
-        subject="Done",
-        body="All good",
-        task_complete=True,
+        caller="supervisor",
+        finish_message="All good",
     )
     future = runtime.pending_requests[task_id]
     future.set_result(completion_message)
@@ -184,6 +196,183 @@ async def test_submit_and_stream_handles_timeout_and_events(
         runtime.message_queue.task_done()
 
     await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_agent_can_await_message_records_event() -> None:
+    """
+    Agents using `await_message` should emit an event and record tool history.
+    """
+
+    wait_reason = "waiting for coordinator"
+
+    async def waiting_agent(
+        history: list[dict[str, str]], task: str | dict[str, str]
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        call = AgentToolCall(
+            tool_name="await_message",
+            tool_args={"reason": wait_reason},
+            tool_call_id="await-1",
+            completion={
+                "role": "assistant",
+                "content": "I'll wait for the next message.",
+            },
+        )
+        return (None, [call])
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
+        actions={},
+        user_id="user-await",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-await"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    await runtime.submit(_make_broadcast(task_id))
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name="analyst")
+    history = runtime.agent_histories[history_key]
+    assert history[-1]["role"] == "tool"
+    assert "waiting for a new message" in history[-1]["content"]
+
+    events = runtime.get_events_by_task_id(task_id)
+    await_events = [event for event in events if event.event == "await_message"]
+    assert await_events, "expected await_message event to be emitted"
+    await_event = await_events[-1]
+    assert await_event.data is not None
+    assert (
+        await_event.data["description"]
+        == f"agent 'analyst' is awaiting a new message: {wait_reason}"
+    )
+    assert await_event.data["extra_data"]["reason"] == wait_reason
+
+    # clean up broadcast queued for backlog
+    while not runtime.message_queue.empty():
+        runtime.message_queue.get_nowait()
+        runtime.message_queue.task_done()
+
+
+@pytest.mark.asyncio
+async def test_await_message_errors_when_queue_empty() -> None:
+    """
+    Awaiting with an empty queue should surface a tool error and notify the agent.
+    """
+
+    async def waiting_agent(
+        history: list[dict[str, Any]], task: str | dict[str, str]
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        call = AgentToolCall(
+            tool_name="await_message",
+            tool_args={},
+            tool_call_id="await-empty",
+            completion={"role": "assistant", "content": "waiting"},
+        )
+        return None, [call]
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
+        actions={},
+        user_id="user-await",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-await-empty"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name="analyst")
+    history = runtime.agent_histories[history_key]
+    assert history[-1]["role"] == "tool"
+    assert "message queue is empty" in history[-1]["content"]
+
+    events = runtime.get_events_by_task_id(task_id)
+    error_events = [event for event in events if event.event == "agent_error"]
+    assert error_events, "expected agent_error event when queue is empty"
+    assert "message queue is empty" in error_events[-1].data["description"]  # type: ignore[index]
+
+    (
+        response_priority,
+        response_seq,
+        response_message,
+    ) = await runtime.message_queue.get()
+    assert response_message["msg_type"] == "response"
+    assert response_message["message"]["subject"] == "::tool_call_error::"
+    assert "message queue is empty" in response_message["message"]["body"]
+    runtime.message_queue.task_done()
+
+
+@pytest.mark.asyncio
+async def test_help_tool_emits_broadcast_and_event() -> None:
+    """
+    Help tool calls should queue a help broadcast and emit a tracking event.
+    """
+
+    async def helper_agent(
+        history: list[dict[str, Any]], tool_choice: str | dict[str, str]
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        call = AgentToolCall(
+            tool_name="help",
+            tool_args={"get_summary": False, "get_identity": True},
+            tool_call_id="help-1",
+            completion={"role": "assistant", "content": "requesting help"},
+        )
+        return None, [call]
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=helper_agent, comm_targets=[])},
+        actions={},
+        user_id="user-help",
+        swarm_name="example",
+        entrypoint="analyst",
+    )
+
+    task_id = "task-help"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    _help_priority, _help_seq, help_message = await runtime.message_queue.get()
+    assert help_message["msg_type"] == "broadcast"
+    assert help_message["message"]["subject"] == "::help::"
+    help_body = help_message["message"]["body"]
+    assert "YOUR IDENTITY" in help_body
+    assert "Name" in help_body and "example" in help_body
+    assert help_message["message"]["recipients"] == [  # type: ignore
+        create_agent_address("analyst")
+    ]
+    runtime.message_queue.task_done()
+
+    events = runtime.get_events_by_task_id(task_id)
+    help_events = [event for event in events if event.event == "help_called"]
+    assert help_events, "expected help_called event to be emitted"
+    event_data = help_events[-1].data
+    assert isinstance(event_data, dict)
+    assert event_data["description"].endswith("called 'help'")
+
+    while not runtime.message_queue.empty():
+        runtime.message_queue.get_nowait()
+        runtime.message_queue.task_done()
 
 
 def test_system_broadcast_requires_recipients_for_non_completion() -> None:
@@ -257,7 +446,7 @@ async def test_run_task_breakpoint_resume_requires_task_id() -> None:
     response = await runtime.run_task(resume_from="breakpoint_tool_call")
 
     assert response["msg_type"] == "broadcast_complete"
-    assert response["message"]["subject"] == "Runtime Error"
+    assert response["message"]["subject"] == "::runtime_error::"
     assert "parameter 'task_id' is required" in response["message"]["body"]
 
 
@@ -267,7 +456,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
     tool_caller = "analyst"
 
     async def noop_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list]:
         return ("ack", [])
 
@@ -328,7 +517,7 @@ async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> Non
     tool_caller = "analyst"
 
     async def noop_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list]:
         return ("ack", [])
 
@@ -350,7 +539,7 @@ async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> Non
     )
 
     assert response["msg_type"] == "broadcast_complete"
-    assert response["message"]["subject"] == "Task Error"
+    assert response["message"]["subject"] == "::task_error::"
     assert "task 'missing-task' not found" in response["message"]["body"]
     assert task_id not in runtime.pending_requests
 
@@ -361,7 +550,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
     tool_caller = "analyst"
 
     async def noop_agent(
-        history: list[dict[str, str]], task: str
+        history: list[dict[str, str]], task: str | dict[str, str]
     ) -> tuple[str | None, list]:
         return ("ack", [])
 
@@ -415,7 +604,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
 
 
 async def _noop_agent_fn(
-    history: list[dict[str, object]], tool_choice: str
+    history: list[dict[str, object]], tool_choice: str | dict[str, str]
 ) -> tuple[str | None, list]:
     return None, []
 

@@ -65,6 +65,13 @@ class MAILClient:
         self._session = session
         self._owns_session = session is None
         self._console = console.Console()
+        self.username = "unknown"
+
+    def _log_prelude(self) -> str:
+        """
+        Get the log prelude for the client.
+        """
+        return f"[{self.username}@{self.base_url}]"
 
     async def _register_user_info(self) -> None:
         """
@@ -74,7 +81,7 @@ class MAILClient:
             self.username = await self._request_json("POST", "/auth/login")
             self.user_info = await self._request_json("GET", "/auth/check")
         except Exception as e:
-            self.logger.error(f"error registering user info: {e}")
+            self.logger.error(f"{self._log_prelude()} error registering user info: {e}")
 
     async def __aenter__(self) -> MAILClient:
         await self._ensure_session()
@@ -135,7 +142,7 @@ class MAILClient:
         """
         session = await self._ensure_session()
         url = self._build_url(path)
-        self.logger.debug(f"{method.upper()} {url}")
+        self.logger.debug(f"{self._log_prelude()} {method.upper()} {url}")
 
         try:
             async with session.request(
@@ -147,7 +154,9 @@ class MAILClient:
                 response.raise_for_status()
                 return await self._read_json(response)
         except Exception as e:
-            self.logger.error("exception during request to remote HTTP, aborting")
+            self.logger.error(
+                f"{self._log_prelude()} exception during request to remote HTTP, aborting"
+            )
             raise RuntimeError(f"MAIL client request failed: {e}")
 
     @staticmethod
@@ -240,7 +249,7 @@ class MAILClient:
         }
 
         url = self._build_url("/message")
-        self.logger.debug(f"POST {url} (stream)")
+        self.logger.debug(f"{self._log_prelude()} POST {url} (stream)")
 
         try:
             response = await session.post(
@@ -249,13 +258,17 @@ class MAILClient:
                 headers=self._build_headers({"Accept": "text/event-stream"}),
             )
         except Exception as e:
-            self.logger.error("exception in POST request, aborting")
+            self.logger.error(
+                f"{self._log_prelude()} exception in POST request, aborting"
+            )
             raise RuntimeError(f"MAIL client request failed: {e}")
 
         try:
             response.raise_for_status()
         except Exception as e:
-            self.logger.error("exception in POST response, aborting")
+            self.logger.error(
+                f"{self._log_prelude()} exception in POST response, aborting"
+            )
             response.close()
             raise RuntimeError(f"MAIL client request failed: {e}") from e
 

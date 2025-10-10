@@ -7,8 +7,14 @@ from typing import Any
 from .actions import ActionCore
 from .tools import AgentToolCall
 
+AgentOutput = tuple[str | None, list[AgentToolCall]]
+"""
+Response type of a MAIL agent containing a response and tool calls.
+"""
+
 AgentFunction = Callable[
-    [list[dict[str, Any]], str], Awaitable[tuple[str | None, list[AgentToolCall]]]
+    [list[dict[str, Any]], str | dict[str, str]],
+    Awaitable[AgentOutput],
 ]
 """
 A function that takes a chat history and returns a response and tool calls.
@@ -52,6 +58,7 @@ class AgentCore:
                 | "send_broadcast"
                 | "acknowledge_broadcast"
                 | "ignore_broadcast"
+                | "help"
             ):
                 return True
             case "task_complete":

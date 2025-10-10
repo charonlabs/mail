@@ -32,4 +32,4 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Core runtime, tools, messages**: [src/mail/core/runtime.py](/src/mail/core/runtime.py), [src/mail/core/tools.py](/src/mail/core/tools.py), [src/mail/core/message.py](/src/mail/core/message.py)
 - **Interswarm**: [src/mail/net/router.py](/src/mail/net/router.py), [src/mail/net/registry.py](/src/mail/net/registry.py), [src/mail/net/types.py](/src/mail/net/types.py)
 - **Utilities**: [src/mail/utils/](/src/mail/utils/__init__.py)
-- **Examples and factories**: [src/mail/examples/](/src/mail/examples/__init__.py), [src/mail/factories/](/src/mail/factories/__init__.py)
+- **Examples and agent functions**: [src/mail/examples/](/src/mail/examples/__init__.py), [src/mail/factories/](/src/mail/factories/__init__.py)

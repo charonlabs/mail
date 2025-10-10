@@ -112,6 +112,7 @@ def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
         ],
         enable_interswarm=swarm_candidate.get("enable_interswarm", False),
         breakpoint_tools=swarm_candidate.get("breakpoint_tools", []),
+        exclude_tools=swarm_candidate.get("exclude_tools", []),
     )
 
 
@@ -173,6 +174,7 @@ def build_agent_from_swarms_json(agent_candidate: Any) -> SwarmsJSONAgent:
         can_complete_tasks=agent_candidate.get("can_complete_tasks", False),
         tool_format=agent_candidate.get("tool_format", "responses"),
         actions=agent_candidate.get("actions", []),
+        exclude_tools=agent_candidate.get("exclude_tools", []),
     )
 
 

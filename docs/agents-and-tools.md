@@ -23,6 +23,8 @@
 - `send_broadcast(subject, body)` → fans a `MAILBroadcast` out to every agent in the local swarm.
 - `acknowledge_broadcast(note=None)` → records the broadcast in agent memory without replying; the optional note stays internal.
 - `ignore_broadcast(reason=None)` → explicitly drops the broadcast and skips both memory storage and outbound mail; optional reason is internal only.
+- `await_message(reason=None)` → signals that the agent has no further output this turn and should be rescheduled when new mail arrives; an optional reason is surfaced in SSE events and tool-call history for debugging.
+- `help(get_summary=True, get_identity=False, get_tool_help=None, get_full_protocol=False)` → generates a MAIL primer for the calling agent, optionally including identity info, per-tool guides, and the full protocol spec; the runtime streams the result back as a system broadcast.
 - `send_interswarm_broadcast(subject, body, target_swarms=[])` → (supervisor + interswarm) sends a broadcast to selected remote swarms, defaulting to all when the list is empty.
 - `discover_swarms(discovery_urls)` → (supervisor + interswarm) hands discovery endpoints to the registry so it can import additional swarms.
 - `task_complete(finish_message)` → (supervisor) broadcasts the final answer and tells the runtime the task loop is finished.
@@ -39,5 +41,5 @@
 
 ## Factories and prompts
 - **Example factories and prompts** live in [src/mail/examples/*](/src/mail/examples/__init__.py) and [src/mail/factories/*](/src/mail/factories/__init__.py)
-- **Add your own agent** by creating a factory function and listing it in [swarms.json](/swarms.json)
+- **Add your own agent** by creating a MAIL-compatible agent function and listing it in [swarms.json](/swarms.json)
 - When referencing shared prompt text or other dynamic values, prefer the `python::` and `url::` prefixes so they stay in sync with code or remote configuration without manual duplication

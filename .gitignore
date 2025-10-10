@@ -218,3 +218,6 @@ logs/
 # Swarm registries
 registries/
 test-swarm-registry.json
+
+# Dev
+AGENTS.md
