@@ -333,10 +333,10 @@ without leaving the terminal.
   mail> post-message-stream "Continuing after breakpoint" \
         --task-id weather-123 \
         --resume-from breakpoint_tool_call \
-        --kwargs '{"breakpoint_tool_caller": "analyst", "breakpoint_tool_call_result": "Forecast: sunny"}'
+        --kwargs '{"breakpoint_tool_call_result": "{\"call_id\":\"bp-1\",\"content\":\"Forecast: sunny\"}"}'
   ```
 
-- The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
+- The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime only requires `breakpoint_tool_call_result`; supply a JSON-encoded string that mirrors the tool outputs you received. Provide either a single object (`{"content": "..."}`) or a list of objects (`[{"call_id": "...", "content": "..."}]`) when several breakpoint tools paused in parallel.
 - Upon resuming, the runtime reloads any stashed queue entries for the task so the agents pick up exactly where they paused.
 - For manual follow-ups, use `--resume-from user_response` to inject a new user message into the same task without losing queued events:
 
@@ -780,7 +780,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
-- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_caller` / `breakpoint_tool_call_result` inside `kwargs`. The runtime reloads any stashed queue items for that task, appends the tool output to the agent’s history, and continues processing until a `task_complete` broadcast is emitted.
+- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - To stream interswarm interactions, set `metadata.stream = true` on the `MAILInterswarmMessage`. The receiving swarm will return a `text/event-stream` response; add `metadata.ignore_stream_pings = true` if you prefer to suppress heartbeat `ping` events.
 - `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single `target_agent`, or `msg_type="broadcast"` with `targets`. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
 
@@ -1431,9 +1431,11 @@ async for event in stream:
 - When an agent invokes a tool that has been marked as a **breakpoint tool**, the runtime pauses the task and waits for the caller to provide the tool result. Resume the task by sending another message with:
   - The original `task_id`.
   - `resume_from="breakpoint_tool_call"`.
-  - Extra keyword arguments `breakpoint_tool_caller` (the agent name) and `breakpoint_tool_call_result` (the stringified payload you want appended to the agent history).
+  - Extra keyword argument `breakpoint_tool_call_result`, a JSON string describing the tool outputs. Provide either a single object (`{"content": "..."}`) or a list of objects (`[{"call_id": "...", "content": "..."}]`) when multiple breakpoint tool calls paused in parallel.
 
 ```python
+import json
+
 task_id = "weather-task"
 
 # Start a new task (runtime will mark it running until completion or a breakpoint)
@@ -1448,8 +1450,9 @@ stream = await client.post_message_stream(
     "Continuing after breakpoint",
     task_id=task_id,
     resume_from="breakpoint_tool_call",
-    breakpoint_tool_caller="weather",
-    breakpoint_tool_call_result="Forecast: sunny with a high of 75°F",
+    breakpoint_tool_call_result=json.dumps(
+        {"call_id": "bp-1", "content": "Forecast: sunny with a high of 75°F"}
+    ),
 )
 async for event in stream:
     ...
@@ -1972,4 +1975,3 @@ verbose = false
 
 
 ===== End of `docs/configuration.md` =====
-

@@ -74,10 +74,10 @@ without leaving the terminal.
   mail> post-message-stream "Continuing after breakpoint" \
         --task-id weather-123 \
         --resume-from breakpoint_tool_call \
-        --kwargs '{"breakpoint_tool_caller": "analyst", "breakpoint_tool_call_result": "Forecast: sunny"}'
+        --kwargs '{"breakpoint_tool_call_result": "{\"call_id\":\"bp-1\",\"content\":\"Forecast: sunny\"}"}'
   ```
 
-- The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime requires the two keys shown above; additional fields are ignored by the server unless the runtime exposes more resume hooks in the future.
+- The `--kwargs` payload must be valid JSON. For breakpoint resumes the runtime only requires `breakpoint_tool_call_result`; supply a JSON-encoded string that mirrors the tool outputs you received. Provide either a single object (`{"content": "..."}`) or a list of objects (`[{"call_id": "...", "content": "..."}]`) when several breakpoint tools paused in parallel.
 - Upon resuming, the runtime reloads any stashed queue entries for the task so the agents pick up exactly where they paused.
 - For manual follow-ups, use `--resume-from user_response` to inject a new user message into the same task without losing queued events:
 

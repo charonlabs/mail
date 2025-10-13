@@ -82,9 +82,11 @@ async for event in stream:
 - When an agent invokes a tool that has been marked as a **breakpoint tool**, the runtime pauses the task and waits for the caller to provide the tool result. Resume the task by sending another message with:
   - The original `task_id`.
   - `resume_from="breakpoint_tool_call"`.
-  - Extra keyword arguments `breakpoint_tool_caller` (the agent name) and `breakpoint_tool_call_result` (the stringified payload you want appended to the agent history).
+  - Extra keyword argument `breakpoint_tool_call_result`, a JSON string describing the tool outputs. Provide either a single object (`{"content": "..."}`) or a list of objects (`[{"call_id": "...", "content": "..."}]`) when multiple breakpoint tool calls paused in parallel.
 
 ```python
+import json
+
 task_id = "weather-task"
 
 # Start a new task (runtime will mark it running until completion or a breakpoint)
@@ -99,8 +101,9 @@ stream = await client.post_message_stream(
     "Continuing after breakpoint",
     task_id=task_id,
     resume_from="breakpoint_tool_call",
-    breakpoint_tool_caller="weather",
-    breakpoint_tool_call_result="Forecast: sunny with a high of 75°F",
+    breakpoint_tool_call_result=json.dumps(
+        {"call_id": "bp-1", "content": "Forecast: sunny with a high of 75°F"}
+    ),
 )
 async for event in stream:
     ...
