@@ -446,6 +446,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 )
                 if og_call is not None:
                     result_msgs.append(og_call.create_response_msg(resp["content"]))
+                    self._submit_event(
+                        "breakpoint_action_complete",
+                        task_id,
+                        f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
+                    )
         else:
             if len(self.last_breakpoint_tool_calls) > 1:
                 logger.error(
@@ -462,11 +467,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     payload["content"]
                 )
             )
-        for result_msg in result_msgs:
             self._submit_event(
                 "breakpoint_action_complete",
                 task_id,
-                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{result_msg['content']}'",
+                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
             )
 
         # append the breakpoint tool call result to the agent history
