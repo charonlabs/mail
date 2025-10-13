@@ -1390,14 +1390,17 @@ Your directly reachable agents can be found in the tool definitions for `send_re
         logger.info(
             f'{self._log_prelude()} sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
         )
-        self._submit_event(
-            "new_message",
-            message["message"]["task_id"],
-            f"sending message:\n{build_mail_xml(message)['content']}",
-            extra_data={
-                "full_message": message,
-            },
-        )
+        if not message["message"]["subject"].startswith(
+            "::action_complete_broadcast::"
+        ):
+            self._submit_event(
+                "new_message",
+                message["message"]["task_id"],
+                f"sending message:\n{build_mail_xml(message)['content']}",
+                extra_data={
+                    "full_message": message,
+                },
+            )
 
         async def schedule(message: MAILMessage) -> None:
             """
@@ -1449,7 +1452,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     self._submit_event(
                         "breakpoint_tool_call",
                         task_id,
-                        f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}'",
+                        f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}' with args: '{', '.join([ujson.dumps(call.tool_args) for call in breakpoint_calls])}'",
                     )
                     self.last_breakpoint_caller = recipient
                     self.last_breakpoint_tool_calls = breakpoint_calls
@@ -1917,7 +1920,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                             self._submit_event(
                                 "action_call",
                                 task_id,
-                                f"agent '{recipient}' executing action tool: '{call.tool_name}'",
+                                f"agent '{recipient}' executing action tool: '{call.tool_name}' with args: '{ujson.dumps(call.tool_args)}'",
                             )
                             try:
                                 # execute the action function
