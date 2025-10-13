@@ -11,9 +11,9 @@ from collections import defaultdict
 from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
+import ujson
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
-import ujson
 
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event

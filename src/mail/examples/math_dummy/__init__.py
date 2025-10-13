@@ -2,9 +2,9 @@ from .actions import (
     calculate_expression,
 )
 from .agent import (
+    LiteLLMMathFunction,
     factory_math_dummy,
     math_agent_params,
-    LiteLLMMathFunction,
 )
 from .prompts import (
     SYSPROMPT as MATH_SYSPROMPT,

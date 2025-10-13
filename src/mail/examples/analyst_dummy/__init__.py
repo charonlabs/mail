@@ -1,7 +1,7 @@
 from .agent import (
+    LiteLLMAnalystFunction,
     analyst_agent_params,
     factory_analyst_dummy,
-    LiteLLMAnalystFunction,
 )
 from .prompts import (
     SYSPROMPT as ANALYST_SYSPROMPT,
