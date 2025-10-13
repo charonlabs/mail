@@ -230,7 +230,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             messages.insert(0, {"role": "system", "content": self.system})
 
         # add the agent's tools to the list of tools
-        if self._debug_include_mail_tools:
+        if self._debug_include_mail_tools and len(self.comm_targets) > 0:
             agent_tools = (
                 create_mail_tools(
                     self.comm_targets,
