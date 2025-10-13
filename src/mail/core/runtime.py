@@ -105,6 +105,8 @@ class MAILRuntime:
         self._is_continuous = False
         self.exclude_tools = exclude_tools
         self.response_messages: dict[str, MAILMessage] = {}
+        self.last_breakpoint_caller: str | None = None
+        self.last_breakpoint_tool_calls: list[AgentToolCall] = []
 
     def _log_prelude(self) -> str:
         """
@@ -224,7 +226,6 @@ It is impossible to resume a task without `task_id` specified.""",
                     )
 
                 REQUIRED_KWARGS = [
-                    "breakpoint_tool_caller",
                     "breakpoint_tool_call_result",
                 ]
                 for kwarg in REQUIRED_KWARGS:
@@ -239,7 +240,17 @@ It is impossible to resume a task without `task_id` specified.""",
 It is impossible to resume a task without `{kwarg}` specified.""",
                             task_complete=True,
                         )
-                breakpoint_tool_caller = kwargs["breakpoint_tool_caller"]
+                if self.last_breakpoint_caller is None:
+                    logger.error(
+                        f"{self._log_prelude()} last breakpoint caller is not set"
+                    )
+                    return self._system_broadcast(
+                        task_id=task_id,
+                        subject="::runtime_error::",
+                        body="The last breakpoint caller is not set.",
+                        task_complete=True,
+                    )
+                breakpoint_tool_caller = self.last_breakpoint_caller
                 breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
                 result = await self._resume_task_from_breakpoint_tool_call(
@@ -424,16 +435,41 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
 
         await self.mail_tasks[task_id].queue_load(self.message_queue)
+        result_msgs: list[dict[str, Any]] = []
+        payload = ujson.loads(breakpoint_tool_call_result)
+        if isinstance(payload, list):
+            for resp in payload:
+                og_call = next(
+                    (
+                        call
+                        for call in self.last_breakpoint_tool_calls
+                        if call.tool_call_id == resp["call_id"]
+                    ),
+                    None,
+                )
+                if og_call is not None:
+                    result_msgs.append(og_call.create_response_msg(resp["content"]))
+        else:
+            if len(self.last_breakpoint_tool_calls) > 1:
+                logger.error(
+                    f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
+                )
+                return self._system_broadcast(
+                    task_id=task_id,
+                    subject="::runtime_error::",
+                    body="The last breakpoint tool calls is a list but only one call response was provided.",
+                    task_complete=True,
+                )
+            result_msgs.append(
+                self.last_breakpoint_tool_calls[0].create_response_msg(
+                    payload["content"]
+                )
+            )
 
         # append the breakpoint tool call result to the agent history
         self.agent_histories[
             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
-        ].append(
-            {
-                "role": "tool",
-                "content": breakpoint_tool_call_result,
-            }
-        )
+        ].extend(result_msgs)
 
         # send action complete broadcast to tool caller
         await self.submit(
@@ -1408,6 +1444,8 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                         task_id,
                         f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}'",
                     )
+                    self.last_breakpoint_caller = recipient
+                    self.last_breakpoint_tool_calls = breakpoint_calls
                     bp_dumps: list[dict[str, Any]] = []
                     if breakpoint_calls[0].completion:
                         bp_dumps.append(breakpoint_calls[0].completion)

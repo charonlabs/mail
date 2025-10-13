@@ -487,14 +487,22 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
     async def action_override(payload: dict[str, object]) -> dict[str, object] | str:
         return payload
 
+    runtime.last_breakpoint_caller = tool_caller
+    runtime.last_breakpoint_tool_calls = [
+        AgentToolCall(
+            tool_name="noop",
+            tool_args={},
+            tool_call_id="noop-1",
+            completion={"role": "assistant", "content": "done"},
+        )
+    ]
+
     result = await runtime.run_task(
         task_id=task_id,
         resume_from="breakpoint_tool_call",
-        breakpoint_tool_caller=tool_caller,
-        breakpoint_tool_call_result="done",
+        breakpoint_tool_call_result='{"content": "done"}',
         action_override=action_override,
     )
-
     assert result == expected_result
     assert action_override_called_with["task_id"] == task_id
     assert action_override_called_with["override"] is action_override
