@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
+import ujson
 
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
@@ -1393,25 +1394,48 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 else:
                     history.extend(tool_calls[0].responses)
 
+                breakpoint_calls = [
+                    call
+                    for call in tool_calls
+                    if call.tool_name in self.breakpoint_tools
+                ]
+                if breakpoint_calls:
+                    logger.info(
+                        f"{self._log_prelude()} agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}'"
+                    )
+                    self._submit_event(
+                        "breakpoint_tool_call",
+                        task_id,
+                        f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}'",
+                    )
+                    bp_dumps: list[dict[str, Any]] = []
+                    if breakpoint_calls[0].completion:
+                        bp_dumps.append(breakpoint_calls[0].completion)
+                    else:
+                        resps = breakpoint_calls[0].responses
+                        for resp in resps:
+                            if (
+                                resp["type"] == "function_call"
+                                and resp["name"] in self.breakpoint_tools
+                            ):
+                                bp_dumps.append(resp)
+                    await self.submit(
+                        self._system_broadcast(
+                            task_id=task_id,
+                            subject="::breakpoint_tool_call::",
+                            body=f"{ujson.dumps(bp_dumps)}",
+                            task_complete=True,
+                        )
+                    )
+                    # Remove breakpoint tools from processing
+                    tool_calls = [
+                        tc
+                        for tc in tool_calls
+                        if tc.tool_name not in self.breakpoint_tools
+                    ]
+
                 # handle tool calls
                 for call in tool_calls:
-                    if call.tool_name in self.breakpoint_tools:
-                        logger.info(
-                            f"{self._log_prelude()} agent '{recipient}' used breakpoint tool '{call.tool_name}'"
-                        )
-                        self._submit_event(
-                            "breakpoint_tool_call",
-                            task_id,
-                            f"agent '{recipient}' used breakpoint tool '{call.tool_name}'",
-                        )
-                        await self.submit(
-                            self._system_broadcast(
-                                task_id=task_id,
-                                subject="::breakpoint_tool_call::",
-                                body=f"{call.model_dump_json()}",
-                                task_complete=True,
-                            )
-                        )
                     match call.tool_name:
                         case "acknowledge_broadcast":
                             try:

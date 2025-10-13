@@ -102,7 +102,16 @@ async def test_breakpoint_tool_triggers_task_complete() -> None:
             tool_name="pause_for_debug",
             tool_args={"note": "pausing"},
             tool_call_id="bp-1",
-            completion={"role": "assistant", "content": "debug pause"},
+            responses=[
+                {
+                    "arguments": '{"note": "pausing"}',
+                    "call_id": "bp-1",
+                    "name": "pause_for_debug",
+                    "type": "function_call",
+                    "id": "fc_0bae822d2db78dbb0068ed566096b4819cb9cf976153d0e314",
+                    "status": "completed",
+                }
+            ],
         )
         return None, [call]
 
@@ -161,6 +170,6 @@ async def test_breakpoint_tool_triggers_task_complete() -> None:
     assert result["message"]["subject"] == "::breakpoint_tool_call::"
 
     payload = json.loads(result["message"]["body"])
-    assert payload["tool_name"] == "pause_for_debug"
-    assert payload["tool_args"] == {"note": "pausing"}
-    assert payload["tool_call_id"] == "bp-1"
+    assert payload[0]["name"] == "pause_for_debug"
+    assert payload[0]["arguments"] == '{"note": "pausing"}'
+    assert payload[0]["call_id"] == "bp-1"
