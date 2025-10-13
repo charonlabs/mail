@@ -412,14 +412,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 `breakpoint_tool_caller` specifies the name of the agent that called the breakpoint tool.""",
                 task_complete=True,
             )
-        if not isinstance(breakpoint_tool_call_result, str):
+        if (
+            not isinstance(breakpoint_tool_call_result, str)
+            and not isinstance(breakpoint_tool_call_result, list)
+            and not isinstance(breakpoint_tool_call_result, dict)
+        ):
             logger.error(
-                f"{self._log_prelude()} breakpoint_tool_call_result must be a string"
+                f"{self._log_prelude()} breakpoint_tool_call_result must be a string, list, or dict"
             )
             return self._system_broadcast(
                 task_id=task_id,
                 subject="::runtime_error::",
-                body="""The parameter 'breakpoint_tool_call_result' must be a string.
+                body="""The parameter 'breakpoint_tool_call_result' must be a string, list, or dict.
 `breakpoint_tool_call_result` specifies the result of the breakpoint tool call.""",
                 task_complete=True,
             )
@@ -436,7 +440,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         await self.mail_tasks[task_id].queue_load(self.message_queue)
         result_msgs: list[dict[str, Any]] = []
-        payload = ujson.loads(breakpoint_tool_call_result)
+        if isinstance(breakpoint_tool_call_result, str):
+            payload = ujson.loads(breakpoint_tool_call_result)
+        else:
+            payload = breakpoint_tool_call_result
+
         if isinstance(payload, list):
             for resp in payload:
                 og_call = next(
