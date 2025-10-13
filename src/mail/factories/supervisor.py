@@ -198,16 +198,7 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
         self.memory = memory
         self.use_proxy = use_proxy
         self._debug_include_mail_tools = _debug_include_mail_tools
-
-    def __call__(
-        self,
-        messages: list[dict[str, Any]],
-        tool_choice: str | dict[str, str] = "required",
-    ) -> Awaitable[AgentOutput]:
-        """
-        Execute a LiteLLM-based supervisor function.
-        """
-        litellm_supervisor = LiteLLMAgentFunction(
+        self.supervisor_fn = LiteLLMAgentFunction(
             name=self.name,
             comm_targets=self.comm_targets,
             tools=self.tools,
@@ -226,7 +217,15 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
             _debug_include_mail_tools=self._debug_include_mail_tools,
         )
 
-        return litellm_supervisor(
+    def __call__(
+        self,
+        messages: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> Awaitable[AgentOutput]:
+        """
+        Execute a LiteLLM-based supervisor function.
+        """
+        return self.supervisor_fn(
             messages=messages,
             tool_choice=tool_choice,
         )
