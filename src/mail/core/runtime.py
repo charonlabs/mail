@@ -401,17 +401,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Resume a task from a breakpoint tool call.
         """
-        if not isinstance(breakpoint_tool_caller, str):
-            logger.error(
-                f"{self._log_prelude()} breakpoint_tool_caller must be a string"
-            )
-            return self._system_broadcast(
-                task_id=task_id,
-                subject="::runtime_error::",
-                body="""The parameter 'breakpoint_tool_caller' must be a string.
-`breakpoint_tool_caller` specifies the name of the agent that called the breakpoint tool.""",
-                task_complete=True,
-            )
         if (
             not isinstance(breakpoint_tool_call_result, str)
             and not isinstance(breakpoint_tool_call_result, list)
@@ -472,6 +461,12 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self.last_breakpoint_tool_calls[0].create_response_msg(
                     payload["content"]
                 )
+            )
+        for result_msg in result_msgs:
+            self._submit_event(
+                "breakpoint_action_complete",
+                task_id,
+                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{result_msg['content']}'",
             )
 
         # append the breakpoint tool call result to the agent history
