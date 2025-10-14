@@ -1177,12 +1177,12 @@ class MAILSwarmTemplate:
         ]
 
         for agent in agents:
-            if hasattr(agent.function, "system"):
+            if hasattr(agent.function, "get_system"):
                 logger.info(f"Updating system prompt for agent {agent.name}")
                 delimiter = (
                     "Here are details about the agents you can communicate with:"
                 )
-                prompt: str = agent.function.system
+                prompt: str = agent.function.get_system()
                 if delimiter in prompt:
                     lines = prompt.splitlines()
                     result_lines = []
@@ -1227,7 +1227,7 @@ class MAILSwarmTemplate:
                 logger.info(
                     f"Updated system prompt for agent {agent.name} to [{prompt}]"
                 )
-                agent.function.system = prompt
+                agent.function.set_system(prompt)  # type: ignore
 
         return MAILSwarm(
             name=self.name,

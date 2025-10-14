@@ -219,6 +219,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         else:
             return self._run_responses(messages, tool_choice)
 
+    def set_system(self, system: str) -> None:
+        self.system = system
+
+    def get_system(self) -> str:
+        return self.system
+
     def _preprocess(
         self,
         messages: list[dict[str, Any]],

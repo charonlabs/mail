@@ -229,3 +229,10 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
             messages=messages,
             tool_choice=tool_choice,
         )
+
+    def set_system(self, system: str) -> None:
+        self.system = system
+        self.supervisor_fn.system = system
+
+    def get_system(self) -> str:
+        return self.system
