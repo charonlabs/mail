@@ -892,6 +892,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         else:
             payload = breakpoint_tool_call_result
 
+        logger.info(
+            f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload: '{payload}'"
+        )
+
         if isinstance(payload, list):
             for resp in payload:
                 og_call = next(
@@ -941,6 +945,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
         # submit an action complete broadcast to the task
+        logger.info(
+            f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: submitting action complete broadcast to the task"
+        )
         await self.submit(
             self._system_broadcast(
                 task_id=task_id,
