@@ -1207,28 +1207,17 @@ class MAILSwarmTemplate:
                     logger.info(f"Found target agent with fn of type {type(fn)}")
                     if isinstance(fn, MAILAgentFunction):
                         logger.info(f"Found target agent with MAILAgentFunction")
-                        if hasattr(fn, "supervisor_fn"):
-                            logger.info(f"Found target agent with supervisor_fn")
-                            fn = fn.supervisor_fn  # type: ignore
-                        if hasattr(fn, "action_agent_fn"):
-                            logger.info(f"Found target agent with action_agent_fn")
-                            fn = fn.action_agent_fn  # type: ignore
-                        if "web_search" in fn.tools and "code_interpreter" in fn.tools:
+                        web_search = any(t["type"] == "web_search" for t in fn.tools)
+                        code_interpreter = any(
+                            t["type"] == "code_interpreter" for t in fn.tools
+                        )
+                        if web_search and code_interpreter:
                             prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
-                        if (
-                            "web_search" in fn.tools
-                            and "code_interpreter" not in fn.tools
-                        ):
+                        if web_search and not code_interpreter:
                             prompt += "- This agent can search the web\n- This agent cannot execute code"
-                        if (
-                            "web_search" not in fn.tools
-                            and "code_interpreter" in fn.tools
-                        ):
+                        if not web_search and code_interpreter:
                             prompt += "- This agent can execute code. The code it writes cannot access the internet.\n- This agent cannot search the web"
-                        if (
-                            "web_search" not in fn.tools
-                            and "code_interpreter" not in fn.tools
-                        ):
+                        if not web_search and not code_interpreter:
                             prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
                     else:
                         prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
