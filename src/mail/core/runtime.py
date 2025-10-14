@@ -868,7 +868,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         # ensure valid kwargs
         REQUIRED_KWARGS: dict[str, type] = {
-            "breakpoint_tool_caller": str,
             "breakpoint_tool_call_result": str,
         }
         for kwarg, _type in REQUIRED_KWARGS.items():
@@ -877,7 +876,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided"
                 )
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
-        breakpoint_tool_caller = kwargs["breakpoint_tool_caller"]
+        breakpoint_tool_caller = self.last_breakpoint_caller
         breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
         # ensure the agent exists already
@@ -886,6 +885,48 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: agent '{breakpoint_tool_caller}' not found"
             )
             raise ValueError(f"agent '{breakpoint_tool_caller}' not found")
+
+        result_msgs: list[dict[str, Any]] = []
+        if isinstance(breakpoint_tool_call_result, str):
+            payload = ujson.loads(breakpoint_tool_call_result)
+        else:
+            payload = breakpoint_tool_call_result
+
+        if isinstance(payload, list):
+            for resp in payload:
+                og_call = next(
+                    (
+                        call
+                        for call in self.last_breakpoint_tool_calls
+                        if call.tool_call_id == resp["call_id"]
+                    ),
+                    None,
+                )
+                if og_call is not None:
+                    result_msgs.append(og_call.create_response_msg(resp["content"]))
+                    self._submit_event(
+                        "breakpoint_action_complete",
+                        task_id,
+                        f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
+                    )
+        else:
+            if len(self.last_breakpoint_tool_calls) > 1:
+                logger.error(
+                    f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
+                )
+                raise ValueError(
+                    "The last breakpoint tool calls is a list but only one call response was provided."
+                )
+            result_msgs.append(
+                self.last_breakpoint_tool_calls[0].create_response_msg(
+                    payload["content"]
+                )
+            )
+            self._submit_event(
+                "breakpoint_action_complete",
+                task_id,
+                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
+            )
 
         # append the breakpoint tool call result to the agent history
         self.agent_histories[
