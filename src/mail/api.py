@@ -1178,7 +1178,10 @@ class MAILSwarmTemplate:
 
         for agent in agents:
             delimiter = "Here are details about the agents you can communicate with:"
-            prompt = agent.agent_params["system"]
+            if "system" not in agent.agent_params:
+                prompt = ""
+            else:
+                prompt = agent.agent_params["system"]
             if delimiter in prompt:
                 lines = prompt.splitlines()
                 result_lines = []
@@ -1208,6 +1211,7 @@ class MAILSwarmTemplate:
                     prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
                 prompt += "\n\n"
             prompt.strip()
+            agent.agent_params["system"] = prompt
 
         return MAILSwarm(
             name=self.name,
