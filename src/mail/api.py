@@ -1177,7 +1177,7 @@ class MAILSwarmTemplate:
         ]
 
         for agent in agents:
-            delimiter = "Your communication targets are as follows:"
+            delimiter = "Here are details about the agents you can communicate with:"
             prompt = agent.agent_params["system"]
             if delimiter in prompt:
                 lines = prompt.splitlines()
@@ -1196,17 +1196,18 @@ class MAILSwarmTemplate:
                 prompt += f"Capabilities:\n"
                 function = t.function
                 if isinstance(function, MAILAgentFunction):
+                    if "web_search" in function.tools and "code_interpreter" in function.tools:
+                        prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
                     if "web_search" in function.tools and "code_interpreter" not in function.tools:
                         prompt += "- This agent can search the web\n- This agent cannot execute code"
                     if "web_search" not in function.tools and "code_interpreter" in function.tools:
-                        prompt += "- This agent can execute code\n- This agent cannot search the web"
+                        prompt += "- This agent can execute code. The code it writes cannot access the internet.\n- This agent cannot search the web"
                     if "web_search" not in function.tools and "code_interpreter" not in function.tools:
-                        prompt += "- This agent cannot search the web\n- This agent cannot execute code"
+                        prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
                 else:
-                    prompt += "- This agent cannot search the web\n- This agent cannot execute code"
+                    prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
                 prompt += "\n\n"
             prompt.strip()
-
 
         return MAILSwarm(
             name=self.name,
