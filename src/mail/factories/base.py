@@ -143,7 +143,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         comm_targets: list[str],
         tools: list[dict[str, Any]],
         llm: str,
-        system: str,
+        system: str = "",
         user_token: str = "",
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,

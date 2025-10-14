@@ -1177,41 +1177,57 @@ class MAILSwarmTemplate:
         ]
 
         for agent in agents:
-            delimiter = "Here are details about the agents you can communicate with:"
-            if "system" not in agent.agent_params:
-                prompt = ""
-            else:
-                prompt = agent.agent_params["system"]
-            if delimiter in prompt:
-                lines = prompt.splitlines()
-                result_lines = []
-                for line in lines:
-                    if delimiter in line:
-                        break
-                    result_lines.append(line)
-                prompt = '\n'.join(result_lines)
-                prompt += f"\n\n{delimiter}\n\n"
-            else:
-                prompt += f"\n\n{delimiter}\n\n"
-            targets_as_agents = [a for a in agents if a.name in agent.comm_targets]
-            for t in targets_as_agents:
-                prompt += f"Name: {t.name}\n"
-                prompt += f"Capabilities:\n"
-                function = t.function
-                if isinstance(function, MAILAgentFunction):
-                    if "web_search" in function.tools and "code_interpreter" in function.tools:
-                        prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
-                    if "web_search" in function.tools and "code_interpreter" not in function.tools:
-                        prompt += "- This agent can search the web\n- This agent cannot execute code"
-                    if "web_search" not in function.tools and "code_interpreter" in function.tools:
-                        prompt += "- This agent can execute code. The code it writes cannot access the internet.\n- This agent cannot search the web"
-                    if "web_search" not in function.tools and "code_interpreter" not in function.tools:
-                        prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
+            if hasattr(agent.function, "system"):
+                logger.info(f"Updating system prompt for agent {agent.name}")
+                delimiter = (
+                    "Here are details about the agents you can communicate with:"
+                )
+                prompt: str = agent.function.system
+                if delimiter in prompt:
+                    lines = prompt.splitlines()
+                    result_lines = []
+                    for line in lines:
+                        if delimiter in line:
+                            break
+                        result_lines.append(line)
+                    prompt = "\n".join(result_lines)
+                    prompt += f"\n\n{delimiter}\n\n"
                 else:
-                    prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
-                prompt += "\n\n"
-            prompt.strip()
-            agent.agent_params["system"] = prompt
+                    prompt += f"\n\n{delimiter}\n\n"
+                targets_as_agents = [a for a in agents if a.name in agent.comm_targets]
+                for t in targets_as_agents:
+                    prompt += f"Name: {t.name}\n"
+                    prompt += "Capabilities:\n"
+                    function = t.function
+                    if isinstance(function, MAILAgentFunction):
+                        if (
+                            "web_search" in function.tools
+                            and "code_interpreter" in function.tools
+                        ):
+                            prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
+                        if (
+                            "web_search" in function.tools
+                            and "code_interpreter" not in function.tools
+                        ):
+                            prompt += "- This agent can search the web\n- This agent cannot execute code"
+                        if (
+                            "web_search" not in function.tools
+                            and "code_interpreter" in function.tools
+                        ):
+                            prompt += "- This agent can execute code. The code it writes cannot access the internet.\n- This agent cannot search the web"
+                        if (
+                            "web_search" not in function.tools
+                            and "code_interpreter" not in function.tools
+                        ):
+                            prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
+                    else:
+                        prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
+                    prompt += "\n\n"
+                prompt.strip()
+                logger.info(
+                    f"Updated system prompt for agent {agent.name} to [{prompt}]"
+                )
+                agent.function.system = prompt
 
         return MAILSwarm(
             name=self.name,
