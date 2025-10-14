@@ -568,6 +568,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         )
                         future = self.pending_requests.pop(task_id)
                         future.set_result(message)
+                        continue
                     else:
                         # Mark this message as done and continue processing
                         self.message_queue.task_done()
@@ -935,12 +936,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         # append the breakpoint tool call result to the agent history
         self.agent_histories[
             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
-        ].append(
-            {
-                "role": "tool",
-                "content": breakpoint_tool_call_result,
-            }
-        )
+        ].extend(result_msgs)
 
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
