@@ -1204,6 +1204,7 @@ class MAILSwarmTemplate:
                     prompt += f"Name: {t.name}\n"
                     prompt += "Capabilities:\n"
                     fn = t.function
+                    logger.info(f"Found target agent with fn of type {type(fn)}")
                     if isinstance(fn, MAILAgentFunction):
                         if hasattr(fn, "supervisor_fn"):
                             fn = fn.supervisor_fn  # type: ignore
