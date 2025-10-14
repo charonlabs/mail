@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 1.1-pre3
-- **Date**: October 10, 2025
+- **Version**: 1.1
+- **Date**: October 14, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -260,7 +260,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Versioning
 
-- **Protocol version**: 1.1-pre3
+- **Protocol version**: 1.1
 - Backward-incompatible changes MUST bump the minor (or major) version and update OpenAPI `info.version`.
 
 ## References
