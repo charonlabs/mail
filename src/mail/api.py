@@ -497,9 +497,13 @@ class MAILAction:
                     case "boolean":
                         fields[key].annotation = bool
                     case "array":
-                        fields[key].annotation = list
-                    case "object":
-                        fields[key].annotation = dict
+                        match parameters[key]["items"]["type"]:
+                            case "string":
+                                fields[key].annotation = list[str]
+                            case "integer" | "number":
+                                fields[key].annotation = list[int]
+                            case "boolean":
+                                fields[key].annotation = list[bool]
                     case _:
                         raise ValueError(f"unsupported type: {parameters[key]['type']}")
                 fields[key].json_schema_extra = None
