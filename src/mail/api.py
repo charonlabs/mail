@@ -1206,9 +1206,12 @@ class MAILSwarmTemplate:
                     fn = t.function
                     logger.info(f"Found target agent with fn of type {type(fn)}")
                     if isinstance(fn, MAILAgentFunction):
+                        logger.info(f"Found target agent with MAILAgentFunction")
                         if hasattr(fn, "supervisor_fn"):
+                            logger.info(f"Found target agent with supervisor_fn")
                             fn = fn.supervisor_fn  # type: ignore
                         if hasattr(fn, "action_agent_fn"):
+                            logger.info(f"Found target agent with action_agent_fn")
                             fn = fn.action_agent_fn  # type: ignore
                         if "web_search" in fn.tools and "code_interpreter" in fn.tools:
                             prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
