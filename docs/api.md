@@ -31,7 +31,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
-- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_caller` / `breakpoint_tool_call_result` inside `kwargs`. The runtime reloads any stashed queue items for that task, appends the tool output to the agent’s history, and continues processing until a `task_complete` broadcast is emitted.
+- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - To stream interswarm interactions, set `metadata.stream = true` on the `MAILInterswarmMessage`. The receiving swarm will return a `text/event-stream` response; add `metadata.ignore_stream_pings = true` if you prefer to suppress heartbeat `ping` events.
 - `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single `target_agent`, or `msg_type="broadcast"` with `targets`. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
 

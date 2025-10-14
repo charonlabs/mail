@@ -42,6 +42,7 @@ from mail.swarms_json import (
     load_swarms_json_from_file,
 )
 from mail.utils import read_python_string, resolve_prefixed_string_references
+from mail.factories.base import MAILAgentFunction
 
 logger = logging.getLogger("mail")
 
@@ -754,8 +755,8 @@ class MAILSwarm:
             subject, body, [entrypoint], "user", msg_type, task_id
         )
         task_id = message["message"]["task_id"]
-
-        await self._runtime.submit(message)
+        if not resume_from == "breakpoint_tool_call":
+            await self._runtime.submit(message)
         task_response = await self._runtime.run_task(
             task_id=task_id, resume_from=resume_from, max_steps=max_steps, **kwargs
         )
@@ -1022,6 +1023,14 @@ class MAILSwarm:
             enable_interswarm=self.enable_interswarm,
         )
 
+    def get_response_message(self, task_id: str) -> MAILMessage | None:
+        """Get the response message for a given task ID. Mostly used after streaming response events."""
+        return self._runtime.get_response_message(task_id)
+
+    def get_events(self, task_id: str) -> list[ServerSentEvent]:
+        """Get the events for a given task ID. Mostly used after streaming response events."""
+        return self._runtime.get_events_by_task_id(task_id)
+
 
 class MAILSwarmTemplate:
     """
@@ -1166,6 +1175,58 @@ class MAILSwarmTemplate:
             )
             for agent in self.agents
         ]
+
+        for agent in agents:
+            if isinstance(agent.function, MAILAgentFunction):
+                function = agent.function
+                if hasattr(function, "supervisor_fn"):
+                    function = function.supervisor_fn  # type: ignore
+                if hasattr(function, "action_agent_fn"):
+                    function = function.action_agent_fn  # type: ignore
+                logger.info(f"Updating system prompt for agent {agent.name}")
+                delimiter = (
+                    "Here are details about the agents you can communicate with:"
+                )
+                prompt: str = function.system  # type: ignore
+                if delimiter in prompt:
+                    lines = prompt.splitlines()
+                    result_lines = []
+                    for line in lines:
+                        if delimiter in line:
+                            break
+                        result_lines.append(line)
+                    prompt = "\n".join(result_lines)
+                    prompt += f"\n\n{delimiter}\n\n"
+                else:
+                    prompt += f"\n\n{delimiter}\n\n"
+                targets_as_agents = [a for a in agents if a.name in agent.comm_targets]
+                for t in targets_as_agents:
+                    prompt += f"Name: {t.name}\n"
+                    prompt += "Capabilities:\n"
+                    fn = t.function
+                    logger.info(f"Found target agent with fn of type {type(fn)}")
+                    if isinstance(fn, MAILAgentFunction):
+                        logger.info(f"Found target agent with MAILAgentFunction")
+                        web_search = any(t["type"] == "web_search" for t in fn.tools)
+                        code_interpreter = any(
+                            t["type"] == "code_interpreter" for t in fn.tools
+                        )
+                        if web_search and code_interpreter:
+                            prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
+                        if web_search and not code_interpreter:
+                            prompt += "- This agent can search the web\n- This agent cannot execute code"
+                        if not web_search and code_interpreter:
+                            prompt += "- This agent can execute code. The code it writes cannot access the internet.\n- This agent cannot search the web"
+                        if not web_search and not code_interpreter:
+                            prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
+                    else:
+                        prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
+                    prompt += "\n\n"
+                prompt.strip()
+                logger.info(
+                    f"Updated system prompt for agent {agent.name} to [{prompt}]"
+                )
+                function.system = prompt  # type: ignore
 
         return MAILSwarm(
             name=self.name,

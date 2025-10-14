@@ -11,6 +11,7 @@ from collections import defaultdict
 from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
+import ujson
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
 
@@ -103,6 +104,9 @@ class MAILRuntime:
         self.breakpoint_tools = breakpoint_tools
         self._is_continuous = False
         self.exclude_tools = exclude_tools
+        self.response_messages: dict[str, MAILMessage] = {}
+        self.last_breakpoint_caller: str | None = None
+        self.last_breakpoint_tool_calls: list[AgentToolCall] = []
 
     def _log_prelude(self) -> str:
         """
@@ -222,7 +226,6 @@ It is impossible to resume a task without `task_id` specified.""",
                     )
 
                 REQUIRED_KWARGS = [
-                    "breakpoint_tool_caller",
                     "breakpoint_tool_call_result",
                 ]
                 for kwarg in REQUIRED_KWARGS:
@@ -237,7 +240,17 @@ It is impossible to resume a task without `task_id` specified.""",
 It is impossible to resume a task without `{kwarg}` specified.""",
                             task_complete=True,
                         )
-                breakpoint_tool_caller = kwargs["breakpoint_tool_caller"]
+                if self.last_breakpoint_caller is None:
+                    logger.error(
+                        f"{self._log_prelude()} last breakpoint caller is not set"
+                    )
+                    return self._system_broadcast(
+                        task_id=task_id,
+                        subject="::runtime_error::",
+                        body="The last breakpoint caller is not set.",
+                        task_complete=True,
+                    )
+                breakpoint_tool_caller = self.last_breakpoint_caller
                 breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
                 result = await self._resume_task_from_breakpoint_tool_call(
@@ -309,6 +322,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 logger.info(
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}': '{message['message']['subject']}'"
                 )
+                if message["msg_type"] == "broadcast_complete":
+                    task_id_completed = message["message"].get("task_id")
+                    if isinstance(task_id_completed, str):
+                        self.response_messages[task_id_completed] = message
+                        self._ensure_task_exists(task_id_completed)
+                        await self.mail_tasks[task_id_completed].queue_stash(
+                            self.message_queue
+                        )
+                    # Mark this message as done before breaking
+                    self.message_queue.task_done()
+                    return message
+
                 if (
                     not message["message"]["subject"].startswith("::")
                     and not message["message"]["sender"]["address_type"] == "system"
@@ -333,17 +358,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         logger.info(
                             f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', sending system response"
                         )
-
-                if message["msg_type"] == "broadcast_complete":
-                    task_id_completed = message["message"].get("task_id")
-                    if isinstance(task_id_completed, str):
-                        self._ensure_task_exists(task_id_completed)
-                        await self.mail_tasks[task_id_completed].queue_stash(
-                            self.message_queue
-                        )
-                    # Mark this message as done before breaking
-                    self.message_queue.task_done()
-                    return message
 
                 await self._process_message(message, action_override)
                 # Note: task_done() is called by the schedule function for regular messages
@@ -387,25 +401,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Resume a task from a breakpoint tool call.
         """
-        if not isinstance(breakpoint_tool_caller, str):
+        if (
+            not isinstance(breakpoint_tool_call_result, str)
+            and not isinstance(breakpoint_tool_call_result, list)
+            and not isinstance(breakpoint_tool_call_result, dict)
+        ):
             logger.error(
-                f"{self._log_prelude()} breakpoint_tool_caller must be a string"
+                f"{self._log_prelude()} breakpoint_tool_call_result must be a string, list, or dict"
             )
             return self._system_broadcast(
                 task_id=task_id,
                 subject="::runtime_error::",
-                body="""The parameter 'breakpoint_tool_caller' must be a string.
-`breakpoint_tool_caller` specifies the name of the agent that called the breakpoint tool.""",
-                task_complete=True,
-            )
-        if not isinstance(breakpoint_tool_call_result, str):
-            logger.error(
-                f"{self._log_prelude()} breakpoint_tool_call_result must be a string"
-            )
-            return self._system_broadcast(
-                task_id=task_id,
-                subject="::runtime_error::",
-                body="""The parameter 'breakpoint_tool_call_result' must be a string.
+                body="""The parameter 'breakpoint_tool_call_result' must be a string, list, or dict.
 `breakpoint_tool_call_result` specifies the result of the breakpoint tool call.""",
                 task_complete=True,
             )
@@ -421,16 +428,55 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
 
         await self.mail_tasks[task_id].queue_load(self.message_queue)
+        result_msgs: list[dict[str, Any]] = []
+        if isinstance(breakpoint_tool_call_result, str):
+            payload = ujson.loads(breakpoint_tool_call_result)
+        else:
+            payload = breakpoint_tool_call_result
+
+        if isinstance(payload, list):
+            for resp in payload:
+                og_call = next(
+                    (
+                        call
+                        for call in self.last_breakpoint_tool_calls
+                        if call.tool_call_id == resp["call_id"]
+                    ),
+                    None,
+                )
+                if og_call is not None:
+                    result_msgs.append(og_call.create_response_msg(resp["content"]))
+                    self._submit_event(
+                        "breakpoint_action_complete",
+                        task_id,
+                        f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
+                    )
+        else:
+            if len(self.last_breakpoint_tool_calls) > 1:
+                logger.error(
+                    f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
+                )
+                return self._system_broadcast(
+                    task_id=task_id,
+                    subject="::runtime_error::",
+                    body="The last breakpoint tool calls is a list but only one call response was provided.",
+                    task_complete=True,
+                )
+            result_msgs.append(
+                self.last_breakpoint_tool_calls[0].create_response_msg(
+                    payload["content"]
+                )
+            )
+            self._submit_event(
+                "breakpoint_action_complete",
+                task_id,
+                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
+            )
 
         # append the breakpoint tool call result to the agent history
         self.agent_histories[
             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
-        ].append(
-            {
-                "role": "tool",
-                "content": breakpoint_tool_call_result,
-            }
-        )
+        ].extend(result_msgs)
 
         # send action complete broadcast to tool caller
         await self.submit(
@@ -508,6 +554,25 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' in continuous mode: '{message['message']['subject']}'"
                 )
                 task_id = message["message"]["task_id"]
+
+                if message["msg_type"] == "broadcast_complete":
+                    # Check if this completes a pending request
+                    self.response_messages[task_id] = message
+                    if isinstance(task_id, str):
+                        self._ensure_task_exists(task_id)
+                        await self.mail_tasks[task_id].queue_stash(self.message_queue)
+                    if isinstance(task_id, str) and task_id in self.pending_requests:
+                        # Resolve the pending request
+                        logger.info(
+                            f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
+                        )
+                        future = self.pending_requests.pop(task_id)
+                        future.set_result(message)
+                    else:
+                        # Mark this message as done and continue processing
+                        self.message_queue.task_done()
+                        continue
+
                 if (
                     not message["message"]["subject"].startswith("::")
                     and not message["message"]["sender"]["address_type"] == "system"
@@ -532,23 +597,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         logger.info(
                             f"{self._log_prelude()} maximum number of steps reached for task '{task_id}', sending system response"
                         )
-
-                if message["msg_type"] == "broadcast_complete":
-                    # Check if this completes a pending request
-                    if isinstance(task_id, str):
-                        self._ensure_task_exists(task_id)
-                        await self.mail_tasks[task_id].queue_stash(self.message_queue)
-                    if isinstance(task_id, str) and task_id in self.pending_requests:
-                        # Resolve the pending request
-                        logger.info(
-                            f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
-                        )
-                        future = self.pending_requests.pop(task_id)
-                        future.set_result(message)
-                    else:
-                        # Mark this message as done and continue processing
-                        self.message_queue.task_done()
-                        continue
 
                 await self._process_message(message, action_override)
                 # Note: task_done() is called by the schedule function for regular messages
@@ -1342,14 +1390,17 @@ Your directly reachable agents can be found in the tool definitions for `send_re
         logger.info(
             f'{self._log_prelude()} sending message: "{message["message"]["sender"]}" -> "{recipient}" with subject: "{message["message"]["subject"]}"'
         )
-        self._submit_event(
-            "new_message",
-            message["message"]["task_id"],
-            f"sending message:\n{build_mail_xml(message)['content']}",
-            extra_data={
-                "full_message": message,
-            },
-        )
+        if not message["message"]["subject"].startswith(
+            "::action_complete_broadcast::"
+        ):
+            self._submit_event(
+                "new_message",
+                message["message"]["task_id"],
+                f"sending message:\n{build_mail_xml(message)['content']}",
+                extra_data={
+                    "full_message": message,
+                },
+            )
 
         async def schedule(message: MAILMessage) -> None:
             """
@@ -1389,25 +1440,50 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 else:
                     history.extend(tool_calls[0].responses)
 
+                breakpoint_calls = [
+                    call
+                    for call in tool_calls
+                    if call.tool_name in self.breakpoint_tools
+                ]
+                if breakpoint_calls:
+                    logger.info(
+                        f"{self._log_prelude()} agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}'"
+                    )
+                    self._submit_event(
+                        "breakpoint_tool_call",
+                        task_id,
+                        f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}' with args: '{', '.join([ujson.dumps(call.tool_args) for call in breakpoint_calls])}'",
+                    )
+                    self.last_breakpoint_caller = recipient
+                    self.last_breakpoint_tool_calls = breakpoint_calls
+                    bp_dumps: list[dict[str, Any]] = []
+                    if breakpoint_calls[0].completion:
+                        bp_dumps.append(breakpoint_calls[0].completion)
+                    else:
+                        resps = breakpoint_calls[0].responses
+                        for resp in resps:
+                            if (
+                                resp["type"] == "function_call"
+                                and resp["name"] in self.breakpoint_tools
+                            ):
+                                bp_dumps.append(resp)
+                    await self.submit(
+                        self._system_broadcast(
+                            task_id=task_id,
+                            subject="::breakpoint_tool_call::",
+                            body=f"{ujson.dumps(bp_dumps)}",
+                            task_complete=True,
+                        )
+                    )
+                    # Remove breakpoint tools from processing
+                    tool_calls = [
+                        tc
+                        for tc in tool_calls
+                        if tc.tool_name not in self.breakpoint_tools
+                    ]
+
                 # handle tool calls
                 for call in tool_calls:
-                    if call.tool_name in self.breakpoint_tools:
-                        logger.info(
-                            f"{self._log_prelude()} agent '{recipient}' used breakpoint tool '{call.tool_name}'"
-                        )
-                        self._submit_event(
-                            "breakpoint_tool_call",
-                            task_id,
-                            f"agent '{recipient}' used breakpoint tool '{call.tool_name}'",
-                        )
-                        await self.submit(
-                            self._system_broadcast(
-                                task_id=task_id,
-                                subject="::breakpoint_tool_call::",
-                                body=f"{call.model_dump_json()}",
-                                task_complete=True,
-                            )
-                        )
                     match call.tool_name:
                         case "acknowledge_broadcast":
                             try:
@@ -1844,7 +1920,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                             self._submit_event(
                                 "action_call",
                                 task_id,
-                                f"agent '{recipient}' executing action tool: '{call.tool_name}'",
+                                f"agent '{recipient}' executing action tool: '{call.tool_name}' with args: '{ujson.dumps(call.tool_args)}'",
                             )
                             try:
                                 # execute the action function
@@ -2110,3 +2186,9 @@ Use this information to decide how to complete your task.""",
         Get a task by ID.
         """
         return self.mail_tasks.get(task_id)
+
+    def get_response_message(self, task_id: str) -> MAILMessage | None:
+        """
+        Get the response message for a given task ID. Mostly used after streaming response events.
+        """
+        return self.response_messages.get(task_id, None)

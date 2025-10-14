@@ -143,7 +143,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         comm_targets: list[str],
         tools: list[dict[str, Any]],
         llm: str,
-        system: str,
+        system: str = "",
         user_token: str = "",
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
@@ -230,7 +230,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             messages.insert(0, {"role": "system", "content": self.system})
 
         # add the agent's tools to the list of tools
-        if self._debug_include_mail_tools:
+        if self._debug_include_mail_tools and len(self.comm_targets) > 0:
             agent_tools = (
                 create_mail_tools(
                     self.comm_targets,

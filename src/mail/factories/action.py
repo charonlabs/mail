@@ -178,16 +178,7 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         self.memory = memory
         self.use_proxy = use_proxy
         self._debug_include_mail_tools = _debug_include_mail_tools
-
-    def __call__(
-        self,
-        messages: list[dict[str, Any]],
-        tool_choice: str | dict[str, str] = "required",
-    ) -> Awaitable[AgentOutput]:
-        """
-        Execute a LiteLLM-based action agent function.
-        """
-        litellm_action_agent = LiteLLMAgentFunction(
+        self.action_agent_fn = LiteLLMAgentFunction(
             llm=self.llm,
             comm_targets=self.comm_targets,
             tools=self.tools,
@@ -207,7 +198,15 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
             _debug_include_mail_tools=self._debug_include_mail_tools,
         )
 
-        return litellm_action_agent(
+    def __call__(
+        self,
+        messages: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> Awaitable[AgentOutput]:
+        """
+        Execute a LiteLLM-based action agent function.
+        """
+        return self.action_agent_fn(
             messages=messages,
             tool_choice=tool_choice,
         )
