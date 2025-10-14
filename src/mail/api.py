@@ -492,10 +492,14 @@ class MAILAction:
                 match parameters[key]["type"]:
                     case "string":
                         fields[key].annotation = str
-                    case "integer":
+                    case "integer" | "number":
                         fields[key].annotation = int
                     case "boolean":
                         fields[key].annotation = bool
+                    case "array":
+                        fields[key].annotation = list
+                    case "object":
+                        fields[key].annotation = dict
                     case _:
                         raise ValueError(f"unsupported type: {parameters[key]['type']}")
                 fields[key].json_schema_extra = None
