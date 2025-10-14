@@ -1233,7 +1233,7 @@ class MAILSwarmTemplate:
                 logger.info(
                     f"Updated system prompt for agent {agent.name} to [{prompt}]"
                 )
-                agent.function.set_system(prompt)  # type: ignore
+                function.system = prompt  # type: ignore
 
         return MAILSwarm(
             name=self.name,
