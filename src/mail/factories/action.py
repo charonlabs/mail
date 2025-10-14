@@ -210,16 +210,3 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
             messages=messages,
             tool_choice=tool_choice,
         )
-
-    def set_system(self, system: str) -> None:
-        """
-        Set the system prompt for the action agent function.
-        """
-        self.system = system
-        self.action_agent_fn.system = system
-
-    def get_system(self) -> str:
-        """
-        Get the system prompt for the action agent function.
-        """
-        return self.system

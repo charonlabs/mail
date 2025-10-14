@@ -1177,12 +1177,17 @@ class MAILSwarmTemplate:
         ]
 
         for agent in agents:
-            if hasattr(agent.function, "get_system"):
+            if isinstance(agent.function, MAILAgentFunction):
+                function = agent.function
+                if hasattr(function, "supervisor_fn"):
+                    function = function.supervisor_fn  # type: ignore
+                if hasattr(function, "action_agent_fn"):
+                    function = function.action_agent_fn  # type: ignore
                 logger.info(f"Updating system prompt for agent {agent.name}")
                 delimiter = (
                     "Here are details about the agents you can communicate with:"
                 )
-                prompt: str = agent.function.get_system()
+                prompt: str = function.system  # type: ignore
                 if delimiter in prompt:
                     lines = prompt.splitlines()
                     result_lines = []
@@ -1198,26 +1203,27 @@ class MAILSwarmTemplate:
                 for t in targets_as_agents:
                     prompt += f"Name: {t.name}\n"
                     prompt += "Capabilities:\n"
-                    function = t.function
-                    if isinstance(function, MAILAgentFunction):
-                        if (
-                            "web_search" in function.tools
-                            and "code_interpreter" in function.tools
-                        ):
+                    fn = t.function
+                    if isinstance(fn, MAILAgentFunction):
+                        if hasattr(fn, "supervisor_fn"):
+                            fn = fn.supervisor_fn  # type: ignore
+                        if hasattr(fn, "action_agent_fn"):
+                            fn = fn.action_agent_fn  # type: ignore
+                        if "web_search" in fn.tools and "code_interpreter" in fn.tools:
                             prompt += "- This agent can search the web\n- This agent can execute code. The code it writes cannot access the internet."
                         if (
-                            "web_search" in function.tools
-                            and "code_interpreter" not in function.tools
+                            "web_search" in fn.tools
+                            and "code_interpreter" not in fn.tools
                         ):
                             prompt += "- This agent can search the web\n- This agent cannot execute code"
                         if (
-                            "web_search" not in function.tools
-                            and "code_interpreter" in function.tools
+                            "web_search" not in fn.tools
+                            and "code_interpreter" in fn.tools
                         ):
                             prompt += "- This agent can execute code. The code it writes cannot access the internet.\n- This agent cannot search the web"
                         if (
-                            "web_search" not in function.tools
-                            and "code_interpreter" not in function.tools
+                            "web_search" not in fn.tools
+                            and "code_interpreter" not in fn.tools
                         ):
                             prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
                     else:
