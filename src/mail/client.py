@@ -12,6 +12,7 @@ from typing import Any, Literal, cast
 
 from aiohttp import (
     ClientResponse,
+    ClientResponseError,
     ClientSession,
     ClientTimeout,
     ContentTypeError,
@@ -65,21 +66,23 @@ class MAILClient:
         self._session = session
         self._owns_session = session is None
         self._console = console.Console()
-        self.username = "unknown"
+        self.user_id = "unknown"
+        self.user_role = "unknown"
 
     def _log_prelude(self) -> str:
         """
         Get the log prelude for the client.
         """
-        return f"[{self.username}@{self.base_url}]"
+        return f"[{self.user_role}:{self.user_id}@{self.base_url}]"
 
     async def _register_user_info(self) -> None:
         """
         Attempt to login and fetch user info.
         """
         try:
-            self.username = await self._request_json("POST", "/auth/login")
-            self.user_info = await self._request_json("GET", "/auth/check")
+            self.user_info = await self._request_json("POST", "/auth/login")
+            self.user_role = self.user_info["role"]
+            self.user_id = self.user_info["id"]
         except Exception as e:
             self.logger.error(f"{self._log_prelude()} error registering user info: {e}")
 
@@ -153,6 +156,9 @@ class MAILClient:
             ) as response:
                 response.raise_for_status()
                 return await self._read_json(response)
+        except ClientResponseError as e:
+            self.logger.error(f"{self._log_prelude()} HTTP request failed with status code {e.status}: '{e.message}'")
+            raise RuntimeError(f"HTTP request failed with status code {e.status}: '{e.message}'")
         except Exception as e:
             self.logger.error(
                 f"{self._log_prelude()} exception during request to remote HTTP, aborting"
@@ -177,6 +183,21 @@ class MAILClient:
         Get basic metadata about the MAIL server (`GET /`).
         """
         return cast(GetRootResponse, await self._request_json("GET", "/"))
+
+    async def login(self, api_key: str) -> dict[str, Any]:
+        """
+        Log in to the MAIL server given an API key.
+        """
+        self.api_key = api_key
+        try:
+            response = await self._request_json("GET", "/whoami")
+            self.user_role = response["role"]
+            self.user_id = response["id"]
+            return response
+        except Exception as e:
+            self.api_key = None
+            self.logger.error(f"{self._log_prelude()} error logging in: {e}")
+            raise RuntimeError(f"MAIL client login failed: {e}")
 
     async def get_whoami(self) -> GetWhoamiResponse:
         """
@@ -510,7 +531,7 @@ class MAILClientCLI:
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `GET /`",
         )
         ping_parser.set_defaults(func=self._ping)
 
@@ -524,21 +545,48 @@ class MAILClientCLI:
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `GET /health`",
         )
         health_parser.set_defaults(func=self._health)
+
+        # command `login`
+        login_parser = subparsers.add_parser(
+            "login",
+            aliases=["l"],
+            help="log in to the MAIL server"
+        )
+        login_parser.add_argument(
+            "api_key",
+            type=str,
+            help="the API key to log in with",
+        )
+        login_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        login_parser.set_defaults(func=self._login)
+
+        # command `logout`
+        logout_parser = subparsers.add_parser(
+            "logout",
+            aliases=["lo"],
+            help="(user|admin) log out of the MAIL server"
+        )
+        logout_parser.set_defaults(func=self._logout)
 
         # command `whoami`
         whoami_parser = subparsers.add_parser(
             "whoami",
-            aliases=["me"],
-            help="get the username and role of the caller"
+            aliases=["me", "id"],
+            help="(user|admin) get the username and role of the caller"
         )
         whoami_parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `GET /whoami`",
         )
         whoami_parser.set_defaults(func=self._whoami)
 
@@ -546,13 +594,13 @@ class MAILClientCLI:
         status_parser = subparsers.add_parser(
             "status", 
             aliases=["s"],
-            help="get the status of the MAIL server"
+            help="(user|admin) view the status of the user runtime within the MAIL server"
         )
         status_parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `GET /status`",
         )
         status_parser.set_defaults(func=self._status)
 
@@ -560,7 +608,7 @@ class MAILClientCLI:
         message_parser = subparsers.add_parser(
             "message",
             aliases=["m", "msg"],
-            help="send a message to the MAIL server"
+            help="(user|admin) send a message to the MAIL server"
         )
         message_parser.add_argument(
             "body",
@@ -629,7 +677,7 @@ class MAILClientCLI:
         message_stream_parser = subparsers.add_parser(
             "message-stream",
             aliases=["ms", "msg-s"],
-            help="send a message to the MAIL server and stream the response",
+            help="(user|admin) send a message to the MAIL server and stream the response",
         )
         message_stream_parser.add_argument(
             "body",
@@ -690,7 +738,7 @@ class MAILClientCLI:
         message_interswarm_parser = subparsers.add_parser(
             "message-interswarm",
             aliases=["mi", "msg-i"],
-            help="send an interswarm message to the MAIL server",
+            help="(user|admin) send an interswarm message through this MAIL server",
         )
         message_interswarm_parser.add_argument(
             "body",
@@ -713,13 +761,13 @@ class MAILClientCLI:
         swarms_get_parser = subparsers.add_parser(
             "swarms-get",
             aliases=["sg", "swarms-g"],
-            help="get the swarms of the MAIL server"
+            help="(user|admin) get the list of foreign swarms known by this MAIL server"
         )
         swarms_get_parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `GET /swarms`",
         )
         swarms_get_parser.set_defaults(func=self._swarms_get)
 
@@ -727,7 +775,7 @@ class MAILClientCLI:
         swarm_register_parser = subparsers.add_parser(
             "swarm-register",
             aliases=["sr", "swarm-r"],
-            help="register a swarm with the MAIL server"
+            help="(admin) register a foreign swarm with the MAIL server"
         )
         swarm_register_parser.add_argument(
             "name",
@@ -754,7 +802,7 @@ class MAILClientCLI:
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `POST /swarms`",
         )
         swarm_register_parser.set_defaults(func=self._swarm_register)
 
@@ -762,13 +810,13 @@ class MAILClientCLI:
         swarm_dump_parser = subparsers.add_parser(
             "swarm-dump",
             aliases=["sd", "swarm-d"],
-            help="dump the swarm of the MAIL server"
+            help="(admin) dump the persistent swarm of this MAIL server"
         )
         swarm_dump_parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `GET /swarms/dump`",
         )
         swarm_dump_parser.set_defaults(func=self._swarm_dump)
 
@@ -776,18 +824,18 @@ class MAILClientCLI:
         swarm_load_from_json_parser = subparsers.add_parser(
             "swarm-load-from-json",
             aliases=["sl", "swarm-l"],
-            help="load a swarm from a JSON document"
+            help="(admin) load a swarm from a JSON string"
         )
         swarm_load_from_json_parser.add_argument(
             "swarm-json",
             type=str,
-            help="the JSON document to load the swarm from",
+            help="the JSON string to load the swarm from",
         )
         swarm_load_from_json_parser.add_argument(
             "-v",
             "--verbose",
             action="store_true",
-            help="enable verbose output",
+            help="view the full JSON response for `POST /swarms/load`",
         )
         swarm_load_from_json_parser.set_defaults(func=self._swarm_load_from_json)
 
@@ -821,6 +869,41 @@ class MAILClientCLI:
                 f"[red bold]error[/red bold] getting health: {e}"
             )
 
+    async def _login(self, args: argparse.Namespace) -> None:
+        """
+        Log in to the MAIL server.
+        """
+        try:
+            response = await self.client.login(args.api_key)
+            self.user_role = response["role"]
+            self.user_id = response["id"]
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"[green]successfully[/green] logged into {self.client.base_url}")
+                self.client._console.print(f"> role: [green]{self.user_role}[/green]")
+                self.client._console.print(f"> id: [green]{self.user_id}[/green]")
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] logging in: {e}")
+
+    async def _logout(self, args: argparse.Namespace) -> None:
+        """
+        Log out of the MAIL server.
+        """
+        if self.user_role not in {"user", "admin"}:
+            self.client._console.print("[red bold]error[/red bold] logging out: not currently logged in")
+            return
+
+        self.client.api_key = None
+        self.api_key = None
+
+        self.client.user_role = "unknown"
+        self.client.user_id = "unknown"
+        self.user_role = "unknown"
+        self.user_id = "unknown"
+
+        self.client._console.print(f"[green]successfully[/green] logged out of {self.client.base_url}")
+
     async def _whoami(self, args: argparse.Namespace) -> None:
         """
         Get the username and role of the caller.
@@ -830,7 +913,7 @@ class MAILClientCLI:
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:
-                self.client._console.print(f"role '{response['role']}' with username '{response['username']}'")
+                self.client._console.print(f"role [green]{response['role']}[/green] with ID [green]{response['id']}[/green]")
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] getting whoami: {e}"
@@ -845,8 +928,8 @@ class MAILClientCLI:
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:
-                self.client._console.print(f"user MAIL {"IS" if response['user_mail_ready'] else "IS NOT"} ready")
-                self.client._console.print(f"user task {"IS" if response['user_task_running'] else "IS NOT"} running")
+                self.client._console.print(f"user MAIL {"[green]IS[/green]" if response['user_mail_ready'] else "[red]IS NOT[/red]"} ready")
+                self.client._console.print(f"user task {"[green]IS[/green]" if response['user_task_running'] else "[red]IS NOT[/red]"} running")
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] getting status: {e}")
 
@@ -969,7 +1052,7 @@ class MAILClientCLI:
 
     async def _swarm_load_from_json(self, args: argparse.Namespace) -> None:
         """
-        Load a swarm from a JSON document.
+        Load a swarm from a JSON string.
         """
         try:
             response = await self.client.load_swarm_from_json(args.swarm_json)
@@ -996,7 +1079,8 @@ class MAILClientCLI:
 
     def _repl_input_string(
         self,
-        username: str,
+        user_role: str,
+        user_id: str,
         base_url: str,
     ) -> str:
         """
@@ -1004,7 +1088,11 @@ class MAILClientCLI:
         """
         base_url = base_url.removeprefix("http://")
         base_url = base_url.removeprefix("https://")
-        return f"[cyan bold]mail[/cyan bold]::[green bold]{username}@{base_url}[/green bold]> "
+        # truncate the user ID if it's longer than 8 characters
+        if len(user_id) > 8:
+            user_id = f"{user_id[:4]}...{user_id[-4:]}"
+            
+        return f"[cyan bold]mail[/cyan bold]::[green bold]{user_role}:{user_id}@{base_url}[/green bold]> "
 
     async def run(
         self,
@@ -1016,15 +1104,24 @@ class MAILClientCLI:
         if attempt_login:
             try:
                 whoami = await self.client.get_whoami()
+                self.client._console.print(f"[green]successfully[/green] logged into {self.client.base_url}")
+                self.client._console.print(f"> role: [green]{whoami['role']}[/green]")
+                self.client._console.print(f"> id: [green]{whoami['id']}[/green]")
             except Exception as e:
                 self.client._console.print(
-                    f"[yellow]warning[/yellow]: unable to determine identity via /whoami ({e}). Continuing as anonymous."
+                    "[yellow]warning[/yellow]: unable to determine identity via /whoami"
                 )
-                self.username = "unknown"
+                self.client._console.print(f"> error: {e}")
+                self.client._console.print("> NOTE: your client will be connected to the server but will not be logged in")
+                self.client._console.print("> NOTE: you can log in by running `login {YOUR_API_KEY}`")
+                self.user_role = "unknown"
+                self.user_id = "unknown"
             else:
-                self.username = whoami.get("username", "unknown")
+                self.user_id = whoami.get("id", "unknown")
+                self.user_role = whoami.get("role", "unknown")
         else:
-            self.username = "unknown"
+            self.user_id = "unknown"
+            self.user_role = "unknown"
         self.base_url = self.client.base_url
 
         self._print_preamble()
@@ -1032,7 +1129,7 @@ class MAILClientCLI:
         while True:
             try:
                 raw_command = self.client._console.input(
-                    self._repl_input_string(self.username, self.base_url)
+                    self._repl_input_string(self.user_role, self.user_id, self.base_url)
                 )
             except EOFError:
                 self.client._console.print()

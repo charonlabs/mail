@@ -60,7 +60,7 @@ async def login(api_key: str) -> str:
         response.raise_for_status()
         data = await response.json()
 
-        logger.info(f"[{api_key[:8]}...] user or agent authenticated with API key")
+        logger.info(f"[[green]{api_key[:8]}...[/green]] user or agent authenticated with API key")
         return data["token"]
 
 
@@ -165,19 +165,3 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
 
     return await get_token_info(jwt)
 
-
-def generate_user_id(token_info: dict[str, Any]) -> str:
-    """
-    Generate a user ID from a token info dictionary.
-    """
-    user_role = token_info["role"]
-    user_id = token_info["id"]
-    return f"{user_role}_{user_id}"
-
-
-def generate_agent_id(token_info: dict[str, Any]) -> str:
-    """
-    Generate an agent ID from a token info dictionary.
-    """
-    agent_id = token_info["id"]
-    return f"swarm_{agent_id}"

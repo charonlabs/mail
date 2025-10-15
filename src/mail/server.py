@@ -86,7 +86,7 @@ def _log_prelude() -> str:
     """
     Get the log prelude for the server.
     """
-    return f"[{local_swarm_name}@{local_base_url}]"
+    return f"[[green]{local_swarm_name}[/green]@{local_base_url}]"
 
 
 @asynccontextmanager
@@ -336,13 +336,11 @@ async def root():
     """
     Return basic info about the server.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'GET /'")
-
     return types.GetRootResponse(
         name="mail",
         version=utils.get_protocol_version(),
         swarm=local_swarm_name,
-        status="ok",
+        status="running",
         uptime=time.time() - app.state.start_time,
     )
 
@@ -352,11 +350,9 @@ async def whoami(request: Request):
     """
     Get the username and role of the caller.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'GET /whoami'")
     try:
         caller_info = await utils.extract_token_info(request)
-        caller_id = utils.generate_user_id(caller_info)
-        return types.GetWhoamiResponse(username=caller_id, role=caller_info["role"])
+        return types.GetWhoamiResponse(id=caller_info["id"], role=caller_info["role"])
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
@@ -371,12 +367,10 @@ async def status(request: Request):
     """
     Get the status of the persistent swarm and user-specific MAIL instances.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'GET /status'")
-
     global persistent_swarm, user_mail_instances, user_mail_tasks
 
     caller_info = await utils.extract_token_info(request)
-    caller_id = utils.generate_user_id(caller_info)
+    caller_id = caller_info["id"]
     user_mail_status = caller_id in user_mail_instances
     user_task_running = (
         caller_id in user_mail_tasks and not user_mail_tasks[caller_id].done()
@@ -415,10 +409,8 @@ async def message(request: Request):
     Returns:
         A dictionary containing the response message.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'POST /message'")
-
     caller_info = await utils.extract_token_info(request)
-    caller_id = utils.generate_user_id(caller_info)
+    caller_id = caller_info["id"]
 
     # Extract bearer token from header for runtime instance params
     auth_header = request.headers.get("Authorization", "")
@@ -535,8 +527,6 @@ async def health():
     """
     Health check endpoint for interswarm communication.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'GET /health'")
-
     return types.GetHealthResponse(
         status="healthy",
         swarm_name=local_swarm_name,
@@ -549,8 +539,6 @@ async def list_swarms():
     """
     List all known swarms for service discovery.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'GET /swarms'")
-
     global swarm_registry
     if not swarm_registry:
         raise HTTPException(status_code=503, detail="swarm registry not available")
@@ -571,8 +559,6 @@ async def register_swarm(request: Request):
     Only admins can register new swarms.
     If "volatile" is False, the swarm will be persistent and will not be removed from the registry when the server shuts down.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'POST /swarms'")
-
     global swarm_registry
     if not swarm_registry:
         raise HTTPException(status_code=503, detail="swarm registry not available")
@@ -613,8 +599,6 @@ async def dump_swarm(request: Request):
     """
     Dump the persistent swarm to the console.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'GET /swarms/dump'")
-
     global persistent_swarm
 
     assert persistent_swarm is not None
@@ -636,10 +620,8 @@ async def receive_interswarm_message(request: Request):
     """
     Receive an interswarm message from another swarm.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'POST /interswarm/message'")
-
     caller_info = await utils.extract_token_info(request)
-    caller_id = utils.generate_agent_id(caller_info)
+    caller_id = caller_info["id"]
     auth_header = request.headers.get("Authorization", "")
     jwt = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else ""
 
@@ -751,8 +733,6 @@ async def receive_interswarm_response(request: Request):
     """
     Receive an interswarm response from another swarm.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'POST /interswarm/response'")
-
     # parse request
     try:
         data = await request.json()
@@ -827,13 +807,11 @@ async def send_interswarm_message(request: Request):
     Returns:
         The response from the message.
     """
-    logger.info(f"{_log_prelude()} endpoint accessed: 'POST /interswarm/send'")
-
     global swarm_registry, user_mail_instances
 
     try:
         caller_info = await utils.extract_token_info(request)
-        user_id = utils.generate_user_id(caller_info)
+        user_id = caller_info["id"]
 
         # parse request
         data = await request.json()
@@ -960,9 +938,6 @@ async def load_swarm_from_json(request: Request):
     """
     Load a swarm from a JSON string.
     """
-    # got to let them know (shouting emoji)
-    logger.info(f"{_log_prelude()} endpoint accessed: 'POST /swarms/load'")
-
     global persistent_swarm
 
     # get the json string from the request

@@ -65,8 +65,8 @@ class GetWhoamiResponse(TypedDict):
     Response for the MAIL server endpoint `GET /whoami`.
     """
 
-    username: str
-    """The username of the caller."""
+    id: str
+    """The ID of the caller."""
     role: str
     """The role of the caller."""
 
