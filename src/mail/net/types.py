@@ -16,25 +16,18 @@ class SwarmEndpoint(TypedDict):
 
     swarm_name: str
     """The name of the swarm."""
-
     base_url: str
     """The base URL of the swarm (e.g., https://swarm1.example.com)."""
-
     health_check_url: str
     """The health check endpoint URL."""
-
     auth_token_ref: str | None
     """Authentication token reference (environment variable or actual token)."""
-
     last_seen: datetime.datetime | None
     """When this swarm was last seen/heard from."""
-
     is_active: bool
     """Whether this swarm is currently active."""
-
     metadata: dict[str, Any] | None
     """Additional metadata about the swarm."""
-
     volatile: bool
     """Whether this swarm is volatile (will be removed from the registry when the server shuts down)."""
 
@@ -46,7 +39,6 @@ class SwarmStatus(TypedDict):
 
     name: str | None
     """The name of the swarm."""
-
     status: str
     """The status of the swarm."""
 
@@ -57,13 +49,15 @@ class GetRootResponse(TypedDict):
     """
 
     name: str
-    """The name of the service."""
-
-    status: str
-    """The status of the service."""
-
+    """The name of the service; should always be `mail`."""
     version: str
     """The version of MAIL that is running."""
+    swarm: str
+    """The name of the swarm that is running."""
+    status: str
+    """The status of the service; should always be `running`."""
+    uptime: float
+    """The uptime of the service in seconds."""
 
 
 class GetWhoamiResponse(TypedDict):
@@ -73,7 +67,6 @@ class GetWhoamiResponse(TypedDict):
 
     username: str
     """The username of the caller."""
-
     role: str
     """The role of the caller."""
 
@@ -85,13 +78,10 @@ class GetStatusResponse(TypedDict):
 
     swarm: SwarmStatus
     """The swarm that is running."""
-
     active_users: int
     """The number of active users."""
-
     user_mail_ready: bool
     """Whether the user MAIL instance is ready."""
-
     user_task_running: bool
     """Whether the user MAIL instance task is running."""
 

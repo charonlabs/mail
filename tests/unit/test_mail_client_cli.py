@@ -72,11 +72,11 @@ async def test_cli_uses_shlex_for_tokenization(
     async def fake_post_message(self: MAILClientCLI, args) -> None:  # type: ignore[override]
         captured_messages.append(args.body)
 
-    monkeypatch.setattr(MAILClientCLI, "_post_message", fake_post_message)
+    monkeypatch.setattr(MAILClientCLI, "_message", fake_post_message)
 
     cli = _make_cli()
 
-    inputs = iter(['post-message "hello world"', "exit"])
+    inputs = iter(['message "hello world"', "exit"])
 
     def fake_input(_prompt: str, *_args: Any) -> str:
         return next(inputs)

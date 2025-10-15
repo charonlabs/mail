@@ -172,7 +172,7 @@ class MAILClient:
                 f"expected JSON response but received content with type '{response.content_type}': {text}"
             ) from exc
 
-    async def get_root(self) -> GetRootResponse:
+    async def ping(self) -> GetRootResponse:
         """
         Get basic metadata about the MAIL server (`GET /`).
         """
@@ -500,28 +500,64 @@ class MAILClientCLI:
         # subparsers for each MAIL command
         subparsers = parser.add_subparsers()
 
-        # command `get-root`
-        get_root_parser = subparsers.add_parser(
-            "get-root", help="get the root of the MAIL server"
+        # command `ping`
+        ping_parser = subparsers.add_parser(
+            "ping", help="ping the MAIL server"
         )
-        get_root_parser.set_defaults(func=self._get_root)
+        ping_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        ping_parser.set_defaults(func=self._ping)
 
-        # command `get-whoami`
-        get_whoami_parser = subparsers.add_parser(
-            "get-whoami", help="get the username and role of the caller"
+        # command `health`
+        health_parser = subparsers.add_parser(
+            "health", help="get the health of the MAIL server"
         )
-        get_whoami_parser.set_defaults(func=self._get_whoami)
+        health_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        health_parser.set_defaults(func=self._health)
 
-        # command `post-message`
-        post_message_parser = subparsers.add_parser(
-            "post-message", help="send a message to the MAIL server"
+        # command `whoami`
+        whoami_parser = subparsers.add_parser(
+            "whoami", help="get the username and role of the caller"
         )
-        post_message_parser.add_argument(
+        whoami_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        whoami_parser.set_defaults(func=self._whoami)
+
+        # command `status`
+        status_parser = subparsers.add_parser(
+            "status", help="get the status of the MAIL server"
+        )
+        status_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        status_parser.set_defaults(func=self._status)
+
+        # command `message`
+        message_parser = subparsers.add_parser(
+            "message", help="send a message to the MAIL server"
+        )
+        message_parser.add_argument(
             "body",
             type=str,
             help="the message to send",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-s",
             "--subject",
             type=str,
@@ -529,7 +565,7 @@ class MAILClientCLI:
             default="New Message",
             help="the subject of the message",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-t",
             "--msg-type",
             type=str,
@@ -537,7 +573,7 @@ class MAILClientCLI:
             default="request",
             help="the type of the message",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-tid",
             "--task-id",
             type=str,
@@ -545,7 +581,7 @@ class MAILClientCLI:
             default=None,
             help="the task ID of the message",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-e",
             "--entrypoint",
             type=str,
@@ -553,7 +589,7 @@ class MAILClientCLI:
             default=None,
             help="the agent to send the message to",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-se",
             "--show-events",
             action="store_true",
@@ -561,7 +597,7 @@ class MAILClientCLI:
             default=False,
             help="show events",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-rf",
             "--resume-from",
             type=str,
@@ -569,7 +605,7 @@ class MAILClientCLI:
             default=None,
             help="the resume from of the message",
         )
-        post_message_parser.add_argument(
+        message_parser.add_argument(
             "-k",
             "--kwargs",
             type=json.loads,
@@ -577,19 +613,19 @@ class MAILClientCLI:
             default=f"{{}}",  # noqa: F541
             help="the kwargs of the message",
         )
-        post_message_parser.set_defaults(func=self._post_message)
+        message_parser.set_defaults(func=self._message)
 
-        # command `post-message-stream`
-        post_message_stream_parser = subparsers.add_parser(
-            "post-message-stream",
+        # command `message-stream`
+        message_stream_parser = subparsers.add_parser(
+            "message-stream",
             help="send a message to the MAIL server and stream the response",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "body",
             type=str,
             help="the message to send",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "-s",
             "--subject",
             type=str,
@@ -597,7 +633,7 @@ class MAILClientCLI:
             default="New Message",
             help="the subject of the message",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "-t",
             "--msg-type",
             type=str,
@@ -605,7 +641,7 @@ class MAILClientCLI:
             default="request",
             help="the type of the message",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "-tid",
             "--task-id",
             type=str,
@@ -613,7 +649,7 @@ class MAILClientCLI:
             default=None,
             help="the task ID of the message",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "-e",
             "--entrypoint",
             type=str,
@@ -621,7 +657,7 @@ class MAILClientCLI:
             default=None,
             help="the agent to send the message to",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "-rf",
             "--resume-from",
             type=str,
@@ -629,7 +665,7 @@ class MAILClientCLI:
             default=None,
             help="the resume from of the message",
         )
-        post_message_stream_parser.add_argument(
+        message_stream_parser.add_argument(
             "-k",
             "--kwargs",
             type=json.loads,
@@ -637,117 +673,164 @@ class MAILClientCLI:
             default=f"{{}}",  # noqa: F541
             help="the kwargs of the message",
         )
-        post_message_stream_parser.set_defaults(func=self._post_message_stream)
+        message_stream_parser.set_defaults(func=self._message_stream)
 
-        # command `get-health`
-        get_health_parser = subparsers.add_parser(
-            "get-health", help="get the health of the MAIL server"
-        )
-        get_health_parser.set_defaults(func=self._get_health)
-
-        # command `get-swarms`
-        get_swarms_parser = subparsers.add_parser(
-            "get-swarms", help="get the swarms of the MAIL server"
-        )
-        get_swarms_parser.set_defaults(func=self._get_swarms)
-
-        # command `register-swarm`
-        register_swarm_parser = subparsers.add_parser(
-            "register-swarm", help="register a swarm with the MAIL server"
-        )
-        register_swarm_parser.add_argument(
-            "-n",
-            "--name",
-            type=str,
-            help="the name of the swarm",
-        )
-        register_swarm_parser.add_argument(
-            "-bu",
-            "--base-url",
-            type=str,
-            help="the base URL of the swarm",
-        )
-        register_swarm_parser.add_argument(
-            "-at",
-            "--auth-token",
-            type=str,
-            required=False,
-            help="the auth token of the swarm",
-        )
-        register_swarm_parser.add_argument(
-            "-v",
-            "--volatile",
-            type=bool,
-            required=False,
-            default=False,
-            help="whether the swarm is volatile",
-        )
-        register_swarm_parser.set_defaults(func=self._register_swarm)
-
-        # command `dump-swarm`
-        dump_swarm_parser = subparsers.add_parser(
-            "dump-swarm", help="dump the swarm of the MAIL server"
-        )
-        dump_swarm_parser.set_defaults(func=self._dump_swarm)
-
-        # command `send-interswarm-message`
-        send_interswarm_message_parser = subparsers.add_parser(
-            "send-interswarm-message",
+        # command `message-interswarm`
+        message_interswarm_parser = subparsers.add_parser(
+            "message-interswarm",
             help="send an interswarm message to the MAIL server",
         )
-        send_interswarm_message_parser.add_argument(
-            "--body",
+        message_interswarm_parser.add_argument(
+            "body",
             type=str,
             help="the message to send",
         )
-        send_interswarm_message_parser.add_argument(
-            "--targets",
+        message_interswarm_parser.add_argument(
+            "targets",
             type=list[str],
             help="the target agent to send the message to",
         )
-        send_interswarm_message_parser.add_argument(
-            "--user-token",
+        message_interswarm_parser.add_argument(
+            "user-token",
             type=str,
             help="the user token to send the message with",
         )
-        send_interswarm_message_parser.set_defaults(func=self._send_interswarm_message)
+        message_interswarm_parser.set_defaults(func=self._message_interswarm)
 
-        # command `load-swarm-from-json`
-        load_swarm_from_json_parser = subparsers.add_parser(
-            "load-swarm-from-json", help="load a swarm from a JSON document"
+        # command `swarms-get`
+        swarms_get_parser = subparsers.add_parser(
+            "swarms-get", help="get the swarms of the MAIL server"
         )
-        load_swarm_from_json_parser.add_argument(
-            "--swarm-json",
+        swarms_get_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        swarms_get_parser.set_defaults(func=self._swarms_get)
+
+        # command `swarm-register`
+        swarm_register_parser = subparsers.add_parser(
+            "swarm-register", help="register a swarm with the MAIL server"
+        )
+        swarm_register_parser.add_argument(
+            "name",
+            type=str,
+            help="the name of the swarm",
+        )
+        swarm_register_parser.add_argument(
+            "base-url",
+            type=str,
+            help="the base URL of the swarm",
+        )
+        swarm_register_parser.add_argument(
+            "auth-token",
+            type=str,
+            help="the auth token of the swarm",
+        )
+        swarm_register_parser.add_argument(
+            "-V",
+            "--volatile",
+            action="store_true",
+            help="whether the swarm is volatile",
+        )
+        swarm_register_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        swarm_register_parser.set_defaults(func=self._swarm_register)
+
+        # command `swarm-dump`
+        swarm_dump_parser = subparsers.add_parser(
+            "swarm-dump", help="dump the swarm of the MAIL server"
+        )
+        swarm_dump_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        swarm_dump_parser.set_defaults(func=self._swarm_dump)
+
+        # command `swarm-load-from-json`
+        swarm_load_from_json_parser = subparsers.add_parser(
+            "swarm-load-from-json", help="load a swarm from a JSON document"
+        )
+        swarm_load_from_json_parser.add_argument(
+            "swarm-json",
             type=str,
             help="the JSON document to load the swarm from",
         )
-        load_swarm_from_json_parser.set_defaults(func=self._load_swarm_from_json)
+        swarm_load_from_json_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="enable verbose output",
+        )
+        swarm_load_from_json_parser.set_defaults(func=self._swarm_load_from_json)
 
         return parser
 
-    async def _get_root(self, _args: argparse.Namespace) -> None:
+    async def _ping(self, args: argparse.Namespace) -> None:
         """
         Get the root of the MAIL server.
         """
         try:
-            response = await self.client.get_root()
-            self.client._console.print(json.dumps(response, indent=2))
+            response = await self.client.ping()
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print("pong")
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] getting root: {e}")
+            self.client._console.print(f"[red bold]error[/red bold] pinging: {e}")
 
-    async def _get_whoami(self, _args: argparse.Namespace) -> None:
+    async def _health(self, args: argparse.Namespace) -> None:
+        """
+        Get the health of the MAIL server.
+        """
+        try:
+            response = await self.client.get_health()
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print("healthy")
+        except Exception as e:
+            self.client._console.print(
+                f"[red bold]error[/red bold] getting health: {e}"
+            )
+
+    async def _whoami(self, args: argparse.Namespace) -> None:
         """
         Get the username and role of the caller.
         """
         try:
             response = await self.client.get_whoami()
-            self.client._console.print(json.dumps(response, indent=2))
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"role '{response['role']}' with username '{response['username']}'")
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] getting whoami: {e}"
             )
 
-    async def _post_message(self, args: argparse.Namespace) -> None:
+    async def _status(self, args: argparse.Namespace) -> None:
+        """
+        Get the status the user within the MAIL server.
+        """
+        try:
+            response = await self.client.get_status()
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"user MAIL {"IS" if response['user_mail_ready'] else "IS NOT"} ready")
+                self.client._console.print(f"user task {"IS" if response['user_task_running'] else "IS NOT"} running")
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] getting status: {e}")
+
+    async def _message(self, args: argparse.Namespace) -> None:
         """
         Post a message to the MAIL server.
         """
@@ -771,7 +854,7 @@ class MAILClientCLI:
                 f"[red bold]error[/red bold] posting message: {e}"
             )
 
-    async def _post_message_stream(self, args: argparse.Namespace) -> None:
+    async def _message_stream(self, args: argparse.Namespace) -> None:
         """
         Post a message to the MAIL server and stream the response.
         """
@@ -799,31 +882,24 @@ class MAILClientCLI:
                 f"[red bold]error[/red bold] posting message: {e}"
             )
 
-    async def _get_health(self, _args: argparse.Namespace) -> None:
-        """
-        Get the health of the MAIL server.
-        """
-        try:
-            response = await self.client.get_health()
-            self.client._console.print(json.dumps(response, indent=2))
-        except Exception as e:
-            self.client._console.print(
-                f"[red bold]error[/red bold] getting health: {e}"
-            )
-
-    async def _get_swarms(self, _args: argparse.Namespace) -> None:
+    async def _swarms_get(self, args: argparse.Namespace) -> None:
         """
         Get the swarms of the MAIL server.
         """
         try:
             response = await self.client.get_swarms()
-            self.client._console.print(json.dumps(response, indent=2))
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"found {len(response['swarms'])} swarms:")
+                for swarm in response['swarms']:
+                    self.client._console.print(f"{swarm['swarm_name']}@{swarm['base_url']}")
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] getting swarms: {e}"
             )
 
-    async def _register_swarm(self, args: argparse.Namespace) -> None:
+    async def _swarm_register(self, args: argparse.Namespace) -> None:
         """
         Register a swarm with the MAIL server.
         """
@@ -835,23 +911,29 @@ class MAILClientCLI:
                 volatile=args.volatile,
                 metadata=None,
             )
-            self.client._console.print(json.dumps(response, indent=2))
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"swarm {args.name} registered")
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] registering swarm: {e}"
             )
 
-    async def _dump_swarm(self, _args: argparse.Namespace) -> None:
+    async def _swarm_dump(self, args: argparse.Namespace) -> None:
         """
         Dump the swarm of the MAIL server.
         """
         try:
             response = await self.client.dump_swarm()
-            self.client._console.print(json.dumps(response, indent=2))
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"swarm '{response['swarm_name']}' dumped")
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] dumping swarm: {e}")
 
-    async def _send_interswarm_message(self, args: argparse.Namespace) -> None:
+    async def _message_interswarm(self, args: argparse.Namespace) -> None:
         """
         Send an interswarm message to the MAIL server.
         """
@@ -865,13 +947,16 @@ class MAILClientCLI:
                 f"[red bold]error[/red bold] sending interswarm message: {e}"
             )
 
-    async def _load_swarm_from_json(self, args: argparse.Namespace) -> None:
+    async def _swarm_load_from_json(self, args: argparse.Namespace) -> None:
         """
         Load a swarm from a JSON document.
         """
         try:
             response = await self.client.load_swarm_from_json(args.swarm_json)
-            self.client._console.print(json.dumps(response, indent=2))
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"swarm '{response['swarm_name']}' loaded")
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] loading swarm from JSON: {e}"

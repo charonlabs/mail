@@ -12,6 +12,7 @@ import asyncio
 import datetime
 import logging
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -93,14 +94,14 @@ async def lifespan(app: FastAPI):
     """
     Handle startup and shutdown events.
     """
-    await _server_startup()
+    await _server_startup(app)
 
     yield
 
-    await _server_shutdown()
+    await _server_shutdown(app)
 
 
-async def _server_startup() -> None:
+async def _server_startup(app: FastAPI) -> None:
     """
     Server startup logic, run before the `yield` in the lifespan context manager.
     """
@@ -162,8 +163,10 @@ async def _server_startup() -> None:
             )
             raise Exception(f"required environment variable '{endpoint}' is not set")
 
+    app.state.start_time = time.time()
 
-async def _server_shutdown() -> None:
+
+async def _server_shutdown(_app: FastAPI) -> None:
     """
     Server shutdown logic, run after the `yield` in the lifespan context manager.
     """
@@ -337,8 +340,10 @@ async def root():
 
     return types.GetRootResponse(
         name="mail",
-        status="ok",
         version=utils.get_protocol_version(),
+        swarm=local_swarm_name,
+        status="ok",
+        uptime=time.time() - app.state.start_time,
     )
 
 
