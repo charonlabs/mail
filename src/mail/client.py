@@ -776,7 +776,7 @@ class MAILClientCLI:
             help="the target agent to send the message to",
         )
         message_interswarm_parser.add_argument(
-            "user-token",
+            "user_token",
             type=str,
             help="the user token to send the message with",
         )
@@ -808,12 +808,12 @@ class MAILClientCLI:
             help="the name of the swarm",
         )
         swarm_register_parser.add_argument(
-            "base-url",
+            "base_url",
             type=str,
             help="the base URL of the swarm",
         )
         swarm_register_parser.add_argument(
-            "auth-token",
+            "auth_token",
             type=str,
             help="the auth token of the swarm",
         )
@@ -852,7 +852,7 @@ class MAILClientCLI:
             help="(admin) load a swarm from a JSON string"
         )
         swarm_load_from_json_parser.add_argument(
-            "swarm-json",
+            "swarm_json",
             type=str,
             help="the JSON string to load the swarm from",
         )
