@@ -112,7 +112,7 @@ class MAILRuntime:
         """
         Build the string that will be prepended to all log messages.
         """
-        return f"[{self.user_id}@{self.swarm_name}]"
+        return f"[{self.user_id}@[green]{self.swarm_name}[/green]]"
 
     async def start_interswarm(self) -> None:
         """
@@ -877,8 +877,14 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided"
                 )
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
-        breakpoint_tool_caller = self.last_breakpoint_caller
+        breakpoint_tool_caller = kwargs.get("breakpoint_tool_caller") or self.last_breakpoint_caller
         breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
+
+        if breakpoint_tool_caller is None:
+            logger.error(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: breakpoint tool caller unknown"
+            )
+            raise ValueError("breakpoint tool caller is required to resume from a breakpoint")
 
         # ensure the agent exists already
         if breakpoint_tool_caller not in self.agents:
@@ -889,7 +895,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         result_msgs: list[dict[str, Any]] = []
         if isinstance(breakpoint_tool_call_result, str):
-            payload = ujson.loads(breakpoint_tool_call_result)
+            try:
+                payload = ujson.loads(breakpoint_tool_call_result)
+            except ValueError:
+                payload = breakpoint_tool_call_result
         else:
             payload = breakpoint_tool_call_result
 
@@ -897,7 +906,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload: '{payload}'"
         )
 
-        if isinstance(payload, list):
+        has_breakpoint_context = bool(self.last_breakpoint_tool_calls)
+
+        if isinstance(payload, list) and has_breakpoint_context:
             for resp in payload:
                 og_call = next(
                     (
@@ -915,23 +926,49 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
                     )
         else:
-            if len(self.last_breakpoint_tool_calls) > 1:
-                logger.error(
-                    f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
+            if isinstance(payload, dict) and has_breakpoint_context:
+                if len(self.last_breakpoint_tool_calls) > 1:
+                    logger.error(
+                        f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
+                    )
+                    raise ValueError(
+                        "The last breakpoint tool calls is a list but only one call response was provided."
+                    )
+                result_msgs.append(
+                    self.last_breakpoint_tool_calls[0].create_response_msg(
+                        payload["content"]
+                    )
                 )
-                raise ValueError(
-                    "The last breakpoint tool calls is a list but only one call response was provided."
+                self._submit_event(
+                    "breakpoint_action_complete",
+                    task_id,
+                    f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
                 )
-            result_msgs.append(
-                self.last_breakpoint_tool_calls[0].create_response_msg(
-                    payload["content"]
+            else:
+                self._submit_event(
+                    "breakpoint_action_complete",
+                    task_id,
+                    f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload}'",
                 )
+
+        if isinstance(payload, list) and not has_breakpoint_context:
+            logger.warning(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: received list payload but no breakpoint context is cached"
             )
-            self._submit_event(
-                "breakpoint_action_complete",
-                task_id,
-                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
+        elif isinstance(payload, dict) and not has_breakpoint_context:
+            logger.warning(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: received dict payload but no breakpoint context is cached"
             )
+        elif has_breakpoint_context and not result_msgs:
+            logger.warning(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: breakpoint context was available but no result messages were produced"
+            )
+
+        if has_breakpoint_context and isinstance(payload, dict) and "content" not in payload:
+            logger.error(
+                f"{self._log_prelude()} last breakpoint tool call payload missing 'content'"
+            )
+            raise ValueError("breakpoint tool call payload must include 'content'")
 
         # append the breakpoint tool call result to the agent history
         self.agent_histories[

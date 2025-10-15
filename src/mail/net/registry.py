@@ -50,7 +50,7 @@ class SwarmRegistry:
         """
         Get the log prelude for the registry.
         """
-        return f"[{self.local_swarm_name}@{self.local_base_url}]"
+        return f"[[green]{self.local_swarm_name}[/green]@{self.local_base_url}]"
 
     def register_local_swarm(self, base_url: str) -> None:
         """
@@ -479,13 +479,13 @@ class SwarmRegistry:
                     if endpoint["is_active"]:
                         endpoint["is_active"] = False
                         logger.warning(
-                            f"{self._log_prelude()} swarm '{swarm_name}' is now inactive (status: '{response.status}')"
+                            f"{self._log_prelude()} swarm '{swarm_name}' is now inactive (status: {response.status})"
                         )
         except Exception as e:
             if endpoint["is_active"]:
                 endpoint["is_active"] = False
                 logger.warning(
-                    f"{self._log_prelude()} swarm '{swarm_name}' is now inactive (error: '{e}')"
+                    f"{self._log_prelude()} swarm '{swarm_name}' is now inactive (error: {e})"
                 )
 
     async def discover_swarms(self, discovery_urls: list[str]) -> None:
@@ -503,7 +503,7 @@ class SwarmRegistry:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for result in results:
                 if isinstance(result, Exception):
-                    logger.error(f"{self._log_prelude()} discovery error: '{result}'")
+                    logger.error(f"{self._log_prelude()} discovery error: {result}")
 
     async def _discover_from_endpoint(self, url: str) -> None:
         """

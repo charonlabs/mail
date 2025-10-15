@@ -5,8 +5,6 @@ from .auth import (
     caller_is_user,
     extract_token,
     extract_token_info,
-    generate_agent_id,
-    generate_user_id,
     get_token_info,
     login,
 )
@@ -34,8 +32,6 @@ from .version import (
 __all__ = [
     "login",
     "get_token_info",
-    "generate_user_id",
-    "generate_agent_id",
     "get_loggers",
     "init_logger",
     "read_python_string",

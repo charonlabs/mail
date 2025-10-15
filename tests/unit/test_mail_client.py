@@ -149,7 +149,7 @@ async def test_mail_client_rest_endpoints() -> None:
         async with MAILClient(
             base_url, api_key="demo-token", config=ClientConfig()
         ) as client:
-            root = await client.get_root()
+            root = await client.ping()
             status = await client.get_status()
             await client.post_message("hello world")
             await client.post_message(

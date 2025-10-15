@@ -29,6 +29,7 @@ from mail.core import (
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
 from mail.core.tools import MAIL_TOOL_NAMES
+from mail.factories.base import MAILAgentFunction
 from mail.net import SwarmRegistry
 from mail.net.router import StreamHandler
 from mail.swarms_json import (
@@ -42,9 +43,8 @@ from mail.swarms_json import (
     load_swarms_json_from_file,
 )
 from mail.utils import read_python_string, resolve_prefixed_string_references
-from mail.factories.base import MAILAgentFunction
 
-logger = logging.getLogger("mail")
+logger = logging.getLogger("mail.api")
 
 
 class MAILAgent:
@@ -1071,6 +1071,12 @@ class MAILSwarmTemplate:
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
 
+    def _log_prelude(self) -> str:
+        """
+        Get the log prelude for the swarm template.
+        """
+        return f"[[green]{self.name}[/green] (template)]"
+
     def _validate(self) -> None:
         """
         Validate an instance of the `MAILSwarmTemplate` class.
@@ -1191,7 +1197,7 @@ class MAILSwarmTemplate:
                     function = function.supervisor_fn  # type: ignore
                 if hasattr(function, "action_agent_fn"):
                     function = function.action_agent_fn  # type: ignore
-                logger.info(f"Updating system prompt for agent {agent.name}")
+                logger.debug(f"{self._log_prelude()} updating system prompt for agent '{agent.name}'")
                 delimiter = (
                     "Here are details about the agents you can communicate with:"
                 )
@@ -1212,9 +1218,9 @@ class MAILSwarmTemplate:
                     prompt += f"Name: {t.name}\n"
                     prompt += "Capabilities:\n"
                     fn = t.function
-                    logger.info(f"Found target agent with fn of type {type(fn)}")
+                    logger.debug(f"{self._log_prelude()} found target agent with fn of type '{type(fn)}'")
                     if isinstance(fn, MAILAgentFunction):
-                        logger.info(f"Found target agent with MAILAgentFunction")
+                        logger.debug("found target agent with MAILAgentFunction")
                         web_search = any(t["type"] == "web_search" for t in fn.tools)
                         code_interpreter = any(
                             t["type"] == "code_interpreter" for t in fn.tools
@@ -1231,8 +1237,8 @@ class MAILSwarmTemplate:
                         prompt += "- This agent does not have access to tools, the internet, real-time data, etc."
                     prompt += "\n\n"
                 prompt.strip()
-                logger.info(
-                    f"Updated system prompt for agent {agent.name} to [{prompt}]"
+                logger.debug(
+                    f"{self._log_prelude()} updated system prompt for agent '{agent.name}' to '{prompt[:25]}...'"
                 )
                 function.system = prompt  # type: ignore
 
