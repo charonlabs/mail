@@ -970,6 +970,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError("breakpoint tool call payload must include 'content'")
 
+        # ensure result_msgs is not empty
+        if not result_msgs:
+            logger.warning(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: no result messages were produced"
+            )
+            result_msgs.append(
+                {
+                    "role": "tool",
+                    "content": str(payload),
+                }
+            )
+
         # append the breakpoint tool call result to the agent history
         self.agent_histories[
             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)

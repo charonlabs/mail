@@ -17,7 +17,7 @@ def test_root_endpoint():
         assert r.status_code == 200
         data = r.json()
         assert data["name"] == "mail"
-        assert data["status"] == "ok"
+        assert data["status"] == "running"
 
 
 @pytest.mark.usefixtures("patched_server")

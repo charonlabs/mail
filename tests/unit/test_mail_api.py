@@ -519,7 +519,7 @@ def test_mailaction_to_pydantic_model_unsupported_type_raises() -> None:
         parameters={
             "type": "object",
             "properties": {
-                "payload": {"type": "array", "description": "Unsupported"},
+                "payload": {"type": "dummy", "description": "Unsupported"},
             },
         },
         function=_stub_action,
