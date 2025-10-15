@@ -43,7 +43,7 @@ class InterswarmRouter:
         """
         Get the log prelude for the router.
         """
-        return f"[{self.local_swarm_name}@{self.swarm_registry.local_base_url}]"
+        return f"[[green]{self.local_swarm_name}[/green]@{self.swarm_registry.local_base_url}]"
 
     async def start(self) -> None:
         """

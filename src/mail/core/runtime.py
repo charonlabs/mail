@@ -112,7 +112,7 @@ class MAILRuntime:
         """
         Build the string that will be prepended to all log messages.
         """
-        return f"[{self.user_id}@{self.swarm_name}]"
+        return f"[{self.user_id}@[green]{self.swarm_name}[/green]]"
 
     async def start_interswarm(self) -> None:
         """

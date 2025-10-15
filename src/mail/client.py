@@ -183,6 +183,18 @@ class MAILClient:
         Get basic metadata about the MAIL server (`GET /`).
         """
         return cast(GetRootResponse, await self._request_json("GET", "/"))
+    
+    async def get_health(self) -> GetHealthResponse:
+        """
+        Get the health of the MAIL server (`GET /health`).
+        """
+        return cast(GetHealthResponse, await self._request_json("GET", "/health"))
+
+    async def update_health(self, status: str) -> GetHealthResponse:
+        """
+        Update the health of the MAIL server (`POST /health`).
+        """
+        return cast(GetHealthResponse, await self._request_json("POST", "/health", payload={"status": status}))
 
     async def login(self, api_key: str) -> dict[str, Any]:
         """
@@ -340,12 +352,6 @@ class MAILClient:
                 data_payload = "\n".join(data_lines) if data_lines else None
                 event_kwargs.setdefault("event", "message")
                 yield ServerSentEvent(data=data_payload, **event_kwargs)
-
-    async def get_health(self) -> GetHealthResponse:
-        """
-        Get the health of the MAIL server (`GET /health`).
-        """
-        return cast(GetHealthResponse, await self._request_json("GET", "/health"))
 
     async def get_swarms(self) -> GetSwarmsResponse:
         """
@@ -548,6 +554,25 @@ class MAILClientCLI:
             help="view the full JSON response for `GET /health`",
         )
         health_parser.set_defaults(func=self._health)
+
+        # command `health-update`
+        health_update_parser = subparsers.add_parser(
+            "health-update",
+            aliases=["hu"],
+            help="(admin) update the health of the MAIL server"
+        )
+        health_update_parser.add_argument(
+            "status",
+            type=str,
+            help="the status of the MAIL server",
+        )
+        health_update_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `POST /health`",
+        )
+        health_update_parser.set_defaults(func=self._health_update)
 
         # command `login`
         login_parser = subparsers.add_parser(
@@ -863,11 +888,24 @@ class MAILClientCLI:
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:
-                self.client._console.print("healthy")
+                self.client._console.print(f"health: [green]{response['status']}[/green]")
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] getting health: {e}"
             )
+
+    async def _health_update(self, args: argparse.Namespace) -> None:
+        """
+        Update the health of the MAIL server.
+        """
+        try:
+            response = await self.client.update_health(args.status)
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"[green]successfully[/green] updated health to [green]{response['status']}[/green]")
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] updating health: {e}")
 
     async def _login(self, args: argparse.Namespace) -> None:
         """

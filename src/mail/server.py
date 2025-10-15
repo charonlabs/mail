@@ -163,7 +163,10 @@ async def _server_startup(app: FastAPI) -> None:
             )
             raise Exception(f"required environment variable '{endpoint}' is not set")
 
+    # setup FastAPI app state
     app.state.start_time = time.time()
+    app.state.health = "healthy"
+    app.state.last_health_update = app.state.start_time
 
 
 async def _server_shutdown(_app: FastAPI) -> None:
@@ -345,6 +348,38 @@ async def root():
     )
 
 
+@app.get("/health")
+async def health():
+    """
+    Health check endpoint for interswarm communication.
+    """
+    return types.GetHealthResponse(
+        status=app.state.health,
+        swarm_name=local_swarm_name,
+        timestamp=datetime.datetime.fromtimestamp(app.state.last_health_update, datetime.UTC).isoformat(),
+    )
+
+
+@app.post("/health", dependencies=[Depends(utils.caller_is_admin)])
+async def health_post(request: Request):
+    """
+    Update the server's health status.
+    """
+    data = await request.json()
+    status = data.get("status")
+    if not status:
+        raise HTTPException(status_code=400, detail="status is required")
+
+    app.state.health = status
+    app.state.last_health_update = time.time()
+
+    return types.GetHealthResponse(
+        status=app.state.health,
+        swarm_name=local_swarm_name,
+        timestamp=datetime.datetime.fromtimestamp(app.state.last_health_update, datetime.UTC).isoformat(),
+    )
+
+
 @app.get("/whoami", dependencies=[Depends(utils.caller_is_admin_or_user)])
 async def whoami(request: Request):
     """
@@ -520,18 +555,6 @@ async def message(request: Request):
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
         )
-
-
-@app.get("/health")
-async def health():
-    """
-    Health check endpoint for interswarm communication.
-    """
-    return types.GetHealthResponse(
-        status="healthy",
-        swarm_name=local_swarm_name,
-        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-    )
 
 
 @app.get("/swarms")
