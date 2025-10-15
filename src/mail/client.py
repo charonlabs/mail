@@ -502,7 +502,9 @@ class MAILClientCLI:
 
         # command `ping`
         ping_parser = subparsers.add_parser(
-            "ping", help="ping the MAIL server"
+            "ping",
+            aliases=["p"],
+            help="ping the MAIL server"
         )
         ping_parser.add_argument(
             "-v",
@@ -514,7 +516,9 @@ class MAILClientCLI:
 
         # command `health`
         health_parser = subparsers.add_parser(
-            "health", help="get the health of the MAIL server"
+            "health",
+            aliases=["h"],
+            help="get the health of the MAIL server"
         )
         health_parser.add_argument(
             "-v",
@@ -526,7 +530,9 @@ class MAILClientCLI:
 
         # command `whoami`
         whoami_parser = subparsers.add_parser(
-            "whoami", help="get the username and role of the caller"
+            "whoami",
+            aliases=["me"],
+            help="get the username and role of the caller"
         )
         whoami_parser.add_argument(
             "-v",
@@ -538,7 +544,9 @@ class MAILClientCLI:
 
         # command `status`
         status_parser = subparsers.add_parser(
-            "status", help="get the status of the MAIL server"
+            "status", 
+            aliases=["s"],
+            help="get the status of the MAIL server"
         )
         status_parser.add_argument(
             "-v",
@@ -550,7 +558,9 @@ class MAILClientCLI:
 
         # command `message`
         message_parser = subparsers.add_parser(
-            "message", help="send a message to the MAIL server"
+            "message",
+            aliases=["m", "msg"],
+            help="send a message to the MAIL server"
         )
         message_parser.add_argument(
             "body",
@@ -618,6 +628,7 @@ class MAILClientCLI:
         # command `message-stream`
         message_stream_parser = subparsers.add_parser(
             "message-stream",
+            aliases=["ms", "msg-s"],
             help="send a message to the MAIL server and stream the response",
         )
         message_stream_parser.add_argument(
@@ -678,6 +689,7 @@ class MAILClientCLI:
         # command `message-interswarm`
         message_interswarm_parser = subparsers.add_parser(
             "message-interswarm",
+            aliases=["mi", "msg-i"],
             help="send an interswarm message to the MAIL server",
         )
         message_interswarm_parser.add_argument(
@@ -699,7 +711,9 @@ class MAILClientCLI:
 
         # command `swarms-get`
         swarms_get_parser = subparsers.add_parser(
-            "swarms-get", help="get the swarms of the MAIL server"
+            "swarms-get",
+            aliases=["sg", "swarms-g"],
+            help="get the swarms of the MAIL server"
         )
         swarms_get_parser.add_argument(
             "-v",
@@ -711,7 +725,9 @@ class MAILClientCLI:
 
         # command `swarm-register`
         swarm_register_parser = subparsers.add_parser(
-            "swarm-register", help="register a swarm with the MAIL server"
+            "swarm-register",
+            aliases=["sr", "swarm-r"],
+            help="register a swarm with the MAIL server"
         )
         swarm_register_parser.add_argument(
             "name",
@@ -744,7 +760,9 @@ class MAILClientCLI:
 
         # command `swarm-dump`
         swarm_dump_parser = subparsers.add_parser(
-            "swarm-dump", help="dump the swarm of the MAIL server"
+            "swarm-dump",
+            aliases=["sd", "swarm-d"],
+            help="dump the swarm of the MAIL server"
         )
         swarm_dump_parser.add_argument(
             "-v",
@@ -756,7 +774,9 @@ class MAILClientCLI:
 
         # command `swarm-load-from-json`
         swarm_load_from_json_parser = subparsers.add_parser(
-            "swarm-load-from-json", help="load a swarm from a JSON document"
+            "swarm-load-from-json",
+            aliases=["sl", "swarm-l"],
+            help="load a swarm from a JSON document"
         )
         swarm_load_from_json_parser.add_argument(
             "swarm-json",
