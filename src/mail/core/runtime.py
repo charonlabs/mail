@@ -1130,48 +1130,78 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         task_id = message["message"]["task_id"]
         self._ensure_task_exists(task_id)
 
-        # If interswarm messaging is enabled, try to route via interswarm router first
-        if self.enable_interswarm and self.interswarm_router:
-            # Check if any recipients are in interswarm format
-            msg_content = message["message"]
-            has_interswarm_recipients = False
+        msg_content = message["message"]
 
-            if "recipients" in msg_content:
-                # if the message is a `broadcast_complete`, don't send it to the recipient agents
-                # but DO append it to the agent history as tool calls (the actual broadcast)
-                if message["msg_type"] == "broadcast_complete":
-                    for agent in self.agents:
-                        self.agent_histories[
-                            AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=agent)
-                        ].append(build_mail_xml(message))
-                    return
+        if "recipients" in msg_content and message["msg_type"] == "broadcast_complete":
+            # Append broadcast completion to every agent history and stop
+            for agent in self.agents:
+                self.agent_histories[
+                    AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=agent)
+                ].append(build_mail_xml(message))
+            return
 
-                recipients_for_routing = msg_content["recipients"]  # type: ignore
-                if recipients_for_routing == [MAIL_ALL_LOCAL_AGENTS]:  # type: ignore[comparison-overlap]
-                    recipients_for_routing = [
-                        create_agent_address(agent) for agent in self.agents.keys()
-                    ]
+        recipients_for_routing: list[MAILAddress] = []
+        if "recipients" in msg_content:
+            recipients_for_routing = msg_content["recipients"]  # type: ignore
+            if recipients_for_routing == [MAIL_ALL_LOCAL_AGENTS]:  # type: ignore[comparison-overlap]
+                recipients_for_routing = [
+                    create_agent_address(agent) for agent in self.agents.keys()
+                ]
+        elif "recipient" in msg_content:
+            recipients_for_routing = [msg_content["recipient"]]
 
-                for recipient in recipients_for_routing:  # type: ignore[assignment]
-                    _, recipient_swarm = parse_agent_address(recipient["address"])
-                    if recipient_swarm and recipient_swarm != self.swarm_name:
-                        has_interswarm_recipients = True
-                        break
-            elif "recipient" in msg_content:
-                _, recipient_swarm = parse_agent_address(
-                    msg_content["recipient"]["address"]
+        sender_info = msg_content.get("sender")
+        disallowed_targets = self._find_disallowed_comm_targets(
+            sender_info if isinstance(sender_info, dict) else None,
+            recipients_for_routing,
+            message["msg_type"],
+        )
+        if disallowed_targets:
+            sender_label = (
+                sender_info.get("address") if isinstance(sender_info, dict) else "unknown"
+            )
+            logger.warning(
+                f"{self._log_prelude()} agent '{sender_label}' attempted to message targets outside comm_targets: {', '.join(disallowed_targets)}"
+            )
+            targets_str = ", ".join(disallowed_targets)
+            body = (
+                "Your message was not delivered because the following recipients "
+                f"are not in your comm_targets: {targets_str}. "
+                "Update the swarm configuration or choose an allowed recipient."
+            )
+            self._submit_event(
+                "agent_error",
+                task_id,
+                f"agent attempted to contact disallowed recipients: {targets_str}",
+            )
+            if isinstance(sender_info, dict):
+                await self.submit(
+                    self._system_response(
+                        task_id=task_id,
+                        recipient=sender_info,  # type: ignore[arg-type]
+                        subject="::invalid_recipient::",
+                        body=body,
+                    )
                 )
+            try:
+                self.message_queue.task_done()
+            except Exception:
+                pass
+            return
+
+        if (
+            self.enable_interswarm
+            and self.interswarm_router
+            and recipients_for_routing
+        ):
+            has_interswarm_recipients = False
+            for recipient in recipients_for_routing:
+                _, recipient_swarm = parse_agent_address(recipient["address"])
                 if recipient_swarm and recipient_swarm != self.swarm_name:
                     has_interswarm_recipients = True
-
-                recipients_for_routing = [msg_content["recipient"]]
-            else:
-                recipients_for_routing = []
+                    break
 
             if has_interswarm_recipients:
-                # Route via interswarm router. Mark this queue item as handled
-                # here; the routed response (or local copy) will be re-submitted
-                # via the normal submit() path and accounted for separately.
                 asyncio.create_task(self._route_interswarm_message(message))
                 try:
                     self.message_queue.task_done()
@@ -1390,7 +1420,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
         When a message from another swarm is received, the corresponding task must be completed.
         """
         task_id = message["message"]["task_id"]
-        
+
         future = self.pending_requests.pop(task_id, None)
         if future is None:
             logger.error(
@@ -1431,6 +1461,46 @@ This should not happen. Please report this error to the MAIL team.""",
                     task_complete=True,
                 )
             )
+
+    def _find_disallowed_comm_targets(
+        self,
+        sender: MAILAddress | None,
+        recipients: list[MAILAddress] | None,
+        msg_type: str,
+    ) -> list[str]:
+        """
+        Determine which recipients are not reachable for the sender based on comm_targets.
+        """
+        if (
+            sender is None
+            or recipients is None
+            or msg_type in {"broadcast", "broadcast_complete"}
+        ):
+            return []
+        if sender.get("address_type") != "agent":
+            return []
+
+        sender_agent, sender_swarm = parse_agent_address(sender["address"])
+        if sender_swarm and sender_swarm != self.swarm_name:
+            # Enforce comm_targets only for local agents
+            return []
+
+        agent_core = self.agents.get(sender_agent)
+        if agent_core is None:
+            return []
+
+        allowed_targets = set(agent_core.comm_targets)
+        disallowed: list[str] = []
+        for recipient in recipients:
+            if recipient.get("address_type") != "agent":
+                continue
+            recipient_address = recipient.get("address")
+            if recipient_address in {None, MAIL_ALL_LOCAL_AGENTS["address"]}:
+                continue
+            if recipient_address not in allowed_targets:
+                disallowed.append(recipient_address)
+
+        return disallowed
 
     async def _process_local_message(
         self,
@@ -1490,13 +1560,13 @@ This should not happen. Please report this error to the MAIL team.""",
 
             # Only process if this is a local agent or no swarm specified
             if not recipient_swarm or recipient_swarm == self.swarm_name:
+                sender_agent = message["message"]["sender"]
                 if recipient_agent in self.agents:
                     self._send_message(recipient_agent, message, action_override)
                 else:
                     logger.warning(
                         f"{self._log_prelude()} unknown local agent: '{recipient_agent}'"
                     )
-                    sender_agent = message["message"]["sender"]["address"]
 
                     # if the recipient is actually the user, indicate that
                     if recipient_agent == self.user_id:
@@ -1506,10 +1576,10 @@ This should not happen. Please report this error to the MAIL team.""",
                             f"agent '{message['message']['sender']['address']}' attempted to send a message to the user ('{self.user_id}')",
                         )
                         self._send_message(
-                            sender_agent,
+                            sender_agent["address"],
                             self._system_response(
                                 task_id=message["message"]["task_id"],
-                                recipient=create_agent_address(sender_agent),
+                                recipient=create_agent_address(sender_agent["address"]),
                                 subject="::improper_response_to_user::",
                                 body=f"""The user ('{self.user_id}') is unable to respond to your message. 
 If the user's task is complete, use the 'task_complete' tool.
@@ -1543,10 +1613,10 @@ In order to prevent infinite loops, system-to-system messages immediately end th
                             f"agent '{recipient_agent}' is unknown; message from '{message['message']['sender']['address']}' cannot be delivered to it",
                         )
                         self._send_message(
-                            sender_agent,
+                            sender_agent["address"],
                             self._system_response(
                                 task_id=message["message"]["task_id"],
-                                recipient=create_agent_address(sender_agent),
+                                recipient=create_agent_address(sender_agent["address"]),
                                 subject="::agent_error::",
                                 body=f"""The agent '{recipient_agent}' is not known to this swarm.
 Your directly reachable agents can be found in the tool definitions for `send_request` and `send_response`.""",
