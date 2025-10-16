@@ -1161,11 +1161,21 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 if recipient_swarm and recipient_swarm != self.swarm_name:
                     has_interswarm_recipients = True
 
+                recipients_for_routing = [msg_content["recipient"]]
+            else:
+                recipients_for_routing = []
+
             if has_interswarm_recipients:
                 # Route via interswarm router. Mark this queue item as handled
                 # here; the routed response (or local copy) will be re-submitted
                 # via the normal submit() path and accounted for separately.
                 asyncio.create_task(self._route_interswarm_message(message))
+                logger.info(f"{self._log_prelude()} sending interswarm message to {recipients_for_routing}")
+                self._submit_event(
+                    "interswarm_send",
+                    message["message"]["task_id"],
+                    f"sending interswarm message to {recipients_for_routing}",
+                )
                 try:
                     self.message_queue.task_done()
                 except Exception:
@@ -1231,6 +1241,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     message,
                     stream_handler=forward_remote_event if stream_requested else None,
                     ignore_stream_pings=ignore_stream_pings,
+                )
+                self._submit_event(
+                    "interswarm_receive",
+                    response["message"]["task_id"],
+                    f"received response from remote swarm for task '{response['message']['task_id']}'",
                 )
                 logger.info(
                     f"{self._log_prelude()} received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
