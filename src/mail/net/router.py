@@ -274,7 +274,7 @@ class InterswarmRouter:
             # remote origin and complete tasks without a ping-pong acknowledgement loop.
             msg_content["sender_swarm"] = self.local_swarm_name
             if "recipient" in msg_content:
-                msg_content["recipient_swarm"] = swarm_name  # type: ignore[literal-required]
+                msg_content["recipient_swarm"] = swarm_name  # type: ignore
             elif "recipients" in msg_content:
                 existing_swarms = cast(
                     list[str] | None, msg_content.get("recipient_swarms")
