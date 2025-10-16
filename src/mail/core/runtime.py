@@ -1338,7 +1338,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
                 )
 
-                await self.submit(response)
+                await self._submit_from_interswarm(response)
             except Exception as e:
                 logger.error(
                     f"{self._log_prelude()} error in interswarm routing: '{e}'"
@@ -1351,7 +1351,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 )
 
                 # inform the sender that the message was not delivered
-                await self.submit(
+                await self._submit_from_interswarm(
                     self._system_response(
                         task_id=message["message"]["task_id"],
                         recipient=message["message"]["sender"],
@@ -1371,7 +1371,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
             )
 
             # inform the sender that the message was not delivered
-            await self.submit(
+            await self._submit_from_interswarm(
                 self._system_response(
                     task_id=message["message"]["task_id"],
                     recipient=message["message"]["sender"],
@@ -1379,6 +1379,56 @@ If your assigned task cannot be completed, inform your caller of this error and 
                     body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
 The MAIL interswarm router is not currently available.
 If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
+                )
+            )
+
+    async def _submit_from_interswarm(
+        self,
+        message: MAILMessage,
+    ) -> None:
+        """
+        When a message from another swarm is received, the corresponding task must be completed.
+        """
+        task_id = message["message"]["task_id"]
+        
+        future = self.pending_requests.pop(task_id, None)
+        if future is None:
+            logger.error(
+                f"{self._log_prelude()} interswarm message received for unknown task '{task_id}'"
+            )
+            self._submit_event(
+                "task_error",
+                task_id,
+                f"interswarm message received for unknown task '{task_id}'",
+            )
+            try:
+                self._events_available.set()
+            except Exception:
+                pass
+            return
+
+        try:
+            future.set_result(message)
+            try:
+                self._events_available.set()
+            except Exception:
+                pass
+            return
+        except Exception as e:
+            logger.error(f"{self._log_prelude()} error submitting interswarm message for task '{task_id}': '{e}'")
+            self._submit_event(
+                "task_error",
+                task_id,
+                f"error submitting interswarm message for task '{task_id}': '{e}'",
+            )
+            await self.submit(
+                self._system_broadcast(
+                    task_id=task_id,
+                    subject="::runtime_error::",
+                    body=f"""An interswarm message from {message['message']['sender']['address']}@{message['message']['sender_swarm']} for task '{task_id}' was not delivered.
+The error encountered was: {e}.
+This should not happen. Please report this error to the MAIL team.""",
+                    task_complete=True,
                 )
             )
 

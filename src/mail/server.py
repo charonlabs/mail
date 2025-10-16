@@ -902,6 +902,10 @@ def run_server(
 ):
     logger.info("starting MAIL server directly...")
 
+    # Ensure the server lifespan uses the runtime config supplied via CLI or caller.
+    global _server_config
+    _server_config = cfg
+
     os.environ["SWARM_NAME"] = cfg.swarm.name
     os.environ["SWARM_REGISTRY_FILE"] = cfg.swarm.registry_file
     os.environ["SWARM_SOURCE"] = cfg.swarm.source
