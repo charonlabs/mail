@@ -61,6 +61,7 @@ class MAILRuntime:
         agents: dict[str, AgentCore],
         actions: dict[str, ActionCore],
         user_id: str,
+        user_role: Literal["admin", "agent", "user"],
         swarm_name: str,
         entrypoint: str,
         swarm_registry: SwarmRegistry | None = None,
@@ -87,6 +88,7 @@ class MAILRuntime:
         self.is_running = False
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
+        self.user_role = user_role
         self.new_events: list[ServerSentEvent] = []
         # Event notifier for streaming to avoid busy-waiting
         self._events_available = asyncio.Event()
@@ -113,7 +115,7 @@ class MAILRuntime:
         """
         Build the string that will be prepended to all log messages.
         """
-        return f"[{self.user_id}@[green]{self.swarm_name}[/green]]"
+        return f"[[yellow]{self.user_role}[/yellow]:{self.user_id}@[green]{self.swarm_name}[/green]]"
 
     async def start_interswarm(self) -> None:
         """

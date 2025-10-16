@@ -667,12 +667,23 @@ class InterswarmRouter:
         """
         Create a system router message.
         """
+        match message["msg_type"]:
+            case "request":
+                request_id = message["message"]["request_id"]  # type: ignore
+            case "response":
+                request_id = message["message"]["response_id"]  # type: ignore
+            case "broadcast":
+                request_id = message["message"]["broadcast_id"]  # type: ignore
+            case "interrupt":
+                request_id = message["message"]["interrupt_id"]  # type: ignore
+            case _:
+                raise ValueError(f"invalid message type: {message['msg_type']}")
         return MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILResponse(
                 task_id=message["message"]["task_id"],
-                request_id=message["message"]["request_id"],  # type: ignore
+                request_id=request_id,
                 sender=MAILAddress(
                     address_type="system",
                     address=self.local_swarm_name,

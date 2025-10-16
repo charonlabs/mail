@@ -103,6 +103,7 @@ async def test_submit_prioritizes_message_types() -> None:
         agents={},
         actions={},
         user_id="user-1",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -141,6 +142,7 @@ async def test_submit_and_stream_handles_timeout_and_events(
         agents={},
         actions={},
         user_id="user-2",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -224,6 +226,7 @@ async def test_agent_can_await_message_records_event() -> None:
         agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
         actions={},
         user_id="user-await",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -282,6 +285,7 @@ async def test_await_message_errors_when_queue_empty() -> None:
         agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
         actions={},
         user_id="user-await",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -338,6 +342,7 @@ async def test_help_tool_emits_broadcast_and_event() -> None:
         agents={"analyst": AgentCore(function=helper_agent, comm_targets=[])},
         actions={},
         user_id="user-help",
+        user_role="user",
         swarm_name="example",
         entrypoint="analyst",
     )
@@ -383,6 +388,7 @@ def test_system_broadcast_requires_recipients_for_non_completion() -> None:
         agents={},
         actions={},
         user_id="user-3",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -411,6 +417,7 @@ def test_submit_event_tracks_events_by_task() -> None:
         agents={},
         actions={},
         user_id="user-4",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -439,6 +446,7 @@ async def test_run_task_breakpoint_resume_requires_task_id() -> None:
         agents={},
         actions={},
         user_id="user-5",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -464,6 +472,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
         agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-6",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -533,6 +542,7 @@ async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> Non
         agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-7",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -566,6 +576,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
         agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-8",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -652,6 +663,7 @@ async def test_broadcast_all_excludes_sender_locally(
         agents=_make_runtime_agents(),
         actions={},
         user_id="user-1",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -685,6 +697,7 @@ async def test_broadcast_all_excludes_sender_with_interswarm(
             agents=_make_runtime_agents(),
             actions={},
             user_id="user-1",
+            user_role="user",
             swarm_name="example",
             entrypoint="supervisor",
             swarm_registry=registry,

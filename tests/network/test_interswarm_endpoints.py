@@ -266,7 +266,7 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
     """
     Users can customize subject, msg_type, and routing flags when sending interswarm messages.
     """
-    from mail.server import app, user_mail_instances
+    from mail.server import app
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
@@ -285,7 +285,7 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    user_mail_instances["test-token"] = DummyMail()  # type: ignore[assignment]
+    app.state.user_mail_instances["user-123"] = DummyMail()  # type: ignore[assignment]
 
     with TestClient(app) as client:
         payload = {
@@ -297,7 +297,7 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
             "stream": True,
             "ignore_stream_pings": True,
             "routing_info": {"foo": "bar"},
-            "user_token": "test-token",
+            "user_token": "test-key",
         }
 
         r = client.post(
@@ -325,7 +325,7 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
     """
     Users can send broadcast interswarm messages to multiple targets.
     """
-    from mail.server import app, user_mail_instances
+    from mail.server import app
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
@@ -344,7 +344,7 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    user_mail_instances["token-broadcast"] = DummyMAILInstance()  # type: ignore[assignment]
+    app.state.user_mail_instances["user-456"] = DummyMAILInstance()  # type: ignore[assignment]
 
     with TestClient(app) as client:
         payload = {
@@ -352,7 +352,7 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
             "body": "Broadcast body",
             "subject": "Broadcast",
             "msg_type": "broadcast",
-            "user_token": "token-broadcast",
+            "user_token": "test-key",
         }
 
         r = client.post(
@@ -375,7 +375,7 @@ def test_interswarm_send_invalid_msg_type(monkeypatch: pytest.MonkeyPatch):
     """
     Unsupported message types should return a 400 error.
     """
-    from mail.server import app, user_mail_instances
+    from mail.server import app
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
@@ -391,7 +391,7 @@ def test_interswarm_send_invalid_msg_type(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    user_mail_instances["token-invalid"] = DummyMAILInstance()  # type: ignore[assignment]
+    app.state.user_mail_instances["token-invalid"] = DummyMAILInstance()  # type: ignore[assignment]
 
     with TestClient(app) as client:
         payload = {

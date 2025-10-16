@@ -20,7 +20,7 @@ class MAILAddress(TypedDict):
     An address representing the sender or recipient of a MAIL message.
     """
 
-    address_type: Literal["agent", "user", "system"]
+    address_type: Literal["admin", "agent", "system", "user"]
     """The type of address."""
 
     address: str
@@ -224,19 +224,26 @@ def format_agent_address(agent_name: str, swarm_name: str | None = None) -> MAIL
 
 
 def create_address(
-    address: str, address_type: Literal["agent", "user", "system"]
+    address: str, address_type: Literal["admin", "agent", "system", "user"]
 ) -> MAILAddress:
     """
     Create a MAILAddress object with the specified type.
 
     Args:
         address: The address string
-        address_type: The type of address ("agent", "user", or "system")
+        address_type: The type of address ("admin", "agent", "system", or "user")
 
     Returns:
         MAILAddress: A properly formatted address object
     """
     return MAILAddress(address_type=address_type, address=address)
+
+
+def create_admin_address(address: str) -> MAILAddress:
+    """
+    Create a MAILAddress for an admin.
+    """
+    return create_address(address, "admin")
 
 
 def create_agent_address(address: str) -> MAILAddress:
@@ -246,18 +253,18 @@ def create_agent_address(address: str) -> MAILAddress:
     return create_address(address, "agent")
 
 
-def create_user_address(address: str) -> MAILAddress:
-    """
-    Create a MAILAddress for a human user.
-    """
-    return create_address(address, "user")
-
-
 def create_system_address(address: str) -> MAILAddress:
     """
     Create a MAILAddress for the system.
     """
     return create_address(address, "system")
+
+
+def create_user_address(address: str) -> MAILAddress:
+    """
+    Create a MAILAddress for a human user.
+    """
+    return create_address(address, "user")
 
 
 def get_address_string(address: MAILAddress) -> str:
@@ -267,7 +274,7 @@ def get_address_string(address: MAILAddress) -> str:
     return address["address"]
 
 
-def get_address_type(address: MAILAddress) -> Literal["agent", "user", "system"]:
+def get_address_type(address: MAILAddress) -> Literal["admin", "agent", "system", "user"]:
     """
     Extract the address type from a MAILAddress.
     """
