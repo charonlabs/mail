@@ -273,6 +273,11 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
         lambda token: _async_return({"role": "user", "id": "user-123"}),
     )
 
+    monkeypatch.setattr(
+        "mail.server.get_or_create_mail_instance",
+        lambda role, id, jwt: _async_return(DummyMail()),
+    )
+
     captured: dict[str, MAILMessage] = {}
 
     class DummyMail:
@@ -285,9 +290,9 @@ def test_interswarm_send_custom_request(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    app.state.user_mail_instances["user-123"] = DummyMail()  # type: ignore[assignment]
-
     with TestClient(app) as client:
+        app.state.user_mail_instances["user-123"] = DummyMail()  # type: ignore[assignment]
+        app.state.swarm_registry.register_swarm("remote", "https://remote.test")
         payload = {
             "targets": ["helper@remote"],
             "body": "Hello remote",
@@ -332,6 +337,11 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
         lambda token: _async_return({"role": "user", "id": "user-456"}),
     )
 
+    monkeypatch.setattr(
+        "mail.server.get_or_create_mail_instance",
+        lambda role, id, jwt: _async_return(DummyMAILInstance()),
+    )
+
     captured: dict[str, MAILMessage] = {}
 
     class DummyMAILInstance:
@@ -344,9 +354,9 @@ def test_interswarm_send_broadcast(monkeypatch: pytest.MonkeyPatch):
         async def shutdown(self) -> None:
             pass
 
-    app.state.user_mail_instances["user-456"] = DummyMAILInstance()  # type: ignore[assignment]
-
     with TestClient(app) as client:
+        app.state.user_mail_instances["user-456"] = DummyMAILInstance()
+        app.state.swarm_registry.register_swarm("remote", "https://remote.test")
         payload = {
             "targets": ["helper@remote", "analyst"],
             "body": "Broadcast body",

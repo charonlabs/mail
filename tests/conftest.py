@@ -253,19 +253,6 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
             events = []
         return response, events
 
-    async def register_swarm(
-        self,
-        swarm_name: str,
-        base_url: str,
-        auth_token: str | None = None,
-        metadata: dict[str, Any] | None = None,
-        volatile: bool = True,
-    ) -> None:
-        """
-        Register a swarm.
-        """
-        self.app.state.swarm_registry.register_swarm(swarm_name, base_url, auth_token, metadata, volatile)
-
     monkeypatch.setattr(
         "mail.MAILSwarm.submit_message", _compat_submit_message, raising=True
     )
