@@ -22,6 +22,7 @@ class FakeMAILRuntime:
         agents: Any,
         actions: Any,
         user_id: str,
+        user_role: str,
         swarm_name: str,
         entrypoint: str,
         swarm_registry: Any | None = None,  # noqa: ARG002
@@ -32,6 +33,7 @@ class FakeMAILRuntime:
         self.agents = agents
         self.actions = actions
         self.user_id = user_id
+        self.user_role = user_role
         self.swarm_name = swarm_name
         self.entrypoint = entrypoint
         self.submitted: list[dict[str, Any]] = []

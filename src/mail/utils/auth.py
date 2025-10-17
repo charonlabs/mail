@@ -60,7 +60,9 @@ async def login(api_key: str) -> str:
         response.raise_for_status()
         data = await response.json()
 
-        logger.info(f"[[green]{api_key[:8]}...[/green]] user or agent authenticated with API key")
+        logger.info(
+            f"[[green]{api_key[:8]}...[/green]] user or agent authenticated with API key"
+        )
         return data["token"]
 
 
@@ -164,4 +166,3 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
     jwt = await login(token)
 
     return await get_token_info(jwt)
-

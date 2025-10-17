@@ -22,6 +22,7 @@ from mail.core import (
     MAILMessage,
     MAILRequest,
     MAILRuntime,
+    create_admin_address,
     create_agent_address,
     create_user_address,
     pydantic_model_to_tool,
@@ -539,7 +540,8 @@ class MAILSwarm:
         agents: list[MAILAgent],
         actions: list[MAILAction],
         entrypoint: str,
-        user_id: str = "default_user",
+        user_id: str = "default",
+        user_role: Literal["admin", "agent", "user"] = "user",
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
@@ -552,6 +554,7 @@ class MAILSwarm:
         self.entrypoint = entrypoint
         self.user_id = user_id
         self.swarm_registry = swarm_registry
+        self.user_role = user_role
         self.enable_interswarm = enable_interswarm
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
@@ -563,6 +566,7 @@ class MAILSwarm:
             agents=self._agent_cores,
             actions={action.name: action.to_core() for action in actions},
             user_id=user_id,
+            user_role=user_role,
             swarm_name=name,
             swarm_registry=swarm_registry,
             enable_interswarm=enable_interswarm,
@@ -693,7 +697,12 @@ class MAILSwarm:
             entrypoint = self.entrypoint
 
         message = self.build_message(
-            subject, body, [entrypoint], "user", msg_type, task_id
+            subject=subject,
+            body=body,
+            targets=[entrypoint],
+            sender_type=self.user_role,
+            type=msg_type,
+            task_id=task_id,
         )
         task_id = message["message"]["task_id"]
 
@@ -727,7 +736,12 @@ class MAILSwarm:
             entrypoint = self.entrypoint
 
         message = self.build_message(
-            subject, body, [entrypoint], "user", msg_type, task_id
+            subject=subject,
+            body=body,
+            targets=[entrypoint],
+            sender_type=self.user_role,
+            type=msg_type,
+            task_id=task_id,
         )
 
         runtime_kwargs = dict(kwargs)
@@ -760,7 +774,12 @@ class MAILSwarm:
             entrypoint = self.entrypoint
 
         message = self.build_message(
-            subject, body, [entrypoint], "user", msg_type, task_id
+            subject=subject,
+            body=body,
+            targets=[entrypoint],
+            sender_type=self.user_role,
+            type=msg_type,
+            task_id=task_id,
         )
         task_id = message["message"]["task_id"]
         if not resume_from == "breakpoint_tool_call":
@@ -781,13 +800,22 @@ class MAILSwarm:
         subject: str,
         body: str,
         targets: list[str],
-        sender_type: Literal["user", "agent"] = "user",
+        sender_type: Literal["admin", "agent", "user"] = "user",
         type: Literal["request", "response", "broadcast", "interrupt"] = "request",
         task_id: str | None = None,
     ) -> MAILMessage:
         """
         Build a MAIL message.
         """
+        match sender_type:
+            case "admin":
+                sender = create_admin_address(self.user_id)
+            case "agent":
+                sender = create_agent_address(self.user_id)
+            case "user":
+                sender = create_user_address(self.user_id)
+            case _:
+                raise ValueError(f"invalid sender type: {sender_type}")
         match type:
             case "request":
                 if not len(targets) == 1:
@@ -799,9 +827,7 @@ class MAILSwarm:
                     message=MAILRequest(
                         task_id=task_id or str(uuid.uuid4()),
                         request_id=str(uuid.uuid4()),
-                        sender=create_user_address(self.user_id)
-                        if sender_type == "user"
-                        else create_agent_address(self.user_id),
+                        sender=sender,
                         recipient=create_agent_address(target),
                         subject=subject,
                         body=body,
@@ -1172,6 +1198,7 @@ class MAILSwarmTemplate:
         self,
         instance_params: dict[str, Any],
         user_id: str = "default_user",
+        user_role: Literal["admin", "agent", "user"] = "user",
         base_url: str = "http://localhost:8000",
         registry_file: str | None = None,
     ) -> MAILSwarm:
@@ -1197,7 +1224,9 @@ class MAILSwarmTemplate:
                     function = function.supervisor_fn  # type: ignore
                 if hasattr(function, "action_agent_fn"):
                     function = function.action_agent_fn  # type: ignore
-                logger.debug(f"{self._log_prelude()} updating system prompt for agent '{agent.name}'")
+                logger.debug(
+                    f"{self._log_prelude()} updating system prompt for agent '{agent.name}'"
+                )
                 delimiter = (
                     "Here are details about the agents you can communicate with:"
                 )
@@ -1218,7 +1247,9 @@ class MAILSwarmTemplate:
                     prompt += f"Name: {t.name}\n"
                     prompt += "Capabilities:\n"
                     fn = t.function
-                    logger.debug(f"{self._log_prelude()} found target agent with fn of type '{type(fn)}'")
+                    logger.debug(
+                        f"{self._log_prelude()} found target agent with fn of type '{type(fn)}'"
+                    )
                     if isinstance(fn, MAILAgentFunction):
                         logger.debug("found target agent with MAILAgentFunction")
                         web_search = any(t["type"] == "web_search" for t in fn.tools)
@@ -1248,6 +1279,7 @@ class MAILSwarmTemplate:
             actions=self.actions,
             entrypoint=self.entrypoint,
             user_id=user_id,
+            user_role=user_role,
             swarm_registry=swarm_registry,
             enable_interswarm=self.enable_interswarm,
             breakpoint_tools=self.breakpoint_tools,

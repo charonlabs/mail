@@ -237,10 +237,65 @@ class InterswarmRouter:
                     message, f"swarm '{swarm_name}' is not active"
                 )
 
-            # Update the message to include the full source agent address
-            message["message"]["sender"] = format_agent_address(
-                message["message"]["sender"]["address"], self.local_swarm_name
-            )
+            msg_content = message["message"]
+
+            # Normalise sender metadata so the remote swarm knows who called.
+            current_sender = msg_content.get("sender", {})
+            if isinstance(current_sender, dict):
+                sender_address = current_sender.get("address")
+                sender_agent, sender_swarm = (
+                    parse_agent_address(sender_address)
+                    if sender_address
+                    else (None, None)
+                )
+                if sender_agent:
+                    if sender_swarm != self.local_swarm_name:
+                        msg_content["sender"] = format_agent_address(
+                            sender_agent, self.local_swarm_name
+                        )
+                else:
+                    fallback_agent = (
+                        sender_address
+                        if isinstance(sender_address, str) and sender_address
+                        else current_sender
+                        if isinstance(current_sender, str) and current_sender
+                        else "unknown"
+                    )
+                    msg_content["sender"] = format_agent_address(
+                        fallback_agent, self.local_swarm_name
+                    )
+            else:
+                fallback_agent = (
+                    current_sender if isinstance(current_sender, str) else "unknown"
+                )
+                msg_content["sender"] = format_agent_address(
+                    fallback_agent, self.local_swarm_name
+                )
+
+            # Ensure interswarm metadata is populated so the receiver can detect the
+            # remote origin and complete tasks without a ping-pong acknowledgement loop.
+            msg_content["sender_swarm"] = self.local_swarm_name
+            if "recipient" in msg_content:
+                msg_content["recipient_swarm"] = swarm_name  # type: ignore
+            elif "recipients" in msg_content:
+                existing_swarms = cast(
+                    list[str] | None, msg_content.get("recipient_swarms")
+                )
+                if existing_swarms is not None:
+                    if swarm_name not in existing_swarms:
+                        existing_swarms.append(swarm_name)
+                else:
+                    msg_content["recipient_swarms"] = [swarm_name]  # type: ignore[index]
+
+            auth_token = self.swarm_registry.get_resolved_auth_token(swarm_name)
+            if not auth_token:
+                logger.error(
+                    f"{self._log_prelude()} no auth token configured for swarm '{swarm_name}'"
+                )
+                return self._system_router_message(
+                    message,
+                    f"auth token for swarm '{swarm_name}' is not configured; cannot send interswarm message",
+                )
 
             # Create interswarm message wrapper
             metadata: dict[str, Any] = {
@@ -260,7 +315,7 @@ class InterswarmRouter:
                 timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
                 payload=message["message"],
                 msg_type=message["msg_type"],  # type: ignore
-                auth_token=self.swarm_registry.get_resolved_auth_token(swarm_name),
+                auth_token=auth_token,
                 metadata=metadata,
             )
 
@@ -274,9 +329,7 @@ class InterswarmRouter:
             if stream_requested:
                 headers["Accept"] = "text/event-stream"
 
-            auth_token = self.swarm_registry.get_resolved_auth_token(swarm_name)
-            if auth_token:
-                headers["Authorization"] = f"Bearer {auth_token}"
+            headers["Authorization"] = f"Bearer {auth_token}"
 
             timeout = aiohttp.ClientTimeout(total=3600)
             assert self.session is not None
@@ -616,12 +669,23 @@ class InterswarmRouter:
         """
         Create a system router message.
         """
+        match message["msg_type"]:
+            case "request":
+                request_id = message["message"]["request_id"]  # type: ignore
+            case "response":
+                request_id = message["message"]["response_id"]  # type: ignore
+            case "broadcast":
+                request_id = message["message"]["broadcast_id"]  # type: ignore
+            case "interrupt":
+                request_id = message["message"]["interrupt_id"]  # type: ignore
+            case _:
+                raise ValueError(f"invalid message type: {message['msg_type']}")
         return MAILMessage(
             id=str(uuid.uuid4()),
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             message=MAILResponse(
                 task_id=message["message"]["task_id"],
-                request_id=message["message"]["request_id"],  # type: ignore
+                request_id=request_id,
                 sender=MAILAddress(
                     address_type="system",
                     address=self.local_swarm_name,

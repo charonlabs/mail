@@ -157,10 +157,21 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     import mail.server as server
     from mail.api import MAILAgentTemplate, MAILSwarmTemplate
 
-    server.user_mail_instances.clear()
-    server.user_mail_tasks.clear()
-    server.swarm_mail_instances.clear()
-    server.swarm_mail_tasks.clear()
+    server.app.state.user_mail_instances = {}
+    server.app.state.user_mail_tasks = {}
+    server.app.state.swarm_mail_instances = {}
+    server.app.state.swarm_mail_tasks = {}
+    server.app.state.admin_mail_instances = {}
+    server.app.state.admin_mail_tasks = {}
+    server.app.state.swarm_registry = None
+    server.app.state.persistent_swarm = None
+    server.app.state.local_swarm_name = None
+    server.app.state.local_base_url = None
+    server.app.state.default_entrypoint_agent = None
+    server.app.state._http_session = None
+    server.app.state.start_time = None
+    server.app.state.health = None
+    server.app.state.last_health_update = None
 
     # required environment variables
     monkeypatch.setenv("AUTH_ENDPOINT", "http://test-auth.local/login")
@@ -204,16 +215,43 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
 
     # Ensure the server uses our stub swarm template instead of reading swarms.json
     monkeypatch.setattr(
+        "mail.api.MAILSwarmTemplate.from_swarm_json_file",
+        lambda swarm_name, json_filepath: stub_swarm,  # noqa: ARG005
+        raising=False,
+    )
+    monkeypatch.setattr(
         "mail.MAILSwarmTemplate.from_swarm_json_file",
-        lambda path, name: stub_swarm,  # noqa: ARG005
+        lambda swarm_name, json_filepath: stub_swarm,  # noqa: ARG005
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "mail.net.server_utils.MAILSwarmTemplate.from_swarm_json_file",
+        lambda swarm_name, json_filepath: stub_swarm,  # noqa: ARG005
+        raising=False,
     )
 
-    # Make MAILSwarm.submit_message return only the response object to match server usage
+    # Make MAILSwarm.submit_message match the core runtime behavior without events
     async def _compat_submit_message(
-        self, message, timeout: float = 3600.0, show_events: bool = False
-    ):  # noqa: ANN001, D401, ARG002, FBT001, FBT002
-        # Bypass events tuple to keep server logic simple in tests
-        return await self._runtime.submit_and_wait(message, timeout)  # type: ignore[attr-defined]
+        self,
+        message,
+        timeout: float = 3600.0,
+        show_events: bool = False,
+        resume_from=None,
+        **kwargs,
+    ):  # noqa: ANN001, D401, ARG002
+        response = await self._runtime.submit_and_wait(  # type: ignore[attr-defined]
+            message,
+            timeout,
+            resume_from,
+            **kwargs,
+        )
+        if show_events:
+            events = self._runtime.get_events_by_task_id(  # type: ignore[attr-defined]
+                message["message"]["task_id"]
+            )
+        else:
+            events = []
+        return response, events
 
     monkeypatch.setattr(
         "mail.MAILSwarm.submit_message", _compat_submit_message, raising=True
