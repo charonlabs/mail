@@ -37,7 +37,6 @@ from mail.core.message import (
     parse_agent_address,
 )
 from mail.net import types as types
-from mail.net.registry import SwarmRegistry
 from mail.utils.logger import init_logger
 
 from .api import MAILSwarm, MAILSwarmTemplate
