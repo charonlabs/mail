@@ -61,7 +61,7 @@ http://localhost:8000/status
 - **MAIL CLI REPL** (enter `help` for commands): 
 ```bash
 uv run mail client \
---url http://localhost:8000 \
+http://localhost:8000 \
 --api-key $TOKEN
 ``` 
 - **Send a message**: 
