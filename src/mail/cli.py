@@ -199,8 +199,7 @@ def main() -> None:
         help="path to the MAIL configuration file",
     )
     client_parser.add_argument(
-        "-u",
-        "--url",
+        "url",
         type=str,
         help="URL of the MAIL server",
     )

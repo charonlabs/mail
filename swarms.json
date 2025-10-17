@@ -1,7 +1,7 @@
 [
     {
         "name": "example",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
@@ -68,7 +68,7 @@
     },
     {
         "name": "example-no-proxy",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
@@ -139,7 +139,7 @@
     },
     {
         "name": "swarm-alpha",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
@@ -210,7 +210,7 @@
     },
     {
         "name": "swarm-beta",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [

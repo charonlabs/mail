@@ -251,7 +251,7 @@ async def main() -> None:
 
     try:
         async with MAILClient(base_url, api_key="demo-token") as client:
-            root = await client.get_root()
+            root = await client.ping()
             status = await client.get_status()
             message = await client.post_message(
                 "Ping from demo client", show_events=True

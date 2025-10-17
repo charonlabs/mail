@@ -13,7 +13,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
 ### Cloning the repo
 ```bash
 git clone https://github.com/charonlabs/mail.git \
---branch v1.1.0
+--branch v1.1.1
 ```
 
 ### Installing dependencies
@@ -61,7 +61,7 @@ http://localhost:8000/status
 - **MAIL CLI REPL** (enter `help` for commands): 
 ```bash
 uv run mail client \
---url http://localhost:8000 \
+http://localhost:8000 \
 --api-key $TOKEN
 ``` 
 - **Send a message**: 

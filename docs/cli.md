@@ -20,19 +20,23 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 - Example:
 
   ```bash
-  uv run mail server --host 0.0.0.0 --port 8000 --reload
+  uv run mail server \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --reload
   ```
 
 ### `mail client`
 Launching `mail client` starts the interactive REPL.
 
-- Provide `--url` so the client knows which base URL to contact; the CLI does not infer it automatically.
+- Provide the server URL as the first positional argument so the client knows which base URL to contact; the CLI does not infer it automatically.
 - The default timeout comes from the `[client]` table in `mail.toml`; override it per invocation with `--timeout`.
 - The `--config` flag is shared with `mail server`, allowing you to point both commands at the same config file if you keep multiple TOML profiles.
 - Toggle verbose HTTP logging for the REPL with `--verbose`; it mirrors `[client].verbose` from `mail.toml`.
 
 ```shell
-uv run mail client --url http://localhost:8000 --api-key $USER_TOKEN
+uv run mail client http://localhost:8000 \
+--api-key $USER_TOKEN
 ```
 
 Once inside you will see the prompt `mail>`. The REPL accepts any of the subcommands documented in [docs/client.md](./client.md), plus a few helper commands:
@@ -88,7 +92,7 @@ without leaving the terminal.
   ```
 
 ## Tips
-- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
+- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
 - Combine with `uv run` for isolated environments, e.g. `uv run mail client …`.
 - Logging inherits the standard logging configuration. Setting `MAIL_LOG_LEVEL=DEBUG` will surface detailed request/response traces while you use the REPL.
 

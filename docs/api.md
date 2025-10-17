@@ -15,17 +15,18 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 
 | Method | Path | Auth required | Request body | Response body | Summary |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, version }` | Returns MAIL service metadata and version string |
+| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, version, swarm, uptime }` | Returns MAIL service metadata and version string |
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
-| GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { username, role }` | Returns the username and role associated with the provided token |
+| GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { id, role }` | Returns the caller identifier and role associated with the provided token |
 | POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
+| POST | `/health` | `Bearer` token with role `admin` | `JSON { status: str }` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Updates the health status reported to other swarms |
 | GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpoint] }` | Lists swarms known to the local registry |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/message` | `Bearer` token with role `agent` | `MAILInterswarmMessage { message_id, source_swarm, target_swarm, payload, ... }` | `MAILMessage` (task response) | Routes an inbound interswarm request into the local runtime and returns the generated response |
 | POST | `/interswarm/response` | `Bearer` token with role `agent` | `MAILMessage { id, msg_type, message }` | `types.PostInterswarmResponseResponse { status, task_id }` | Injects a remote swarm response into the pending task queue |
-| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, message: str, subject?: str, msg_type?: str, target_agent?: str, targets?: list[str], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm message (request or broadcast) using an existing user runtime |
+| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm message (request or broadcast) using an existing user runtime |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
 
 ### SSE streaming
@@ -33,7 +34,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
 - When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - To stream interswarm interactions, set `metadata.stream = true` on the `MAILInterswarmMessage`. The receiving swarm will return a `text/event-stream` response; add `metadata.ignore_stream_pings = true` if you prefer to suppress heartbeat `ping` events.
-- `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single `target_agent`, or `msg_type="broadcast"` with `targets`. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
+- `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field

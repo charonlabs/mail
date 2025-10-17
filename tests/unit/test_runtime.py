@@ -23,6 +23,27 @@ from mail.core.tools import AgentToolCall
 from mail.net.registry import SwarmRegistry
 
 
+def _create_agent_core(
+    comm_targets: list[str],
+    call_log: dict[str, bool] | None = None,
+    *,
+    log_key: str = "called",
+) -> AgentCore:
+    async def _agent(history: list[dict[str, Any]], tool_choice: str | dict[str, str]):  # noqa: ARG001
+        if call_log is not None:
+            call_log[log_key] = True
+        return None, [
+            AgentToolCall(
+                tool_name="task_complete",
+                tool_args={"finish_message": "done"},
+                tool_call_id=str(uuid.uuid4()),
+                completion={"role": "assistant", "content": "done"},
+            )
+        ]
+
+    return AgentCore(function=_agent, comm_targets=comm_targets)
+
+
 def _make_request(
     task_id: str, sender: str = "supervisor", recipient: str = "analyst"
 ) -> MAILMessage:
@@ -103,6 +124,7 @@ async def test_submit_prioritizes_message_types() -> None:
         agents={},
         actions={},
         user_id="user-1",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -141,6 +163,7 @@ async def test_submit_and_stream_handles_timeout_and_events(
         agents={},
         actions={},
         user_id="user-2",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -199,6 +222,93 @@ async def test_submit_and_stream_handles_timeout_and_events(
 
 
 @pytest.mark.asyncio
+async def test_agent_cannot_target_unlisted_local_recipient() -> None:
+    """
+    Local agents must not deliver messages to recipients outside their comm_targets.
+    """
+    helper_log = {"called": False}
+    runtime = MAILRuntime(
+        agents={
+            "supervisor": _create_agent_core(comm_targets=[]),
+            "helper": _create_agent_core(comm_targets=[], call_log=helper_log),
+        },
+        actions={},
+        user_id="user-3",
+        user_role="user",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-disallowed-local"
+    message = _make_request(task_id, sender="supervisor", recipient="helper")
+    await runtime.submit(message)
+    _, _, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message, None)
+
+    # Helper should never receive the message
+    assert helper_log["called"] is False
+
+    # The runtime should queue a system response explaining the failure
+    _, _, response_message = await runtime.message_queue.get()
+    assert response_message["message"]["recipient"]["address"] == "supervisor"  # type: ignore
+    assert response_message["message"]["subject"] == "::invalid_recipient::"
+    assert "helper" in response_message["message"]["body"]
+    runtime.message_queue.task_done()
+
+    assert runtime.message_queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_agent_cannot_target_unlisted_remote_recipient() -> None:
+    """
+    Agents should not route interswarm messages to recipients outside comm_targets.
+    """
+
+    class DummyRouter:
+        def __init__(self) -> None:
+            self.called = False
+
+        async def route_message(self, *args, **kwargs):  # noqa: ANN001
+            self.called = True
+            raise AssertionError(
+                "route_message should not be invoked for disallowed targets"
+            )
+
+    runtime = MAILRuntime(
+        agents={
+            "supervisor": _create_agent_core(comm_targets=["analyst"]),
+        },
+        actions={},
+        user_id="user-4",
+        user_role="user",
+        swarm_name="example",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+    runtime.interswarm_router = DummyRouter()  # type: ignore
+
+    task_id = "task-disallowed-remote"
+    remote_target = "remote-helper@swarm-beta"
+    message = _make_request(task_id, sender="supervisor", recipient=remote_target)
+    message["message"]["recipient_swarm"] = "swarm-beta"  # type: ignore
+    await runtime.submit(message)
+    _, _, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message, None)
+
+    # Router must not be invoked
+    assert runtime.interswarm_router.called is False  # type: ignore
+
+    # System response should be queued with failure details
+    _, _, response_message = await runtime.message_queue.get()
+    assert response_message["message"]["recipient"]["address"] == "supervisor"  # type: ignore
+    assert response_message["message"]["subject"] == "::invalid_recipient::"
+    assert remote_target in response_message["message"]["body"]
+    runtime.message_queue.task_done()
+
+    assert runtime.message_queue.empty()
+
+
+@pytest.mark.asyncio
 async def test_agent_can_await_message_records_event() -> None:
     """
     Agents using `await_message` should emit an event and record tool history.
@@ -224,6 +334,7 @@ async def test_agent_can_await_message_records_event() -> None:
         agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
         actions={},
         user_id="user-await",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -282,6 +393,7 @@ async def test_await_message_errors_when_queue_empty() -> None:
         agents={"analyst": AgentCore(function=waiting_agent, comm_targets=[])},
         actions={},
         user_id="user-await",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -338,6 +450,7 @@ async def test_help_tool_emits_broadcast_and_event() -> None:
         agents={"analyst": AgentCore(function=helper_agent, comm_targets=[])},
         actions={},
         user_id="user-help",
+        user_role="user",
         swarm_name="example",
         entrypoint="analyst",
     )
@@ -383,6 +496,7 @@ def test_system_broadcast_requires_recipients_for_non_completion() -> None:
         agents={},
         actions={},
         user_id="user-3",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -411,6 +525,7 @@ def test_submit_event_tracks_events_by_task() -> None:
         agents={},
         actions={},
         user_id="user-4",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -439,6 +554,7 @@ async def test_run_task_breakpoint_resume_requires_task_id() -> None:
         agents={},
         actions={},
         user_id="user-5",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -464,6 +580,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
         agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-6",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -533,6 +650,7 @@ async def test_submit_and_wait_breakpoint_resume_requires_existing_task() -> Non
         agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-7",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -566,6 +684,7 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
         agents={tool_caller: AgentCore(function=noop_agent, comm_targets=[])},
         actions={},
         user_id="user-8",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -652,6 +771,7 @@ async def test_broadcast_all_excludes_sender_locally(
         agents=_make_runtime_agents(),
         actions={},
         user_id="user-1",
+        user_role="user",
         swarm_name="example",
         entrypoint="supervisor",
     )
@@ -685,6 +805,7 @@ async def test_broadcast_all_excludes_sender_with_interswarm(
             agents=_make_runtime_agents(),
             actions={},
             user_id="user-1",
+            user_role="user",
             swarm_name="example",
             entrypoint="supervisor",
             swarm_registry=registry,

@@ -28,7 +28,7 @@ def init_logger():
     )
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] - %(message)s")
+        logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] :: %(message)s")
     )
 
     # for all loggers that are not mail, clear all handlers
@@ -47,6 +47,7 @@ def init_logger():
         show_time=True,
         show_level=True,
         show_path=True,
+        markup=True,
         tracebacks_show_locals=True,
     )
     console_handler.setLevel(logging.DEBUG)
