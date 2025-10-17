@@ -3813,14 +3813,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## `mail==1.1.0`
+## `mail==1.1.1`
 Multi-Agent Interface Layer reference implementation
 ### License field:
 Apache-2.0
 ### Classifiers:
 License :: OSI Approved :: Apache Software License
 
-### License Text (`mail-1.1.0.dist-info/licenses/LICENSE`)
+### License Text (`mail-1.1.1.dist-info/licenses/LICENSE`)
 
 ```text
 Apache License
@@ -4026,7 +4026,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### License Text (`mail-1.1.0.dist-info/licenses/NOTICE`)
+### License Text (`mail-1.1.1.dist-info/licenses/NOTICE`)
 
 ```text
 MAIL Project

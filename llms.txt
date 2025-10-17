@@ -89,7 +89,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.1.0
+git clone https://github.com/charonlabs/mail --branch v1.1.1
 cd mail
 
 # Install dependencies (preferred)
@@ -279,19 +279,23 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 - Example:
 
   ```bash
-  uv run mail server --host 0.0.0.0 --port 8000 --reload
+  uv run mail server \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --reload
   ```
 
 ### `mail client`
 Launching `mail client` starts the interactive REPL.
 
-- Provide `--url` so the client knows which base URL to contact; the CLI does not infer it automatically.
+- Provide the server URL as the first positional argument so the client knows which base URL to contact; the CLI does not infer it automatically.
 - The default timeout comes from the `[client]` table in `mail.toml`; override it per invocation with `--timeout`.
 - The `--config` flag is shared with `mail server`, allowing you to point both commands at the same config file if you keep multiple TOML profiles.
 - Toggle verbose HTTP logging for the REPL with `--verbose`; it mirrors `[client].verbose` from `mail.toml`.
 
 ```shell
-uv run mail client --url http://localhost:8000 --api-key $USER_TOKEN
+uv run mail client http://localhost:8000 \
+--api-key $USER_TOKEN
 ```
 
 Once inside you will see the prompt `mail>`. The REPL accepts any of the subcommands documented in [docs/client.md](./client.md), plus a few helper commands:
@@ -347,7 +351,7 @@ without leaving the terminal.
   ```
 
 ## Tips
-- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--url`, `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
+- Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
 - Combine with `uv run` for isolated environments, e.g. `uv run mail client …`.
 - Logging inherits the standard logging configuration. Setting `MAIL_LOG_LEVEL=DEBUG` will surface detailed request/response traces while you use the REPL.
 
@@ -560,7 +564,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
 ### Cloning the repo
 ```bash
 git clone https://github.com/charonlabs/mail.git \
---branch v1.1.0
+--branch v1.1.1
 ```
 
 ### Installing dependencies
@@ -608,7 +612,7 @@ http://localhost:8000/status
 - **MAIL CLI REPL** (enter `help` for commands): 
 ```bash
 uv run mail client \
---url http://localhost:8000 \
+http://localhost:8000 \
 --api-key $TOKEN
 ``` 
 - **Send a message**: 
@@ -764,17 +768,18 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 
 | Method | Path | Auth required | Request body | Response body | Summary |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, version }` | Returns MAIL service metadata and version string |
+| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, version, swarm, uptime }` | Returns MAIL service metadata and version string |
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
-| GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { username, role }` | Returns the username and role associated with the provided token |
+| GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { id, role }` | Returns the caller identifier and role associated with the provided token |
 | POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
+| POST | `/health` | `Bearer` token with role `admin` | `JSON { status: str }` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Updates the health status reported to other swarms |
 | GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpoint] }` | Lists swarms known to the local registry |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/message` | `Bearer` token with role `agent` | `MAILInterswarmMessage { message_id, source_swarm, target_swarm, payload, ... }` | `MAILMessage` (task response) | Routes an inbound interswarm request into the local runtime and returns the generated response |
 | POST | `/interswarm/response` | `Bearer` token with role `agent` | `MAILMessage { id, msg_type, message }` | `types.PostInterswarmResponseResponse { status, task_id }` | Injects a remote swarm response into the pending task queue |
-| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, message: str, subject?: str, msg_type?: str, target_agent?: str, targets?: list[str], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm message (request or broadcast) using an existing user runtime |
+| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm message (request or broadcast) using an existing user runtime |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
 
 ### SSE streaming
@@ -782,7 +787,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
 - When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - To stream interswarm interactions, set `metadata.stream = true` on the `MAILInterswarmMessage`. The receiving swarm will return a `text/event-stream` response; add `metadata.ignore_stream_pings = true` if you prefer to suppress heartbeat `ping` events.
-- `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single `target_agent`, or `msg_type="broadcast"` with `targets`. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
+- `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field
@@ -1878,7 +1883,7 @@ verbose = false
 [
     {
         "name": "example",
-        "version": "1.1.0",
+        "version": "1.1.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
