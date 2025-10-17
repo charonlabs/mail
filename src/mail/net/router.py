@@ -244,7 +244,9 @@ class InterswarmRouter:
             if isinstance(current_sender, dict):
                 sender_address = current_sender.get("address")
                 sender_agent, sender_swarm = (
-                    parse_agent_address(sender_address) if sender_address else (None, None)
+                    parse_agent_address(sender_address)
+                    if sender_address
+                    else (None, None)
                 )
                 if sender_agent:
                     if sender_swarm != self.local_swarm_name:

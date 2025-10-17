@@ -89,7 +89,9 @@ async def _server_startup(app: FastAPI) -> None:
     app.state.swarm_registry = server_utils.get_default_swarm_registry(cfg)
     app.state.local_swarm_name = server_utils.get_default_swarm_name(cfg)
     app.state.local_base_url = server_utils.get_default_base_url(cfg)
-    app.state.default_entrypoint_agent = server_utils.get_default_entrypoint_agent(app.state.persistent_swarm)
+    app.state.default_entrypoint_agent = server_utils.get_default_entrypoint_agent(
+        app.state.persistent_swarm
+    )
 
     # Shared HTTP session for any server-initiated interswarm calls
     app.state._http_session = ClientSession()
@@ -121,7 +123,9 @@ async def _server_shutdown(app: FastAPI) -> None:
 
     for admin_id, mail_task in app.state.admin_mail_tasks.items():
         if mail_task and not mail_task.done():
-            logger.info(f"{_log_prelude(app)} cancelling MAIL task for admin '{admin_id}'")
+            logger.info(
+                f"{_log_prelude(app)} cancelling MAIL task for admin '{admin_id}'"
+            )
             mail_task.cancel()
             try:
                 await mail_task
@@ -137,7 +141,9 @@ async def _server_shutdown(app: FastAPI) -> None:
 
     for user_id, mail_task in app.state.user_mail_tasks.items():
         if mail_task and not mail_task.done():
-            logger.info(f"{_log_prelude(app)} cancelling MAIL task for user '{user_id}'")
+            logger.info(
+                f"{_log_prelude(app)} cancelling MAIL task for user '{user_id}'"
+            )
             mail_task.cancel()
             try:
                 await mail_task
@@ -153,7 +159,9 @@ async def _server_shutdown(app: FastAPI) -> None:
 
     for swarm_id, mail_task in app.state.swarm_mail_tasks.items():
         if mail_task and not mail_task.done():
-            logger.info(f"{_log_prelude(app)} cancelling MAIL task for swarm '{swarm_id}'")
+            logger.info(
+                f"{_log_prelude(app)} cancelling MAIL task for swarm '{swarm_id}'"
+            )
             mail_task.cancel()
             try:
                 await mail_task
@@ -229,7 +237,9 @@ async def get_or_create_mail_instance(
             await mail_instance.start_interswarm()
 
             # Start the MAIL instance in continuous mode for this role
-            logger.info(f"{_log_prelude(app)} starting MAIL continuous mode for {role} '{id}'")
+            logger.info(
+                f"{_log_prelude(app)} starting MAIL continuous mode for {role} '{id}'"
+            )
             mail_task = asyncio.create_task(
                 mail_instance.run_continuous(
                     max_steps=app.state.persistent_swarm.task_message_limit
@@ -237,10 +247,14 @@ async def get_or_create_mail_instance(
             )
             mail_tasks[id] = mail_task
 
-            logger.info(f"{_log_prelude(app)} MAIL instance created and started for {role} '{id}'")
+            logger.info(
+                f"{_log_prelude(app)} MAIL instance created and started for {role} '{id}'"
+            )
 
         except Exception as e:
-            logger.error(f"{_log_prelude(app)} error creating MAIL instance for {role} '{id}' with error: '{e}'")
+            logger.error(
+                f"{_log_prelude(app)} error creating MAIL instance for {role} '{id}' with error: '{e}'"
+            )
             raise e
 
     instance = mail_instances.get(id)
@@ -274,7 +288,9 @@ async def health():
     return types.GetHealthResponse(
         status=app.state.health,
         swarm_name=app.state.local_swarm_name,
-        timestamp=datetime.datetime.fromtimestamp(app.state.last_health_update, datetime.UTC).isoformat(),
+        timestamp=datetime.datetime.fromtimestamp(
+            app.state.last_health_update, datetime.UTC
+        ).isoformat(),
     )
 
 
@@ -294,7 +310,9 @@ async def health_post(request: Request):
     return types.GetHealthResponse(
         status=app.state.health,
         swarm_name=app.state.local_swarm_name,
-        timestamp=datetime.datetime.fromtimestamp(app.state.last_health_update, datetime.UTC).isoformat(),
+        timestamp=datetime.datetime.fromtimestamp(
+            app.state.last_health_update, datetime.UTC
+        ).isoformat(),
     )
 
 
@@ -338,7 +356,9 @@ async def status(request: Request):
 
     return types.GetStatusResponse(
         swarm={
-            "name": app.state.persistent_swarm.name if app.state.persistent_swarm else None,
+            "name": app.state.persistent_swarm.name
+            if app.state.persistent_swarm
+            else None,
             "status": "ready",
         },
         active_users=len(app.state.user_mail_instances),
@@ -379,7 +399,9 @@ async def message(request: Request):
     try:
         await get_or_create_mail_instance(caller_role, caller_id, jwt)
     except Exception as e:
-        logger.error(f"{_log_prelude(app)} error getting {caller_role} MAIL instance: '{e}'")
+        logger.error(
+            f"{_log_prelude(app)} error getting {caller_role} MAIL instance: '{e}'"
+        )
         raise HTTPException(
             status_code=500,
             detail=f"error getting {caller_role} MAIL instance: {e.with_traceback(None)}",
@@ -702,7 +724,9 @@ async def receive_interswarm_response(request: Request):
                 status="no_mail_instance",
                 task_id=response_message["message"]["task_id"],
             )
-        mail_instance = await get_or_create_mail_instance("swarm", response_message["message"]["sender_swarm"], swarm_jwt)
+        mail_instance = await get_or_create_mail_instance(
+            "swarm", response_message["message"]["sender_swarm"], swarm_jwt
+        )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
@@ -772,7 +796,7 @@ async def send_interswarm_message(request: Request):
             routing_info["ignore_stream_pings"] = True
 
         user_token = data.get("user_token")
-        if (not user_token):
+        if not user_token:
             raise HTTPException(status_code=401, detail="user token is required")
 
         if message_content is not None and not isinstance(message_content, str):
@@ -787,7 +811,9 @@ async def send_interswarm_message(request: Request):
                 detail="'targets' and 'body' are required",
             )
 
-        mail_instance = await get_or_create_mail_instance(caller_role, caller_id, user_token)
+        mail_instance = await get_or_create_mail_instance(
+            caller_role, caller_id, user_token
+        )
 
         sender_address = create_address(caller_id, caller_role)
 
@@ -830,7 +856,8 @@ async def send_interswarm_message(request: Request):
                     subject=subject,
                     body=message_content,
                     sender_swarm=app.state.local_swarm_name,
-                    recipient_swarms=list(recipient_swarms) or [app.state.local_swarm_name],
+                    recipient_swarms=list(recipient_swarms)
+                    or [app.state.local_swarm_name],
                     routing_info=routing_info,
                 ),
                 msg_type="broadcast",

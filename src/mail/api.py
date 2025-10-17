@@ -1198,7 +1198,7 @@ class MAILSwarmTemplate:
         self,
         instance_params: dict[str, Any],
         user_id: str = "default_user",
-        user_role: Literal["admin", "agent","user"] = "user",
+        user_role: Literal["admin", "agent", "user"] = "user",
         base_url: str = "http://localhost:8000",
         registry_file: str | None = None,
     ) -> MAILSwarm:
@@ -1224,7 +1224,9 @@ class MAILSwarmTemplate:
                     function = function.supervisor_fn  # type: ignore
                 if hasattr(function, "action_agent_fn"):
                     function = function.action_agent_fn  # type: ignore
-                logger.debug(f"{self._log_prelude()} updating system prompt for agent '{agent.name}'")
+                logger.debug(
+                    f"{self._log_prelude()} updating system prompt for agent '{agent.name}'"
+                )
                 delimiter = (
                     "Here are details about the agents you can communicate with:"
                 )
@@ -1245,7 +1247,9 @@ class MAILSwarmTemplate:
                     prompt += f"Name: {t.name}\n"
                     prompt += "Capabilities:\n"
                     fn = t.function
-                    logger.debug(f"{self._log_prelude()} found target agent with fn of type '{type(fn)}'")
+                    logger.debug(
+                        f"{self._log_prelude()} found target agent with fn of type '{type(fn)}'"
+                    )
                     if isinstance(fn, MAILAgentFunction):
                         logger.debug("found target agent with MAILAgentFunction")
                         web_search = any(t["type"] == "web_search" for t in fn.tools)

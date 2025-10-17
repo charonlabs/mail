@@ -880,14 +880,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided"
                 )
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
-        breakpoint_tool_caller = kwargs.get("breakpoint_tool_caller") or self.last_breakpoint_caller
+        breakpoint_tool_caller = (
+            kwargs.get("breakpoint_tool_caller") or self.last_breakpoint_caller
+        )
         breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
         if breakpoint_tool_caller is None:
             logger.error(
                 f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: breakpoint tool caller unknown"
             )
-            raise ValueError("breakpoint tool caller is required to resume from a breakpoint")
+            raise ValueError(
+                "breakpoint tool caller is required to resume from a breakpoint"
+            )
 
         # ensure the agent exists already
         if breakpoint_tool_caller not in self.agents:
@@ -967,7 +971,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: breakpoint context was available but no result messages were produced"
             )
 
-        if has_breakpoint_context and isinstance(payload, dict) and "content" not in payload:
+        if (
+            has_breakpoint_context
+            and isinstance(payload, dict)
+            and "content" not in payload
+        ):
             logger.error(
                 f"{self._log_prelude()} last breakpoint tool call payload missing 'content'"
             )
@@ -1086,7 +1094,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             else [message["message"]["recipient"]]
         )
         logger.info(
-            f"{self._log_prelude()} submitting message: [yellow]{message['message']['sender']['address_type']}:{message['message']['sender']['address']}[/yellow] -> [yellow]{[f"{recipient['address_type']}:{recipient['address']}" for recipient in recipients]}[/yellow] with subject '{message['message']['subject']}'"
+            f"{self._log_prelude()} submitting message: [yellow]{message['message']['sender']['address_type']}:{message['message']['sender']['address']}[/yellow] -> [yellow]{[f'{recipient["address_type"]}:{recipient["address"]}' for recipient in recipients]}[/yellow] with subject '{message['message']['subject']}'"
         )
 
         priority = 0
@@ -1158,7 +1166,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         )
         if disallowed_targets:
             sender_label = (
-                sender_info.get("address") if isinstance(sender_info, dict) else "unknown"
+                sender_info.get("address")
+                if isinstance(sender_info, dict)
+                else "unknown"
             )
             logger.warning(
                 f"{self._log_prelude()} agent '{sender_label}' attempted to message targets outside comm_targets: {', '.join(disallowed_targets)}"
@@ -1189,11 +1199,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 pass
             return
 
-        if (
-            self.enable_interswarm
-            and self.interswarm_router
-            and recipients_for_routing
-        ):
+        if self.enable_interswarm and self.interswarm_router and recipients_for_routing:
             has_interswarm_recipients = False
             for recipient in recipients_for_routing:
                 _, recipient_swarm = parse_agent_address(recipient["address"])
@@ -1347,7 +1353,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(original_task_id, str):
                         response_msg["task_id"] = original_task_id
                     if isinstance(original_request_id, str):
-                        response_msg["request_id"] = original_request_id # type: ignore
+                        response_msg["request_id"] = original_request_id  # type: ignore
                     response_routing = response_msg.get("routing_info")
                     if not isinstance(response_routing, dict):
                         response_routing = {}
@@ -1445,7 +1451,9 @@ If your assigned task cannot be completed, inform your caller of this error and 
                 pass
             return
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error submitting interswarm message for task '{task_id}': '{e}'")
+            logger.error(
+                f"{self._log_prelude()} error submitting interswarm message for task '{task_id}': '{e}'"
+            )
             self._submit_event(
                 "task_error",
                 task_id,
@@ -1455,7 +1463,7 @@ If your assigned task cannot be completed, inform your caller of this error and 
                 self._system_broadcast(
                     task_id=task_id,
                     subject="::runtime_error::",
-                    body=f"""An interswarm message from {message['message']['sender']['address']}@{message['message']['sender_swarm']} for task '{task_id}' was not delivered.
+                    body=f"""An interswarm message from {message["message"]["sender"]["address"]}@{message["message"]["sender_swarm"]} for task '{task_id}' was not delivered.
 The error encountered was: {e}.
 This should not happen. Please report this error to the MAIL team.""",
                     task_complete=True,
@@ -1498,6 +1506,7 @@ This should not happen. Please report this error to the MAIL team.""",
             if recipient_address in {None, MAIL_ALL_LOCAL_AGENTS["address"]}:
                 continue
             if recipient_address not in allowed_targets:
+                assert isinstance(recipient_address, str)
                 disallowed.append(recipient_address)
 
         return disallowed

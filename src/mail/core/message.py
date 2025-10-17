@@ -274,7 +274,9 @@ def get_address_string(address: MAILAddress) -> str:
     return address["address"]
 
 
-def get_address_type(address: MAILAddress) -> Literal["admin", "agent", "system", "user"]:
+def get_address_type(
+    address: MAILAddress,
+) -> Literal["admin", "agent", "system", "user"]:
     """
     Extract the address type from a MAILAddress.
     """

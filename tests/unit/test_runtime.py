@@ -250,7 +250,7 @@ async def test_agent_cannot_target_unlisted_local_recipient() -> None:
 
     # The runtime should queue a system response explaining the failure
     _, _, response_message = await runtime.message_queue.get()
-    assert response_message["message"]["recipient"]["address"] == "supervisor"
+    assert response_message["message"]["recipient"]["address"] == "supervisor"  # type: ignore
     assert response_message["message"]["subject"] == "::invalid_recipient::"
     assert "helper" in response_message["message"]["body"]
     runtime.message_queue.task_done()
@@ -270,7 +270,9 @@ async def test_agent_cannot_target_unlisted_remote_recipient() -> None:
 
         async def route_message(self, *args, **kwargs):  # noqa: ANN001
             self.called = True
-            raise AssertionError("route_message should not be invoked for disallowed targets")
+            raise AssertionError(
+                "route_message should not be invoked for disallowed targets"
+            )
 
     runtime = MAILRuntime(
         agents={
@@ -283,22 +285,22 @@ async def test_agent_cannot_target_unlisted_remote_recipient() -> None:
         entrypoint="supervisor",
         enable_interswarm=True,
     )
-    runtime.interswarm_router = DummyRouter()
+    runtime.interswarm_router = DummyRouter()  # type: ignore
 
     task_id = "task-disallowed-remote"
     remote_target = "remote-helper@swarm-beta"
     message = _make_request(task_id, sender="supervisor", recipient=remote_target)
-    message["message"]["recipient_swarm"] = "swarm-beta"  # type: ignore[index]
+    message["message"]["recipient_swarm"] = "swarm-beta"  # type: ignore
     await runtime.submit(message)
     _, _, queued_message = await runtime.message_queue.get()
     await runtime._process_message(queued_message, None)
 
     # Router must not be invoked
-    assert runtime.interswarm_router.called is False  # type: ignore[attr-defined]
+    assert runtime.interswarm_router.called is False  # type: ignore
 
     # System response should be queued with failure details
     _, _, response_message = await runtime.message_queue.get()
-    assert response_message["message"]["recipient"]["address"] == "supervisor"
+    assert response_message["message"]["recipient"]["address"] == "supervisor"  # type: ignore
     assert response_message["message"]["subject"] == "::invalid_recipient::"
     assert remote_target in response_message["message"]["body"]
     runtime.message_queue.task_done()

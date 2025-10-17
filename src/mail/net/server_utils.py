@@ -75,6 +75,7 @@ def get_default_swarm_registry(
         persistence_file=swarm_registry_file,
     )
 
+
 def get_default_swarm_name(
     cfg: ServerConfig,
 ) -> str:
