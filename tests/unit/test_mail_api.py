@@ -9,6 +9,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from mail.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate, action
+from mail.swarms_json.utils import build_swarm_from_swarms_json
 from tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
 
@@ -671,3 +672,84 @@ def test_action_decorator_missing_description_raises() -> None:
         @action(model=Empty)
         async def undecorated(_: Empty) -> str:
             return "nope"
+
+
+def test_swarm_template_action_imports_populate_actions() -> None:
+    """
+    Imported actions should be available to the swarm and its agents.
+    """
+    swarm_candidate = {
+        "name": "imported",
+        "version": "1.1.1",
+        "entrypoint": "alpha",
+        "agents": [
+            {
+                "name": "alpha",
+                "factory": "tests.conftest:make_stub_agent",
+                "comm_targets": [],
+                "actions": ["decorated_for_string"],
+                "agent_params": {},
+                "enable_entrypoint": True,
+                "enable_interswarm": False,
+                "can_complete_tasks": True,
+                "tool_format": "responses",
+                "exclude_tools": [],
+            }
+        ],
+        "actions": [],
+        "action_imports": ["python::tests.unit.test_mail_api:decorated_for_string"],
+        "enable_interswarm": False,
+        "breakpoint_tools": [],
+        "exclude_tools": [],
+    }
+
+    parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
+    template = MAILSwarmTemplate.from_swarms_json(parsed_swarm)
+
+    assert len(template.actions) == 1
+    action = template.actions[0]
+    assert action.name == decorated_for_string.name
+    assert action.description == decorated_for_string.description
+    assert template.agents[0].actions[0] is action
+
+
+def test_swarm_template_action_imports_duplicate_names_raise() -> None:
+    """
+    Inline actions that collide with imported action names should raise an error.
+    """
+    swarm_candidate = {
+        "name": "imported",
+        "version": "1.1.1",
+        "entrypoint": "alpha",
+        "agents": [
+            {
+                "name": "alpha",
+                "factory": "tests.conftest:make_stub_agent",
+                "comm_targets": [],
+                "actions": ["decorated_for_string"],
+                "agent_params": {},
+                "enable_entrypoint": True,
+                "enable_interswarm": False,
+                "can_complete_tasks": True,
+                "tool_format": "responses",
+                "exclude_tools": [],
+            }
+        ],
+        "actions": [
+            {
+                "name": "decorated_for_string",
+                "description": "Inline duplicate",
+                "parameters": {"type": "object", "properties": {}},
+                "function": "python::tests.unit.test_mail_api:decorated_for_string",
+            }
+        ],
+        "action_imports": ["python::tests.unit.test_mail_api:decorated_for_string"],
+        "enable_interswarm": False,
+        "breakpoint_tools": [],
+        "exclude_tools": [],
+    }
+
+    parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
+    with pytest.raises(ValueError) as exc:
+        MAILSwarmTemplate.from_swarms_json(parsed_swarm)
+    assert "duplicate action definition" in str(exc.value)

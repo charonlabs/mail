@@ -1473,9 +1473,28 @@ class MAILSwarmTemplate:
         """
         Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
         """
-        actions = [
+        inline_actions = [
             MAILAction.from_swarms_json(action) for action in swarm_data["actions"]
         ]
+        imported_actions: list[MAILAction] = []
+        for import_path in swarm_data.get("action_imports", []):
+            resolved = read_python_string(import_path)
+            if not isinstance(resolved, MAILAction):
+                raise TypeError(
+                    f"action import '{import_path}' in swarm '{swarm_data['name']}' did not resolve to a MAILAction"
+                )
+            imported_actions.append(resolved)
+
+        combined_actions: dict[str, MAILAction] = {}
+        for action in imported_actions + inline_actions:
+            existing = combined_actions.get(action.name)
+            if existing and existing is not action:
+                raise ValueError(
+                    f"duplicate action definition for '{action.name}' in swarm '{swarm_data['name']}'"
+                )
+            combined_actions[action.name] = action
+
+        actions = list(combined_actions.values())
         actions_by_name = {action.name: action for action in actions}
         agents = [
             MAILAgentTemplate.from_swarms_json(agent, actions_by_name)

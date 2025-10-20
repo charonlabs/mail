@@ -163,6 +163,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILSwarmTemplate` (`mail.api`)
 - **Summary**: Immutable swarm blueprint comprised of `MAILAgentTemplate`s and shared actions.
+- **Notes**: Inline definitions from `actions` may be combined with `action_imports` that resolve to decorated `MAILAction` objects (e.g., from `mail.stdlib`).
 - **Constructor parameters**: `name: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`.
 - **Key methods**:
   - `instantiate(instance_params, user_id?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
