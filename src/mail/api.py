@@ -608,7 +608,7 @@ def action(
             if resolved_model is not None:
                 parsed_payload = resolved_model.model_validate(payload)
             else:
-                parsed_payload = payload
+                parsed_payload = payload # type: ignore
 
             result = func(parsed_payload)
             if inspect.isawaitable(result):
