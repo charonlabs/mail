@@ -6,9 +6,10 @@ import datetime
 import inspect
 import logging
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
-from typing import Any, Literal
+from functools import wraps
+from typing import Any, Literal, TypeVar, get_type_hints
 
 from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
@@ -46,6 +47,8 @@ from mail.swarms_json import (
 from mail.utils import read_python_string, resolve_prefixed_string_references
 
 logger = logging.getLogger("mail.api")
+
+ActionLike = TypeVar("ActionLike", bound=Callable[..., Awaitable[str] | str])
 
 
 class MAILAgent:
@@ -406,9 +409,19 @@ class MAILAction:
         self,
         function: str | ActionFunction,
     ) -> ActionFunction:
+        resolved_function: Any
         if isinstance(function, str):
-            return read_python_string(function)
-        return function
+            resolved_function = read_python_string(function)
+        else:
+            resolved_function = function
+
+        if isinstance(resolved_function, MAILAction):
+            return resolved_function.function
+        if not callable(resolved_function):
+            raise TypeError(
+                f"action function must be callable, got {type(resolved_function)}"
+            )
+        return resolved_function  # type: ignore[return-value]
 
     @staticmethod
     def from_pydantic_model(
@@ -527,6 +540,98 @@ class MAILAction:
                 function: str = Field(description=str(self.function))
 
             return MAILActionBaseModel
+
+
+def action(
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    model: type[BaseModel] | None = None,
+    parameters: dict[str, Any] | None = None,
+    style: Literal["completions", "responses"] = "responses",
+) -> Callable[[ActionLike], MAILAction]:
+    """
+    Decorator that converts a Python callable into a MAILAction.
+    """
+
+    if model is not None and not issubclass(model, BaseModel):
+        msg = f"model must be a subclass of BaseModel, got {model}"
+        raise TypeError(msg)
+
+    def decorator(func: ActionLike) -> MAILAction:
+        action_name = name or func.__name__
+        docstring = description or inspect.getdoc(func) or ""
+        clean_description = inspect.cleandoc(docstring)
+        if len(clean_description) < 1:
+            raise ValueError(
+                f"Action '{action_name}' is missing a description. Provide one via "
+                "`description=` or add a docstring."
+            )
+
+        signature = inspect.signature(func)
+        if len(signature.parameters) != 1:
+            raise TypeError(
+                f"Action '{action_name}' must accept exactly one argument matching the "
+                "tool payload."
+            )
+
+        resolved_model = model
+        if resolved_model is None:
+            type_hints = get_type_hints(func)
+            first_param_name = next(iter(signature.parameters))
+            candidate = type_hints.get(first_param_name)
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                resolved_model = candidate
+
+        if resolved_model and parameters:
+            raise ValueError(
+                f"Action '{action_name}' cannot specify both model= and parameters=."
+            )
+
+        if resolved_model:
+            tool_definition = pydantic_model_to_tool(
+                resolved_model,
+                name=action_name,
+                description=clean_description,
+                style=style,
+            )
+            action_parameters = tool_definition["parameters"]
+        elif parameters:
+            action_parameters = parameters
+        else:
+            raise ValueError(
+                f"Action '{action_name}' must provide either a model= or parameters=."
+            )
+
+        @wraps(func)
+        async def runner(payload: dict[str, Any]) -> str:
+            if resolved_model is not None:
+                parsed_payload = resolved_model.model_validate(payload)
+            else:
+                parsed_payload = payload
+
+            result = func(parsed_payload)
+            if inspect.isawaitable(result):
+                result = await result
+
+            if not isinstance(result, str):
+                raise TypeError(
+                    f"Action '{action_name}' returned {type(result)}, expected str."
+                )
+
+            return result
+
+        mail_action = MAILAction(
+            name=action_name,
+            description=clean_description,
+            parameters=action_parameters,
+            function=runner,
+        )
+        mail_action.callback = func  # type: ignore[attr-defined]
+        mail_action.parameters_model = resolved_model  # type: ignore[attr-defined]
+        return mail_action
+
+    return decorator
 
 
 class MAILSwarm:

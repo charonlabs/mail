@@ -5,7 +5,25 @@ from typing import Any
 
 import aiohttp
 
+from mail import action
 
+SWARM_URL_PARAMETERS = {
+    "type": "object",
+    "properties": {
+        "url": {
+            "type": "string",
+            "description": "The URL of the remote swarm.",
+        },
+    },
+    "required": ["url"],
+}
+
+
+@action(
+    name="ping_swarm",
+    description="Check if a remote URL hosts an active MAIL swarm.",
+    parameters=SWARM_URL_PARAMETERS,
+)
 async def ping_swarm(args: dict[str, Any]) -> str:
     """
     Check if a remote URL is a valid, active MAIL swarm.
@@ -37,6 +55,11 @@ async def ping_swarm(args: dict[str, Any]) -> str:
         return f"Error: {e}"
 
 
+@action(
+    name="get_swarm_health",
+    description="Get the health status of a remote MAIL swarm.",
+    parameters=SWARM_URL_PARAMETERS,
+)
 async def get_swarm_health(args: dict[str, Any]) -> str:
     """
     Get the health of a remote MAIL swarm.
@@ -69,6 +92,11 @@ async def get_swarm_health(args: dict[str, Any]) -> str:
         return f"Error: {e}"
 
 
+@action(
+    name="get_swarm_registry",
+    description="Fetch the registry listing for a remote MAIL swarm.",
+    parameters=SWARM_URL_PARAMETERS,
+)
 async def get_swarm_registry(args: dict[str, Any]) -> str:
     """
     Get the registry of the remote MAIL swarm.

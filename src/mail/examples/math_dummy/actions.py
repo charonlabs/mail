@@ -10,6 +10,8 @@ import re
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation, localcontext
 from typing import Any, Final, Union
 
+from mail import action
+
 Number = Union[int, Decimal]
 
 # Extended-precision constants to keep deterministic values for math literals.
@@ -21,6 +23,25 @@ _CONSTANTS: Final[dict[str, Decimal]] = {
 
 _MIN_PRECISION: Final[int] = 64
 _MAX_PRECISION: Final[int] = 4096
+
+CALCULATE_EXPRESSION_PARAMETERS: Final[dict[str, Any]] = {
+    "type": "object",
+    "properties": {
+        "expression": {
+            "type": "string",
+            "description": "The arithmetic expression to evaluate.",
+        },
+        "precision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 12,
+            "description": (
+                "Optional number of decimal places for the formatted result."
+            ),
+        },
+    },
+    "required": ["expression"],
+}
 
 
 class _CalculatorError(ValueError):
@@ -169,6 +190,14 @@ def _eval_node(node: ast.AST, source: str) -> Number:
     raise _CalculatorError("Unsupported syntax in expression")
 
 
+@action(
+    name="calculate_expression",
+    description=(
+        "Evaluate a basic arithmetic expression with +, -, *, /, %, //, **, and "
+        "parentheses."
+    ),
+    parameters=CALCULATE_EXPRESSION_PARAMETERS,
+)
 async def calculate_expression(args: dict[str, Any]) -> str:
     """Evaluate a basic arithmetic expression and return a structured JSON payload.
 

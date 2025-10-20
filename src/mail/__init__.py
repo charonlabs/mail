@@ -4,6 +4,7 @@ from .api import (
     MAILAgentTemplate,
     MAILSwarm,
     MAILSwarmTemplate,
+    action,
 )
 from .core import (
     AgentToolCall,
@@ -22,6 +23,7 @@ __all__ = [
     "MAILAction",
     "MAILSwarm",
     "MAILSwarmTemplate",
+    "action",
     "AgentToolCall",
     "MAILBroadcast",
     "MAILInterrupt",

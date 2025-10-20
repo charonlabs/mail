@@ -97,9 +97,34 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Key methods**:
   - `from_pydantic_model(model, function_str, name?, description?) -> MAILAction`: build from a Pydantic model definition.
   - `from_swarm_json(json_str) -> MAILAction`: rebuild from persisted `swarms.json` entries.
-  - `to_tool_dict(style="responses"|"completions") -> dict[str, Any]`: emit an OpenAI-compatible tool declaration.
-  - `to_pydantic_model(for_tools: bool = False) -> type[BaseModel]`: create a Pydantic model for validation or schema reuse.
-  - `_validate() -> None` and `_build_action_function(function) -> ActionFunction`: internal guards and loader utilities.
+   - `to_tool_dict(style="responses"|"completions") -> dict[str, Any]`: emit an OpenAI-compatible tool declaration.
+   - `to_pydantic_model(for_tools: bool = False) -> type[BaseModel]`: create a Pydantic model for validation or schema reuse.
+   - `_validate() -> None` and `_build_action_function(function) -> ActionFunction`: internal guards and loader utilities.
+
+#### `action` decorator (`mail.api`)
+- **Summary**: Decorator that turns a Python callable into a `MAILAction`, wiring up schema validation and tool metadata automatically.
+- **Parameters**:
+  - `name: str | None` – optional override; defaults to the function name.
+  - `description: str | None` – required unless supplied via docstring.
+  - `model: type[BaseModel] | None` – payload schema; inferred from the first argument annotation when it is a `BaseModel` subclass.
+  - `parameters: dict[str, Any] | None` – manual JSON schema (mutually exclusive with `model`).
+  - `style: Literal["responses", "completions"]` – schema flavor passed to `pydantic_model_to_tool` (default `"responses"`).
+- **Usage**:
+  ```python
+  from pydantic import BaseModel
+  from mail import action
+
+  class WeatherRequest(BaseModel):
+      city: str
+
+  @action(description="Return weather information for the requested city.")
+  async def get_weather(payload: WeatherRequest) -> str:
+      forecast = lookup_forecast(payload.city)
+      return forecast.json()
+
+  # get_weather is now a MAILAction ready to install on an agent:
+  weather_action = get_weather
+  ```
 
 #### `MAILAgent` (`mail.api`)
 - **Summary**: Concrete runtime agent produced by an agent factory and associated actions.
