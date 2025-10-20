@@ -93,7 +93,9 @@ async def _server_startup(app: FastAPI) -> None:
     )
 
     # Shared HTTP session for any server-initiated interswarm calls
-    app.state._http_session = ClientSession()
+    app.state._http_session = ClientSession(
+        headers={"User-Agent": f"MAIL-Server/v{utils.get_protocol_version()}/{app.state.local_swarm_name} (github.com/charonlabs/mail)"}
+    )
 
     # more app state
     app.state.start_time = time.time()

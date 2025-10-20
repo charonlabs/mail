@@ -3,6 +3,7 @@
 The MAIL reference runtime ships a small but growing set of reusable actions under `mail.stdlib`. These helpers are implemented with the `@mail.action` decorator, so each export is already a fully validated `MAILAction`. You can attach them to agents by adding their names to the agent template, or—more commonly—by listing their import strings inside the swarm-level `action_imports` array so they are automatically wired when a swarm template is loaded.
 
 - For inter-swarm utilities (health checks, registry discovery), see [interswarm.md](./interswarm.md).
+- For HTTP client helpers (GET/POST/etc.), see [http.md](./http.md).
 - For Model Context Protocol (MCP) helpers that wrap `fastmcp.Client`, see [mcp.md](./mcp.md).
 
 To use one of these actions from configuration:
