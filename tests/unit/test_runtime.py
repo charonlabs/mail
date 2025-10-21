@@ -18,6 +18,7 @@ from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
+    format_agent_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
 from mail.core.tools import AgentToolCall
@@ -646,6 +647,109 @@ async def test_notify_remote_task_complete_sends_message() -> None:
     assert outbound["message"]["task_id"] == task_id
     assert outbound["msg_type"] == "response"
     assert outbound["message"]["subject"] == "::task_complete::"
+
+
+@pytest.mark.asyncio
+async def test_route_interswarm_response_skips_submit_on_success() -> None:
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-response",
+        user_role="user",
+        swarm_name="alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+
+    class _Router:
+        async def route_message(self, message: MAILMessage, **_: Any) -> MAILMessage:  # noqa: D401
+            return message
+
+    runtime.interswarm_router = _Router()  # type: ignore[assignment]
+
+    submitted: dict[str, bool] = {"called": False}
+
+    async def record_submit(self: MAILRuntime, message: MAILMessage) -> None:  # noqa: ARG001
+        submitted["called"] = True
+
+    runtime._submit_from_interswarm = MethodType(record_submit, runtime)  # type: ignore[assignment]
+
+    message = MAILMessage(
+        id="msg-response",
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message={
+            "task_id": "task-response",
+            "request_id": "req-response",
+            "sender": create_agent_address("supervisor"),
+            "recipient": format_agent_address("supervisor", "beta"),
+            "subject": "::task_complete::",
+            "body": "Done",
+            "sender_swarm": "alpha",
+            "recipient_swarm": "beta",
+            "routing_info": {},
+        },
+        msg_type="response",
+    )
+
+    runtime._ensure_task_exists("task-response")
+    await runtime._route_interswarm_message(message)
+
+    assert submitted["called"] is False
+
+
+@pytest.mark.asyncio
+async def test_route_interswarm_response_submits_on_system_error() -> None:
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-response-error",
+        user_role="user",
+        swarm_name="alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+
+    system_error = runtime._system_response(
+        task_id="task-response",
+        subject="Router Error",
+        body="failed",
+        recipient=create_agent_address("supervisor"),
+    )
+
+    class _Router:
+        async def route_message(self, message: MAILMessage, **_: Any) -> MAILMessage:  # noqa: D401, ARG001
+            return system_error
+
+    runtime.interswarm_router = _Router()  # type: ignore[assignment]
+
+    submitted: dict[str, bool] = {"called": False}
+
+    async def record_submit(self: MAILRuntime, message: MAILMessage) -> None:  # noqa: ARG001
+        submitted["called"] = True
+
+    runtime._submit_from_interswarm = MethodType(record_submit, runtime)  # type: ignore[assignment]
+
+    message = MAILMessage(
+        id="msg-response",
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message={
+            "task_id": "task-response",
+            "request_id": "req-response",
+            "sender": create_agent_address("supervisor"),
+            "recipient": format_agent_address("supervisor", "beta"),
+            "subject": "::task_complete::",
+            "body": "Done",
+            "sender_swarm": "alpha",
+            "recipient_swarm": "beta",
+            "routing_info": {},
+        },
+        msg_type="response",
+    )
+
+    runtime._ensure_task_exists("task-response")
+    await runtime._route_interswarm_message(message)
+
+    assert submitted["called"] is True
 
 
 @pytest.mark.asyncio

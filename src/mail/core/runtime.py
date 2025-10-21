@@ -1447,6 +1447,35 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     )
                     response_msg["routing_info"] = response_routing
 
+                if message["msg_type"] == "response":
+                    sender_info = (
+                        response_msg.get("sender")
+                        if isinstance(response_msg, dict)
+                        else None
+                    )
+                    sender_type = (
+                        sender_info.get("address_type")
+                        if isinstance(sender_info, dict)
+                        else None
+                    )
+
+                    if sender_type == "system":
+                        if isinstance(event_task_id, str):
+                            self._submit_event(
+                                "router_error",
+                                event_task_id,
+                                "remote swarm rejected interswarm response",
+                            )
+                        normalized = self._normalize_interswarm_response(
+                            original_task_id, response
+                        )
+                        await self._submit_from_interswarm(normalized)
+                    else:
+                        logger.info(
+                            f"{self._log_prelude()} delivered interswarm response for task '{event_task_id}' to remote swarm '{detail_targets}'"
+                        )
+                    return
+
                 if isinstance(event_task_id, str):
                     self._submit_event(
                         "interswarm_receive",

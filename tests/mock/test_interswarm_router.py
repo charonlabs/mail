@@ -85,6 +85,7 @@ async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPa
         stream_requested: bool = False,
         stream_handler: StreamHandler | None = None,
         ignore_stream_pings: bool = False,
+        is_response: bool = False,
     ):  # noqa: ANN001
         captured["msg"] = mm
         return mm
@@ -158,6 +159,53 @@ class _FakeResponse:
 
     async def release(self) -> None:
         return None
+
+
+class _SimpleResponse:
+    """
+    Minimal context manager for JSON responses.
+    """
+
+    def __init__(self, status: int, body: str, *, headers: dict[str, str] | None = None, reason: str = "") -> None:
+        self.status = status
+        self._body = body
+        self.headers = headers or {"Content-Type": "application/json"}
+        self.reason = reason
+
+    async def __aenter__(self) -> "_SimpleResponse":
+        return self
+
+    async def __aexit__(self, exc_type, exc: BaseException | None, tb) -> bool:  # type: ignore[override]
+        return False
+
+    async def text(self) -> str:
+        return self._body
+
+    async def release(self) -> None:
+        return None
+
+
+class _CaptureSession:
+    """
+    Fake aiohttp session that records calls and returns predetermined responses.
+    """
+
+    def __init__(self, responses: list[_SimpleResponse]) -> None:
+        self._responses = responses
+        self.calls: list[dict[str, object]] = []
+
+    def post(self, url: str, json: object = None, headers: dict[str, str] | None = None, timeout: object = None):  # noqa: ANN001
+        if not self._responses:
+            raise AssertionError("no responses left to return")
+        self.calls.append(
+            {
+                "url": url,
+                "json": json,
+                "headers": headers,
+                "timeout": timeout,
+            }
+        )
+        return self._responses.pop(0)
 
 
 @pytest.mark.asyncio
@@ -241,3 +289,100 @@ async def test_iter_sse_ignores_ping(monkeypatch: pytest.MonkeyPatch):
     )
 
     assert captured == ["task_complete"]
+
+
+@pytest.mark.asyncio
+async def test_route_response_uses_response_endpoint() -> None:
+    """
+    Ensure responses are delivered via `/interswarm/response` without wrapping.
+    """
+    registry = SwarmRegistry("example", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
+    router = InterswarmRouter(registry, "example")
+    router.session = _CaptureSession(
+        [
+            _SimpleResponse(
+                200,
+                json.dumps({"status": "response_processed", "task_id": "task-1"}),
+            )
+        ]
+    )
+
+    message = MAILMessage(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message={
+            "task_id": "task-1",
+            "request_id": "req-1",
+            "sender": create_agent_address("supervisor"),
+            "recipient": format_agent_address("supervisor", "remote"),
+            "subject": "::task_complete::",
+            "body": "Done",
+            "sender_swarm": "example",
+            "recipient_swarm": "remote",
+            "routing_info": {},
+        },
+        msg_type="response",
+    )
+
+    result = await router._route_to_remote_swarm(
+        message,
+        "remote",
+        is_response=True,
+    )
+
+    assert router.session.calls, "expected HTTP call"
+    call = router.session.calls[0]
+    assert str(call["url"]).endswith("/interswarm/response")
+    payload = call["json"]
+    assert isinstance(payload, dict)
+    assert payload["msg_type"] == "response"
+    assert payload["message"]["sender_swarm"] == "example"
+    assert payload["message"]["recipient_swarm"] == "remote"
+    assert result["msg_type"] == "response"
+    assert result["message"]["subject"] == "::task_complete::"
+
+
+@pytest.mark.asyncio
+async def test_route_response_rejected_returns_system_message() -> None:
+    """
+    If the remote swarm rejects a response, a system router message is returned.
+    """
+    registry = SwarmRegistry("example", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
+    router = InterswarmRouter(registry, "example")
+    router.session = _CaptureSession(
+        [
+            _SimpleResponse(
+                200,
+                json.dumps({"status": "no_mail_instance", "detail": "not ready"}),
+            )
+        ]
+    )
+
+    message = MAILMessage(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message={
+            "task_id": "task-2",
+            "request_id": "req-2",
+            "sender": create_agent_address("supervisor"),
+            "recipient": format_agent_address("supervisor", "remote"),
+            "subject": "::task_complete::",
+            "body": "Done",
+            "sender_swarm": "example",
+            "recipient_swarm": "remote",
+            "routing_info": {},
+        },
+        msg_type="response",
+    )
+
+    result = await router._route_to_remote_swarm(
+        message,
+        "remote",
+        is_response=True,
+    )
+
+    assert result["message"]["sender"]["address_type"] == "system"  # type: ignore[index]
+    assert result["message"]["subject"] == "Router Error"  # type: ignore[index]
+    assert "no_mail_instance" in result["message"]["body"]  # type: ignore[index]

@@ -120,6 +120,7 @@ class InterswarmRouter:
                         stream_requested=stream_requested,
                         stream_handler=stream_handler,
                         ignore_stream_pings=ignore_pings,
+                        is_response=message["msg_type"] == "response",
                     )
                 else:
                     # Local message, handle normally
@@ -165,6 +166,7 @@ class InterswarmRouter:
                         stream_requested=stream_requested,
                         stream_handler=stream_handler,
                         ignore_stream_pings=ignore_pings,
+                        is_response=remote_message["msg_type"] == "response",
                     )
 
                 return response
@@ -215,6 +217,7 @@ class InterswarmRouter:
         stream_requested: bool = False,
         stream_handler: StreamHandler | None = None,
         ignore_stream_pings: bool = False,
+        is_response: bool = False,
     ) -> MAILMessage:
         """
         Route a message to a remote swarm via HTTP.
@@ -297,7 +300,71 @@ class InterswarmRouter:
                     f"auth token for swarm '{swarm_name}' is not configured; cannot send interswarm message",
                 )
 
-            # Create interswarm message wrapper
+            headers = {
+                "Content-Type": "application/json",
+                "User-Agent": f"MAIL-Interswarm-Router/{self.local_swarm_name}",
+                "Authorization": f"Bearer {auth_token}",
+            }
+
+            timeout = aiohttp.ClientTimeout(total=3600)
+            assert self.session is not None
+            if is_response:
+                url = f"{endpoint['base_url']}/interswarm/response"
+                headers["Accept"] = "application/json"
+
+                async with self.session.post(
+                    url, json=message, headers=headers, timeout=timeout
+                ) as response:
+                    raw_body = await response.text()
+                    payload: Any | None = None
+                    if raw_body:
+                        try:
+                            payload = json.loads(raw_body)
+                        except json.JSONDecodeError:
+                            payload = None
+
+                    if response.status == 200:
+                        status = (
+                            payload.get("status")
+                            if isinstance(payload, dict)
+                            else None
+                        )
+                        if status and status != "response_processed":
+                            detail = (
+                                payload.get("detail")
+                                if isinstance(payload, dict)
+                                else None
+                            )
+                            reason = (
+                                f"{detail} (status={status})"
+                                if detail
+                                else f"remote swarm '{swarm_name}' returned status '{status}'"
+                            )
+                            logger.warning(
+                                f"{self._log_prelude()} swarm '{swarm_name}' did not process response: '{status}'"
+                            )
+                            return self._system_router_message(message, reason)
+
+                        logger.info(
+                            f"{self._log_prelude()} delivered interswarm response '{message['id']}' to swarm '{swarm_name}'"
+                        )
+                        return message
+
+                    detail_message = None
+                    if isinstance(payload, dict):
+                        detail_message = payload.get("detail")
+                    if not detail_message:
+                        detail_message = raw_body or response.reason
+
+                    logger.error(
+                        f"{self._log_prelude()} failed to deliver interswarm response '{message['id']}' to swarm '{swarm_name}'"
+                    )
+                    return self._system_router_message(
+                        message,
+                        f"failed to deliver response to swarm '{swarm_name}': {detail_message}",
+                    )
+
+            # Create interswarm message wrapper for non-response payloads
             metadata: dict[str, Any] = {
                 "original_message_id": message["id"],
                 "routing_info": message["message"].get("routing_info", {}),
@@ -319,20 +386,10 @@ class InterswarmRouter:
                 metadata=metadata,
             )
 
-            # Send via HTTP
             url = f"{endpoint['base_url']}/interswarm/message"
-            headers = {
-                "Content-Type": "application/json",
-                "User-Agent": f"MAIL-Interswarm-Router/{self.local_swarm_name}",
-            }
-
             if stream_requested:
                 headers["Accept"] = "text/event-stream"
 
-            headers["Authorization"] = f"Bearer {auth_token}"
-
-            timeout = aiohttp.ClientTimeout(total=3600)
-            assert self.session is not None
             async with self.session.post(
                 url, json=interswarm_message, headers=headers, timeout=timeout
             ) as response:
@@ -673,7 +730,7 @@ class InterswarmRouter:
             case "request":
                 request_id = message["message"]["request_id"]  # type: ignore
             case "response":
-                request_id = message["message"]["response_id"]  # type: ignore
+                request_id = message["message"]["request_id"]  # type: ignore
             case "broadcast":
                 request_id = message["message"]["broadcast_id"]  # type: ignore
             case "interrupt":
