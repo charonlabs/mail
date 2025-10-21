@@ -109,6 +109,8 @@ def _register_task_binding(
     role: str,
     identifier: str,
     jwt: str,
+    *,
+    direct: bool = False,
 ) -> None:
     if not task_id:
         return
@@ -118,11 +120,38 @@ def _register_task_binding(
     }
     if jwt:
         binding["jwt"] = jwt
+    if direct:
+        binding["direct"] = True
     app.state.task_bindings[task_id] = binding
 
 
 def _resolve_task_binding(task_id: str) -> dict[str, str] | None:
     return app.state.task_bindings.get(task_id)
+
+
+def _find_instance_for_task(task_id: str) -> tuple[str, str, "MAILSwarm"] | None:
+    def _scan(container: dict[str, "MAILSwarm"], role: str) -> tuple[str, str, "MAILSwarm"] | None:
+        for identifier, instance in container.items():
+            runtime = getattr(instance, "_runtime", None)
+            if runtime is None:
+                continue
+            try:
+                task = runtime.get_task_by_id(task_id)
+            except Exception:
+                task = None
+            if task is not None:
+                return (role, identifier, instance)
+        return None
+
+    for role, container in (
+        ("admin", app.state.admin_mail_instances),
+        ("user", app.state.user_mail_instances),
+        ("swarm", app.state.swarm_mail_instances),
+    ):
+        found = _scan(container, role)
+        if found is not None:
+            return found
+    return None
 
 
 async def _server_shutdown(app: FastAPI) -> None:
@@ -747,16 +776,28 @@ async def receive_interswarm_response(request: Request):
         target_role = binding.get("role")
         target_id = binding.get("id")
         target_jwt = binding.get("jwt", "")
-        if target_role in {"admin", "user", "swarm"} and isinstance(target_id, str):
+        if binding.get("direct"):
+            located = _find_instance_for_task(task_id)
+            if located is not None:
+                _, _, mail_instance = located
+        elif target_role in {"admin", "user", "swarm"} and isinstance(target_id, str):
             try:
                 mail_instance = await get_or_create_mail_instance(
-                    target_role, target_id, target_jwt # type: ignore
+                    target_role, target_id, target_jwt  # type: ignore[arg-type]
                 )
             except Exception as e:
                 logger.error(
                     f"{_log_prelude(app)} error getting MAIL instance for task '{task_id}' owner '{target_role}:{target_id}': '{e}'"
                 )
                 mail_instance = None
+
+    if mail_instance is None:
+        located = _find_instance_for_task(task_id)
+        if located is not None:
+            role, identifier, instance = located
+            mail_instance = instance
+            if task_id not in app.state.task_bindings:
+                _register_task_binding(task_id, role, identifier, "", direct=True)
 
     if mail_instance is None:
         # Fallback to swarm-instance routing (legacy behavior)
