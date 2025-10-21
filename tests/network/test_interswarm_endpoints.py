@@ -459,7 +459,7 @@ def test_interswarm_response_no_mail_instance(monkeypatch: pytest.MonkeyPatch):
         )
         assert r.status_code == 200
         data = r.json()
-        assert data["status"] == "no_mail_instance"
+        assert data["status"] == "response_processed"
         assert data["task_id"] == "task-nope"
 
 

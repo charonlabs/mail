@@ -83,6 +83,7 @@ async def _server_startup(app: FastAPI) -> None:
     app.state.user_mail_tasks = server_utils.init_mail_tasks_dict()
     app.state.swarm_mail_instances = server_utils.init_mail_instances_dict()
     app.state.swarm_mail_tasks = server_utils.init_mail_tasks_dict()
+    app.state.task_bindings = server_utils.init_task_bindings_dict()
 
     # Interswarm messaging support
     app.state.swarm_registry = server_utils.get_default_swarm_registry(cfg)
@@ -101,6 +102,27 @@ async def _server_startup(app: FastAPI) -> None:
     app.state.start_time = time.time()
     app.state.health = "healthy"
     app.state.last_health_update = app.state.start_time
+
+
+def _register_task_binding(
+    task_id: str,
+    role: str,
+    identifier: str,
+    jwt: str,
+) -> None:
+    if not task_id:
+        return
+    binding = {
+        "role": role,
+        "id": identifier,
+    }
+    if jwt:
+        binding["jwt"] = jwt
+    app.state.task_bindings[task_id] = binding
+
+
+def _resolve_task_binding(task_id: str) -> dict[str, str] | None:
+    return app.state.task_bindings.get(task_id)
 
 
 async def _server_shutdown(app: FastAPI) -> None:
@@ -453,6 +475,10 @@ async def message(request: Request):
 
         api_swarm = await get_or_create_mail_instance(caller_role, caller_id, jwt)
 
+        if not isinstance(task_id, str) or not task_id:
+            task_id = str(uuid.uuid4())
+        _register_task_binding(task_id, caller_role, caller_id, jwt)
+
         # If client provided an explicit entrypoint, pass it through; otherwise use default
         chosen_entrypoint = recipient_agent
 
@@ -713,35 +739,51 @@ async def receive_interswarm_response(request: Request):
             detail=f"error parsing interswarm response: {e.with_traceback(None)}",
         )
 
-    # Get the swarm MAIL instance for the sender
-    # If one doesn't exist, return
-    try:
-        swarm_jwt = utils.extract_token(request)
-        mail_instance = app.state.swarm_mail_instances.get(
-            response_message["message"]["sender_swarm"]
-        )
-        if not mail_instance:
-            return types.PostInterswarmResponseResponse(
-                status="no_mail_instance",
-                task_id=response_message["message"]["task_id"],
+    task_id = response_message["message"]["task_id"]
+    binding = _resolve_task_binding(task_id)
+    mail_instance = None
+
+    if binding is not None:
+        target_role = binding.get("role")
+        target_id = binding.get("id")
+        target_jwt = binding.get("jwt", "")
+        if target_role in {"admin", "user", "swarm"} and isinstance(target_id, str):
+            try:
+                mail_instance = await get_or_create_mail_instance(
+                    target_role, target_id, target_jwt # type: ignore
+                )
+            except Exception as e:
+                logger.error(
+                    f"{_log_prelude(app)} error getting MAIL instance for task '{task_id}' owner '{target_role}:{target_id}': '{e}'"
+                )
+                mail_instance = None
+
+    if mail_instance is None:
+        # Fallback to swarm-instance routing (legacy behavior)
+        try:
+            swarm_jwt = utils.extract_token(request)
+            mail_instance = await get_or_create_mail_instance(
+                "swarm", response_message["message"]["sender_swarm"], swarm_jwt
             )
-        mail_instance = await get_or_create_mail_instance(
-            "swarm", response_message["message"]["sender_swarm"], swarm_jwt
-        )
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        logger.error(
-            f"{_log_prelude(app)} error getting swarm MAIL instance for '{response_message['message']['sender_swarm']}': '{e}'"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
+            logger.error(
+                f"{_log_prelude(app)} error getting swarm MAIL instance for '{response_message['message']['sender_swarm']}': '{e}'"
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
+            )
+
+    if mail_instance is None:
+        return types.PostInterswarmResponseResponse(
+            status="no_mail_instance",
+            task_id=task_id,
         )
 
     # The incoming response already targets the original requester (often supervisor)
     # with a proper MAILAddress. Route it into the runtime as-is.
-    task_id = response_message["message"]["task_id"]
     await mail_instance.handle_interswarm_response(response_message)
     logger.info(
         f"{_log_prelude(app)} response submitted to MAIL instance for task '{task_id}'"
@@ -785,7 +827,8 @@ async def send_interswarm_message(request: Request):
         message_content = data.get("body")
         subject = data.get("subject", "Interswarm Message")
         msg_type = data.get("msg_type", "request")
-        task_id = data.get("task_id") or str(uuid.uuid4())
+        raw_task_id = data.get("task_id")
+        task_id = raw_task_id if isinstance(raw_task_id, str) and raw_task_id else str(uuid.uuid4())
         routing_info = data.get("routing_info") or {}
         stream_requested = bool(data.get("stream"))
         ignore_pings = bool(data.get("ignore_stream_pings"))
@@ -815,6 +858,7 @@ async def send_interswarm_message(request: Request):
         mail_instance = await get_or_create_mail_instance(
             caller_role, caller_id, user_token
         )
+        _register_task_binding(task_id, caller_role, caller_id, user_token or "")
 
         sender_address = create_address(caller_id, caller_role)
 
