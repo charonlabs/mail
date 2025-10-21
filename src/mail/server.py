@@ -105,6 +105,7 @@ async def _server_startup(app: FastAPI) -> None:
 
 
 def _register_task_binding(
+    app: FastAPI,
     task_id: str,
     role: str,
     identifier: str,
@@ -121,15 +122,15 @@ def _register_task_binding(
     if jwt:
         binding["jwt"] = jwt
     if direct:
-        binding["direct"] = True
+        binding["direct"] = True # type: ignore
     app.state.task_bindings[task_id] = binding
 
 
-def _resolve_task_binding(task_id: str) -> dict[str, str] | None:
+def _resolve_task_binding(app: FastAPI, task_id: str) -> dict[str, str] | None:
     return app.state.task_bindings.get(task_id)
 
 
-def _find_instance_for_task(task_id: str) -> tuple[str, str, "MAILSwarm"] | None:
+def _find_instance_for_task(app: FastAPI, task_id: str) -> tuple[str, str, "MAILSwarm"] | None:
     def _scan(container: dict[str, "MAILSwarm"], role: str) -> tuple[str, str, "MAILSwarm"] | None:
         for identifier, instance in container.items():
             runtime = getattr(instance, "_runtime", None)
@@ -506,7 +507,7 @@ async def message(request: Request):
 
         if not isinstance(task_id, str) or not task_id:
             task_id = str(uuid.uuid4())
-        _register_task_binding(task_id, caller_role, caller_id, jwt)
+        _register_task_binding(app, task_id, caller_role, caller_id, jwt)
 
         # If client provided an explicit entrypoint, pass it through; otherwise use default
         chosen_entrypoint = recipient_agent
@@ -769,7 +770,7 @@ async def receive_interswarm_response(request: Request):
         )
 
     task_id = response_message["message"]["task_id"]
-    binding = _resolve_task_binding(task_id)
+    binding = _resolve_task_binding(app, task_id)
     mail_instance = None
 
     if binding is not None:
@@ -777,7 +778,7 @@ async def receive_interswarm_response(request: Request):
         target_id = binding.get("id")
         target_jwt = binding.get("jwt", "")
         if binding.get("direct"):
-            located = _find_instance_for_task(task_id)
+            located = _find_instance_for_task(app, task_id)
             if located is not None:
                 _, _, mail_instance = located
         elif target_role in {"admin", "user", "swarm"} and isinstance(target_id, str):
@@ -792,12 +793,12 @@ async def receive_interswarm_response(request: Request):
                 mail_instance = None
 
     if mail_instance is None:
-        located = _find_instance_for_task(task_id)
+        located = _find_instance_for_task(app, task_id)
         if located is not None:
             role, identifier, instance = located
             mail_instance = instance
             if task_id not in app.state.task_bindings:
-                _register_task_binding(task_id, role, identifier, "", direct=True)
+                _register_task_binding(app, task_id, role, identifier, "", direct=True)
 
     if mail_instance is None:
         # Fallback to swarm-instance routing (legacy behavior)
@@ -899,7 +900,7 @@ async def send_interswarm_message(request: Request):
         mail_instance = await get_or_create_mail_instance(
             caller_role, caller_id, user_token
         )
-        _register_task_binding(task_id, caller_role, caller_id, user_token or "")
+        _register_task_binding(app, task_id, caller_role, caller_id, user_token or "")
 
         sender_address = create_address(caller_id, caller_role)
 
