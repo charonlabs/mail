@@ -24,6 +24,8 @@ class MAILTask:
         self.events: list[ServerSentEvent] = []
         self.is_running = False
         self.task_message_queue: list[QueueItem] = []
+        self.remote_swarms: set[str] = set()
+        self.completed = False
 
     def add_event(self, event: ServerSentEvent) -> None:
         """
@@ -204,3 +206,17 @@ class MAILTask:
             message_queue._unfinished_tasks = unfinished + len(stashed)  # type: ignore[attr-defined]
 
         self.task_message_queue = []
+        self.completed = False
+
+    def mark_complete(self) -> None:
+        """
+        Mark the task as complete and stop active processing.
+        """
+        self.completed = True
+        self.is_running = False
+
+    def add_remote_swarm(self, remote_swarm: str) -> None:
+        """
+        Track a remote swarm participating in this task.
+        """
+        self.remote_swarms.add(remote_swarm)

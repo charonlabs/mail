@@ -134,7 +134,10 @@
             }
         ],
         "actions": [],
-        "action_imports": []
+        "action_imports": [
+            "python::mail.examples.weather_dummy.actions:get_weather_forecast",
+            "python::mail.examples.math_dummy.actions:calculate_expression"
+        ]
     },
     {
         "name": "swarm-beta",

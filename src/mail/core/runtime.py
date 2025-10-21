@@ -160,6 +160,57 @@ class MAILRuntime:
         # and generate a final response for the user
         await self.submit(response_message)
 
+        task_id = response_message["message"]["task_id"]
+        finish_message = response_message["message"]["body"]
+        caller = response_message["message"]["sender"]["address"]
+        await self._notify_remote_task_complete(task_id, finish_message, caller)
+
+    async def _notify_remote_task_complete(
+        self,
+        task_id: str,
+        finish_message: str,
+        caller: str,
+    ) -> None:
+        """
+        Inform any participating remote swarms that the task has completed locally.
+        """
+        if not self.enable_interswarm or not self.interswarm_router:
+            return
+
+        task_state = self.mail_tasks.get(task_id)
+        if task_state is None or not task_state.remote_swarms:
+            return
+
+        sender_address = create_agent_address(caller)
+
+        for remote_swarm in task_state.remote_swarms:
+            recipient = create_agent_address(f"{self.entrypoint}@{remote_swarm}")
+            try:
+                message = MAILMessage(
+                    id=str(uuid.uuid4()),
+                    timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                    message=MAILResponse(
+                        task_id=task_id,
+                        request_id=str(uuid.uuid4()),
+                        sender=sender_address,
+                        recipient=recipient,
+                        subject="::task_complete::",
+                        body=finish_message,
+                        sender_swarm=self.swarm_name,
+                        recipient_swarm=remote_swarm,
+                        routing_info={
+                            "origin_swarm": self.swarm_name,
+                            "remote_swarm": remote_swarm,
+                        },
+                    ),
+                    msg_type="response",
+                )
+                await self._route_interswarm_message(message)
+            except Exception as exc:
+                logger.error(
+                    f"{self._log_prelude()} failed to notify remote swarm '{remote_swarm}' of completion for task '{task_id}': '{exc}'"
+                )
+
         # Don't immediately complete the pending request here
         # Let the local processing flow handle it naturally
         # The supervisor agent should process the response and generate
@@ -330,6 +381,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(task_id_completed, str):
                         self.response_messages[task_id_completed] = message
                         self._ensure_task_exists(task_id_completed)
+                        self.mail_tasks[task_id_completed].mark_complete()
                         await self.mail_tasks[task_id_completed].queue_stash(
                             self.message_queue
                         )
@@ -563,6 +615,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     self.response_messages[task_id] = message
                     if isinstance(task_id, str):
                         self._ensure_task_exists(task_id)
+                        self.mail_tasks[task_id].mark_complete()
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
                     if isinstance(task_id, str) and task_id in self.pending_requests:
                         # Resolve the pending request
@@ -1137,6 +1190,21 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         # make sure this task_id exists in swarm memory
         task_id = message["message"]["task_id"]
         self._ensure_task_exists(task_id)
+        task_state = self.mail_tasks[task_id]
+
+        if (
+            task_state.completed
+            and message["message"]["sender"]["address_type"] == "agent"
+            and message["msg_type"] != "broadcast_complete"
+        ):
+            logger.info(
+                f"{self._log_prelude()} ignoring message for completed task '{task_id}': '{message['message']['subject']}'"
+            )
+            try:
+                self.message_queue.task_done()
+            except Exception:
+                pass
+            return
 
         msg_content = message["message"]
 
@@ -1146,6 +1214,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self.agent_histories[
                     AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=agent)
                 ].append(build_mail_xml(message))
+            task_state.mark_complete()
+            await task_state.queue_stash(self.message_queue)
             return
 
         recipients_for_routing: list[MAILAddress] = []
@@ -1247,7 +1317,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(msg_content, dict)
                     else None
                 )
-                remote_task_id: str | None = None
                 event_task_id: str | None = None
 
                 async def forward_remote_event(
@@ -1265,15 +1334,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         data = {"raw": data}
 
                     task_id = data.get("task_id")
-                    if isinstance(task_id, str):
-                        if (
-                            remote_task_id
-                            and task_id == remote_task_id
-                            and isinstance(original_task_id, str)
-                        ):
-                            data["task_id"] = original_task_id
-                            task_id = original_task_id
-                    else:
+                    if not isinstance(task_id, str):
                         return
 
                     self._ensure_task_exists(task_id)
@@ -1310,11 +1371,29 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                                 if target_swarm and target_swarm != self.swarm_name:
                                     remote_targets.append(candidate)
 
+                remote_swarms: set[str] = set()
+                for candidate in remote_targets:
+                    _, target_swarm = parse_agent_address(candidate)
+                    if target_swarm:
+                        remote_swarms.add(target_swarm)
+
+                if isinstance(routing_info, dict):
+                    routing_swarm = routing_info.get("remote_swarm")
+                    if isinstance(routing_swarm, str):
+                        remote_swarms.add(routing_swarm)
+
+                task_state: MAILTask | None = None
+                if isinstance(original_task_id, str):
+                    self._ensure_task_exists(original_task_id)
+                    task_state = self.mail_tasks[original_task_id]
+                    for swarm in remote_swarms:
+                        task_state.add_remote_swarm(swarm)
+
                 remote_message = copy.deepcopy(message)
                 remote_msg_content = remote_message["message"]
-                remote_task_id = str(uuid.uuid4())
                 if isinstance(remote_msg_content, dict):
-                    remote_msg_content["task_id"] = remote_task_id
+                    if isinstance(original_task_id, str):
+                        remote_msg_content["task_id"] = original_task_id
                     remote_routing = remote_msg_content.get("routing_info")
                     if not isinstance(remote_routing, dict):
                         remote_routing = {}
@@ -1322,6 +1401,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         remote_routing["origin_task_id"] = original_task_id
                     if isinstance(original_request_id, str):
                         remote_routing["origin_request_id"] = original_request_id
+                    if remote_swarms:
+                        remote_routing["remote_swarm"] = next(iter(remote_swarms))
+                    remote_routing["origin_swarm"] = self.swarm_name
                     remote_msg_content["routing_info"] = remote_routing
 
                 detail_targets = (
@@ -1330,7 +1412,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 event_task_id = (
                     original_task_id
                     if isinstance(original_task_id, str)
-                    else remote_task_id
+                    else original_task_id
                 )
                 logger.info(
                     f"{self._log_prelude()} sending interswarm message for task '{event_task_id}' to {detail_targets}"
@@ -1339,7 +1421,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     self._submit_event(
                         "interswarm_send",
                         event_task_id,
-                        f"sending interswarm message to {detail_targets} (remote task '{remote_task_id}')",
+                        f"sending interswarm message to {detail_targets}",
                     )
 
                 response = await self.interswarm_router.route_message(
@@ -1357,24 +1439,28 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     response_routing = response_msg.get("routing_info")
                     if not isinstance(response_routing, dict):
                         response_routing = {}
-                    response_routing.setdefault(
-                        "remote_swarm", response_msg.get("sender_swarm")
+                    response_routing["remote_swarm"] = response_msg.get(
+                        "sender_swarm"
                     )
-                    if remote_task_id:
-                        response_routing["remote_task_id"] = remote_task_id
+                    response_routing["origin_swarm"] = response_msg.get(
+                        "sender_swarm"
+                    )
                     response_msg["routing_info"] = response_routing
 
                 if isinstance(event_task_id, str):
                     self._submit_event(
                         "interswarm_receive",
                         event_task_id,
-                        f"received response from swarm '{response['message'].get('sender_swarm', 'unknown')}' (remote task '{remote_task_id}')",
+                        f"received response from swarm '{response['message'].get('sender_swarm', 'unknown')}'",
                     )
                 logger.info(
                     f"{self._log_prelude()} received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
                 )
 
-                await self._submit_from_interswarm(response)
+                normalized = self._normalize_interswarm_response(
+                    original_task_id, response
+                )
+                await self._submit_from_interswarm(normalized)
             except Exception as e:
                 logger.error(
                     f"{self._log_prelude()} error in interswarm routing: '{e}'"
@@ -1427,48 +1513,39 @@ If your assigned task cannot be completed, inform your caller of this error and 
         """
         task_id = message["message"]["task_id"]
 
-        future = self.pending_requests.pop(task_id, None)
-        if future is None:
-            logger.error(
-                f"{self._log_prelude()} interswarm message received for unknown task '{task_id}'"
-            )
-            self._submit_event(
-                "task_error",
-                task_id,
-                f"interswarm message received for unknown task '{task_id}'",
-            )
-            try:
-                self._events_available.set()
-            except Exception:
-                pass
-            return
+        msg_content = message.get("message")
+        remote_swarm: str | None = None
+        if isinstance(msg_content, dict):
+            routing_info = msg_content.get("routing_info")
+            if isinstance(routing_info, dict):
+                candidate_swarm = routing_info.get("remote_swarm")
+                if isinstance(candidate_swarm, str):
+                    remote_swarm = candidate_swarm
+            sender_swarm = msg_content.get("sender_swarm")
+            if remote_swarm is None and isinstance(sender_swarm, str):
+                remote_swarm = sender_swarm
+
+        self._ensure_task_exists(task_id)
+        if isinstance(remote_swarm, str) and remote_swarm != self.swarm_name:
+            self.mail_tasks[task_id].add_remote_swarm(remote_swarm)
 
         try:
-            future.set_result(message)
-            try:
-                self._events_available.set()
-            except Exception:
-                pass
-            return
+            await self.submit(message)
         except Exception as e:
             logger.error(
-                f"{self._log_prelude()} error submitting interswarm message for task '{task_id}': '{e}'"
+                f"{self._log_prelude()} error queueing interswarm message for task '{task_id}': '{e}'"
             )
             self._submit_event(
                 "task_error",
                 task_id,
-                f"error submitting interswarm message for task '{task_id}': '{e}'",
+                f"error queueing interswarm message for task '{task_id}': '{e}'",
             )
-            await self.submit(
-                self._system_broadcast(
-                    task_id=task_id,
-                    subject="::runtime_error::",
-                    body=f"""An interswarm message from {message["message"]["sender"]["address"]}@{message["message"]["sender_swarm"]} for task '{task_id}' was not delivered.
-The error encountered was: {e}.
-This should not happen. Please report this error to the MAIL team.""",
-                    task_complete=True,
-                )
-            )
+            if task_id in self.pending_requests:
+                try:
+                    future = self.pending_requests.pop(task_id)
+                    future.set_exception(e)
+                except Exception:
+                    pass
 
     def _find_disallowed_comm_targets(
         self,
@@ -1921,11 +1998,13 @@ Consider sending a message to another agent to keep the task alive.""",
                             | "send_broadcast"
                         ):
                             try:
-                                await self.submit(
-                                    convert_call_to_mail_message(
-                                        call, recipient, task_id
-                                    )
+                                outgoing_message = convert_call_to_mail_message(
+                                    call, recipient, task_id
                                 )
+                                self._attach_interswarm_routing_metadata(
+                                    task_id, message, outgoing_message, call
+                                )
+                                await self.submit(outgoing_message)
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -1961,72 +2040,15 @@ Use this information to decide how to complete your task.""",
                                     )
                                 )
                         case "task_complete":
-                            # Check if this completes a pending request
                             if task_id:
-                                logger.info(
-                                    f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
+                                await self._handle_task_complete_call(
+                                    task_id, recipient, call
                                 )
-
-                                # Create a response message for the user
-                                response_message = self._agent_task_complete(
-                                    task_id=task_id,
-                                    caller=recipient,
-                                    finish_message=call.tool_args.get(
-                                        "finish_message",
-                                        "Task completed successfully",
-                                    ),
+                            else:
+                                logger.error(
+                                    f"{self._log_prelude()} agent '{recipient}' called 'task_complete' but no task id was provided"
                                 )
-                                self._tool_call_response(
-                                    task_id=task_id,
-                                    caller=recipient,
-                                    tool_call=call,
-                                    status="success",
-                                    details="task completed",
-                                )
-
-                                if not self._is_continuous:
-                                    self._submit_event(
-                                        "task_complete_call",
-                                        task_id,
-                                        f"agent '{recipient}' called 'task_complete', full response to follow",
-                                    )
-                                    await self.submit(response_message)
-                                elif (
-                                    self._is_continuous
-                                    and task_id in self.pending_requests
-                                ):
-                                    self._submit_event(
-                                        "task_complete_call",
-                                        task_id,
-                                        f"agent '{recipient}' called 'task_complete', full response to follow",
-                                    )
-                                    await self.submit(response_message)
-
-                                elif self._is_continuous:
-                                    logger.error(
-                                        f"{self._log_prelude()} agent '{recipient}' called 'task_complete' but no pending request found"
-                                    )
-                                    self._tool_call_response(
-                                        task_id=task_id,
-                                        caller=recipient,
-                                        tool_call=call,
-                                        status="error",
-                                        details="no pending request found",
-                                    )
-                                    self._submit_event(
-                                        "task_error",
-                                        task_id,
-                                        f"agent '{recipient}' called 'task_complete' but no pending request found",
-                                    )
-                                    await self.submit(
-                                        self._system_broadcast(
-                                            task_id=task_id,
-                                            subject="::tool_call_error::",
-                                            body="""An agent called `task_complete` but the corresponding task was not found.
-This should never happen; consider informing the MAIL developers of this issue if you see it.""",
-                                            task_complete=True,
-                                        )
-                                    )
+                            continue
                         case "help":
                             try:
                                 help_string = build_mail_help_string(
@@ -2279,6 +2301,202 @@ Use this information to decide how to complete your task.""",
         task.add_done_callback(self.active_tasks.discard)
 
         return None
+
+    def _attach_interswarm_routing_metadata(
+        self,
+        task_id: str,
+        source_message: MAILMessage,
+        outgoing_message: MAILMessage,
+        call: AgentToolCall,
+    ) -> None:
+        """
+        Propagate remote routing metadata so subsequent interswarm messages reuse the
+        original remote task identifier.
+        """
+        try:
+            outgoing_content = outgoing_message["message"]
+            routing_info = outgoing_content.get("routing_info")
+            if not isinstance(routing_info, dict):
+                routing_info = {}
+
+            parent_message = source_message.get("message")
+            parent_routing: dict[str, Any] | None = None
+            if isinstance(parent_message, dict):
+                candidate_routing = parent_message.get("routing_info")
+                if isinstance(candidate_routing, dict):
+                    parent_routing = candidate_routing
+
+            remote_task_id: str | None = None
+            remote_swarm: str | None = None
+            if parent_routing is not None:
+                remote_task_id = parent_routing.get("remote_task_id")
+                remote_swarm = parent_routing.get("remote_swarm")
+
+            target_addresses: set[str] = set()
+
+            target_arg = call.tool_args.get("target")
+            if isinstance(target_arg, str):
+                target_addresses.add(target_arg)
+
+            if not target_addresses and call.tool_name == "send_broadcast":
+                # Broadcasts default to local swarm; nothing to attach.
+                outgoing_content["routing_info"] = routing_info
+                return
+
+            remote_swarms: set[str] = set()
+            for address in target_addresses:
+                _, swarm = parse_agent_address(address)
+                if swarm:
+                    remote_swarms.add(swarm)
+
+            task_state = self.mail_tasks.get(task_id)
+            if task_state is not None:
+                for r_swarm in remote_swarms:
+                    task_state.add_remote_swarm(r_swarm)
+
+            if remote_swarms:
+                routing_info.setdefault("remote_swarm", next(iter(remote_swarms)))
+
+            outgoing_content["routing_info"] = routing_info
+        except Exception:
+            # Routing hints are best-effort; avoid interrupting the agent loop if unavailable.
+            pass
+
+    def _normalize_interswarm_response(
+        self,
+        task_id: str | None,
+        response: MAILMessage,
+    ) -> MAILMessage:
+        """
+        Normalize an interswarm response so it can be processed by the local queue.
+        Converts remote task_complete broadcasts into response messages targeting the
+        local entrypoint.
+        """
+        normalised = copy.deepcopy(response)
+        message = normalised.get("message")
+
+        if isinstance(message, dict):
+            if isinstance(task_id, str):
+                message["task_id"] = task_id
+            routing_info = message.get("routing_info")
+            if not isinstance(routing_info, dict):
+                routing_info = {}
+            routing_info.setdefault("origin_swarm", message.get("sender_swarm"))
+            message["routing_info"] = routing_info
+
+        if (
+            normalised["msg_type"] == "broadcast_complete"
+            and isinstance(message, dict)
+            and message.get("subject") == "::task_complete::"
+        ):
+            finish_body = message.get("body", "")
+            sender = message.get("sender")
+            sender_swarm = message.get("sender_swarm")
+
+            recipient = create_agent_address(self.entrypoint)
+
+            if task_id is None:
+                raise ValueError("task_id is required for interswarm task complete messages")
+
+            normalised = self._system_response(
+                task_id=task_id,
+                subject="::interswarm_task_complete::",
+                body=f"""The remote agent '{sender}@{sender_swarm}' has completed the task with this ID in their swarm.
+The final response message is: '{finish_body}'""",
+                recipient=recipient,
+            )
+
+        return normalised
+
+    async def _handle_task_complete_call(
+        self,
+        task_id: str,
+        caller: str,
+        call: AgentToolCall,
+    ) -> None:
+        """
+        Handle a task_complete tool invocation from an agent.
+        Ensures the task is marked complete, the queue is stashed, and subsequent
+        duplicate calls are treated as idempotent.
+        """
+        finish_message = call.tool_args.get(
+            "finish_message", "Task completed successfully"
+        )
+
+        self._ensure_task_exists(task_id)
+        task_state = self.mail_tasks[task_id]
+
+        if task_state.completed:
+            logger.info(
+                f"{self._log_prelude()} agent '{caller}' called 'task_complete' for already completed task '{task_id}'"
+            )
+            self._tool_call_response(
+                task_id=task_id,
+                caller=caller,
+                tool_call=call,
+                status="success",
+                details="task already completed",
+            )
+            self._submit_event(
+                "task_complete_call_duplicate",
+                task_id,
+                f"agent '{caller}' called 'task_complete' after completion",
+            )
+            return
+
+        logger.info(
+            f"{self._log_prelude()} task '{task_id}' completed by agent '{caller}'"
+        )
+
+        response_message = self._agent_task_complete(
+            task_id=task_id,
+            caller=caller,
+            finish_message=finish_message,
+        )
+
+        self._tool_call_response(
+            task_id=task_id,
+            caller=caller,
+            tool_call=call,
+            status="success",
+            details="task completed",
+        )
+
+        self._submit_event(
+            "task_complete_call",
+            task_id,
+            f"agent '{caller}' called 'task_complete', full response to follow",
+        )
+
+        await task_state.queue_stash(self.message_queue)
+        task_state.mark_complete()
+
+        self.response_messages[task_id] = response_message
+
+        # Emit a synthetic new_message event so streaming clients receive the final content.
+        self._submit_event(
+            "new_message",
+            task_id,
+            f"task_complete response from '{caller}'",
+            extra_data={"full_message": response_message},
+        )
+
+        pending = self.pending_requests.pop(task_id, None)
+        if pending is not None and not pending.done():
+            try:
+                pending.set_result(response_message)
+            except Exception as e:
+                logger.error(
+                    f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': '{e}'"
+                )
+            else:
+                try:
+                    self._events_available.set()
+                except Exception:
+                    pass
+
+        await self._notify_remote_task_complete(task_id, finish_message, caller)
+        await self.submit(response_message)
 
     def _system_broadcast(
         self,
