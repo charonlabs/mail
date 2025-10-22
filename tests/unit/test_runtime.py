@@ -15,6 +15,7 @@ from mail.core.agents import AgentCore
 from mail.core.message import (
     MAILBroadcast,
     MAILInterrupt,
+    MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
     create_agent_address,
@@ -374,33 +375,50 @@ async def test_agent_can_await_message_records_event() -> None:
         runtime.message_queue.task_done()
 
 
-class _DummyRouter:
+class _SpyRouter:
     def __init__(self) -> None:
-        self.sent_messages: list[MAILMessage] = []
+        self.convert_calls: list[tuple[MAILMessage, str, list[str]]] = []
+        self.forward_sent: list[MAILInterswarmMessage] = []
 
-    async def route_message(self, message: MAILMessage, **_: Any) -> MAILMessage:
-        self.sent_messages.append(copy.deepcopy(message))
+    def convert_local_message_to_interswarm(
+        self,
+        message: MAILMessage,
+        task_owner: str,
+        task_contributors: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> MAILInterswarmMessage:
+        self.convert_calls.append((copy.deepcopy(message), task_owner, list(task_contributors)))
+        recipient_swarms = message.get("recipient_swarms")
+        assert isinstance(recipient_swarms, list) and recipient_swarms
+        target_swarm = recipient_swarms[0]
         payload = copy.deepcopy(message["message"])
-        payload["sender"] = create_agent_address("remote")
-        payload["sender_swarm"] = "swarm-beta"
-        routing = payload.get("routing_info") or {}
-        routing["remote_swarm"] = "swarm-beta"
-        payload["routing_info"] = routing
-        return MAILMessage(
-            id=str(uuid.uuid4()),
+        return MAILInterswarmMessage(
+            message_id=str(uuid.uuid4()),
+            source_swarm="swarm-alpha",
+            target_swarm=target_swarm,
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-            message=payload,
-            msg_type=message["msg_type"],
+            payload=payload,
+            msg_type=message["msg_type"], # type: ignore
+            auth_token="token-remote",
+            task_owner=task_owner,
+            task_contributors=list(task_contributors),
+            metadata=metadata or {},
         )
+
+    async def send_interswarm_message_forward(self, message: MAILInterswarmMessage) -> None:
+        self.forward_sent.append(message)
+
+    async def send_interswarm_message_back(self, message: MAILInterswarmMessage) -> None:  # noqa: ARG002
+        raise AssertionError("back channel not expected in this test")
 
 
 @pytest.mark.asyncio
-async def test_interswarm_reuses_remote_task_id(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_send_interswarm_message_forward_delegates_to_router() -> None:
     """
-    When routing interswarm messages, the runtime should preserve the original task ID across swarms.
+    Test that the runtime delegates to the interswarm router when sending an interswarm message to a remote swarm.
     """
     runtime = MAILRuntime(
-        agents={},
+        agents={"analyst": _create_agent_core(comm_targets=[])},
         actions={},
         user_id="user-remote",
         user_role="user",
@@ -408,42 +426,29 @@ async def test_interswarm_reuses_remote_task_id(monkeypatch: pytest.MonkeyPatch)
         entrypoint="supervisor",
         enable_interswarm=True,
     )
-    dummy_router = _DummyRouter()
-    runtime.interswarm_router = dummy_router  # type: ignore[assignment]
 
-    async def fake_submit_from_interswarm(self: MAILRuntime, message: MAILMessage) -> None:  # noqa: ARG001
-        return None
-
-    runtime._submit_from_interswarm = MethodType(fake_submit_from_interswarm, runtime)  # type: ignore[assignment]
+    router = _SpyRouter()
+    runtime.interswarm_router = router  # type: ignore[assignment]
 
     task_id = "task-remote"
     runtime._ensure_task_exists(task_id)
 
-    first_message = _make_request(
+    outbound = _make_request(
         task_id,
         sender="supervisor",
         recipient="analyst@swarm-beta",
     )
+    outbound["recipient_swarms"] = ["swarm-beta"]  # type: ignore
 
-    await runtime._route_interswarm_message(first_message)
+    await runtime._send_interswarm_message(outbound)
 
-    first_remote_id = dummy_router.sent_messages[0]["message"]["task_id"]
-    assert isinstance(first_remote_id, str)
-    assert first_remote_id == task_id
-
-    second_message = _make_request(
-        task_id,
-        sender="supervisor",
-        recipient="consultant@swarm-beta",
-    )
-
-    await runtime._route_interswarm_message(second_message)
-
-    second_remote_id = dummy_router.sent_messages[1]["message"]["task_id"]
-    assert second_remote_id == first_remote_id == task_id
-
-    task_state = runtime.mail_tasks[task_id]
-    assert "swarm-beta" in task_state.remote_swarms
+    assert router.convert_calls, "expected convert_local_message_to_interswarm to be called"
+    (converted_message, owner, contributors) = router.convert_calls[0]
+    assert converted_message["message"]["task_id"] == task_id
+    assert owner == runtime.mail_tasks[task_id].task_owner
+    assert contributors == runtime.mail_tasks[task_id].task_contributors
+    assert router.forward_sent, "expected forward send call"
+    assert router.forward_sent[0]["target_swarm"] == "swarm-beta"
 
 
 @pytest.mark.asyncio
@@ -554,7 +559,7 @@ async def test_interswarm_message_preserves_user_pending_future() -> None:
     When a user sends an interswarm message, the runtime should preserve the pending future.
     """
     runtime = MAILRuntime(
-        agents={},
+        agents={"supervisor": _create_agent_core(comm_targets=[])},
         actions={},
         user_id="user-pend",
         user_role="user",
@@ -567,10 +572,30 @@ async def test_interswarm_message_preserves_user_pending_future() -> None:
     pending: asyncio.Future[MAILMessage] = asyncio.Future()
     runtime.pending_requests[task_id] = pending
 
-    interswarm_message = _make_request(task_id, sender="supervisor@swarm-beta", recipient="supervisor")
-    interswarm_message["message"]["sender_swarm"] = "swarm-beta"  # type: ignore[index]
+    interswarm_message = MAILInterswarmMessage(
+        message_id=str(uuid.uuid4()),
+        source_swarm="swarm-beta",
+        target_swarm="alpha",
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        payload=MAILRequest(
+            task_id=task_id,
+            request_id=str(uuid.uuid4()),
+            sender=format_agent_address("remote-agent", "swarm-beta"),
+            recipient=format_agent_address("supervisor", "alpha"),
+            subject="Hello",
+            body="Body",
+            sender_swarm="swarm-beta",
+            recipient_swarm="alpha",
+            routing_info={},
+        ),
+        msg_type="request",
+        auth_token="token-remote",
+        task_owner=runtime.this_owner,
+        task_contributors=["agent:remote@swarm-beta", runtime.this_owner],
+        metadata={},
+    )
 
-    await runtime._submit_from_interswarm(interswarm_message)
+    await runtime._receive_interswarm_message(interswarm_message)
 
     assert runtime.pending_requests[task_id] is pending
     priority, seq, queued_message = await runtime.message_queue.get()
@@ -626,15 +651,13 @@ async def test_notify_remote_task_complete_sends_message() -> None:
         entrypoint="supervisor",
         enable_interswarm=True,
     )
+    sent: list[MAILMessage] = []
     runtime.interswarm_router = object()  # type: ignore[assignment]
 
-    sent: list[MAILMessage] = []
-
-    async def fake_route(self: MAILRuntime, message: MAILMessage, **_: Any) -> MAILMessage:
+    async def fake_send(self: MAILRuntime, message: MAILMessage) -> None:
         sent.append(message)
-        return message
 
-    runtime._route_interswarm_message = MethodType(fake_route, runtime)  # type: ignore[assignment]
+    runtime._send_interswarm_message = MethodType(fake_send, runtime)  # type: ignore[assignment]
 
     task_id = "task-notify"
     runtime._ensure_task_exists(task_id)
@@ -647,109 +670,6 @@ async def test_notify_remote_task_complete_sends_message() -> None:
     assert outbound["message"]["task_id"] == task_id
     assert outbound["msg_type"] == "response"
     assert outbound["message"]["subject"] == "::task_complete::"
-
-
-@pytest.mark.asyncio
-async def test_route_interswarm_response_skips_submit_on_success() -> None:
-    runtime = MAILRuntime(
-        agents={},
-        actions={},
-        user_id="user-response",
-        user_role="user",
-        swarm_name="alpha",
-        entrypoint="supervisor",
-        enable_interswarm=True,
-    )
-
-    class _Router:
-        async def route_message(self, message: MAILMessage, **_: Any) -> MAILMessage:  # noqa: D401
-            return message
-
-    runtime.interswarm_router = _Router()  # type: ignore[assignment]
-
-    submitted: dict[str, bool] = {"called": False}
-
-    async def record_submit(self: MAILRuntime, message: MAILMessage) -> None:  # noqa: ARG001
-        submitted["called"] = True
-
-    runtime._submit_from_interswarm = MethodType(record_submit, runtime)  # type: ignore[assignment]
-
-    message = MAILMessage(
-        id="msg-response",
-        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-        message={
-            "task_id": "task-response",
-            "request_id": "req-response",
-            "sender": create_agent_address("supervisor"),
-            "recipient": format_agent_address("supervisor", "beta"),
-            "subject": "::task_complete::",
-            "body": "Done",
-            "sender_swarm": "alpha",
-            "recipient_swarm": "beta",
-            "routing_info": {},
-        },
-        msg_type="response",
-    )
-
-    runtime._ensure_task_exists("task-response")
-    await runtime._route_interswarm_message(message)
-
-    assert submitted["called"] is False
-
-
-@pytest.mark.asyncio
-async def test_route_interswarm_response_submits_on_system_error() -> None:
-    runtime = MAILRuntime(
-        agents={},
-        actions={},
-        user_id="user-response-error",
-        user_role="user",
-        swarm_name="alpha",
-        entrypoint="supervisor",
-        enable_interswarm=True,
-    )
-
-    system_error = runtime._system_response(
-        task_id="task-response",
-        subject="Router Error",
-        body="failed",
-        recipient=create_agent_address("supervisor"),
-    )
-
-    class _Router:
-        async def route_message(self, message: MAILMessage, **_: Any) -> MAILMessage:  # noqa: D401, ARG001
-            return system_error
-
-    runtime.interswarm_router = _Router()  # type: ignore[assignment]
-
-    submitted: dict[str, bool] = {"called": False}
-
-    async def record_submit(self: MAILRuntime, message: MAILMessage) -> None:  # noqa: ARG001
-        submitted["called"] = True
-
-    runtime._submit_from_interswarm = MethodType(record_submit, runtime)  # type: ignore[assignment]
-
-    message = MAILMessage(
-        id="msg-response",
-        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-        message={
-            "task_id": "task-response",
-            "request_id": "req-response",
-            "sender": create_agent_address("supervisor"),
-            "recipient": format_agent_address("supervisor", "beta"),
-            "subject": "::task_complete::",
-            "body": "Done",
-            "sender_swarm": "alpha",
-            "recipient_swarm": "beta",
-            "routing_info": {},
-        },
-        msg_type="response",
-    )
-
-    runtime._ensure_task_exists("task-response")
-    await runtime._route_interswarm_message(message)
-
-    assert submitted["called"] is True
 
 
 @pytest.mark.asyncio
