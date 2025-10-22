@@ -58,6 +58,8 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
             payload=payload,
             msg_type="request",
             auth_token="token-123",
+            task_owner="ag-123",
+            task_contributors=["ag-123"],
             metadata={"expect_response": True},
         )
 
@@ -138,6 +140,8 @@ def test_interswarm_message_streaming_response(monkeypatch: pytest.MonkeyPatch):
             payload=payload,
             msg_type="request",
             auth_token="token-123",
+            task_owner="ag-stream",
+            task_contributors=["ag-stream"],
             metadata={"expect_response": True, "stream": True},
         )
 
@@ -230,6 +234,8 @@ def test_interswarm_message_streaming_ignores_pings(monkeypatch: pytest.MonkeyPa
             payload=payload,
             msg_type="request",
             auth_token="token-123",
+            task_owner="ag-no-ping",
+            task_contributors=["ag-no-ping"],
             metadata={
                 "expect_response": True,
                 "stream": True,

@@ -9,7 +9,7 @@ import pytest
 from starlette.requests import Request
 
 from mail.core.message import MAILMessage, MAILResponse, create_agent_address
-from mail.server import app, receive_interswarm_response, utils
+from mail.server import app, receive_interswarm_back, utils
 
 
 class DummyMailInstance:
@@ -26,7 +26,7 @@ def _build_request(body: dict[str, object]) -> Request:
         "type": "http",
         "method": "POST",
         "headers": [(b"authorization", b"Bearer remote-token")],
-        "path": "/interswarm/response",
+        "path": "/interswarm/back",
         "app": app,
     }
 
@@ -89,7 +89,11 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
     )
 
     request = _build_request(dict(response_message))
-    result = await receive_interswarm_response(request)
+    result = await receive_interswarm_back(request)
 
-    assert result["status"] == "response_processed"
+    assert result["swarm"] == "swarm-alpha"
+    assert result["task_id"] == task_id
+    assert result["status"] == "ok"
+    assert result["local_runner"] == "user-123@swarm-alpha"
     assert dummy_instance.messages and dummy_instance.messages[0]["message"]["body"] == "done"
+

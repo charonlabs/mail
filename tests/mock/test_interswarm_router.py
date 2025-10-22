@@ -299,7 +299,7 @@ async def test_route_response_uses_response_endpoint() -> None:
     registry = SwarmRegistry("example", "http://localhost:8000")
     registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
     router = InterswarmRouter(registry, "example")
-    router.session = _CaptureSession(
+    router.session = _CaptureSession( # type: ignore
         [
             _SimpleResponse(
                 200,
@@ -331,8 +331,8 @@ async def test_route_response_uses_response_endpoint() -> None:
         is_response=True,
     )
 
-    assert router.session.calls, "expected HTTP call"
-    call = router.session.calls[0]
+    assert router.session.calls, "expected HTTP call" # type: ignore
+    call = router.session.calls[0] # type: ignore
     assert str(call["url"]).endswith("/interswarm/response")
     payload = call["json"]
     assert isinstance(payload, dict)
@@ -351,7 +351,7 @@ async def test_route_response_rejected_returns_system_message() -> None:
     registry = SwarmRegistry("example", "http://localhost:8000")
     registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
     router = InterswarmRouter(registry, "example")
-    router.session = _CaptureSession(
+    router.session = _CaptureSession( # type: ignore
         [
             _SimpleResponse(
                 200,

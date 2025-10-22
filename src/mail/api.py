@@ -30,6 +30,7 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
+from mail.core.message import MAILInterswarmMessage
 from mail.core.tools import MAIL_TOOL_NAMES
 from mail.factories.base import MAILAgentFunction
 from mail.net import SwarmRegistry
@@ -1070,25 +1071,66 @@ class MAILSwarm:
         """
         return self._runtime.pending_requests
 
-    async def route_interswarm_message(
+    async def receive_interswarm_message(
         self,
-        message: MAILMessage,
-        *,
-        stream_handler: StreamHandler | None = None,
-        ignore_stream_pings: bool = False,
-    ) -> MAILMessage:
+        message: MAILInterswarmMessage,
+        direction: Literal["forward", "back"] = "forward",
+    ) -> None:
         """
-        Route an interswarm message to the appropriate destination.
+        Receive an interswarm message from a remote swarm.
         """
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
 
-        return await router.route_message(
-            message,
-            stream_handler=stream_handler,
-            ignore_stream_pings=ignore_stream_pings,
-        )
+        try:
+            if direction == "forward":
+                await router.receive_interswarm_message_forward(message)
+            elif direction == "back":
+                await router.receive_interswarm_message_back(message)
+            else:
+                raise ValueError(f"invalid direction: {direction}")
+        except Exception as e:
+            raise ValueError(f"error routing interswarm message: '{e}'")
+
+    async def send_interswarm_message(
+        self,
+        message: MAILInterswarmMessage,
+        direction: Literal["forward", "back"] = "forward",
+    ) -> None:
+        """
+        Send an interswarm message to a remote swarm.
+        """
+        router = self._runtime.interswarm_router
+        if router is None:
+            raise ValueError("interswarm router not available")
+        
+        try:
+            if direction == "forward":
+                await router.send_interswarm_message_forward(message)
+            elif direction == "back":
+                await router.send_interswarm_message_back(message)
+            else:
+                raise ValueError(f"invalid direction: {direction}")
+        except Exception as e:
+            raise ValueError(f"error sending interswarm message: '{e}'")
+
+    async def post_interswarm_user_message(
+        self,
+        message: MAILInterswarmMessage,
+    ) -> MAILMessage:
+        """
+        Post a message (from an admin or user) to a remote swarm.
+        """
+        router = self._runtime.interswarm_router
+        if router is None:
+            raise ValueError("interswarm router not available")
+        
+        try:
+            result = await router.post_interswarm_user_message(message)
+            return result
+        except Exception as e:
+            raise ValueError(f"error posting interswarm user message: '{e}'")
 
     def get_subswarm(
         self, names: list[str], name_suffix: str, entrypoint: str | None = None

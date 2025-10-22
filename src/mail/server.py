@@ -637,210 +637,123 @@ async def dump_swarm(request: Request):
     )
 
 
-@app.post("/interswarm/message", dependencies=[Depends(utils.caller_is_agent)])
-async def receive_interswarm_message(request: Request):
+@app.post("/interswarm/forward", dependencies=[Depends(utils.caller_is_agent)])
+async def receive_interswarm_forward(request: Request):
     """
-    Receive an interswarm message from another swarm.
+    Receive a message from a remote swarm, in the case of a new task.
+    This creates a new swarm instance for that task, assuming one does not already exist.
+    Once this swarm resolves the task, it will `POST /interswarm/back` to the swarm that forwarded the message.
     """
+    # parse args
+    data = await request.json()
+    message = data.get("message")
+    if not message:
+        raise HTTPException(status_code=400, detail="parameter 'message' is required")
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
-    auth_header = request.headers.get("Authorization", "")
-    jwt = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else ""
+    caller_jwt = caller_info["jwt"]
+    # ensure the message is a valid MAILInterswarmMessage
+    REQUIRED_FIELDS: dict[str, type] = {
+        "message_id": str,
+        "source_swarm": str,
+        "target_swarm": str,
+        "timestamp": str,
+        "payload": dict,
+        "msg_type": str,
+        "auth_token": str,
+        "metadata": dict,
+        "task_owner": str,
+        "task_contributors": list[str],
+    }
+    for field, expected_type in REQUIRED_FIELDS.items():
+        if field not in message:
+            raise HTTPException(status_code=400, detail=f"parameter '{field}' is required")
+        if not isinstance(message[field], expected_type):
+            raise HTTPException(status_code=400, detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}")
 
-    # Get or create swarm-specific MAIL instance
     try:
-        swarm_mail = await get_or_create_mail_instance("swarm", caller_id, jwt)
-    except Exception as e:
-        logger.error(
-            f"{_log_prelude(app)} error getting swarm MAIL instance for '{caller_id}': '{e}'"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
-        )
-
-    # parse request
-    try:
-        data = await request.json()
-        interswarm_message = MAILInterswarmMessage(**data)  # type: ignore
-        message = interswarm_message["payload"]
-        source_swarm = interswarm_message["source_swarm"]
-        source_agent = message.get("sender", {})
-        target_agent = message.get("recipient", {})
-
-        logger.info(
-            f"{_log_prelude(app)} received message from {source_agent} to {target_agent}: {message.get('subject', 'unknown')}"
+        # create a new swarm instance for the task
+        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_jwt)
+        _register_task_binding(app, message["task_id"], "swarm", caller_id, caller_jwt)
+        # post this message to the swarm
+        await swarm.receive_interswarm_message(message, direction="forward")
+        return types.PostInterswarmForwardResponse(
+            swarm=app.state.local_swarm_name,
+            task_id=message["task_id"],
+            status="success",
+            local_runner=f"swarm:{caller_id}@{app.state.local_swarm_name}",
         )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error parsing request: '{e}'")
+        logger.error(f"{_log_prelude(app)} error receiving interswarm forward message: '{e}'")
         raise HTTPException(
-            status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
+            status_code=500, detail=f"error receiving interswarm forward message: '{str(e)}'"
         )
 
+
+@app.post("/interswarm/back", dependencies=[Depends(utils.caller_is_agent)])
+async def receive_interswarm_back(request: Request):
+    """
+    Receive a message from a remote swarm, in the case of a task resolution.
+    This binds the message to the existing swarm instance for the task.
+    This swarm will then process the task until `task_complete` is called.
+    """
+    # parse args
+    data = await request.json()
+    message = data.get("message")
     if not message:
-        logger.warning(f"{_log_prelude(app)} no message provided")
-        raise HTTPException(status_code=400, detail="no message provided")
+        raise HTTPException(status_code=400, detail="parameter 'message' is required")
+    caller_info = await utils.extract_token_info(request)
+    caller_id = caller_info["id"]
+    caller_jwt = caller_info["jwt"]
+    # ensure the message is a valid MAILInterswarmMessage
+    REQUIRED_FIELDS: dict[str, type] = {
+        "message_id": str,
+        "source_swarm": str,
+        "target_swarm": str,
+        "timestamp": str,
+        "payload": dict,
+        "msg_type": str,
+        "auth_token": str,
+        "metadata": dict,
+        "task_owner": str,
+        "task_contributors": list[str],
+    }
+    for field, expected_type in REQUIRED_FIELDS.items():
+        if field not in message:
+            raise HTTPException(status_code=400, detail=f"parameter '{field}' is required")
+        if not isinstance(message[field], expected_type):
+            raise HTTPException(status_code=400, detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}")
 
-    # MAIL process
+    # if this task is not already running, raise an error
+    if not app.state.task_bindings.get(message["task_id"]):
+        raise HTTPException(status_code=400, detail="task is not running")
+
     try:
-        metadata = data.get("metadata") or {}
-
-        logger.info(
-            f"{_log_prelude(app)} creating MAIL message for swarm '{source_swarm}'"
-        )
-        new_message = MAILMessage(
-            id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-            message=message,
-            msg_type=data.get("msg_type", "request"),
-        )
-        logger.info(
-            f"{_log_prelude(app)} submitting message '{new_message['id']}' to agent MAIL and waiting for response"
-        )
-        if metadata.get("stream"):
-            ignore_pings = bool(metadata.get("ignore_stream_pings"))
-            ping_interval = None if ignore_pings else 15000
-            return await swarm_mail.submit_message_stream(
-                new_message,
-                ping_interval=ping_interval,
-            )
-
-        submit_result = await swarm_mail.submit_message(new_message)
-        # Support both (response, events) and response-only returns
-        if isinstance(submit_result, tuple) and len(submit_result) == 2:
-            task_response = submit_result[0]
-        else:
-            task_response = submit_result  # type: ignore[assignment]
-
-        # Create response message
-        response_message = MAILMessage(
-            id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-            message=MAILResponse(
-                task_id=task_response["message"]["task_id"],
-                request_id=task_response["message"].get(
-                    "request_id", task_response["message"]["task_id"]
-                ),  # type: ignore
-                sender=task_response["message"]["sender"],
-                recipient=source_agent,
-                subject=task_response["message"]["subject"],
-                body=task_response["message"]["body"],
-                sender_swarm=app.state.local_swarm_name,
-                recipient_swarm=source_swarm,
-                routing_info={},
-            ),
-            msg_type="response",
-        )
-
-        # Return the MAILMessage directly to match expected shape.
-        logger.info(
-            f"{_log_prelude(app)} MAIL completed successfully for swarm '{source_swarm}'"
-        )
-        return response_message
-
-    except Exception as e:
-        logger.error(
-            f"{_log_prelude(app)} error processing message for swarm '{source_swarm}' with error: '{e}'"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"error processing message: {e.with_traceback(None)}",
-        )
-
-
-@app.post("/interswarm/response", dependencies=[Depends(utils.caller_is_agent)])
-async def receive_interswarm_response(request: Request):
-    """
-    Receive an interswarm response from another swarm.
-    """
-    # parse request
-    try:
-        data = await request.json()
-        response_message = MAILMessage(**data)  # type: ignore
-        logger.info(
-            f"{_log_prelude(app)} received interswarm response from '{response_message['message']['sender']}': '{response_message['message']['subject']}'"
+        # get the swarm instance for the task
+        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_jwt)
+        # post this message to the swarm
+        await swarm.receive_interswarm_message(message, direction="back")
+        return types.PostInterswarmBackResponse(
+            swarm=app.state.local_swarm_name,
+            task_id=message["task_id"],
+            status="success",
+            local_runner=f"swarm:{caller_id}@{app.state.local_swarm_name}",
         )
     except Exception as e:
-        logger.error(f"{_log_prelude(app)} error parsing interswarm response: '{e}'")
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"{_log_prelude(app)} error receiving interswarm back message: '{e}'")
         raise HTTPException(
-            status_code=400,
-            detail=f"error parsing interswarm response: {e.with_traceback(None)}",
+            status_code=500, detail=f"error receiving interswarm back message: '{str(e)}'"
         )
 
-    task_id = response_message["message"]["task_id"]
-    binding = _resolve_task_binding(app, task_id)
-    mail_instance = None
 
-    if binding is not None:
-        target_role = binding.get("role")
-        target_id = binding.get("id")
-        target_jwt = binding.get("jwt", "")
-        if binding.get("direct"):
-            located = _find_instance_for_task(app, task_id)
-            if located is not None:
-                _, _, mail_instance = located
-        elif target_role in {"admin", "user", "swarm"} and isinstance(target_id, str):
-            try:
-                mail_instance = await get_or_create_mail_instance(
-                    target_role, target_id, target_jwt  # type: ignore[arg-type]
-                )
-            except Exception as e:
-                logger.error(
-                    f"{_log_prelude(app)} error getting MAIL instance for task '{task_id}' owner '{target_role}:{target_id}': '{e}'"
-                )
-                mail_instance = None
-
-    if mail_instance is None:
-        located = _find_instance_for_task(app, task_id)
-        if located is not None:
-            role, identifier, instance = located
-            mail_instance = instance
-            if task_id not in app.state.task_bindings:
-                _register_task_binding(app, task_id, role, identifier, "", direct=True)
-
-    if mail_instance is None:
-        # Fallback to swarm-instance routing (legacy behavior)
-        try:
-            swarm_jwt = utils.extract_token(request)
-            mail_instance = await get_or_create_mail_instance(
-                "swarm", response_message["message"]["sender_swarm"], swarm_jwt
-            )
-        except Exception as e:
-            if isinstance(e, HTTPException):
-                raise e
-            logger.error(
-                f"{_log_prelude(app)} error getting swarm MAIL instance for '{response_message['message']['sender_swarm']}': '{e}'"
-            )
-            raise HTTPException(
-                status_code=500,
-                detail=f"error getting swarm MAIL instance: {e.with_traceback(None)}",
-            )
-
-    if mail_instance is None:
-        return types.PostInterswarmResponseResponse(
-            status="no_mail_instance",
-            task_id=task_id,
-        )
-
-    # The incoming response already targets the original requester (often supervisor)
-    # with a proper MAILAddress. Route it into the runtime as-is.
-    await mail_instance.handle_interswarm_response(response_message)
-    logger.info(
-        f"{_log_prelude(app)} response submitted to MAIL instance for task '{task_id}'"
-    )
-
-    return types.PostInterswarmResponseResponse(
-        status="response_processed",
-        task_id=task_id,
-    )
-
-
-@app.post("/interswarm/send", dependencies=[Depends(utils.caller_is_admin_or_user)])
-async def send_interswarm_message(request: Request):
+@app.post("/interswarm/message", dependencies=[Depends(utils.caller_is_admin_or_user)])
+async def post_interswarm_message(request: Request):
     """
-    Send an interswarm message to another swarm.
+    Post a message to a remote swarm.
     Intended for users and admins.
 
     Args:
@@ -904,13 +817,15 @@ async def send_interswarm_message(request: Request):
 
         sender_address = create_address(caller_id, caller_role)
 
-        def _build_request(target: str) -> MAILMessage:
+        def _build_request(target: str) -> MAILInterswarmMessage:
             recipient_agent, recipient_swarm = parse_agent_address(target)
             recipient_address = format_agent_address(recipient_agent, recipient_swarm)
-            return MAILMessage(
-                id=str(uuid.uuid4()),
+            return MAILInterswarmMessage(
+                message_id=str(uuid.uuid4()),
                 timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-                message=MAILRequest(
+                source_swarm=app.state.local_swarm_name,
+                target_swarm=recipient_swarm or app.state.local_swarm_name,
+                payload=MAILRequest(
                     task_id=task_id,
                     request_id=str(uuid.uuid4()),
                     sender=sender_address,
@@ -922,9 +837,13 @@ async def send_interswarm_message(request: Request):
                     routing_info=routing_info,
                 ),
                 msg_type="request",
+                auth_token=user_token,
+                task_owner=caller_id,
+                task_contributors=[caller_id],
+                metadata={},
             )
 
-        def _build_broadcast() -> MAILMessage:
+        def _build_broadcast() -> MAILInterswarmMessage:
             recipients: list[MAILAddress] = []
             recipient_swarms: set[str] = set()
             for target in targets:
@@ -932,10 +851,12 @@ async def send_interswarm_message(request: Request):
                 recipients.append(format_agent_address(agent, swarm))
                 if swarm:
                     recipient_swarms.add(swarm)
-            return MAILMessage(
-                id=str(uuid.uuid4()),
+            return MAILInterswarmMessage(
+                message_id=str(uuid.uuid4()),
                 timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-                message=MAILBroadcast(
+                source_swarm=app.state.local_swarm_name,
+                target_swarm=app.state.local_swarm_name,
+                payload=MAILBroadcast(
                     task_id=task_id,
                     broadcast_id=str(uuid.uuid4()),
                     sender=sender_address,
@@ -948,6 +869,10 @@ async def send_interswarm_message(request: Request):
                     routing_info=routing_info,
                 ),
                 msg_type="broadcast",
+                auth_token=user_token,
+                task_owner=caller_id,
+                task_contributors=[caller_id],
+                metadata={},
             )
 
         match msg_type:
@@ -968,8 +893,8 @@ async def send_interswarm_message(request: Request):
 
         # Route the message
         if mail_instance.enable_interswarm:
-            response = await mail_instance.route_interswarm_message(mail_message)
-            return types.PostInterswarmSendResponse(
+            response = await mail_instance.post_interswarm_user_message(mail_message)
+            return types.PostInterswarmMessageResponse(
                 response=response,
                 events=None,
             )
