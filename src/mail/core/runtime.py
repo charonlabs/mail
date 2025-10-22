@@ -1174,6 +1174,35 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 task_contributors.append(task_owner)
             self.mail_tasks[task_id] = MAILTask(task_id, task_owner, task_contributors)
 
+    def _add_remote_task(
+        self,
+        task_id: str,
+        task_owner: str,
+        task_contributors: list[str],
+    ) -> None:
+        """
+        Add a remote task to swarm memory.
+        """
+        if task_id in self.mail_tasks:
+            logger.warning(f"a task with ID '{task_id}' already exists in swarm memory")
+            raise ValueError(f"a task with ID '{task_id}' already exists in swarm memory")
+        self.mail_tasks[task_id] = MAILTask(task_id, task_owner, task_contributors)
+
+    def _update_local_task(
+        self,
+        task_id: str,
+        task_owner: str,
+        task_contributors: list[str],
+    ) -> None:
+        """
+        Update a local task in swarm memory.
+        """
+        if task_id not in self.mail_tasks:
+            logger.warning(f"a task with ID '{task_id}' does not exist in swarm memory")
+            raise ValueError(f"a task with ID '{task_id}' does not exist in swarm memory")
+        self.mail_tasks[task_id].task_owner = task_owner
+        self.mail_tasks[task_id].task_contributors = task_contributors
+
     async def _process_message(
         self,
         message: MAILMessage,
@@ -1568,12 +1597,14 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 logger.warning(f"{self._log_prelude()} unknown local agent: '{recipient_agent}'")
                 raise ValueError(f"unknown local agent: '{recipient_agent}'")
         
-        if self.this_owner not in task_contributors: # direction = forward
+        # direction = forward
+        if self.this_owner not in task_contributors: 
             if task_id in self.mail_tasks:
                 logger.warning(f"a task with ID '{task_id}' already exists in swarm memory")
                 raise ValueError(f"a task with ID '{task_id}' already exists in swarm memory")
-            self._ensure_task_exists(task_id, task_owner, task_contributors)
-        else: # direction = back
+            self._add_remote_task(task_id, task_owner, task_contributors)
+        # direction = back
+        else:
             if task_id not in self.mail_tasks:
                 logger.warning(f"a task with ID '{task_id}' does not exist in swarm memory")
                 raise ValueError(f"a task with ID '{task_id}' does not exist in swarm memory")
@@ -1581,7 +1612,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 logger.warning(f"task owner mismatch: expected '{self.mail_tasks[task_id].task_owner}', got '{task_owner}'")
                 raise ValueError(f"task owner mismatch: expected '{self.mail_tasks[task_id].task_owner}', got '{task_owner}'")
             # update task contributors in swarm memory
-            self._ensure_task_exists(task_id, task_owner, task_contributors)
+            self._update_local_task(task_id, task_owner, task_contributors)
         
         try:
             await self.submit(self._convert_interswarm_message_to_local(message))
@@ -1610,11 +1641,25 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             task_contributors,
         )
 
-        try:
-            await self.interswarm_router.send_interswarm_message_forward(interswarm_message)
-        except Exception as e:
-            logger.error(f"{self._log_prelude()} error sending interswarm message: '{e}'")
-            raise ValueError(f"error sending interswarm message: '{e}'")
+        target_contributor = None
+        for contributor in task_contributors:
+            if contributor.split("@")[1] == interswarm_message["target_swarm"]:
+                target_contributor = contributor
+                break
+        # direction = forward
+        if target_contributor is None:
+            try:
+                await self.interswarm_router.send_interswarm_message_forward(interswarm_message)
+            except Exception as e:
+                logger.error(f"{self._log_prelude()} error sending interswarm message forward: '{e}'")
+                raise ValueError(f"error sending interswarm message forward: '{e}'")
+        # direction = back
+        else:
+            try:
+                await self.interswarm_router.send_interswarm_message_back(interswarm_message)
+            except Exception as e:
+                logger.error(f"{self._log_prelude()} error sending interswarm message back: '{e}'")
+                raise ValueError(f"error sending interswarm message back: '{e}'")
 
     def _find_disallowed_comm_targets(
         self,

@@ -177,7 +177,9 @@ class InterswarmRouter:
             token = self._resolve_auth_token_ref(endpoint["auth_token_ref"])
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/forward",
-                json=message,
+                json={
+                    "message": message,
+                },
                 headers={
                     "Content-Type": "application/json",
                     "User-Agent": f"MAIL-Interswarm-Router/{self.local_swarm_name}",
@@ -222,7 +224,9 @@ class InterswarmRouter:
             token = self._resolve_auth_token_ref(endpoint["auth_token_ref"])
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/back",
-                json=message,
+                json={
+                    "message": message,
+                },
                 headers={
                     "Content-Type": "application/json",
                     "User-Agent": f"MAIL-Interswarm-Router/{self.local_swarm_name}",

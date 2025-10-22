@@ -379,6 +379,7 @@ class _SpyRouter:
     def __init__(self) -> None:
         self.convert_calls: list[tuple[MAILMessage, str, list[str]]] = []
         self.forward_sent: list[MAILInterswarmMessage] = []
+        self.back_sent: list[MAILInterswarmMessage] = []
 
     def convert_local_message_to_interswarm(
         self,
@@ -408,8 +409,8 @@ class _SpyRouter:
     async def send_interswarm_message_forward(self, message: MAILInterswarmMessage) -> None:
         self.forward_sent.append(message)
 
-    async def send_interswarm_message_back(self, message: MAILInterswarmMessage) -> None:  # noqa: ARG002
-        raise AssertionError("back channel not expected in this test")
+    async def send_interswarm_message_back(self, message: MAILInterswarmMessage) -> None:
+        self.back_sent.append(message)
 
 
 @pytest.mark.asyncio
@@ -449,6 +450,55 @@ async def test_send_interswarm_message_forward_delegates_to_router() -> None:
     assert contributors == runtime.mail_tasks[task_id].task_contributors
     assert router.forward_sent, "expected forward send call"
     assert router.forward_sent[0]["target_swarm"] == "swarm-beta"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_message_back_delegates_to_router() -> None:
+    """
+    Test that the runtime delegates to the interswarm router when replying to a remote swarm.
+    """
+    runtime = MAILRuntime(
+        agents={"analyst": _create_agent_core(comm_targets=[])},
+        actions={},
+        user_id="user-remote",
+        user_role="user",
+        swarm_name="swarm-alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+
+    router = _SpyRouter()
+    runtime.interswarm_router = router  # type: ignore[assignment]
+
+    task_id = "task-remote"
+    runtime._ensure_task_exists(task_id)
+    task_state = runtime.mail_tasks[task_id]
+    task_state.task_contributors.append("agent:remote@swarm-beta")
+
+    response = MAILMessage(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message={
+            "task_id": task_id,
+            "request_id": str(uuid.uuid4()),
+            "sender": create_agent_address("supervisor"),
+            "recipient": format_agent_address("supervisor", "swarm-beta"),
+            "subject": "::task_complete::",
+            "body": "Done",
+            "sender_swarm": "swarm-alpha",
+            "recipient_swarm": "swarm-beta",
+            "routing_info": {},
+        },
+        msg_type="response",
+    )
+    response["recipient_swarms"] = ["swarm-beta"]  # type: ignore[index]
+
+    await runtime._send_interswarm_message(response)
+
+    assert router.convert_calls, "expected convert_local_message_to_interswarm to be called"
+    assert not router.forward_sent
+    assert router.back_sent
+    assert router.back_sent[0]["target_swarm"] == "swarm-beta"
 
 
 @pytest.mark.asyncio

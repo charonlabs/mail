@@ -663,7 +663,7 @@ async def receive_interswarm_forward(request: Request):
         "auth_token": str,
         "metadata": dict,
         "task_owner": str,
-        "task_contributors": list[str],
+        "task_contributors": list,
     }
     for field, expected_type in REQUIRED_FIELDS.items():
         if field not in message:
@@ -676,10 +676,11 @@ async def receive_interswarm_forward(request: Request):
         swarm = await get_or_create_mail_instance("swarm", caller_id, caller_jwt)
         _register_task_binding(app, message["task_id"], "swarm", caller_id, caller_jwt)
         # post this message to the swarm
+        payload = message["payload"]
         await swarm.receive_interswarm_message(message, direction="forward")
         return types.PostInterswarmForwardResponse(
             swarm=app.state.local_swarm_name,
-            task_id=message["task_id"],
+            task_id=payload["task_id"],
             status="success",
             local_runner=f"swarm:{caller_id}@{app.state.local_swarm_name}",
         )
@@ -718,7 +719,7 @@ async def receive_interswarm_back(request: Request):
         "auth_token": str,
         "metadata": dict,
         "task_owner": str,
-        "task_contributors": list[str],
+        "task_contributors": list,
     }
     for field, expected_type in REQUIRED_FIELDS.items():
         if field not in message:

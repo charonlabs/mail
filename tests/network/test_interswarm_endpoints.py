@@ -72,7 +72,6 @@ def _wrap_interswarm(payload, msg_type: str) -> dict[str, object]:
 
 
 @pytest.mark.usefixtures("patched_server")
-@pytest.mark.xfail(reason="server uses isinstance with parameterized generics", raises=TypeError)
 def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
     """
     Test that the interswarm forward endpoint submits to the runtime when receiving an interswarm message.
@@ -103,6 +102,11 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
         fake_get_or_create,
     )
 
+    try:
+        app.state.task_bindings
+    except AttributeError:
+        app.state.task_bindings = {}
+
     payload = _make_request_payload(task_id="task-forward")
     wrapper = _wrap_interswarm(payload, "request")
 
@@ -113,15 +117,17 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
             json={"message": wrapper},
         )
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.json()
     assert captured["direction"] == "forward"
     captured_message = captured["message"]
     assert isinstance(captured_message, dict)
     assert captured_message["payload"]["task_id"] == "task-forward"  # type: ignore[index]
+    binding = app.state.task_bindings.get("task-forward")
+    assert binding is not None
+    assert binding["id"] == "ag-forward"
 
 
 @pytest.mark.usefixtures("patched_server")
-@pytest.mark.xfail(reason="server uses isinstance with parameterized generics", raises=TypeError)
 def test_interswarm_back_requires_running_task(monkeypatch: pytest.MonkeyPatch):
     """
     Test that the interswarm back endpoint requires a running task when receiving an interswarm message.
@@ -145,6 +151,64 @@ def test_interswarm_back_requires_running_task(monkeypatch: pytest.MonkeyPatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "task is not running"
+
+
+@pytest.mark.usefixtures("patched_server")
+def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
+    """
+    Test that the interswarm back endpoint submits to the runtime when the task is running.
+    """
+    from mail.server import app
+
+    monkeypatch.setattr(
+        "mail.utils.auth.get_token_info",
+        lambda token: _async_return({"role": "agent", "id": "ag-back", "jwt": "jwt-back"}),
+    )
+
+    captured: dict[str, object] = {}
+
+    class DummySwarm:
+        async def receive_interswarm_message(  # noqa: D401
+            self,
+            message: MAILInterswarmMessage,
+            direction: str = "back",
+        ) -> None:
+            captured["message"] = message
+            captured["direction"] = direction
+
+    async def fake_get_or_create(role, identifier, jwt):  # noqa: ANN001
+        return DummySwarm()
+
+    monkeypatch.setattr(
+        "mail.server.get_or_create_mail_instance",
+        fake_get_or_create,
+    )
+
+    forward_payload = _make_request_payload(task_id="task-running")
+    forward_wrapper = _wrap_interswarm(forward_payload, "request")
+    payload = _make_response_payload(task_id="task-running")
+    wrapper = _wrap_interswarm(payload, "response")
+
+    with TestClient(app) as client:
+        forward_response = client.post(
+            "/interswarm/forward",
+            headers={"Authorization": "Bearer remote-token"},
+            json={"message": forward_wrapper},
+        )
+        assert forward_response.status_code == 200, forward_response.json()
+
+        response = client.post(
+            "/interswarm/back",
+            headers={"Authorization": "Bearer remote-token"},
+            json={"message": wrapper},
+        )
+
+    result = response.json()
+    assert response.status_code == 200, result
+    assert captured["direction"] == "back"
+    captured_message = captured["message"]
+    assert isinstance(captured_message, dict)
+    assert captured_message["payload"]["task_id"] == "task-running"  # type: ignore[index]
 
 
 @pytest.mark.usefixtures("patched_server")
