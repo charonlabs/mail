@@ -18,8 +18,15 @@ class MAILTask:
     A discrete collection of messages between agents working towards a common goal.
     """
 
-    def __init__(self, task_id: str):
+    def __init__(
+        self, 
+        task_id: str,
+        task_owner: str,
+        task_contributors: list[str],
+    ) -> None:
         self.task_id = task_id
+        self.task_owner = task_owner
+        self.task_contributors = task_contributors
         self.start_time = datetime.datetime.now(datetime.UTC)
         self.events: list[ServerSentEvent] = []
         self.is_running = False

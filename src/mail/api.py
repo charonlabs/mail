@@ -1059,12 +1059,6 @@ class MAILSwarm:
             },
         )
 
-    async def handle_interswarm_response(self, response_message: MAILMessage) -> None:
-        """
-        Handle an incoming response from a remote swarm.
-        """
-        await self._runtime.handle_interswarm_response(response_message)
-
     def get_pending_requests(self) -> dict[str, asyncio.Future[MAILMessage]]:
         """
         Get the pending requests for the swarm.

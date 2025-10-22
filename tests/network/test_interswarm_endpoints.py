@@ -26,9 +26,9 @@ def _async_return(value):
 
 
 @pytest.mark.usefixtures("patched_server")
-def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
+def test_interswarm_back_success(monkeypatch: pytest.MonkeyPatch):
     """
-    Test that `POST /interswarm/message` works as expected.
+    Test that `POST /interswarm/back` works as expected.
     """
     from mail.server import app
 
@@ -39,13 +39,13 @@ def test_interswarm_message_success(monkeypatch: pytest.MonkeyPatch):
     )
 
     with TestClient(app) as client:
-        payload: MAILRequest = MAILRequest(
-            task_id=str(uuid.uuid4()),
-            request_id=str(uuid.uuid4()),
-            sender=format_agent_address("remote-agent", "remote"),
-            recipient=create_agent_address("supervisor"),
-            subject="Ping",
-            body="Hello from remote",
+        payload: MAILResponse = MAILResponse(
+            task_id="task-123",
+            request_id="req-123",
+            sender=create_agent_address("remote@remote"),
+            recipient=create_agent_address("supervisor@example"),
+            subject="Status",
+            body="done",
             sender_swarm="remote",
             recipient_swarm="example",
             routing_info={},
