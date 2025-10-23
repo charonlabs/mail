@@ -92,10 +92,13 @@ class SwarmOAIClient:
                 asyncio.create_task(self.owner.swarm.run_continuous())
             swarm = self.owner.swarm
             body = ""
-            if input[-1]["type"] == "function_call_output":
+            if "type" in input[-1] and input[-1]["type"] == "function_call_output":
                 tool_responses: list[dict[str, Any]] = []
                 for input_item in reversed(input):
-                    if input_item["type"] == "function_call":
+                    if (
+                        "type" not in input_item
+                        or input_item["type"] == "function_call"
+                    ):
                         break
                     if input_item["type"] == "function_call_output":
                         tool_responses.append(
