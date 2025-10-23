@@ -6,9 +6,10 @@ from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
-from mail.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate
+from mail.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate, action
+from mail.swarms_json.utils import build_swarm_from_swarms_json
 from tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
 
@@ -483,6 +484,18 @@ async def _stub_action(_: dict[str, Any]) -> str:
     return "ok"
 
 
+EMPTY_PARAMETERS = {"type": "object", "properties": {}}
+
+
+@action(
+    name="decorated_for_string",
+    description="Return ok.",
+    parameters=EMPTY_PARAMETERS,
+)
+async def decorated_for_string(_: dict[str, Any]) -> str:
+    return "ok"
+
+
 def test_mailaction_to_pydantic_model_for_tools_enforces_types() -> None:
     """
     `MAILAction.to_pydantic_model(for_tools=True)` should enforce declared types.
@@ -565,3 +578,178 @@ def test_mailaction_from_swarm_json_type_validation() -> None:
     with pytest.raises(ValueError) as exc:
         MAILAction.from_swarm_json(json.dumps(bad))
     assert "must be a" in str(exc.value)
+
+
+@pytest.mark.asyncio
+async def test_action_decorator_builds_mail_action_from_model() -> None:
+    """
+    The decorator should wrap an async callable and enforce the supplied Pydantic model.
+    """
+
+    class Payload(BaseModel):
+        location: str
+
+    @action(model=Payload, description="Return the requested location.")
+    async def locate(data: Payload) -> str:
+        return data.location.upper()
+
+    assert isinstance(locate, MAILAction)
+    assert locate.name == "locate"
+    assert locate.description == "Return the requested location."
+    assert locate.parameters_model is Payload  # type: ignore[attr-defined]
+
+    response = await locate.function({"location": "denver"})  # type: ignore[arg-type]
+    assert response == "DENVER"
+    assert locate.callback.__name__ == "locate"  # type: ignore[attr-defined]
+    assert locate.parameters["properties"]["location"]["type"] == "string"
+
+
+@pytest.mark.asyncio
+async def test_action_decorator_infers_model_from_annotation() -> None:
+    """
+    When no model is provided, the decorator should infer it from a BaseModel annotation.
+    """
+
+    class ForecastInput(BaseModel):
+        query: str
+
+    @action(description="Return the forecast for the given query.")
+    async def forecast(payload: ForecastInput) -> str:
+        return f"forecast:{payload.query}"
+
+    assert isinstance(forecast, MAILAction)
+    assert forecast.parameters_model is ForecastInput  # type: ignore[attr-defined]
+    result = await forecast.function({"query": "snow"})  # type: ignore[arg-type]
+    assert result == "forecast:snow"
+
+
+@pytest.mark.asyncio
+async def test_mailaction_resolves_decorated_function_from_string() -> None:
+    """
+    MAILAction should load decorated actions when referenced via python strings.
+    """
+    action_from_string = MAILAction(
+        name="via_string",
+        description="Use decorated action.",
+        parameters={"type": "object", "properties": {}},
+        function="tests.unit.test_mail_api:decorated_for_string",
+    )
+
+    result = await action_from_string.function({})  # type: ignore[arg-type]
+    assert result == "ok"
+
+
+@pytest.mark.asyncio
+async def test_action_decorator_supports_sync_functions_with_parameters() -> None:
+    """
+    Sync callables can be wrapped when a parameters schema is provided explicitly.
+    """
+
+    @action(
+        name="ping",
+        description="Return pong.",
+        parameters={"type": "object", "properties": {}},
+    )
+    def ping(payload: dict[str, Any]) -> str:
+        return "pong"
+
+    assert isinstance(ping, MAILAction)
+    result = await ping.function({})  # type: ignore[arg-type]
+    assert result == "pong"
+    assert ping.parameters["type"] == "object"
+
+
+def test_action_decorator_missing_description_raises() -> None:
+    """
+    A description (or docstring) must be supplied for decorated actions.
+    """
+
+    class Empty(BaseModel):
+        value: str
+
+    with pytest.raises(ValueError):
+
+        @action(model=Empty)
+        async def undecorated(_: Empty) -> str:
+            return "nope"
+
+
+def test_swarm_template_action_imports_populate_actions() -> None:
+    """
+    Imported actions should be available to the swarm and its agents.
+    """
+    swarm_candidate = {
+        "name": "imported",
+        "version": "1.1.1",
+        "entrypoint": "alpha",
+        "agents": [
+            {
+                "name": "alpha",
+                "factory": "tests.conftest:make_stub_agent",
+                "comm_targets": [],
+                "actions": ["decorated_for_string"],
+                "agent_params": {},
+                "enable_entrypoint": True,
+                "enable_interswarm": False,
+                "can_complete_tasks": True,
+                "tool_format": "responses",
+                "exclude_tools": [],
+            }
+        ],
+        "actions": [],
+        "action_imports": ["python::tests.unit.test_mail_api:decorated_for_string"],
+        "enable_interswarm": False,
+        "breakpoint_tools": [],
+        "exclude_tools": [],
+    }
+
+    parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
+    template = MAILSwarmTemplate.from_swarms_json(parsed_swarm)
+
+    assert len(template.actions) == 1
+    action = template.actions[0]
+    assert action.name == decorated_for_string.name
+    assert action.description == decorated_for_string.description
+    assert template.agents[0].actions[0] is action
+
+
+def test_swarm_template_action_imports_duplicate_names_raise() -> None:
+    """
+    Inline actions that collide with imported action names should raise an error.
+    """
+    swarm_candidate = {
+        "name": "imported",
+        "version": "1.1.1",
+        "entrypoint": "alpha",
+        "agents": [
+            {
+                "name": "alpha",
+                "factory": "tests.conftest:make_stub_agent",
+                "comm_targets": [],
+                "actions": ["decorated_for_string"],
+                "agent_params": {},
+                "enable_entrypoint": True,
+                "enable_interswarm": False,
+                "can_complete_tasks": True,
+                "tool_format": "responses",
+                "exclude_tools": [],
+            }
+        ],
+        "actions": [
+            {
+                "name": "decorated_for_string",
+                "description": "Inline duplicate",
+                "parameters": {"type": "object", "properties": {}},
+                "function": "python::tests.unit.test_mail_api:decorated_for_string",
+            }
+        ],
+        "action_imports": ["python::tests.unit.test_mail_api:decorated_for_string"],
+        "enable_interswarm": False,
+        "breakpoint_tools": [],
+        "exclude_tools": [],
+    }
+
+    parsed_swarm = build_swarm_from_swarms_json(swarm_candidate)
+    with pytest.raises(ValueError) as exc:
+        MAILSwarmTemplate.from_swarms_json(parsed_swarm)
+    assert "duplicate action definition" in str(exc.value)

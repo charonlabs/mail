@@ -8,9 +8,11 @@ Both commands are exposed via the console script `mail`, which is installed when
 ```shell
 mail server   # run the FastAPI reference server
 mail client   # launch the interactive MAIL client REPL
+mail version  # print MAIL reference + protocol version information
 ```
 
 The top-level parser accepts the same flags regardless of how you invoke it, for example `python -m mail.cli …` or `uv run mail …`.
+Use `mail version` any time you need to confirm the reference implementation and protocol version advertised by the CLI.
 
 ### `mail server`
 - Configuration defaults are read from `mail.toml` (see
@@ -43,31 +45,27 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 
 | Command | Description |
 | --- | --- |
-| `help` or `?` | Print CLI usage information without exiting the loop. |
+| `help` / `?` | Print CLI usage information without exiting the loop. |
 | `exit` / `quit` | Leave the REPL. |
-| `get-health` | Invoke `GET /health` and print the JSON body. |
-| `get-whoami` | Invoke `GET /whoami` and display the caller's username and role. |
-| `post-message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
-| `post-message-stream "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
-| `get-swarms`, `register-swarm`, `dump-swarm` | Manage the swarm registry. |
-| `send-interswarm-message` | Send interswarm traffic by target agent. |
-| `load-swarm-from-json` | Submit a JSON payload to `POST /swarms/load`. |
+| `ping` | Invoke `GET /` and display the server name/version. |
+| `health [-v]` / `health-update STATUS` | Read or update health probes (update requires admin role). |
+| `whoami`, `status`, `login`, `logout` | Inspect or change the caller identity tracked by the session. |
+| `message "…" [--entrypoint …] [--task-id …] [--resume-from …] [--kwargs '{…}'] [--show-events]` | Submit a message and print the structured response. |
+| `message-stream "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
+| `message-interswarm "…" '["agent@remote"]' $USER_TOKEN` | Proxy a request to another swarm (requires interswarm). |
+| `swarms-get`, `swarm-register`, `swarm-dump`, `swarm-load-from-json` | Inspect or mutate the swarm registry and persistent template. |
 
 The REPL uses `shlex.split`, so quoting works as expected:
 
 ```shell
-mail> post-message "Forecast for tomorrow" \
+mail> message "Forecast for tomorrow" \
       --entrypoint supervisor
 ```
 
 Errors raised by `argparse` are caught and reported without exiting the loop, letting you adjust the command and retry. Blank lines are ignored, and `Ctrl+C` returns you to the prompt without killing the process.
 
 ### Streaming inside the REPL
-`post-message-stream` mirrors the behaviour of `MAILClient.post_message_stream`.
-When the server emits events, each `ServerSentEvent` object is printed in
-arrival order. This is particularly useful when you want to monitor `task_complete`
-notifications or inspect intermediate `new_message` / `action_call` events
-without leaving the terminal.
+`message-stream` mirrors the behaviour of `MAILClient.post_message_stream`. When the server emits events, each `ServerSentEvent` object is printed in arrival order. This is particularly useful when you want to monitor `task_complete` notifications or inspect intermediate `new_message` / `action_call` events without leaving the terminal.
 
 ### Working with Tasks and Breakpoint Resumes
 
@@ -75,7 +73,7 @@ without leaving the terminal.
 - To continue a task that paused on a breakpoint tool call, add the following flags:
 
   ```shell
-  mail> post-message-stream "Continuing after breakpoint" \
+  mail> message-stream "Continuing after breakpoint" \
         --task-id weather-123 \
         --resume-from breakpoint_tool_call \
         --kwargs '{"breakpoint_tool_call_result": "{\"call_id\":\"bp-1\",\"content\":\"Forecast: sunny\"}"}'
@@ -86,7 +84,7 @@ without leaving the terminal.
 - For manual follow-ups, use `--resume-from user_response` to inject a new user message into the same task without losing queued events:
 
   ```shell
-  mail> post-message "Add a final summary" \
+  mail> message "Add a final summary" \
         --task-id weather-123 \
         --resume-from user_response
   ```

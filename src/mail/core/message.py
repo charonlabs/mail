@@ -22,7 +22,6 @@ class MAILAddress(TypedDict):
 
     address_type: Literal["admin", "agent", "system", "user"]
     """The type of address."""
-
     address: str
     """The address of the sender or recipient."""
 
@@ -37,29 +36,21 @@ class MAILRequest(TypedDict):
 
     task_id: str
     """The unique identifier for the task."""
-
     request_id: str
     """The unique identifier for the request."""
-
     sender: MAILAddress
     """The sender of the request."""
-
     recipient: MAILAddress
     """The recipient of the request."""
-
     subject: str
     """The subject of the request."""
-
     body: str
     """The body of the request."""
-
     # Interswarm fields
     sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
-
     recipient_swarm: str | None
     """The swarm name of the recipient (for interswarm messages)."""
-
     routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
@@ -71,29 +62,21 @@ class MAILResponse(TypedDict):
 
     task_id: str
     """The unique identifier for the task."""
-
     request_id: str
     """The unique identifier of the request being responded to."""
-
     sender: MAILAddress
     """The sender of the response."""
-
     recipient: MAILAddress
     """The recipient of the response."""
-
     subject: str
     """The status of the response."""
-
     body: str
     """The body of the response."""
-
     # Interswarm fields
     sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
-
     recipient_swarm: str | None
     """The swarm name of the recipient (for interswarm messages)."""
-
     routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
@@ -105,29 +88,21 @@ class MAILBroadcast(TypedDict):
 
     task_id: str
     """The unique identifier for the task."""
-
     broadcast_id: str
     """The unique identifier for the broadcast."""
-
     sender: MAILAddress
     """The sender of the broadcast."""
-
     recipients: list[MAILAddress]
     """The recipients of the broadcast."""
-
     subject: str
     """The subject of the broadcast."""
-
     body: str
     """The full details of the broadcast."""
-
     # Interswarm fields
     sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
-
     recipient_swarms: list[str] | None
     """The swarm names of the recipients (for interswarm messages)."""
-
     routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
@@ -139,29 +114,21 @@ class MAILInterrupt(TypedDict):
 
     task_id: str
     """The unique identifier for the task."""
-
     interrupt_id: str
     """The unique identifier for the interrupt."""
-
     sender: MAILAddress
     """The sender of the interrupt."""
-
     recipients: list[MAILAddress]
     """The recipients of the interrupt."""
-
     subject: str
     """The description of the interrupt."""
-
     body: str
     """The full details of the interrupt, including what tasks to halt, conditions for resuming, and if interrupted tasks should be discarded."""
-
     # Interswarm fields
     sender_swarm: str | None
     """The swarm name of the sender (for interswarm messages)."""
-
     recipient_swarms: list[str] | None
     """The swarm names of the recipients (for interswarm messages)."""
-
     routing_info: dict[str, Any] | None
     """Additional routing information for interswarm messages."""
 
@@ -173,27 +140,47 @@ class MAILInterswarmMessage(TypedDict):
 
     message_id: str
     """The unique identifier for the interswarm message."""
-
     source_swarm: str
     """The source swarm name."""
-
     target_swarm: str
     """The target swarm name."""
-
     timestamp: str
     """The timestamp of the message."""
-
     payload: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt
     """The wrapped MAIL message."""
-
     msg_type: Literal["request", "response", "broadcast", "interrupt"]
     """The type of the message."""
-
     auth_token: str | None
     """Authentication token for interswarm communication."""
-
+    task_owner: str
+    """The owner of the task (role:id@swarm)."""
+    task_contributors: list[str]
+    """The contributors to the task (role:id@swarm)."""
     metadata: dict[str, Any] | None
     """Additional metadata for routing and processing."""
+
+
+def parse_task_contributors(contributors: list[str]) -> list[tuple[str, str, str]]:
+    """
+    Parse a list of task contributors in the format `role:id@swarm`.
+    """
+    return [parse_task_contributor(contributor) for contributor in contributors]
+
+
+def parse_task_contributor(contributor: str) -> tuple[str, str, str]:
+    """
+    Parse an individual task contributor in the format `role:id@swarm`.
+    """
+    if ":" not in contributor:
+        raise ValueError("task contributor must be in the format 'role:id@swarm'")
+    if "@" not in contributor:
+        raise ValueError("task contributor must be in the format 'role:id@swarm'")
+    
+    role = contributor.split(":")[0]
+    id = contributor.split(":")[1].split("@")[0]
+    swarm = contributor.split("@")[1]
+    
+    return role, id, swarm
 
 
 def parse_agent_address(address: str) -> tuple[str, str | None]:
@@ -329,13 +316,10 @@ class MAILMessage(TypedDict):
 
     id: str
     """The unique identifier for the message."""
-
     timestamp: str
     """The timestamp of the message."""
-
     message: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt
     """The message content."""
-
     msg_type: Literal[
         "request", "response", "broadcast", "interrupt", "broadcast_complete"
     ]
