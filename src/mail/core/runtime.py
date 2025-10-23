@@ -1618,8 +1618,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         
         try:
             await self.submit(self._convert_interswarm_message_to_local(message))
+            self._submit_event(
+                "interswarm_message_received",
+                task_id,
+                f"received interswarm message from swarm '{message['source_swarm']}'",
+            )
         except Exception as e:
             logger.error(f"{self._log_prelude()} error receiving interswarm message: {e}")
+            self._submit_event(
+                "interswarm_message_error",
+                task_id,
+                f"error receiving interswarm message: {e}",
+            )
             raise ValueError(f"error receiving interswarm message: {e}")
 
     async def _send_interswarm_message(
@@ -1656,15 +1666,35 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         if target_contributor is None:
             try:
                 await self.interswarm_router.send_interswarm_message_forward(interswarm_message)
+                self._submit_event(
+                    "interswarm_message_sent",
+                    task_id,
+                    f"sent interswarm message forward to swarm '{interswarm_message['target_swarm']}'",
+                )
             except Exception as e:
                 logger.error(f"{self._log_prelude()} runtime failed to send interswarm message forward: {e}")
+                self._submit_event(
+                    "interswarm_message_error",
+                    task_id,
+                    f"error sending interswarm message forward: {e}",
+                )
                 raise ValueError(f"runtime failed to send interswarm message forward: {e}")
         # direction = back
         else:
             try:
                 await self.interswarm_router.send_interswarm_message_back(interswarm_message)
+                self._submit_event(
+                    "interswarm_message_sent",
+                    task_id,
+                    f"sent interswarm message back to swarm '{interswarm_message['target_swarm']}'",
+                )
             except Exception as e:
                 logger.error(f"{self._log_prelude()} runtime failed to send interswarm message back: {e}")
+                self._submit_event(
+                    "interswarm_message_error",
+                    task_id,
+                    f"error sending interswarm message back: {e}",
+                )
                 raise ValueError(f"runtime failed to send interswarm message back: {e}")
 
     def _find_disallowed_comm_targets(
