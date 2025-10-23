@@ -38,7 +38,9 @@ EXAMPLE_INTERSWARM_MESSAGE: dict[str, Any] = {
     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
     "payload": EXAMPLE_MAIL_MESSAGE["message"],
     "msg_type": "response",
-    "auth_token": None,
+    "auth_token": "remote-token",
+    "task_owner": "user:demo-user@demo",
+    "task_contributors": ["agent:supervisor@demo"],
     "metadata": {},
 }
 
@@ -109,22 +111,17 @@ async def test_mail_client_rest_endpoints() -> None:
     async def handle_interswarm_message(request: web.Request) -> web.Response:
         assert_auth(request)
         payload = await request.json()
-        captured["interswarm_message"].append(payload)
-        return web.json_response(EXAMPLE_MAIL_MESSAGE)
+        if "payload" in payload:
+            captured["interswarm_wrapped"].append(payload)
+            return web.json_response(EXAMPLE_MAIL_MESSAGE)
+        captured["interswarm_send"].append(payload)
+        return web.json_response({"response": EXAMPLE_MAIL_MESSAGE, "events": []})
 
     async def handle_interswarm_response(request: web.Request) -> web.Response:
         assert_auth(request)
         payload = await request.json()
         captured["interswarm_response"].append(payload)
-        return web.json_response(
-            {"status": "response_processed", "task_id": "task-001"}
-        )
-
-    async def handle_interswarm_send(request: web.Request) -> web.Response:
-        assert_auth(request)
-        payload = await request.json()
-        captured["interswarm_send"].append(payload)
-        return web.json_response({"response": EXAMPLE_MAIL_MESSAGE, "events": []})
+        return web.json_response({"status": "success", "task_id": "task-001"})
 
     async def handle_swarm_load(request: web.Request) -> web.Response:
         assert_auth(request)
@@ -140,9 +137,8 @@ async def test_mail_client_rest_endpoints() -> None:
     app.router.add_get("/swarms", handle_swarms)
     app.router.add_post("/swarms", handle_register_swarm)
     app.router.add_get("/swarms/dump", handle_dump)
-    app.router.add_post("/interswarm/message", handle_interswarm_message)
     app.router.add_post("/interswarm/response", handle_interswarm_response)
-    app.router.add_post("/interswarm/send", handle_interswarm_send)
+    app.router.add_post("/interswarm/message", handle_interswarm_message)
     app.router.add_post("/swarms/load", handle_swarm_load)
 
     async with run_app(app) as base_url:
@@ -198,11 +194,13 @@ async def test_mail_client_rest_endpoints() -> None:
     assert captured["messages"][1]["kwargs"] == {}
     assert captured["registrations"][0]["volatile"] is False
     assert captured["registrations"][0]["metadata"] == {"label": "alpha"}
-    assert captured["interswarm_message"][0]["msg_type"] == "response"
-    assert captured["interswarm_response"][0]["msg_type"] == "response"
-    assert captured["interswarm_send"][0]["targets"] == ["agent@remote"]
-    assert captured["interswarm_send"][0]["body"] == "hello"
-    assert captured["interswarm_send"][0]["user_token"] == "demo-user"
+    assert captured["interswarm_wrapped"][0] == EXAMPLE_INTERSWARM_MESSAGE
+    assert captured["interswarm_response"][0] == EXAMPLE_MAIL_MESSAGE
+    assert captured["interswarm_send"][0] == {
+        "body": "hello",
+        "targets": ["agent@remote"],
+        "user_token": "demo-user",
+    }
     assert captured["swarm_load"][0]["json"] == "{}"
 
 

@@ -134,7 +134,7 @@ def convert_call_to_mail_message(
                     body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarm=None,
-                    routing_info=None,
+                    routing_info={},
                 ),
                 msg_type="request",
             )
@@ -151,7 +151,7 @@ def convert_call_to_mail_message(
                     body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarm=None,
-                    routing_info=None,
+                    routing_info={},
                 ),
                 msg_type="response",
             )
@@ -168,7 +168,7 @@ def convert_call_to_mail_message(
                     body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarms=None,
-                    routing_info=None,
+                    routing_info={},
                 ),
                 msg_type="interrupt",
             )
@@ -185,7 +185,7 @@ def convert_call_to_mail_message(
                     body=call.tool_args["body"],
                     sender_swarm=None,
                     recipient_swarms=None,
-                    routing_info=None,
+                    routing_info={},
                 ),
                 msg_type="broadcast",
             )
@@ -202,7 +202,7 @@ def convert_call_to_mail_message(
                     body=call.tool_args["finish_message"],
                     sender_swarm=None,
                     recipient_swarms=None,
-                    routing_info=None,
+                    routing_info={},
                 ),
                 msg_type="broadcast_complete",
             )

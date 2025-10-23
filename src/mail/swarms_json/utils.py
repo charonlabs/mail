@@ -73,6 +73,8 @@ def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
     OPTIONAL_FIELDS: dict[str, type] = {
         "enable_interswarm": bool,
         "breakpoint_tools": list,
+        "exclude_tools": list,
+        "action_imports": list,
     }
 
     for field, field_type in REQUIRED_FIELDS.items():
@@ -90,6 +92,11 @@ def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
             raise ValueError(
                 f"swarm candidate field '{field}' must be a {field_type.__name__}, actually got {type(swarm_candidate[field])}"
             )
+
+    if "action_imports" in swarm_candidate:
+        imports = swarm_candidate["action_imports"]
+        if any(not isinstance(item, str) for item in imports):
+            raise ValueError("swarm candidate field 'action_imports' must be a list of strings")
 
     return
 
@@ -110,6 +117,7 @@ def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
             build_action_from_swarms_json(action)
             for action in swarm_candidate["actions"]
         ],
+        action_imports=swarm_candidate.get("action_imports", []),
         enable_interswarm=swarm_candidate.get("enable_interswarm", False),
         breakpoint_tools=swarm_candidate.get("breakpoint_tools", []),
         exclude_tools=swarm_candidate.get("exclude_tools", []),

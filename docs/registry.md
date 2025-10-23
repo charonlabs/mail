@@ -14,7 +14,7 @@ The registry manages discovery and routing for remote swarms.
 
 ## Auth token references
 - Persistent registrations convert `auth_token` to environment references like `${SWARM_AUTH_TOKEN_<SWARM>}`
-- At runtime these are resolved from the process environment
+- At runtime these are resolved from the process environment; if unset the router will fall back to the message payload’s `auth_token`, but you should still export the variable so outbound calls always include a static bearer token.
 - **Utilities**: `migrate_auth_tokens_to_env_refs`, `validate_environment_variables`
 
 ## API integration
@@ -24,4 +24,3 @@ The registry manages discovery and routing for remote swarms.
 ## Code
 - [src/mail/net/registry.py](/src/mail/net/registry.py)
 - [src/mail/net/router.py](/src/mail/net/router.py)
-

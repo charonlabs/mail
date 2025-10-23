@@ -2,242 +2,262 @@
 # Copyright (c) 2025 Addison Kline
 
 import datetime
-import json
 import uuid
 
 import pytest
 
 from mail.core.message import (
-    MAILMessage,
+    MAILInterswarmMessage,
     MAILRequest,
     create_agent_address,
     format_agent_address,
 )
 from mail.net.registry import SwarmRegistry
-from mail.net.router import InterswarmRouter, StreamHandler
+from mail.net.router import InterswarmRouter
 
 
-def make_request_to(agent: str) -> MAILMessage:
+def _make_interswarm_request(
+    *,
+    target_swarm: str,
+    recipient: str = "analyst",
+) -> MAILInterswarmMessage:
     """
-    Make a formatted `MAILMessage` request to an agent.
+    Build a minimal interswarm request wrapper for tests.
     """
-    return MAILMessage(
-        id=str(uuid.uuid4()),
+    payload = MAILRequest(
+        task_id="task-1",
+        request_id="req-1",
+        sender=create_agent_address("supervisor"),
+        recipient=format_agent_address(recipient, target_swarm),
+        subject="Subject",
+        body="Body",
+        sender_swarm="local",
+        recipient_swarm=target_swarm,
+        routing_info={},
+    )
+    return MAILInterswarmMessage(
+        message_id=str(uuid.uuid4()),
+        source_swarm="local",
+        target_swarm=target_swarm,
         timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-        message=MAILRequest(
-            task_id="t1",
-            request_id="r1",
-            sender=create_agent_address("supervisor"),
-            recipient=create_agent_address(agent),
-            subject="Hi",
-            body="Body",
-            sender_swarm="example",
-            recipient_swarm="example",
-            routing_info={},
-        ),
+        payload=payload,
         msg_type="request",
+        auth_token="token-local",
+        task_owner="user:123@local",
+        task_contributors=["user:123@local"],
+        metadata={},
     )
 
 
-@pytest.mark.asyncio
-async def test_route_message_local(monkeypatch: pytest.MonkeyPatch):
-    """
-    Test that a message is routed to the local handler when the recipient is in the local swarm.
-    """
-    registry = SwarmRegistry("example", "http://localhost:8000")
-    router = InterswarmRouter(registry, "example")
+class _DummyResponse:
+    def __init__(self, status: int, *, reason: str = "OK") -> None:
+        self.status = status
+        self.reason = reason
 
-    received: list[MAILMessage] = []
-
-    async def handler(msg: MAILMessage):
-        received.append(msg)
-
-    router.register_message_handler("local_message_handler", handler)
-
-    msg = make_request_to("analyst")
-    out = await router.route_message(msg)
-
-    # Handler should have been called with a local-recipients message
-    assert received, "local handler was not called"
-    handled = received[0]
-    assert "recipient" in handled["message"]
-    assert handled["message"]["recipient"]["address"] == "analyst"  # type: ignore
-    assert out["msg_type"] == "request"
-
-
-@pytest.mark.asyncio
-async def test_route_message_mixed_local_and_remote(monkeypatch: pytest.MonkeyPatch):
-    """
-    Test that a message is routed to the remote handler when the recipient is in a remote swarm.
-    """
-    registry = SwarmRegistry("example", "http://localhost:8000")
-    # Register a remote swarm endpoint
-    registry.register_swarm("remote", "http://remote:9999")
-
-    router = InterswarmRouter(registry, "example")
-
-    # Capture remote route argument
-    captured: dict[str, MAILMessage | None] = {"msg": None}
-
-    async def fake_remote(
-        mm: MAILMessage,
-        swarm: str,
-        stream_requested: bool = False,
-        stream_handler: StreamHandler | None = None,
-        ignore_stream_pings: bool = False,
-    ):  # noqa: ANN001
-        captured["msg"] = mm
-        return mm
-
-    monkeypatch.setattr(router, "_route_to_remote_swarm", fake_remote)
-
-    # Needed to accept local messages
-    async def handler(_):  # noqa: ANN001
-        return None
-
-    router.register_message_handler("local_message_handler", handler)
-
-    # Build a broadcast to both local and remote agents
-    msg = MAILMessage(
-        id=str(uuid.uuid4()),
-        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-        message={
-            "task_id": "t1",
-            "broadcast_id": "b1",
-            "sender": create_agent_address("supervisor"),
-            "recipients": [
-                create_agent_address("analyst"),
-                format_agent_address("helper", "remote"),
-            ],
-            "subject": "Broadcast",
-            "body": "Test",
-            "sender_swarm": "example",
-            "recipient_swarms": ["example", "remote"],
-            "routing_info": {},
-        },
-        msg_type="broadcast",
-    )
-
-    await router.route_message(msg)
-
-    # Assert the remote message was created with correct addressing metadata
-    assert captured["msg"] is not None
-    remote_msg = captured["msg"]  # type: ignore[assignment]
-    assert "recipients" in remote_msg["message"]
-    addrs = [a["address"] for a in remote_msg["message"]["recipients"]]  # type: ignore
-    assert addrs == ["helper@remote"]
-    assert remote_msg["message"]["recipient_swarms"] == ["remote"]  # type: ignore
-    assert remote_msg["message"]["sender_swarm"] == "example"
-
-
-class _ChunkIterator:
-    """
-    Async iterator that yields predefined byte chunks.
-    """
-
-    def __init__(self, chunks: list[str]) -> None:
-        self._chunks = [chunk.encode("utf-8") for chunk in chunks]
-
-    def __aiter__(self):  # noqa: D401
+    async def __aenter__(self) -> "_DummyResponse":
         return self
 
-    async def __anext__(self) -> bytes:
-        if not self._chunks:
-            raise StopAsyncIteration
-        return self._chunks.pop(0)
+    async def __aexit__(self, exc_type, exc, tb) -> bool:  # type: ignore[override]
+        return False
 
 
-class _FakeResponse:
-    """
-    Minimal stand-in for `aiohttp.ClientResponse`.
-    """
+class _DummySession:
+    def __init__(self, responses: list["_DummyResponse"]) -> None:
+        self._responses = responses
+        self.calls: list[dict[str, object]] = []
 
-    def __init__(self, chunks: list[str]):
-        self.headers = {"Content-Type": "text/event-stream"}
-        self.content = _ChunkIterator(chunks)
-
-    async def release(self) -> None:
-        return None
-
-
-@pytest.mark.asyncio
-async def test_consume_stream_returns_final_message(monkeypatch: pytest.MonkeyPatch):
-    """
-    Ensure `_consume_stream` parses SSE events and returns the final message.
-    """
-    registry = SwarmRegistry("example", "http://localhost:8000")
-    router = InterswarmRouter(registry, "example")
-
-    original = make_request_to("helper@remote")
-    task_id = original["message"]["task_id"]
-
-    message_payload = {
-        "task_id": task_id,
-        "extra_data": {"full_message": original},
-    }
-    complete_payload = {"task_id": task_id, "response": "done"}
-
-    chunks = [
-        "event:new_message\n",
-        f"data:{json.dumps(message_payload)}\n",
-        "\n",
-        "event:task_complete\n",
-        f"data:{json.dumps(complete_payload)}\n",
-        "\n",
-    ]
-
-    fake_response = _FakeResponse(chunks)
-
-    received_events: list[tuple[str, str | None]] = []
-
-    async def handler(event: str, data: str | None) -> None:
-        received_events.append((event, data))
-
-    result = await router._consume_stream(
-        fake_response,  # type: ignore[arg-type]
-        original,
-        "remote",
-        stream_handler=handler,
-    )
-
-    assert result["message"]["task_id"] == task_id
-    assert any(evt == "new_message" for evt, _ in received_events)
-    assert any(evt == "task_complete" for evt, _ in received_events)
+    def post(
+        self,
+        url: str,
+        *,
+        json: object | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> "_DummyResponse":
+        if not self._responses:
+            raise AssertionError("no responses configured")
+        self.calls.append({"url": url, "json": json, "headers": headers})
+        return self._responses.pop(0)
 
 
 @pytest.mark.asyncio
-async def test_iter_sse_ignores_ping(monkeypatch: pytest.MonkeyPatch):
+async def test_receive_interswarm_forward_dispatches_to_handler() -> None:
     """
-    Verify that ping frames can be ignored when requested.
+    Test that the interswarm router dispatches to the local message handler when receiving an interswarm message for the local swarm.
     """
-    registry = SwarmRegistry("example", "http://localhost:8000")
-    router = InterswarmRouter(registry, "example")
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    router = InterswarmRouter(registry, "local")
 
-    original = make_request_to("helper@remote")
-    task_id = original["message"]["task_id"]
+    received: list[MAILInterswarmMessage] = []
 
-    chunks = [
-        "event:ping\n",
-        "data:{}\n",
-        "\n",
-        "event:task_complete\n",
-        f"data:{json.dumps({'task_id': task_id, 'response': 'ok'})}\n",
-        "\n",
-    ]
+    async def handler(message: MAILInterswarmMessage) -> None:
+        received.append(message)
 
-    fake_response = _FakeResponse(chunks)
+    router.register_message_handler("local_message_handler", handler)
 
-    captured: list[str] = []
+    message = _make_interswarm_request(target_swarm="local")
+    await router.receive_interswarm_message_forward(message)
 
-    async def handler(event: str, data: str | None) -> None:
-        captured.append(event)
+    assert received == [message]
 
-    await router._consume_stream(
-        fake_response,  # type: ignore[arg-type]
-        original,
-        "remote",
-        stream_handler=handler,
-        ignore_stream_pings=True,
-    )
 
-    assert captured == ["task_complete"]
+@pytest.mark.asyncio
+async def test_receive_interswarm_forward_wrong_swarm_raises() -> None:
+    """
+    Test that the interswarm router raises an error when receiving an interswarm message for the wrong swarm.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    router = InterswarmRouter(registry, "local")
+
+    message = _make_interswarm_request(target_swarm="remote")
+
+    with pytest.raises(ValueError):
+        await router.receive_interswarm_message_forward(message)
+
+
+@pytest.mark.asyncio
+async def test_receive_interswarm_back_dispatches_to_handler() -> None:
+    """
+    Test that the interswarm router dispatches to the local message handler when receiving an interswarm message for the local swarm.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    router = InterswarmRouter(registry, "local")
+
+    received: list[MAILInterswarmMessage] = []
+
+    async def handler(message: MAILInterswarmMessage) -> None:
+        received.append(message)
+
+    router.register_message_handler("local_message_handler", handler)
+
+    message = _make_interswarm_request(target_swarm="local")
+    await router.receive_interswarm_message_back(message)
+
+    assert received == [message]
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_message_forward_posts_to_forward_endpoint() -> None:
+    """
+    Test that the interswarm router posts to the forward endpoint when sending an interswarm message to a remote swarm.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
+    router = InterswarmRouter(registry, "local")
+
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+
+    await router.send_interswarm_message_forward(message)
+
+    assert router.session.calls  # type: ignore
+    call = router.session.calls[0]  # type: ignore
+    assert call["url"] == "http://remote:9999/interswarm/forward"
+    payload = call["json"]
+    assert isinstance(payload, dict)
+    assert payload["message"] == message
+    headers = call["headers"]
+    assert isinstance(headers, dict)
+    assert headers["Authorization"] == "Bearer token-remote"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_message_back_posts_to_back_endpoint() -> None:
+    """
+    Test that the interswarm router posts to the back endpoint when sending an interswarm message to a remote swarm.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
+    router = InterswarmRouter(registry, "local")
+
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+
+    await router.send_interswarm_message_back(message)
+
+    assert router.session.calls  # type: ignore
+    call = router.session.calls[0]  # type: ignore
+    assert call["url"] == "http://remote:9999/interswarm/back"
+    payload = call["json"]
+    assert isinstance(payload, dict)
+    assert payload["message"] == message
+    headers = call["headers"]
+    assert isinstance(headers, dict)
+    assert headers["Authorization"] == "Bearer token-remote"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_forward_falls_back_to_message_token() -> None:
+    """
+    If the registry lacks a token, the router should fall back to the message payload.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = "token-from-message"
+
+    await router.send_interswarm_message_forward(message)
+
+    call = router.session.calls[0]  # type: ignore
+    headers = call["headers"]
+    assert isinstance(headers, dict)
+    assert headers["Authorization"] == "Bearer token-from-message"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_forward_errors_when_no_token_available() -> None:
+    """
+    If neither the registry nor the message provides a token, the router should raise.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = None  # type: ignore[assignment]
+
+    with pytest.raises(ValueError):
+        await router.send_interswarm_message_forward(message)
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_back_falls_back_to_message_token() -> None:
+    """
+    Fallback token behavior should also apply when sending interswarm responses back.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = "token-from-message"
+
+    await router.send_interswarm_message_back(message)
+
+    call = router.session.calls[0]  # type: ignore
+    headers = call["headers"]
+    assert isinstance(headers, dict)
+    assert headers["Authorization"] == "Bearer token-from-message"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_back_errors_when_no_token_available() -> None:
+    """
+    Ensure interswarm responses raise if no token is available.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = None  # type: ignore[assignment]
+
+    with pytest.raises(ValueError):
+        await router.send_interswarm_message_back(message)
