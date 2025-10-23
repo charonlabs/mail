@@ -46,6 +46,10 @@ class SwarmOAIClient:
         ) -> Response:
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
+                complete_agent = next(
+                    (a for a in new_swarm.agents if a.can_complete_tasks), None
+                )
+                assert complete_agent is not None
                 if len(tools) > 0:
                     new_actions: list[MAILAction] = []
                     for tool in tools:
@@ -60,24 +64,26 @@ class SwarmOAIClient:
                                 function=async_lambda,
                             )
                         )
-                    complete_agent = next(
-                        (a for a in new_swarm.agents if a.can_complete_tasks), None
-                    )
-                    assert complete_agent is not None
-                    complete_agent.actions += new_actions
-                    if instructions is not None:
-                        raw_sys_msg = {"content": instructions}
-                    else:
-                        raw_sys_msg = next(
-                            msg
-                            for msg in kwargs["messages"]
-                            if (msg["role"] == "system" or msg["role"] == "developer")
+                        complete_agent.actions += new_actions
+                if instructions is not None:
+                    raw_sys_msg = {"content": instructions}
+                else:
+                    raw_sys_msg = next(
+                        input_item
+                        for input_item in input
+                        if (
+                            input_item.type == "message"
+                            and (
+                                input_item.role == "system"
+                                or input_item.role == "developer"
+                            )
                         )
-                    complete_agent.agent_params["system"] = (
-                        complete_agent.agent_params["system"]
-                        + raw_sys_msg["content"]
-                        + f"\n\nYou can perform actions in the environment by calling one of the following tools: {', '.join([a.name for a in new_actions])}"
                     )
+                complete_agent.agent_params["system"] = (
+                    complete_agent.agent_params["system"]
+                    + raw_sys_msg["content"]
+                    + f"\n\nYou can perform actions in the environment by calling one of the following tools: {', '.join([a.name for a in new_actions])}"
+                )
                 new_swarm.breakpoint_tools = [a.name for a in new_actions]
                 self.owner.swarm = new_swarm.instantiate({"user_token": ""})
                 asyncio.create_task(self.owner.swarm.run_continuous())
