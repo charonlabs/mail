@@ -10,6 +10,7 @@ from openai.types.responses import (
     ResponseOutputText,
     ResponseFunctionToolCall,
 )
+from openai._utils._transform import maybe_transform
 import ujson
 
 from mail.api import MAILSwarmTemplate, MAILSwarm, MAILAction
@@ -44,6 +45,13 @@ class SwarmOAIClient:
             parallel_tool_calls: bool = True,
             **kwargs: Any,
         ) -> Response:
+            print("=== Initial input ===")
+            for input_item in input:
+                print(type(input_item))
+            input = maybe_transform(input, list[ResponseInputItem])  # type: ignore
+            print("=== Transformed input ===")
+            for input_item in input:
+                print(type(input_item))
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
                 complete_agent = next(
@@ -69,7 +77,7 @@ class SwarmOAIClient:
                     raw_sys_msg = {"content": instructions}
                 else:
                     raw_sys_msg = next(
-                        input_item
+                        input_item  # type: ignore
                         for input_item in input
                         if (
                             input_item.type == "message"
