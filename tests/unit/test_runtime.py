@@ -491,7 +491,7 @@ async def test_send_interswarm_message_back_delegates_to_router() -> None:
         },
         msg_type="response",
     )
-    response["recipient_swarms"] = ["swarm-beta"]  # type: ignore[index]
+    response["recipient_swarms"] = ["swarm-beta"]  # type: ignore
 
     await runtime._send_interswarm_message(response)
 

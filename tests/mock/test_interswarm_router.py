@@ -150,8 +150,8 @@ async def test_send_interswarm_message_forward_posts_to_forward_endpoint() -> No
 
     await router.send_interswarm_message_forward(message)
 
-    assert router.session.calls  # type: ignore[union-attr]
-    call = router.session.calls[0]  # type: ignore[index]
+    assert router.session.calls  # type: ignore
+    call = router.session.calls[0]  # type: ignore
     assert call["url"] == "http://remote:9999/interswarm/forward"
     payload = call["json"]
     assert isinstance(payload, dict)
@@ -176,8 +176,8 @@ async def test_send_interswarm_message_back_posts_to_back_endpoint() -> None:
 
     await router.send_interswarm_message_back(message)
 
-    assert router.session.calls  # type: ignore[union-attr]
-    call = router.session.calls[0]  # type: ignore[index]
+    assert router.session.calls  # type: ignore
+    call = router.session.calls[0]  # type: ignore
     assert call["url"] == "http://remote:9999/interswarm/back"
     payload = call["json"]
     assert isinstance(payload, dict)

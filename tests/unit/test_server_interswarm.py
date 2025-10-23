@@ -4,20 +4,27 @@
 import datetime
 import json
 import uuid
+from typing import Any
 
 import pytest
 from starlette.requests import Request
 
-from mail.core.message import MAILMessage, MAILResponse, create_agent_address
+from mail.core.message import (
+    MAILInterswarmMessage,
+    MAILResponse,
+    create_agent_address,
+)
 from mail.server import app, receive_interswarm_back, utils
 
 
 class DummyMailInstance:
     def __init__(self) -> None:
-        self.messages: list[MAILMessage] = []
+        self.messages: list[dict[str, Any]] = []
 
-    async def handle_interswarm_response(self, message: MAILMessage) -> None:
-        self.messages.append(message)
+    async def receive_interswarm_message(
+        self, message: dict[str, Any], *, direction: str
+    ) -> None:
+        self.messages.append({"message": message, "direction": direction})
 
 
 def _build_request(body: dict[str, object]) -> Request:
@@ -41,6 +48,10 @@ def _build_request(body: dict[str, object]) -> Request:
     return Request(scope, receive)  # type: ignore[arg-type]
 
 
+async def _extract_token_info(request: Request) -> dict[str, Any]:
+    return {"id": "swarm-beta", "jwt": "remote-jwt", "role": "agent"}
+
+
 @pytest.mark.asyncio
 async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     """
@@ -58,42 +69,56 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
     monkeypatch.setattr(server.app.state, "user_mail_tasks", {}, raising=False)
     monkeypatch.setattr(server.app.state, "swarm_mail_instances", {}, raising=False)
     monkeypatch.setattr(server.app.state, "swarm_mail_tasks", {}, raising=False)
-    monkeypatch.setattr(server.app.state, "local_swarm_name", "alpha", raising=False)
-    monkeypatch.setattr(server.app.state, "local_base_url", "http://localhost", raising=False)
+    monkeypatch.setattr(server.app.state, "local_swarm_name", "swarm-alpha", raising=False)
+    monkeypatch.setattr(
+        server.app.state, "local_base_url", "http://localhost", raising=False
+    )
 
     async def fake_get_or_create(role: str, identifier: str, jwt: str):
-        assert role == "user"
-        assert identifier == "user-123"
-        assert jwt == "user-jwt"
-        server.app.state.user_mail_instances[identifier] = dummy_instance
+        assert role == "swarm"
+        assert identifier == "swarm-beta"
+        assert jwt == "remote-jwt"
+        server.app.state.swarm_mail_instances[identifier] = dummy_instance
         return dummy_instance
 
     monkeypatch.setattr(server, "get_or_create_mail_instance", fake_get_or_create)
-    monkeypatch.setattr(utils, "extract_token", lambda request: "remote-token")
+    monkeypatch.setattr(utils, "extract_token_info", _extract_token_info)
 
-    response_message: MAILMessage = MAILMessage(
-        id=str(uuid.uuid4()),
-        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
-        message=MAILResponse(
-            task_id=task_id,
-            request_id=str(uuid.uuid4()),
-            sender=create_agent_address("remote@swarm-beta"),
-            recipient=create_agent_address("supervisor"),
-            subject="Status",
-            body="done",
-            sender_swarm="swarm-beta",
-            recipient_swarm="swarm-alpha",
-            routing_info={},
-        ),
-        msg_type="response",
+    response_payload: MAILResponse = MAILResponse(
+        task_id=task_id,
+        request_id=str(uuid.uuid4()),
+        sender=create_agent_address("remote@swarm-beta"),
+        recipient=create_agent_address("supervisor"),
+        subject="Status",
+        body="done",
+        sender_swarm="swarm-beta",
+        recipient_swarm="swarm-alpha",
+        routing_info={},
     )
 
-    request = _build_request(dict(response_message))
+    base_interswarm: MAILInterswarmMessage = MAILInterswarmMessage(
+        message_id=str(uuid.uuid4()),
+        source_swarm="swarm-beta",
+        target_swarm="swarm-alpha",
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        payload=response_payload,
+        msg_type="response",
+        auth_token="remote-token",
+        task_owner="user:user-123@swarm-alpha",
+        task_contributors=["user:user-123@swarm-alpha", "agent:remote@swarm-beta"],
+        metadata={},
+    )
+    interswarm_message: dict[str, Any] = dict(base_interswarm)
+    interswarm_message["task_id"] = task_id
+
+    request = _build_request({"message": interswarm_message})
     result = await receive_interswarm_back(request)
 
     assert result["swarm"] == "swarm-alpha"
     assert result["task_id"] == task_id
-    assert result["status"] == "ok"
-    assert result["local_runner"] == "user-123@swarm-alpha"
-    assert dummy_instance.messages and dummy_instance.messages[0]["message"]["body"] == "done"
-
+    assert result["status"] == "success"
+    assert result["local_runner"] == "swarm:swarm-beta@swarm-alpha"
+    assert dummy_instance.messages
+    recorded = dummy_instance.messages[0]
+    assert recorded["direction"] == "back"
+    assert recorded["message"]["payload"]["body"] == "done"
