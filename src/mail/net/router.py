@@ -122,8 +122,8 @@ class InterswarmRouter:
                 logger.warning(f"{self._log_prelude()} no local message handler registered")
                 raise ValueError("no local message handler registered")
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error receiving interswarm message forward: '{e}'")
-            raise ValueError(f"error receiving interswarm message forward: '{e}'")
+            logger.error(f"{self._log_prelude()} router failed to receive interswarm message forward: {e}")
+            raise ValueError(f"router failed to receive interswarm message forward: {e}")
 
     async def receive_interswarm_message_back(
         self,
@@ -146,8 +146,8 @@ class InterswarmRouter:
                 logger.warning(f"{self._log_prelude()} no local message handler registered")
                 raise ValueError("no local message handler registered")
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error receiving interswarm message back: '{e}'")
-            raise ValueError(f"error receiving interswarm message back: '{e}'")
+            logger.error(f"{self._log_prelude()} router failed to receive interswarm message back: {e}")
+            raise ValueError(f"router failed to receive interswarm message back: {e}")
 
     async def send_interswarm_message_forward(
         self,
@@ -184,7 +184,7 @@ class InterswarmRouter:
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/forward",
                 json={
-                    "message": message,
+                    "message": self._prep_message_for_interswarm(message),
                 },
                 headers={
                     "Content-Type": "application/json",
@@ -237,7 +237,7 @@ class InterswarmRouter:
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/back",
                 json={
-                    "message": message,
+                    "message": self._prep_message_for_interswarm(message),
                 },
                 headers={
                     "Content-Type": "application/json",
@@ -296,8 +296,33 @@ class InterswarmRouter:
                     logger.info(f"{self._log_prelude()} successfully posted interswarm user message to swarm '{message['target_swarm']}'")
                     return cast(MAILMessage, await response.json())
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error posting interswarm user message: '{e}'")
-            raise ValueError(f"error posting interswarm user message: '{e}'")
+            logger.error(f"{self._log_prelude()} error posting interswarm user message: {e}")
+            raise ValueError(f"error posting interswarm user message: {e}")
+
+    def _prep_message_for_interswarm(
+        self,
+        message: MAILInterswarmMessage
+    ) -> MAILInterswarmMessage:
+        """
+        Ensure the sender follows the interswarm address format (agent@swarm).
+        """
+        payload = message["payload"]
+        sender_agent, sender_swarm = parse_agent_address(payload["sender"]["address"])
+        if sender_swarm != self.local_swarm_name:
+            payload["sender"] = format_agent_address(sender_agent, self.local_swarm_name)
+                
+        return MAILInterswarmMessage(
+            message_id=message["message_id"],
+            source_swarm=message["source_swarm"],
+            target_swarm=message["target_swarm"],
+            timestamp=message["timestamp"],
+            payload=payload,
+            msg_type=message["msg_type"],
+            auth_token=message["auth_token"],
+            task_owner=message["task_owner"],
+            task_contributors=message["task_contributors"],
+            metadata=message["metadata"],
+        )
 
     def convert_local_message_to_interswarm(
         self,

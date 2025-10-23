@@ -29,12 +29,11 @@ from mail.core.message import (
     MAILAddress,
     MAILBroadcast,
     MAILInterswarmMessage,
-    MAILMessage,
     MAILRequest,
-    MAILResponse,
     create_address,
     format_agent_address,
     parse_agent_address,
+    parse_task_contributors,
 )
 from mail.net import types as types
 from mail.utils.logger import init_logger
@@ -126,34 +125,31 @@ def _register_task_binding(
     app.state.task_bindings[task_id] = binding
 
 
-def _resolve_task_binding(app: FastAPI, task_id: str) -> dict[str, str] | None:
-    return app.state.task_bindings.get(task_id)
-
-
-def _find_instance_for_task(app: FastAPI, task_id: str) -> tuple[str, str, "MAILSwarm"] | None:
-    def _scan(container: dict[str, "MAILSwarm"], role: str) -> tuple[str, str, "MAILSwarm"] | None:
-        for identifier, instance in container.items():
-            runtime = getattr(instance, "_runtime", None)
-            if runtime is None:
-                continue
-            try:
-                task = runtime.get_task_by_id(task_id)
-            except Exception:
-                task = None
-            if task is not None:
-                return (role, identifier, instance)
-        return None
-
-    for role, container in (
-        ("admin", app.state.admin_mail_instances),
-        ("user", app.state.user_mail_instances),
-        ("swarm", app.state.swarm_mail_instances),
-    ):
-        found = _scan(container, role)
-        if found is not None:
-            return found
-    return None
-
+def _get_mail_instance_from_interswarm_message(
+    app: FastAPI,
+    message: MAILInterswarmMessage,
+) -> MAILSwarm:
+    """
+    Get the MAIL instance from a message sent with `POST /interswarm/back`.
+    """
+    task_id = message["payload"]["task_id"]
+    contributors = parse_task_contributors(message["task_contributors"])
+    for role, id, swarm in contributors:
+        if swarm == app.state.local_swarm_name:
+            if role == "admin":
+                instance = app.state.admin_mail_instances.get(id)
+            elif role == "user":
+                instance = app.state.user_mail_instances.get(id)
+            elif role == "swarm":
+                instance = app.state.swarm_mail_instances.get(id)
+            else:
+                raise HTTPException(status_code=400, detail=f"invalid role: {role}")
+            
+            if instance is None:
+                raise HTTPException(status_code=404, detail=f"no mail instance found for contributor: {role}:{id}@{swarm}")
+            return instance
+    
+    raise HTTPException(status_code=404, detail=f"no mail instance found for task with id {task_id}")
 
 async def _server_shutdown(app: FastAPI) -> None:
     """
@@ -306,7 +302,7 @@ async def get_or_create_mail_instance(
 
         except Exception as e:
             logger.error(
-                f"{_log_prelude(app)} error creating MAIL instance for {role} '{id}' with error: '{e}'"
+                f"{_log_prelude(app)} error creating MAIL instance for {role} '{id}' with error: {e}"
             )
             raise e
 
@@ -380,7 +376,7 @@ async def whoami(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error getting whoami: '{e}'")
+        logger.error(f"{_log_prelude(app)} error getting whoami: {e}")
         raise HTTPException(
             status_code=500, detail=f"error getting whoami: {e.with_traceback(None)}"
         )
@@ -453,7 +449,7 @@ async def message(request: Request):
         await get_or_create_mail_instance(caller_role, caller_id, api_key)
     except Exception as e:
         logger.error(
-            f"{_log_prelude(app)} error getting {caller_role} MAIL instance: '{e}'"
+            f"{_log_prelude(app)} error getting {caller_role} MAIL instance: {e}"
         )
         raise HTTPException(
             status_code=500,
@@ -490,7 +486,7 @@ async def message(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error parsing request: '{e}'")
+        logger.error(f"{_log_prelude(app)} error parsing request: {e}")
         raise HTTPException(
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
         )
@@ -552,7 +548,7 @@ async def message(request: Request):
 
     except Exception as e:
         logger.error(
-            f"{_log_prelude(app)} error processing message for {caller_role} '{caller_id}' with error: '{e}'"
+            f"{_log_prelude(app)} error processing message for {caller_role} '{caller_id}' with error: {e}"
         )
         raise HTTPException(
             status_code=500,
@@ -612,7 +608,7 @@ async def register_swarm(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error registering swarm: '{e}'")
+        logger.error(f"{_log_prelude(app)} error registering swarm: {e}")
         raise HTTPException(
             status_code=500, detail=f"error registering swarm: '{str(e)}'"
         )
@@ -728,13 +724,13 @@ async def receive_interswarm_back(request: Request):
             raise HTTPException(status_code=400, detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}")
 
     # if this task is not already running, raise an error
-    if not app.state.task_bindings.get(message["task_id"]):
+    payload = message["payload"]
+    if not app.state.task_bindings.get(payload["task_id"]):
         raise HTTPException(status_code=400, detail="task is not running")
 
     try:
         # get the swarm instance for the task
-        payload = message["payload"]
-        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_api_key)
+        swarm = _get_mail_instance_from_interswarm_message(app, message)
         # post this message to the swarm
         await swarm.receive_interswarm_message(message, direction="back")
         return types.PostInterswarmBackResponse(

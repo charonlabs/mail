@@ -206,7 +206,7 @@ class SwarmRegistry:
 
         except Exception as e:
             logger.error(
-                f"{self._log_prelude()} failed to save persistent endpoints: '{e}'"
+                f"{self._log_prelude()} failed to save persistent endpoints: {e}"
             )
 
     def _get_auth_token_ref(
@@ -331,7 +331,7 @@ class SwarmRegistry:
         try:
             if not os.path.exists(self.persistence_file):
                 logger.error(
-                    f"{self._log_prelude()} no persistence file found at '{self.persistence_file}'"
+                    f"{self._log_prelude()} no persistence file found at {self.persistence_file}"
                 )
                 return
 
@@ -370,7 +370,7 @@ class SwarmRegistry:
 
         except Exception as e:
             logger.error(
-                f"{self._log_prelude()} failed to load persistent endpoints: '{e}'"
+                f"{self._log_prelude()} failed to load persistent endpoints: {e}"
             )
 
     def cleanup_volatile_endpoints(self) -> None:
@@ -438,7 +438,7 @@ class SwarmRegistry:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"{self._log_prelude()} error in health check loop: '{e}'")
+                logger.error(f"{self._log_prelude()} error in health check loop: {e}")
                 await asyncio.sleep(self.health_check_interval)
 
     async def _perform_health_checks(self) -> None:
@@ -531,7 +531,7 @@ class SwarmRegistry:
                             )
         except Exception as e:
             logger.error(
-                f"{self._log_prelude()} failed to discover from '{url}' with error: '{e}'"
+                f"{self._log_prelude()} failed to discover from '{url}' with error: {e}"
             )
 
     def to_dict(self) -> dict[str, Any]:

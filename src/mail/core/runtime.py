@@ -417,16 +417,16 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     task_complete=True,
                 )
             except Exception as e:
-                logger.error(f"{self._log_prelude()} error in run loop: '{e}'")
+                logger.error(f"{self._log_prelude()} error in run loop: {e}")
                 self._submit_event(
                     "run_loop_error",
                     message["message"]["task_id"],
-                    f"error in run loop: '{e}'",
+                    f"error in run loop: {e}",
                 )
                 return self._system_broadcast(
                     task_id=message["message"]["task_id"],
                     subject="::run_loop_error::",
-                    body=f"An error occurred while running the MAIL system: '{e}'",
+                    body=f"An error occurred while running the MAIL system: {e}",
                     task_complete=True,
                 )
 
@@ -653,12 +653,12 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 break
             except Exception as e:
                 logger.error(
-                    f"{self._log_prelude()} error in continuous run loop: '{e}'"
+                    f"{self._log_prelude()} error in continuous run loop: {e}"
                 )
                 self._submit_event(
                     "run_loop_error",
                     "*",
-                    f"continuous run loop error: '{e}'",
+                    f"continuous run loop error: {e}",
                 )
                 self._is_continuous = False
                 # Continue processing other messages instead of shutting down
@@ -734,13 +734,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             # Remove the pending request
             self.pending_requests.pop(task_id, None)
             logger.error(
-                f"{self._log_prelude()} `submit_and_wait`: exception for task '{task_id}' with error: '{e}'"
+                f"{self._log_prelude()} `submit_and_wait`: exception for task '{task_id}' with error: {e}"
             )
-            self._submit_event("task_error", task_id, f"error for task: '{e}'")
+            self._submit_event("task_error", task_id, f"error for task: {e}")
             return self._system_broadcast(
                 task_id=task_id,
                 subject="::task_error::",
-                body=f"The task encountered an error: '{e}'.",
+                body=f"The task encountered an error: {e}.",
                 task_complete=True,
             )
 
@@ -804,7 +804,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     except Exception as e:
                         # Never let history tracking break streaming
                         logger.error(
-                            f"{self._log_prelude()} `submit_and_stream`: failed to add event to task '{task_id}': '{e}'"
+                            f"{self._log_prelude()} `submit_and_stream`: failed to add event to task '{task_id}': {e}"
                         )
                         pass
                     try:
@@ -816,7 +816,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     except Exception as e:
                         # Be tolerant to malformed event data
                         logger.error(
-                            f"{self._log_prelude()} `submit_and_stream`: failed to yield event for task '{task_id}': '{e}'"
+                            f"{self._log_prelude()} `submit_and_stream`: failed to yield event for task '{task_id}': {e}"
                         )
                         continue
 
@@ -834,7 +834,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             except Exception as e:
                 # If retrieving the response fails, still signal completion
                 logger.error(
-                    f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: '{e}'"
+                    f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
                 )
                 yield ServerSentEvent(
                     data={
@@ -862,7 +862,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         except Exception as e:
             self.pending_requests.pop(task_id, None)
             logger.error(
-                f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: '{e}'"
+                f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
             )
             yield ServerSentEvent(
                 data={
@@ -1584,6 +1584,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         task_owner = message["task_owner"]
         task_contributors = message["task_contributors"]
 
+        logger.debug(f"{self._log_prelude()} receiving interswarm message for task '{task_id}' with contributors: {task_contributors}")
+
         assert isinstance(recipients, list)
         for recipient in recipients:
             assert isinstance(recipient, dict)
@@ -1627,6 +1629,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Send a message to a remote swarm via the interswarm router.
         """
+        # append this instance to the contributors list, if not already present
+        if self.this_owner not in self.mail_tasks[message["message"]["task_id"]].task_contributors:
+            self.mail_tasks[message["message"]["task_id"]].task_contributors.append(self.this_owner)
+
         task_id = message["message"]["task_id"]
         task_owner = self.mail_tasks[task_id].task_owner
         task_contributors = self.mail_tasks[task_id].task_contributors
@@ -2001,19 +2007,19 @@ Otherwise, determine the best course of action to complete your task.""",
                                     )
                             except Exception as e:
                                 logger.error(
-                                    f"{self._log_prelude()} error acknowledging broadcast for agent '{recipient}': '{e}'"
+                                    f"{self._log_prelude()} error acknowledging broadcast for agent '{recipient}': {e}"
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
                                     tool_call=call,
                                     status="error",
-                                    details=f"error acknowledging broadcast: '{e}'",
+                                    details=f"error acknowledging broadcast: {e}",
                                 )
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"error acknowledging broadcast for agent '{recipient}': '{e}'",
+                                    f"error acknowledging broadcast for agent '{recipient}': {e}",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -2021,7 +2027,7 @@ Otherwise, determine the best course of action to complete your task.""",
                                         recipient=create_agent_address(recipient),
                                         subject="::tool_call_error::",
                                         body=f"""An error occurred while acknowledging the broadcast from '{message["message"]["sender"]["address"]}'.
-Specifically, the MAIL runtime encountered the following error: '{e}'.
+Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the `acknowledge_broadcast` tool is not implemented properly.
 Use this information to decide how to complete your task.""",
                                     )
@@ -2128,19 +2134,19 @@ Consider sending a message to another agent to keep the task alive.""",
                                 )
                             except Exception as e:
                                 logger.error(
-                                    f"{self._log_prelude()} error sending message for agent '{recipient}': '{e}'"
+                                    f"{self._log_prelude()} error sending message for agent '{recipient}': {e}"
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
                                     tool_call=call,
                                     status="error",
-                                    details=f"error sending message: '{e}'",
+                                    details=f"error sending message: {e}",
                                 )
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"error sending message for agent '{recipient}': '{e}'",
+                                    f"error sending message for agent '{recipient}': {e}",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -2148,7 +2154,7 @@ Consider sending a message to another agent to keep the task alive.""",
                                         recipient=create_agent_address(recipient),
                                         subject="::tool_call_error::",
                                         body=f"""An error occurred while sending the message from '{message["message"]["sender"]["address"]}'.
-Specifically, the MAIL runtime encountered the following error: '{e}'.
+Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the message sending tool is not implemented properly.
 Use this information to decide how to complete your task.""",
                                     )
@@ -2201,26 +2207,26 @@ Use this information to decide how to complete your task.""",
                                 )
                             except Exception as e:
                                 logger.error(
-                                    f"{self._log_prelude()} error calling help tool for agent '{recipient}': '{e}'"
+                                    f"{self._log_prelude()} error calling help tool for agent '{recipient}': {e}"
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
                                     tool_call=call,
                                     status="error",
-                                    details=f"error calling help tool: '{e}'",
+                                    details=f"error calling help tool: {e}",
                                 )
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"error calling help tool for agent '{recipient}': '{e}'",
+                                    f"error calling help tool for agent '{recipient}': {e}",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
                                         task_id=task_id,
                                         subject="::tool_call_error::",
                                         body=f"""An error occurred while calling the help tool for agent '{recipient}'.
-Specifically, the MAIL runtime encountered the following error: '{e}'.
+Specifically, the MAIL runtime encountered the following error: {e}.
 This should never happen; consider informing the MAIL developers of this issue if you see it.""",
                                         task_complete=True,
                                     )
@@ -2350,26 +2356,26 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 continue
                             except Exception as e:
                                 logger.error(
-                                    f"{self._log_prelude()} error executing action tool '{call.tool_name}': '{e}'"
+                                    f"{self._log_prelude()} error executing action tool '{call.tool_name}': {e}"
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
                                     tool_call=call,
                                     status="error",
-                                    details=f"failed to execute action tool: '{e}'",
+                                    details=f"failed to execute action tool: {e}",
                                 )
                                 self._submit_event(
                                     "action_error",
                                     task_id,
-                                    f"action error (caller = '{recipient}', tool = '{call.tool_name}'):\n'{e}'",
+                                    f"action error (caller = '{recipient}', tool = '{call.tool_name}'):\n{e}",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
                                         task_id=task_id,
                                         subject="::action_error::",
                                         body=f"""An error occurred while executing the action tool `{call.tool_name}`.
-Specifically, the MAIL runtime encountered the following error: '{e}'.
+Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the action tool `{call.tool_name}` is not implemented properly.
 Use this information to decide how to complete your task.""",
                                         task_complete=True,
@@ -2381,19 +2387,19 @@ Use this information to decide how to complete your task.""",
                 self.agent_histories.setdefault(agent_history_key, [])
             except Exception as e:
                 logger.error(
-                    f"{self._log_prelude()} error scheduling message for agent '{recipient}': '{e}'"
+                    f"{self._log_prelude()} error scheduling message for agent '{recipient}': {e}"
                 )
                 self._tool_call_response(
                     task_id=task_id,
                     caller=recipient,
                     tool_call=call,
                     status="error",
-                    details=f"failed to schedule message: '{e}'",
+                    details=f"failed to schedule message: {e}",
                 )
                 self._submit_event(
                     "agent_error",
                     task_id,
-                    f"error scheduling message for agent '{recipient}': '{e}'",
+                    f"error scheduling message for agent '{recipient}': {e}",
                 )
                 await self.submit(
                     self._system_response(
@@ -2401,7 +2407,7 @@ Use this information to decide how to complete your task.""",
                         recipient=message["message"]["sender"],
                         subject="::agent_error::",
                         body=f"""An error occurred while scheduling the message for agent '{recipient}'.
-Specifically, the MAIL runtime encountered the following error: '{e}'.
+Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the agent function for '{recipient}' is not valid.
 Use this information to decide how to complete your task.""",
                     )
@@ -2601,7 +2607,7 @@ The final response message is: '{finish_body}'""",
                 pending.set_result(response_message)
             except Exception as e:
                 logger.error(
-                    f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': '{e}'"
+                    f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
                 )
             else:
                 try:

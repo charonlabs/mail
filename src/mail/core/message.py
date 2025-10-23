@@ -160,6 +160,29 @@ class MAILInterswarmMessage(TypedDict):
     """Additional metadata for routing and processing."""
 
 
+def parse_task_contributors(contributors: list[str]) -> list[tuple[str, str, str]]:
+    """
+    Parse a list of task contributors in the format `role:id@swarm`.
+    """
+    return [parse_task_contributor(contributor) for contributor in contributors]
+
+
+def parse_task_contributor(contributor: str) -> tuple[str, str, str]:
+    """
+    Parse an individual task contributor in the format `role:id@swarm`.
+    """
+    if ":" not in contributor:
+        raise ValueError("task contributor must be in the format 'role:id@swarm'")
+    if "@" not in contributor:
+        raise ValueError("task contributor must be in the format 'role:id@swarm'")
+    
+    role = contributor.split(":")[0]
+    id = contributor.split(":")[1].split("@")[0]
+    swarm = contributor.split("@")[1]
+    
+    return role, id, swarm
+
+
 def parse_agent_address(address: str) -> tuple[str, str | None]:
     """
     Parse an agent address in the format 'agent-name' or 'agent-name@swarm-name'.

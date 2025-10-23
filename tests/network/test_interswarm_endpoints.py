@@ -80,7 +80,7 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "agent", "id": "ag-forward", "jwt": "jwt-forward"}),
+        lambda token: _async_return({"role": "agent", "id": "ag-forward", "api_key": "api-key-forward"}),
     )
 
     captured: dict[str, object] = {}
@@ -94,7 +94,7 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
             captured["message"] = message
             captured["direction"] = direction
 
-    async def fake_get_or_create(role, identifier, jwt):  # noqa: ANN001
+    async def fake_get_or_create(role, identifier, api_key):  # noqa: ANN001
         return DummySwarm()
 
     monkeypatch.setattr(
@@ -136,7 +136,7 @@ def test_interswarm_back_requires_running_task(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "agent", "id": "ag-back", "jwt": "jwt-back"}),
+        lambda token: _async_return({"role": "agent", "id": "ag-back", "api_key": "api-key-back"}),
     )
 
     payload = _make_response_payload(task_id="task-missing")
@@ -162,7 +162,7 @@ def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "agent", "id": "ag-back", "jwt": "jwt-back"}),
+        lambda token: _async_return({"role": "agent", "id": "ag-back", "api_key": "api-key-back"}),
     )
 
     captured: dict[str, object] = {}
@@ -176,7 +176,7 @@ def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
             captured["message"] = message
             captured["direction"] = direction
 
-    async def fake_get_or_create(role, identifier, jwt):  # noqa: ANN001
+    async def fake_get_or_create(role, identifier, api_key):  # noqa: ANN001
         return DummySwarm()
 
     monkeypatch.setattr(
@@ -220,7 +220,7 @@ def test_post_interswarm_message_forwards_to_router(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "user", "id": "user-123", "jwt": "jwt-user"}),
+        lambda token: _async_return({"role": "user", "id": "user-123", "api_key": "api-key-user"}),
     )
 
     captured: dict[str, MAILInterswarmMessage] = {}
@@ -240,7 +240,7 @@ def test_post_interswarm_message_forwards_to_router(monkeypatch: pytest.MonkeyPa
                 msg_type="response",
             )
 
-    async def fake_get_or_create(role, identifier, jwt):  # noqa: ANN001
+    async def fake_get_or_create(role, identifier, api_key):  # noqa: ANN001
         return DummyMail()
 
     monkeypatch.setattr(

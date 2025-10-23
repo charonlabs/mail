@@ -1085,7 +1085,7 @@ class MAILSwarm:
             else:
                 raise ValueError(f"invalid direction: {direction}")
         except Exception as e:
-            raise ValueError(f"error routing interswarm message: '{e}'")
+            raise ValueError(f"error routing interswarm message: {e}")
 
     async def send_interswarm_message(
         self,
@@ -1107,7 +1107,7 @@ class MAILSwarm:
             else:
                 raise ValueError(f"invalid direction: {direction}")
         except Exception as e:
-            raise ValueError(f"error sending interswarm message: '{e}'")
+            raise ValueError(f"error sending interswarm message: {e}")
 
     async def post_interswarm_user_message(
         self,
@@ -1124,7 +1124,7 @@ class MAILSwarm:
             result = await router.post_interswarm_user_message(message)
             return result
         except Exception as e:
-            raise ValueError(f"error posting interswarm user message: '{e}'")
+            raise ValueError(f"error posting interswarm user message: {e}")
 
     def get_subswarm(
         self, names: list[str], name_suffix: str, entrypoint: str | None = None

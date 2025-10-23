@@ -49,7 +49,7 @@ def _build_request(body: dict[str, object]) -> Request:
 
 
 async def _extract_token_info(request: Request) -> dict[str, Any]:
-    return {"id": "swarm-beta", "jwt": "remote-jwt", "role": "agent"}
+    return {"id": "swarm-beta", "api_key": "remote-api-key", "role": "agent"}
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
     from mail import server
 
     task_id = "task-bind"
-    binding = {"role": "user", "id": "user-123", "jwt": "user-jwt"}
+    binding = {"role": "user", "id": "user-123", "api_key": "user-api-key"}
 
     dummy_instance = DummyMailInstance()
 
@@ -74,10 +74,10 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
         server.app.state, "local_base_url", "http://localhost", raising=False
     )
 
-    async def fake_get_or_create(role: str, identifier: str, jwt: str):
+    async def fake_get_or_create(role: str, identifier: str, api_key: str):
         assert role == "swarm"
         assert identifier == "swarm-beta"
-        assert jwt == "remote-jwt"
+        assert api_key == "remote-api-key"
         server.app.state.swarm_mail_instances[identifier] = dummy_instance
         return dummy_instance
 
