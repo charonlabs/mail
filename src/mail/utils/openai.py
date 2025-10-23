@@ -10,7 +10,7 @@ from openai.types.responses import (
     ResponseOutputText,
     ResponseFunctionToolCall,
 )
-from openai._utils._transform import maybe_transform
+from openai._utils._transform import transform
 import ujson
 
 from mail.api import MAILSwarmTemplate, MAILSwarm, MAILAction
@@ -48,11 +48,11 @@ class SwarmOAIClient:
             print("=== Initial input ===")
             transformed_input: list[ResponseInputItem] = []
             for input_item in input:
-                print(type(input_item))
-                transformed_input.append(maybe_transform(input_item, ResponseInputItem))  # type: ignore
+                print(input_item)
+                transformed_input.append(transform(input_item, ResponseInputItem))  # type: ignore
             print("=== Transformed input ===")
             for input_item in transformed_input:
-                print(type(input_item))
+                print(input_item)
             input = transformed_input
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
@@ -82,7 +82,7 @@ class SwarmOAIClient:
                         input_item  # type: ignore
                         for input_item in input
                         if (
-                            input_item.type == "message"
+                            input_item["type"] == "message"
                             and (
                                 input_item.role == "system"
                                 or input_item.role == "developer"
@@ -99,12 +99,12 @@ class SwarmOAIClient:
                 asyncio.create_task(self.owner.swarm.run_continuous())
             swarm = self.owner.swarm
             body = ""
-            if input[-1].type == "function_call_output":
+            if input[-1]["type"] == "function_call_output":
                 tool_responses: list[dict[str, Any]] = []
                 for input_item in reversed(input):
-                    if input_item.type == "function_call":
+                    if input_item["type"] == "function_call":
                         break
-                    if input_item.type == "function_call_output":
+                    if input_item["type"] == "function_call_output":
                         tool_responses.append(
                             {
                                 "call_id": input_item.call_id,
@@ -122,7 +122,7 @@ class SwarmOAIClient:
             else:
                 for input_item in reversed(input):
                     if (
-                        not input_item.type == "message"
+                        not input_item["type"] == "message"
                         or not input_item.role == "user"
                     ):
                         break
