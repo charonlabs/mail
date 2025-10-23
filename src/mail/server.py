@@ -109,7 +109,7 @@ def _register_task_binding(
     task_id: str,
     role: str,
     identifier: str,
-    jwt: str,
+    api_key: str,
     *,
     direct: bool = False,
 ) -> None:
@@ -119,8 +119,8 @@ def _register_task_binding(
         "role": role,
         "id": identifier,
     }
-    if jwt:
-        binding["jwt"] = jwt
+    if api_key:
+        binding["api_key"] = api_key
     if direct:
         binding["direct"] = True # type: ignore
     app.state.task_bindings[task_id] = binding
@@ -236,7 +236,7 @@ app = FastAPI(lifespan=lifespan)
 async def get_or_create_mail_instance(
     role: Literal["admin", "swarm", "user"],
     id: str,
-    jwt: str,
+    api_key: str,
 ) -> MAILSwarm:
     """
     Get or create a MAIL instance for a specific role.
@@ -277,7 +277,7 @@ async def get_or_create_mail_instance(
             ps = app.state.persistent_swarm
             mail_instance = ps.instantiate(
                 instance_params={
-                    "user_token": jwt,
+                    "user_token": api_key,
                 },
                 user_id=id,
                 user_role=role,
@@ -446,11 +446,11 @@ async def message(request: Request):
 
     # Extract bearer token from header for runtime instance params
     auth_header = request.headers.get("Authorization", "")
-    jwt = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else ""
+    api_key = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else ""
 
     # Get or create user-specific MAIL instance (for readiness tracking/interswarm)
     try:
-        await get_or_create_mail_instance(caller_role, caller_id, jwt)
+        await get_or_create_mail_instance(caller_role, caller_id, api_key)
     except Exception as e:
         logger.error(
             f"{_log_prelude(app)} error getting {caller_role} MAIL instance: '{e}'"
@@ -503,11 +503,11 @@ async def message(request: Request):
     try:
         assert app.state.persistent_swarm is not None
 
-        api_swarm = await get_or_create_mail_instance(caller_role, caller_id, jwt)
+        api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
 
         if not isinstance(task_id, str) or not task_id:
             task_id = str(uuid.uuid4())
-        _register_task_binding(app, task_id, caller_role, caller_id, jwt)
+        _register_task_binding(app, task_id, caller_role, caller_id, api_key)
 
         # If client provided an explicit entrypoint, pass it through; otherwise use default
         chosen_entrypoint = recipient_agent
@@ -651,7 +651,7 @@ async def receive_interswarm_forward(request: Request):
         raise HTTPException(status_code=400, detail="parameter 'message' is required")
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
-    caller_jwt = caller_info["jwt"]
+    caller_api_key = caller_info["api_key"]
     # ensure the message is a valid MAILInterswarmMessage
     REQUIRED_FIELDS: dict[str, type] = {
         "message_id": str,
@@ -673,10 +673,10 @@ async def receive_interswarm_forward(request: Request):
 
     try:
         # create a new swarm instance for the task
-        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_jwt)
-        _register_task_binding(app, message["task_id"], "swarm", caller_id, caller_jwt)
-        # post this message to the swarm
         payload = message["payload"]
+        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_api_key)
+        _register_task_binding(app, payload["task_id"], "swarm", caller_id, caller_api_key)
+        # post this message to the swarm
         await swarm.receive_interswarm_message(message, direction="forward")
         return types.PostInterswarmForwardResponse(
             swarm=app.state.local_swarm_name,
@@ -687,9 +687,9 @@ async def receive_interswarm_forward(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error receiving interswarm forward message: '{e}'")
+        logger.error(f"{_log_prelude(app)} server failed to receive interswarm forward message: {e}")
         raise HTTPException(
-            status_code=500, detail=f"error receiving interswarm forward message: '{str(e)}'"
+            status_code=500, detail=f"server failed to receive interswarm forward message: {e}"
         )
 
 
@@ -707,7 +707,7 @@ async def receive_interswarm_back(request: Request):
         raise HTTPException(status_code=400, detail="parameter 'message' is required")
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
-    caller_jwt = caller_info["jwt"]
+    caller_api_key = caller_info["api_key"]
     # ensure the message is a valid MAILInterswarmMessage
     REQUIRED_FIELDS: dict[str, type] = {
         "message_id": str,
@@ -733,21 +733,22 @@ async def receive_interswarm_back(request: Request):
 
     try:
         # get the swarm instance for the task
-        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_jwt)
+        payload = message["payload"]
+        swarm = await get_or_create_mail_instance("swarm", caller_id, caller_api_key)
         # post this message to the swarm
         await swarm.receive_interswarm_message(message, direction="back")
         return types.PostInterswarmBackResponse(
             swarm=app.state.local_swarm_name,
-            task_id=message["task_id"],
+            task_id=payload["task_id"],
             status="success",
             local_runner=f"swarm:{caller_id}@{app.state.local_swarm_name}",
         )
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error receiving interswarm back message: '{e}'")
+        logger.error(f"{_log_prelude(app)} server failed to receive interswarm back message: {e}")
         raise HTTPException(
-            status_code=500, detail=f"error receiving interswarm back message: '{str(e)}'"
+            status_code=500, detail=f"server failed to receive interswarm back message: {e}"
         )
 
 
@@ -907,9 +908,9 @@ async def post_interswarm_message(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} error sending interswarm message: '{e}'")
+        logger.error(f"{_log_prelude(app)} server failed to send interswarm message: {e}")
         raise HTTPException(
-            status_code=500, detail=f"error sending interswarm message: '{str(e)}'"
+            status_code=500, detail=f"server failed to send interswarm message: {str(e)}"
         )
 
 

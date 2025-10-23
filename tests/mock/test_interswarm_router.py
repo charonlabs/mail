@@ -158,7 +158,7 @@ async def test_send_interswarm_message_forward_posts_to_forward_endpoint() -> No
     assert payload["message"] == message
     headers = call["headers"]
     assert isinstance(headers, dict)
-    assert headers["Authorization"] == "Bearer None"
+    assert headers["Authorization"] == "Bearer token-remote"
 
 
 @pytest.mark.asyncio
@@ -184,4 +184,80 @@ async def test_send_interswarm_message_back_posts_to_back_endpoint() -> None:
     assert payload["message"] == message
     headers = call["headers"]
     assert isinstance(headers, dict)
-    assert headers["Authorization"] == "Bearer None"
+    assert headers["Authorization"] == "Bearer token-remote"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_forward_falls_back_to_message_token() -> None:
+    """
+    If the registry lacks a token, the router should fall back to the message payload.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = "token-from-message"
+
+    await router.send_interswarm_message_forward(message)
+
+    call = router.session.calls[0]  # type: ignore
+    headers = call["headers"]
+    assert isinstance(headers, dict)
+    assert headers["Authorization"] == "Bearer token-from-message"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_forward_errors_when_no_token_available() -> None:
+    """
+    If neither the registry nor the message provides a token, the router should raise.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = None  # type: ignore[assignment]
+
+    with pytest.raises(ValueError):
+        await router.send_interswarm_message_forward(message)
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_back_falls_back_to_message_token() -> None:
+    """
+    Fallback token behavior should also apply when sending interswarm responses back.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = "token-from-message"
+
+    await router.send_interswarm_message_back(message)
+
+    call = router.session.calls[0]  # type: ignore
+    headers = call["headers"]
+    assert isinstance(headers, dict)
+    assert headers["Authorization"] == "Bearer token-from-message"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_back_errors_when_no_token_available() -> None:
+    """
+    Ensure interswarm responses raise if no token is available.
+    """
+    registry = SwarmRegistry("local", "http://localhost:8000")
+    registry.register_swarm("remote", "http://remote:9999")
+    router = InterswarmRouter(registry, "local")
+    router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
+
+    message = _make_interswarm_request(target_swarm="remote")
+    message["auth_token"] = None  # type: ignore[assignment]
+
+    with pytest.raises(ValueError):
+        await router.send_interswarm_message_back(message)

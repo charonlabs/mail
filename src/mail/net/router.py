@@ -174,7 +174,13 @@ class InterswarmRouter:
 
         # attempt to send this message to the remote swarm
         try:
-            token = self._resolve_auth_token_ref(endpoint["auth_token_ref"])
+            token = self._resolve_auth_token_ref(endpoint.get("swarm_name"))
+            if not token:
+                token = message.get("auth_token")
+            if not token:
+                raise ValueError(
+                    f"authentication token missing for swarm '{message['target_swarm']}'"
+                )
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/forward",
                 json={
@@ -187,14 +193,14 @@ class InterswarmRouter:
                 },
             ) as response:
                 if response.status != 200:
-                    logger.error(f"{self._log_prelude()} failed to send interswarm message forward to swarm '{message['target_swarm']}': '{response.status}'")
-                    raise ValueError(f"failed to send interswarm message forward to swarm '{message['target_swarm']}': HTTP status code '{response.status}', reason '{response.reason}'")
+                    logger.error(f"{self._log_prelude()} router failed to send interswarm message forward to swarm '{message['target_swarm']}': {response.status}")
+                    raise ValueError(f"router failed to send interswarm message forward to swarm '{message['target_swarm']}': HTTP status code {response.status}, reason '{response.reason}'")
                 else:
-                    logger.info(f"{self._log_prelude()} successfully sent interswarm message forward to swarm '{message['target_swarm']}'")
+                    logger.info(f"{self._log_prelude()} router successfully sent interswarm message forward to swarm '{message['target_swarm']}'")
                     return
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error sending interswarm message forward: '{e}'")
-            raise ValueError(f"error sending interswarm message forward: '{e}'")
+            logger.error(f"{self._log_prelude()} router failed to send interswarm message forward: {e}")
+            raise ValueError(f"router failed to send interswarm message forward: {e}")
 
     async def send_interswarm_message_back(
         self,
@@ -221,7 +227,13 @@ class InterswarmRouter:
 
         # attempt to send this message to the remote swarm
         try:
-            token = self._resolve_auth_token_ref(endpoint["auth_token_ref"])
+            token = self._resolve_auth_token_ref(endpoint.get("swarm_name"))
+            if not token:
+                token = message.get("auth_token")
+            if not token:
+                raise ValueError(
+                    f"authentication token missing for swarm '{message['target_swarm']}'"
+                )
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/back",
                 json={
@@ -234,14 +246,14 @@ class InterswarmRouter:
                 },
             ) as response:
                 if response.status != 200:
-                    logger.error(f"{self._log_prelude()} failed to send interswarm message back to swarm '{message['target_swarm']}': '{response.status}'")
-                    raise ValueError(f"failed to send interswarm message back to swarm '{message['target_swarm']}': HTTP status code '{response.status}', reason '{response.reason}'")
+                    logger.error(f"{self._log_prelude()} router failed to send interswarm message back to swarm '{message['target_swarm']}': {response.status}")
+                    raise ValueError(f"router failed to send interswarm message back to swarm '{message['target_swarm']}': HTTP status code {response.status}, reason '{response.reason}'")
                 else:
                     logger.info(f"{self._log_prelude()} successfully sent interswarm message back to swarm '{message['target_swarm']}'")
                     return
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error sending interswarm message back: '{e}'")
-            raise ValueError(f"error sending interswarm message back: '{e}'")
+            logger.error(f"{self._log_prelude()} router failed to send interswarm message back: {e}")
+            raise ValueError(f"router failed to send interswarm message back: {e}")
 
     async def post_interswarm_user_message(
         self,
@@ -297,10 +309,8 @@ class InterswarmRouter:
         """
         Convert a local message (`MAILMessage`) to an interswarm message (`MAILInterswarmMessage`).
         """
-        all_targets = message.get("recipient_swarms")
-        assert isinstance(all_targets, list)
+        all_targets = self._get_target_swarms(message)
         target_swarm = all_targets[0]
-        assert isinstance(target_swarm, str)
         return MAILInterswarmMessage(
             message_id=message["id"],
             source_swarm=self.local_swarm_name,
@@ -313,6 +323,14 @@ class InterswarmRouter:
             task_contributors=task_contributors,
             metadata=metadata or {},
         )
+
+    def _get_target_swarms(self, message: MAILMessage) -> list[str]:
+        """
+        Build the list of target swarms for a message.
+        """
+        targets = message["message"].get("recipients") or [message["message"].get("recipient")]
+        assert isinstance(targets, list)
+        return [parse_agent_address(target["address"])[1] for target in targets if parse_agent_address(target["address"])[1] is not None] # type: ignore
 
     # async def route_message(
     #     self,

@@ -1617,8 +1617,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         try:
             await self.submit(self._convert_interswarm_message_to_local(message))
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error receiving interswarm message: '{e}'")
-            raise ValueError(f"error receiving interswarm message: '{e}'")
+            logger.error(f"{self._log_prelude()} error receiving interswarm message: {e}")
+            raise ValueError(f"error receiving interswarm message: {e}")
 
     async def _send_interswarm_message(
         self,
@@ -1651,15 +1651,15 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             try:
                 await self.interswarm_router.send_interswarm_message_forward(interswarm_message)
             except Exception as e:
-                logger.error(f"{self._log_prelude()} error sending interswarm message forward: '{e}'")
-                raise ValueError(f"error sending interswarm message forward: '{e}'")
+                logger.error(f"{self._log_prelude()} runtime failed to send interswarm message forward: {e}")
+                raise ValueError(f"runtime failed to send interswarm message forward: {e}")
         # direction = back
         else:
             try:
                 await self.interswarm_router.send_interswarm_message_back(interswarm_message)
             except Exception as e:
-                logger.error(f"{self._log_prelude()} error sending interswarm message back: '{e}'")
-                raise ValueError(f"error sending interswarm message back: '{e}'")
+                logger.error(f"{self._log_prelude()} runtime failed to send interswarm message back: {e}")
+                raise ValueError(f"runtime failed to send interswarm message back: {e}")
 
     def _find_disallowed_comm_targets(
         self,

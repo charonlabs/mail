@@ -57,13 +57,18 @@ async def login(api_key: str) -> str:
         response = await session.post(
             f"{AUTH_ENDPOINT}", headers={"Authorization": f"Bearer {api_key}"}
         )
-        response.raise_for_status()
-        data = await response.json()
-
-        logger.info(
-            f"[[green]{api_key[:8]}...[/green]] user or agent authenticated with API key"
-        )
-        return data["token"]
+        if response.status == 200:
+            data = await response.json()
+            logger.info(
+                f"[[green]{api_key[:8]}...[/green]] user or agent authenticated with API key"
+            )
+            return data["token"]
+        elif response.status == 401:
+            logger.warning(f"invalid API key: '{api_key}'")
+            raise HTTPException(status_code=401, detail="invalid API key")
+        else:
+            logger.error(f"failed to authenticate user or agent with API key: '{api_key}': '{response.status}'")
+            raise HTTPException(status_code=500, detail="failed to authenticate user or agent with API key")
 
 
 async def get_token_info(token: str) -> dict[str, Any]:
@@ -77,8 +82,15 @@ async def get_token_info(token: str) -> dict[str, Any]:
         response = await session.get(
             f"{TOKEN_INFO_ENDPOINT}", headers={"Authorization": f"Bearer {token}"}
         )
-        response.raise_for_status()
-        return await response.json()
+        if response.status == 200:
+            data = await response.json()
+            return data
+        elif response.status == 401:
+            logger.warning(f"invalid token: '{token}'")
+            raise HTTPException(status_code=401, detail="invalid token")
+        else:
+            logger.error(f"failed to get token info: '{token}': '{response.status}'")
+            raise HTTPException(status_code=500, detail="failed to get token info")
 
 
 async def caller_is_role(
