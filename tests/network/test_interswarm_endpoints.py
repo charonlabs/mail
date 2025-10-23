@@ -176,12 +176,12 @@ def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
             captured["message"] = message
             captured["direction"] = direction
 
-    async def fake_get_or_create(role, identifier, api_key):  # noqa: ANN001
+    def fake_get_mail_instance_from_interswarm_message(app, message):  # noqa: ANN001
         return DummySwarm()
 
     monkeypatch.setattr(
-        "mail.server.get_or_create_mail_instance",
-        fake_get_or_create,
+        "mail.server._get_mail_instance_from_interswarm_message",
+        fake_get_mail_instance_from_interswarm_message,
     )
 
     forward_payload = _make_request_payload(task_id="task-running")

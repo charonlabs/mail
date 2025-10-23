@@ -74,14 +74,10 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
         server.app.state, "local_base_url", "http://localhost", raising=False
     )
 
-    async def fake_get_or_create(role: str, identifier: str, api_key: str):
-        assert role == "swarm"
-        assert identifier == "swarm-beta"
-        assert api_key == "remote-api-key"
-        server.app.state.swarm_mail_instances[identifier] = dummy_instance
+    def fake_get_mail_instance_from_interswarm_message(app, message):  # noqa: ANN001
         return dummy_instance
 
-    monkeypatch.setattr(server, "get_or_create_mail_instance", fake_get_or_create)
+    monkeypatch.setattr(server, "_get_mail_instance_from_interswarm_message", fake_get_mail_instance_from_interswarm_message)
     monkeypatch.setattr(utils, "extract_token_info", _extract_token_info)
 
     response_payload: MAILResponse = MAILResponse(
