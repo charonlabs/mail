@@ -46,12 +46,14 @@ class SwarmOAIClient:
             **kwargs: Any,
         ) -> Response:
             print("=== Initial input ===")
+            transformed_input: list[ResponseInputItem] = []
             for input_item in input:
                 print(type(input_item))
-            input = maybe_transform(input, list[ResponseInputItem])  # type: ignore
+                transformed_input.append(maybe_transform(input_item, ResponseInputItem))  # type: ignore
             print("=== Transformed input ===")
-            for input_item in input:
+            for input_item in transformed_input:
                 print(type(input_item))
+            input = transformed_input
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
                 complete_agent = next(
