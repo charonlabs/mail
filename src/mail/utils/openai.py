@@ -37,7 +37,7 @@ class SwarmOAIClient:
 
         async def create(
             self,
-            input: list[ResponseInputItem],
+            input: list[dict[str, Any]],
             tools: list[dict[str, Any]],
             instructions: str | None = None,
             previous_response_id: str | None = None,
@@ -45,15 +45,6 @@ class SwarmOAIClient:
             parallel_tool_calls: bool = True,
             **kwargs: Any,
         ) -> Response:
-            print("=== Initial input ===")
-            transformed_input: list[ResponseInputItem] = []
-            for input_item in input:
-                print(input_item)
-                transformed_input.append(transform(input_item, ResponseInputItem))  # type: ignore
-            print("=== Transformed input ===")
-            for input_item in transformed_input:
-                print(input_item)
-            input = transformed_input
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
                 complete_agent = next(
@@ -82,11 +73,9 @@ class SwarmOAIClient:
                         input_item  # type: ignore
                         for input_item in input
                         if (
-                            input_item["type"] == "message"
-                            and (
-                                input_item.role == "system"
-                                or input_item.role == "developer"
-                            )
+                            "role" in input_item
+                            and input_item["role"] == "system"
+                            or input_item["role"] == "developer"
                         )
                     )
                 complete_agent.agent_params["system"] = (
@@ -107,8 +96,8 @@ class SwarmOAIClient:
                     if input_item["type"] == "function_call_output":
                         tool_responses.append(
                             {
-                                "call_id": input_item.call_id,
-                                "content": input_item.output,
+                                "call_id": input_item["call_id"],
+                                "content": input_item["output"],
                             }
                         )
                 out, events = await swarm.post_message(
@@ -121,14 +110,9 @@ class SwarmOAIClient:
                 )
             else:
                 for input_item in reversed(input):
-                    if (
-                        not input_item["type"] == "message"
-                        or not input_item.role == "user"
-                    ):
+                    if "role" in input_item and input_item["role"] == "user":
                         break
-                    body = (
-                        f"<environment>\n{input_item.content}\n</environment>\n\n{body}"
-                    )
+                    body = f"<environment>\n{input_item['content']}\n</environment>\n\n{body}"
                 out, events = await swarm.post_message(
                     body=body,
                     subject="Task Request",
