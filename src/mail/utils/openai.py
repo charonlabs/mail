@@ -70,13 +70,16 @@ class SwarmOAIClient:
                     raw_sys_msg = {"content": instructions}
                 else:
                     raw_sys_msg = next(
-                        input_item  # type: ignore
-                        for input_item in input
-                        if (
-                            "role" in input_item
-                            and input_item["role"] == "system"
-                            or input_item["role"] == "developer"
-                        )
+                        (
+                            input_item  # type: ignore
+                            for input_item in input
+                            if (
+                                "role" in input_item
+                                and input_item["role"] == "system"
+                                or input_item["role"] == "developer"
+                            )
+                        ),
+                        {"content": ""},
                     )
                 complete_agent.agent_params["system"] = (
                     complete_agent.agent_params["system"]
