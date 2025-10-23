@@ -66,6 +66,7 @@ class SwarmOAIClient:
                             )
                         )
                         complete_agent.actions += new_actions
+                        new_swarm.actions += new_actions
                 if instructions is not None:
                     raw_sys_msg = {"content": instructions}
                 else:
