@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MAIL Server API
-  version: "1.1"
+  version: "1.2-pre1"
   description: REST API for the Multi-Agent Interface Layer (MAIL) server, including interswarm messaging.
 servers:
   - url: http://localhost:8000
@@ -39,9 +39,20 @@ paths:
                 type: object
                 additionalProperties: false
                 properties:
-                  name: { type: string }
-                  status: { type: string }
-                  version: { type: string }
+                  name: { 
+                    type: string,
+                    enum: ["mail"]
+                  }
+                  version: { 
+                    type: string,
+                    enum: ["1.2"]
+                  }
+                  swarm: { type: string }
+                  status: { 
+                    type: string,
+                    enum: ["running"]
+                  }
+                  uptime: { type: number }
   /status:
     get:
       summary: Server status
@@ -82,10 +93,13 @@ paths:
               schema:
                 type: object
                 additionalProperties: false
-                required: [username, role]
+                required: [id, role]
                 properties:
-                  username: { type: string }
-                  role: { type: string }
+                  id: { type: string }
+                  role: { 
+                    type: string,
+                    enum: ["admin", "user", "agent"]
+                  }
         '401':
           description: Unauthorized
   /message:
@@ -243,11 +257,11 @@ paths:
                   swarm_name: { type: string }
         '401':
           description: Unauthorized
-  /interswarm/message:
+  /interswarm/forward:
     post:
-      summary: Receive interswarm message
+      summary: Receive interswarm forward message
       description: Requires role=agent.
-      operationId: receiveInterswarmMessage
+      operationId: receiveInterswarmForward
       security:
         - bearerAuth: []
       requestBody:
@@ -255,50 +269,73 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/MAILInterswarmMessage'
+              type: object
+              additionalProperties: false
+              required: [message]
+              properties:
+                message: { $ref: '#/components/schemas/MAILInterswarmMessage' }
       responses:
         '200':
-          description: Response message (MAILMessage) to send back to source swarm
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MAILMessage'
-        '401':
-          description: Unauthorized
-  /interswarm/response:
-    post:
-      summary: Receive interswarm response
-      description: Requires role=agent.
-      operationId: receiveInterswarmResponse
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MAILMessage'
-      responses:
-        '200':
-          description: Response processing status
+          description: Status indicating operation success
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: false
-                required: [status, task_id]
                 properties:
-                  status:
-                    type: string
-                    enum: ["response_processed", "no_mail_instance"]
+                  swarm: { type: string }
+                  status: { 
+                    type: string,
+                    enum: ["success"]
+                  }
                   task_id: { type: string }
+                  local_runner: { type: string }
+        '400':
+          description: Bad request
         '401':
           description: Unauthorized
-  /interswarm/send:
+  /interswarm/back:
     post:
-      summary: Send an interswarm message
+      summary: Receive interswarm back message
+      description: Requires role=agent.
+      operationId: receiveInterswarmBack
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [message]
+              properties:
+                message: { $ref: '#/components/schemas/MAILInterswarmMessage' }
+      responses:
+        '200':
+          description: Status indicating operation success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  swarm: { type: string }
+                  status: { 
+                    type: string,
+                    enum: ["success"]
+                  }
+                  task_id: { type: string }
+                  local_runner: { type: string }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+  /interswarm/message:
+    post:
+      summary: Post an interswarm message
       description: Requires role=user or role=admin.
-      operationId: sendInterswarmMessage
+      operationId: postInterswarmMessage
       security:
         - bearerAuth: []
       requestBody:

@@ -20,6 +20,11 @@
     "recipient_swarm": "swarm-a"
   },
   "msg_type": "response",
+  "task_owner": "user:123@swarm-a",
+  "task_contributors": [
+    "user:123@swarm-a",
+    "swarm:swarm-a@swarm-b"
+  ],
   "metadata": { "expect_response": false }
 }
 
