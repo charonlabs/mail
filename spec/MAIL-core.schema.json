@@ -14,7 +14,7 @@
       "properties": {
         "address_type": {
           "type": "string",
-          "enum": ["agent", "user", "system"]
+          "enum": ["admin","agent", "user", "system"]
         },
         "address": { 
           "type": "string", 
