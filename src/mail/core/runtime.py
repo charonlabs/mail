@@ -652,9 +652,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self._is_continuous = False
                 break
             except Exception as e:
-                logger.error(
-                    f"{self._log_prelude()} error in continuous run loop: {e}"
-                )
+                logger.error(f"{self._log_prelude()} error in continuous run loop: {e}")
                 self._submit_event(
                     "run_loop_error",
                     "*",
@@ -1185,7 +1183,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         if task_id in self.mail_tasks:
             logger.warning(f"a task with ID '{task_id}' already exists in swarm memory")
-            raise ValueError(f"a task with ID '{task_id}' already exists in swarm memory")
+            raise ValueError(
+                f"a task with ID '{task_id}' already exists in swarm memory"
+            )
         self.mail_tasks[task_id] = MAILTask(task_id, task_owner, task_contributors)
 
     def _update_local_task(
@@ -1199,7 +1199,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         if task_id not in self.mail_tasks:
             logger.warning(f"a task with ID '{task_id}' does not exist in swarm memory")
-            raise ValueError(f"a task with ID '{task_id}' does not exist in swarm memory")
+            raise ValueError(
+                f"a task with ID '{task_id}' does not exist in swarm memory"
+            )
         self.mail_tasks[task_id].task_owner = task_owner
         self.mail_tasks[task_id].task_contributors = task_contributors
 
@@ -1312,250 +1314,250 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         # Fall back to local processing
         await self._process_local_message(message, action_override)
 
-#     async def _route_interswarm_message(self, message: MAILMessage) -> None:
-#         """
-#         Route a message via interswarm router.
-#         """
-#         if self.interswarm_router:
-#             try:
-#                 msg_content = message["message"]
-#                 routing_info = (
-#                     msg_content.get("routing_info")
-#                     if isinstance(msg_content, dict)
-#                     else None
-#                 )
-#                 stream_requested = isinstance(routing_info, dict) and bool(
-#                     routing_info.get("stream")
-#                 )
-#                 ignore_stream_pings = isinstance(routing_info, dict) and bool(
-#                     routing_info.get("ignore_stream_pings")
-#                 )
+    #     async def _route_interswarm_message(self, message: MAILMessage) -> None:
+    #         """
+    #         Route a message via interswarm router.
+    #         """
+    #         if self.interswarm_router:
+    #             try:
+    #                 msg_content = message["message"]
+    #                 routing_info = (
+    #                     msg_content.get("routing_info")
+    #                     if isinstance(msg_content, dict)
+    #                     else None
+    #                 )
+    #                 stream_requested = isinstance(routing_info, dict) and bool(
+    #                     routing_info.get("stream")
+    #                 )
+    #                 ignore_stream_pings = isinstance(routing_info, dict) and bool(
+    #                     routing_info.get("ignore_stream_pings")
+    #                 )
 
-#                 original_task_id = (
-#                     msg_content.get("task_id")
-#                     if isinstance(msg_content, dict)
-#                     else None
-#                 )
-#                 original_request_id = (
-#                     msg_content.get("request_id")
-#                     if isinstance(msg_content, dict)
-#                     else None
-#                 )
-#                 event_task_id: str | None = None
+    #                 original_task_id = (
+    #                     msg_content.get("task_id")
+    #                     if isinstance(msg_content, dict)
+    #                     else None
+    #                 )
+    #                 original_request_id = (
+    #                     msg_content.get("request_id")
+    #                     if isinstance(msg_content, dict)
+    #                     else None
+    #                 )
+    #                 event_task_id: str | None = None
 
-#                 async def forward_remote_event(
-#                     event_name: str, payload: str | None
-#                 ) -> None:
-#                     if ignore_stream_pings and event_name == "ping":
-#                         return
+    #                 async def forward_remote_event(
+    #                     event_name: str, payload: str | None
+    #                 ) -> None:
+    #                     if ignore_stream_pings and event_name == "ping":
+    #                         return
 
-#                     try:
-#                         data = json.loads(payload) if payload else {}
-#                     except json.JSONDecodeError:
-#                         data = {"raw": payload}
+    #                     try:
+    #                         data = json.loads(payload) if payload else {}
+    #                     except json.JSONDecodeError:
+    #                         data = {"raw": payload}
 
-#                     if not isinstance(data, dict):
-#                         data = {"raw": data}
+    #                     if not isinstance(data, dict):
+    #                         data = {"raw": data}
 
-#                     task_id = data.get("task_id")
-#                     if not isinstance(task_id, str):
-#                         return
+    #                     task_id = data.get("task_id")
+    #                     if not isinstance(task_id, str):
+    #                         return
 
-#                     self._ensure_task_exists(task_id)
+    #                     self._ensure_task_exists(task_id)
 
-#                     sse = ServerSentEvent(data=data, event=event_name)
+    #                     sse = ServerSentEvent(data=data, event=event_name)
 
-#                     try:
-#                         self.mail_tasks[task_id].add_event(sse)
-#                     except Exception:
-#                         pass
+    #                     try:
+    #                         self.mail_tasks[task_id].add_event(sse)
+    #                     except Exception:
+    #                         pass
 
-#                     self.new_events.append(sse)
-#                     try:
-#                         self._events_available.set()
-#                     except Exception:
-#                         pass
+    #                     self.new_events.append(sse)
+    #                     try:
+    #                         self._events_available.set()
+    #                     except Exception:
+    #                         pass
 
-#                 remote_targets: list[str] = []
-#                 if isinstance(msg_content, dict):
-#                     if "recipients" in msg_content:
-#                         for addr in msg_content["recipients"]:  # type: ignore
-#                             if isinstance(addr, dict):
-#                                 candidate = addr.get("address")
-#                                 if isinstance(candidate, str):
-#                                     _, target_swarm = parse_agent_address(candidate)
-#                                     if target_swarm and target_swarm != self.swarm_name:
-#                                         remote_targets.append(candidate)
-#                     elif "recipient" in msg_content:
-#                         addr = msg_content["recipient"]  # type: ignore[assignment]
-#                         if isinstance(addr, dict):
-#                             candidate = addr.get("address")
-#                             if isinstance(candidate, str):
-#                                 _, target_swarm = parse_agent_address(candidate)
-#                                 if target_swarm and target_swarm != self.swarm_name:
-#                                     remote_targets.append(candidate)
+    #                 remote_targets: list[str] = []
+    #                 if isinstance(msg_content, dict):
+    #                     if "recipients" in msg_content:
+    #                         for addr in msg_content["recipients"]:  # type: ignore
+    #                             if isinstance(addr, dict):
+    #                                 candidate = addr.get("address")
+    #                                 if isinstance(candidate, str):
+    #                                     _, target_swarm = parse_agent_address(candidate)
+    #                                     if target_swarm and target_swarm != self.swarm_name:
+    #                                         remote_targets.append(candidate)
+    #                     elif "recipient" in msg_content:
+    #                         addr = msg_content["recipient"]  # type: ignore[assignment]
+    #                         if isinstance(addr, dict):
+    #                             candidate = addr.get("address")
+    #                             if isinstance(candidate, str):
+    #                                 _, target_swarm = parse_agent_address(candidate)
+    #                                 if target_swarm and target_swarm != self.swarm_name:
+    #                                     remote_targets.append(candidate)
 
-#                 remote_swarms: set[str] = set()
-#                 for candidate in remote_targets:
-#                     _, target_swarm = parse_agent_address(candidate)
-#                     if target_swarm:
-#                         remote_swarms.add(target_swarm)
+    #                 remote_swarms: set[str] = set()
+    #                 for candidate in remote_targets:
+    #                     _, target_swarm = parse_agent_address(candidate)
+    #                     if target_swarm:
+    #                         remote_swarms.add(target_swarm)
 
-#                 if isinstance(routing_info, dict):
-#                     routing_swarm = routing_info.get("remote_swarm")
-#                     if isinstance(routing_swarm, str):
-#                         remote_swarms.add(routing_swarm)
+    #                 if isinstance(routing_info, dict):
+    #                     routing_swarm = routing_info.get("remote_swarm")
+    #                     if isinstance(routing_swarm, str):
+    #                         remote_swarms.add(routing_swarm)
 
-#                 task_state: MAILTask | None = None
-#                 if isinstance(original_task_id, str):
-#                     self._ensure_task_exists(original_task_id)
-#                     task_state = self.mail_tasks[original_task_id]
-#                     for swarm in remote_swarms:
-#                         task_state.add_remote_swarm(swarm)
+    #                 task_state: MAILTask | None = None
+    #                 if isinstance(original_task_id, str):
+    #                     self._ensure_task_exists(original_task_id)
+    #                     task_state = self.mail_tasks[original_task_id]
+    #                     for swarm in remote_swarms:
+    #                         task_state.add_remote_swarm(swarm)
 
-#                 remote_message = copy.deepcopy(message)
-#                 remote_msg_content = remote_message["message"]
-#                 if isinstance(remote_msg_content, dict):
-#                     if isinstance(original_task_id, str):
-#                         remote_msg_content["task_id"] = original_task_id
-#                     remote_routing = remote_msg_content.get("routing_info")
-#                     if not isinstance(remote_routing, dict):
-#                         remote_routing = {}
-#                     if isinstance(original_task_id, str):
-#                         remote_routing["origin_task_id"] = original_task_id
-#                     if isinstance(original_request_id, str):
-#                         remote_routing["origin_request_id"] = original_request_id
-#                     if remote_swarms:
-#                         remote_routing["remote_swarm"] = next(iter(remote_swarms))
-#                     remote_routing["origin_swarm"] = self.swarm_name
-#                     remote_msg_content["routing_info"] = remote_routing
+    #                 remote_message = copy.deepcopy(message)
+    #                 remote_msg_content = remote_message["message"]
+    #                 if isinstance(remote_msg_content, dict):
+    #                     if isinstance(original_task_id, str):
+    #                         remote_msg_content["task_id"] = original_task_id
+    #                     remote_routing = remote_msg_content.get("routing_info")
+    #                     if not isinstance(remote_routing, dict):
+    #                         remote_routing = {}
+    #                     if isinstance(original_task_id, str):
+    #                         remote_routing["origin_task_id"] = original_task_id
+    #                     if isinstance(original_request_id, str):
+    #                         remote_routing["origin_request_id"] = original_request_id
+    #                     if remote_swarms:
+    #                         remote_routing["remote_swarm"] = next(iter(remote_swarms))
+    #                     remote_routing["origin_swarm"] = self.swarm_name
+    #                     remote_msg_content["routing_info"] = remote_routing
 
-#                 detail_targets = (
-#                     ", ".join(remote_targets) if remote_targets else "remote swarm"
-#                 )
-#                 event_task_id = (
-#                     original_task_id
-#                     if isinstance(original_task_id, str)
-#                     else original_task_id
-#                 )
-#                 logger.info(
-#                     f"{self._log_prelude()} sending interswarm message for task '{event_task_id}' to {detail_targets}"
-#                 )
-#                 if isinstance(event_task_id, str):
-#                     self._submit_event(
-#                         "interswarm_send",
-#                         event_task_id,
-#                         f"sending interswarm message to {detail_targets}",
-#                     )
+    #                 detail_targets = (
+    #                     ", ".join(remote_targets) if remote_targets else "remote swarm"
+    #                 )
+    #                 event_task_id = (
+    #                     original_task_id
+    #                     if isinstance(original_task_id, str)
+    #                     else original_task_id
+    #                 )
+    #                 logger.info(
+    #                     f"{self._log_prelude()} sending interswarm message for task '{event_task_id}' to {detail_targets}"
+    #                 )
+    #                 if isinstance(event_task_id, str):
+    #                     self._submit_event(
+    #                         "interswarm_send",
+    #                         event_task_id,
+    #                         f"sending interswarm message to {detail_targets}",
+    #                     )
 
-#                 response = await self.interswarm_router.route_message(
-#                     remote_message,
-#                     stream_handler=forward_remote_event if stream_requested else None,
-#                     ignore_stream_pings=ignore_stream_pings,
-#                 )
+    #                 response = await self.interswarm_router.route_message(
+    #                     remote_message,
+    #                     stream_handler=forward_remote_event if stream_requested else None,
+    #                     ignore_stream_pings=ignore_stream_pings,
+    #                 )
 
-#                 response_msg = response.get("message")
-#                 if isinstance(response_msg, dict):
-#                     if isinstance(original_task_id, str):
-#                         response_msg["task_id"] = original_task_id
-#                     if isinstance(original_request_id, str):
-#                         response_msg["request_id"] = original_request_id  # type: ignore
-#                     response_routing = response_msg.get("routing_info")
-#                     if not isinstance(response_routing, dict):
-#                         response_routing = {}
-#                     response_routing["remote_swarm"] = response_msg.get(
-#                         "sender_swarm"
-#                     )
-#                     response_routing["origin_swarm"] = response_msg.get(
-#                         "sender_swarm"
-#                     )
-#                     response_msg["routing_info"] = response_routing
+    #                 response_msg = response.get("message")
+    #                 if isinstance(response_msg, dict):
+    #                     if isinstance(original_task_id, str):
+    #                         response_msg["task_id"] = original_task_id
+    #                     if isinstance(original_request_id, str):
+    #                         response_msg["request_id"] = original_request_id  # type: ignore
+    #                     response_routing = response_msg.get("routing_info")
+    #                     if not isinstance(response_routing, dict):
+    #                         response_routing = {}
+    #                     response_routing["remote_swarm"] = response_msg.get(
+    #                         "sender_swarm"
+    #                     )
+    #                     response_routing["origin_swarm"] = response_msg.get(
+    #                         "sender_swarm"
+    #                     )
+    #                     response_msg["routing_info"] = response_routing
 
-#                 if message["msg_type"] == "response":
-#                     sender_info = (
-#                         response_msg.get("sender")
-#                         if isinstance(response_msg, dict)
-#                         else None
-#                     )
-#                     sender_type = (
-#                         sender_info.get("address_type")
-#                         if isinstance(sender_info, dict)
-#                         else None
-#                     )
+    #                 if message["msg_type"] == "response":
+    #                     sender_info = (
+    #                         response_msg.get("sender")
+    #                         if isinstance(response_msg, dict)
+    #                         else None
+    #                     )
+    #                     sender_type = (
+    #                         sender_info.get("address_type")
+    #                         if isinstance(sender_info, dict)
+    #                         else None
+    #                     )
 
-#                     if sender_type == "system":
-#                         if isinstance(event_task_id, str):
-#                             self._submit_event(
-#                                 "router_error",
-#                                 event_task_id,
-#                                 "remote swarm rejected interswarm response",
-#                             )
-#                         normalized = self._normalize_interswarm_response(
-#                             original_task_id, response
-#                         )
-#                         await self._submit_from_interswarm(normalized)
-#                     else:
-#                         logger.info(
-#                             f"{self._log_prelude()} delivered interswarm response for task '{event_task_id}' to remote swarm '{detail_targets}'"
-#                         )
-#                     return
+    #                     if sender_type == "system":
+    #                         if isinstance(event_task_id, str):
+    #                             self._submit_event(
+    #                                 "router_error",
+    #                                 event_task_id,
+    #                                 "remote swarm rejected interswarm response",
+    #                             )
+    #                         normalized = self._normalize_interswarm_response(
+    #                             original_task_id, response
+    #                         )
+    #                         await self._submit_from_interswarm(normalized)
+    #                     else:
+    #                         logger.info(
+    #                             f"{self._log_prelude()} delivered interswarm response for task '{event_task_id}' to remote swarm '{detail_targets}'"
+    #                         )
+    #                     return
 
-#                 if isinstance(event_task_id, str):
-#                     self._submit_event(
-#                         "interswarm_receive",
-#                         event_task_id,
-#                         f"received response from swarm '{response['message'].get('sender_swarm', 'unknown')}'",
-#                     )
-#                 logger.info(
-#                     f"{self._log_prelude()} received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
-#                 )
+    #                 if isinstance(event_task_id, str):
+    #                     self._submit_event(
+    #                         "interswarm_receive",
+    #                         event_task_id,
+    #                         f"received response from swarm '{response['message'].get('sender_swarm', 'unknown')}'",
+    #                     )
+    #                 logger.info(
+    #                     f"{self._log_prelude()} received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
+    #                 )
 
-#                 normalized = self._normalize_interswarm_response(
-#                     original_task_id, response
-#                 )
-#                 await self._submit_from_interswarm(normalized)
-#             except Exception as e:
-#                 logger.error(
-#                     f"{self._log_prelude()} error in interswarm routing: '{e}'"
-#                 )
+    #                 normalized = self._normalize_interswarm_response(
+    #                     original_task_id, response
+    #                 )
+    #                 await self._submit_from_interswarm(normalized)
+    #             except Exception as e:
+    #                 logger.error(
+    #                     f"{self._log_prelude()} error in interswarm routing: '{e}'"
+    #                 )
 
-#                 self._submit_event(
-#                     "router_error",
-#                     message["message"]["task_id"],
-#                     f"error in interswarm routing: '{e}'",
-#                 )
+    #                 self._submit_event(
+    #                     "router_error",
+    #                     message["message"]["task_id"],
+    #                     f"error in interswarm routing: '{e}'",
+    #                 )
 
-#                 # inform the sender that the message was not delivered
-#                 await self._submit_from_interswarm(
-#                     self._system_response(
-#                         task_id=message["message"]["task_id"],
-#                         recipient=message["message"]["sender"],
-#                         subject="::router_error::",
-#                         body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
-# The MAIL interswarm router encountered the following error: '{e}'
-# If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
-#                     )
-#                 )
-#         else:
-#             logger.error(f"{self._log_prelude()} interswarm router not available")
+    #                 # inform the sender that the message was not delivered
+    #                 await self._submit_from_interswarm(
+    #                     self._system_response(
+    #                         task_id=message["message"]["task_id"],
+    #                         recipient=message["message"]["sender"],
+    #                         subject="::router_error::",
+    #                         body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered.
+    # The MAIL interswarm router encountered the following error: '{e}'
+    # If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
+    #                     )
+    #                 )
+    #         else:
+    #             logger.error(f"{self._log_prelude()} interswarm router not available")
 
-#             self._submit_event(
-#                 "router_error",
-#                 message["message"]["task_id"],
-#                 "interswarm router not available",
-#             )
+    #             self._submit_event(
+    #                 "router_error",
+    #                 message["message"]["task_id"],
+    #                 "interswarm router not available",
+    #             )
 
-#             # inform the sender that the message was not delivered
-#             await self._submit_from_interswarm(
-#                 self._system_response(
-#                     task_id=message["message"]["task_id"],
-#                     recipient=message["message"]["sender"],
-#                     subject="::router_error::",
-#                     body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered. 
-# The MAIL interswarm router is not currently available.
-# If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
-#                 )
-#             )
+    #             # inform the sender that the message was not delivered
+    #             await self._submit_from_interswarm(
+    #                 self._system_response(
+    #                     task_id=message["message"]["task_id"],
+    #                     recipient=message["message"]["sender"],
+    #                     subject="::router_error::",
+    #                     body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered.
+    # The MAIL interswarm router is not currently available.
+    # If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
+    #                 )
+    #             )
 
     def _convert_interswarm_message_to_local(
         self,
@@ -1584,7 +1586,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         task_owner = message["task_owner"]
         task_contributors = message["task_contributors"]
 
-        logger.debug(f"{self._log_prelude()} receiving interswarm message for task '{task_id}' with contributors: {task_contributors}")
+        logger.debug(
+            f"{self._log_prelude()} receiving interswarm message for task '{task_id}' with contributors: {task_contributors}"
+        )
 
         assert isinstance(recipients, list)
         for recipient in recipients:
@@ -1593,29 +1597,45 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             assert "address_type" in recipient
             recipient_agent, recipient_swarm = parse_agent_address(recipient["address"])
             if recipient_swarm != self.swarm_name:
-                logger.debug(f"{self._log_prelude()} skipping remote agent '{recipient_agent}' in interswarm message")
+                logger.debug(
+                    f"{self._log_prelude()} skipping remote agent '{recipient_agent}' in interswarm message"
+                )
                 continue
             if recipient_agent not in self.agents:
-                logger.warning(f"{self._log_prelude()} unknown local agent: '{recipient_agent}'")
+                logger.warning(
+                    f"{self._log_prelude()} unknown local agent: '{recipient_agent}'"
+                )
                 raise ValueError(f"unknown local agent: '{recipient_agent}'")
-        
+
         # direction = forward
-        if self.this_owner not in task_contributors: 
+        if self.this_owner not in task_contributors:
             if task_id in self.mail_tasks:
-                logger.warning(f"a task with ID '{task_id}' already exists in swarm memory")
-                raise ValueError(f"a task with ID '{task_id}' already exists in swarm memory")
+                logger.warning(
+                    f"a task with ID '{task_id}' already exists in swarm memory"
+                )
+                raise ValueError(
+                    f"a task with ID '{task_id}' already exists in swarm memory"
+                )
             self._add_remote_task(task_id, task_owner, task_contributors)
         # direction = back
         else:
             if task_id not in self.mail_tasks:
-                logger.warning(f"a task with ID '{task_id}' does not exist in swarm memory")
-                raise ValueError(f"a task with ID '{task_id}' does not exist in swarm memory")
+                logger.warning(
+                    f"a task with ID '{task_id}' does not exist in swarm memory"
+                )
+                raise ValueError(
+                    f"a task with ID '{task_id}' does not exist in swarm memory"
+                )
             if self.mail_tasks[task_id].task_owner != task_owner:
-                logger.warning(f"task owner mismatch: expected '{self.mail_tasks[task_id].task_owner}', got '{task_owner}'")
-                raise ValueError(f"task owner mismatch: expected '{self.mail_tasks[task_id].task_owner}', got '{task_owner}'")
+                logger.warning(
+                    f"task owner mismatch: expected '{self.mail_tasks[task_id].task_owner}', got '{task_owner}'"
+                )
+                raise ValueError(
+                    f"task owner mismatch: expected '{self.mail_tasks[task_id].task_owner}', got '{task_owner}'"
+                )
             # update task contributors in swarm memory
             self._update_local_task(task_id, task_owner, task_contributors)
-        
+
         try:
             await self.submit(self._convert_interswarm_message_to_local(message))
             self._submit_event(
@@ -1624,7 +1644,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"received interswarm message from swarm '{message['source_swarm']}'",
             )
         except Exception as e:
-            logger.error(f"{self._log_prelude()} error receiving interswarm message: {e}")
+            logger.error(
+                f"{self._log_prelude()} error receiving interswarm message: {e}"
+            )
             self._submit_event(
                 "interswarm_message_error",
                 task_id,
@@ -1640,8 +1662,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         Send a message to a remote swarm via the interswarm router.
         """
         # append this instance to the contributors list, if not already present
-        if self.this_owner not in self.mail_tasks[message["message"]["task_id"]].task_contributors:
-            self.mail_tasks[message["message"]["task_id"]].task_contributors.append(self.this_owner)
+        if (
+            self.this_owner
+            not in self.mail_tasks[message["message"]["task_id"]].task_contributors
+        ):
+            self.mail_tasks[message["message"]["task_id"]].task_contributors.append(
+                self.this_owner
+            )
 
         task_id = message["message"]["task_id"]
         task_owner = self.mail_tasks[task_id].task_owner
@@ -1665,31 +1692,41 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         # direction = forward
         if target_contributor is None:
             try:
-                await self.interswarm_router.send_interswarm_message_forward(interswarm_message)
+                await self.interswarm_router.send_interswarm_message_forward(
+                    interswarm_message
+                )
                 self._submit_event(
                     "interswarm_message_sent",
                     task_id,
                     f"sent interswarm message forward to swarm '{interswarm_message['target_swarm']}'",
                 )
             except Exception as e:
-                logger.error(f"{self._log_prelude()} runtime failed to send interswarm message forward: {e}")
+                logger.error(
+                    f"{self._log_prelude()} runtime failed to send interswarm message forward: {e}"
+                )
                 self._submit_event(
                     "interswarm_message_error",
                     task_id,
                     f"error sending interswarm message forward: {e}",
                 )
-                raise ValueError(f"runtime failed to send interswarm message forward: {e}")
+                raise ValueError(
+                    f"runtime failed to send interswarm message forward: {e}"
+                )
         # direction = back
         else:
             try:
-                await self.interswarm_router.send_interswarm_message_back(interswarm_message)
+                await self.interswarm_router.send_interswarm_message_back(
+                    interswarm_message
+                )
                 self._submit_event(
                     "interswarm_message_sent",
                     task_id,
                     f"sent interswarm message back to swarm '{interswarm_message['target_swarm']}'",
                 )
             except Exception as e:
-                logger.error(f"{self._log_prelude()} runtime failed to send interswarm message back: {e}")
+                logger.error(
+                    f"{self._log_prelude()} runtime failed to send interswarm message back: {e}"
+                )
                 self._submit_event(
                     "interswarm_message_error",
                     task_id,
@@ -2546,7 +2583,9 @@ Use this information to decide how to complete your task.""",
             recipient = create_agent_address(self.entrypoint)
 
             if task_id is None:
-                raise ValueError("task_id is required for interswarm task complete messages")
+                raise ValueError(
+                    "task_id is required for interswarm task complete messages"
+                )
 
             normalised = self._system_response(
                 task_id=task_id,

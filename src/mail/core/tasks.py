@@ -19,7 +19,7 @@ class MAILTask:
     """
 
     def __init__(
-        self, 
+        self,
         task_id: str,
         task_owner: str,
         task_contributors: list[str],

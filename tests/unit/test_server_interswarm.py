@@ -53,7 +53,9 @@ async def _extract_token_info(request: Request) -> dict[str, Any]:
 
 
 @pytest.mark.asyncio
-async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_interswarm_response_routes_to_task_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     When an interswarm response is received, it should be routed to the task owner.
     """
@@ -64,12 +66,16 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
 
     dummy_instance = DummyMailInstance()
 
-    monkeypatch.setattr(server.app.state, "task_bindings", {task_id: binding}, raising=False)
+    monkeypatch.setattr(
+        server.app.state, "task_bindings", {task_id: binding}, raising=False
+    )
     monkeypatch.setattr(server.app.state, "user_mail_instances", {}, raising=False)
     monkeypatch.setattr(server.app.state, "user_mail_tasks", {}, raising=False)
     monkeypatch.setattr(server.app.state, "swarm_mail_instances", {}, raising=False)
     monkeypatch.setattr(server.app.state, "swarm_mail_tasks", {}, raising=False)
-    monkeypatch.setattr(server.app.state, "local_swarm_name", "swarm-alpha", raising=False)
+    monkeypatch.setattr(
+        server.app.state, "local_swarm_name", "swarm-alpha", raising=False
+    )
     monkeypatch.setattr(
         server.app.state, "local_base_url", "http://localhost", raising=False
     )
@@ -77,7 +83,11 @@ async def test_interswarm_response_routes_to_task_owner(monkeypatch: pytest.Monk
     def fake_get_mail_instance_from_interswarm_message(app, message):  # noqa: ANN001
         return dummy_instance
 
-    monkeypatch.setattr(server, "_get_mail_instance_from_interswarm_message", fake_get_mail_instance_from_interswarm_message)
+    monkeypatch.setattr(
+        server,
+        "_get_mail_instance_from_interswarm_message",
+        fake_get_mail_instance_from_interswarm_message,
+    )
     monkeypatch.setattr(utils, "extract_token_info", _extract_token_info)
 
     response_payload: MAILResponse = MAILResponse(

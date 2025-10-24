@@ -36,7 +36,9 @@ async def test_write_rejects_non_string_content(tmp_path: Path) -> None:
     """
     Test that the write file action rejects non-string content.
     """
-    result = await write_file.function({"path": str(tmp_path / "file.txt"), "content": 123})  # type: ignore[arg-type]
+    result = await write_file.function(
+        {"path": str(tmp_path / "file.txt"), "content": 123}
+    )  # type: ignore[arg-type]
     assert result.startswith("Error")
 
 

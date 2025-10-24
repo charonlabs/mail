@@ -66,7 +66,7 @@ async def get_swarm_health(args: dict[str, Any]) -> str:
 
     Args:
         url: The URL of the remote swarm.
-    
+
     Returns:
         The health status string of the swarm, otherwise an error message.
     """
@@ -75,7 +75,7 @@ async def get_swarm_health(args: dict[str, Any]) -> str:
         return "Error: `url` is required"
     if not isinstance(url, str):
         return "Error: `url` must be a string"
-    
+
     # attempt to `GET /health` on the remote swarm
     try:
         async with aiohttp.ClientSession() as session:
@@ -103,7 +103,7 @@ async def get_swarm_registry(args: dict[str, Any]) -> str:
 
     Args:
         url: The URL of the remote swarm.
-    
+
     Returns:
         The registry of the remote MAIL swarm, otherwise an error message.
     """
@@ -112,7 +112,7 @@ async def get_swarm_registry(args: dict[str, Any]) -> str:
         return "Error: `url` is required"
     if not isinstance(url, str):
         return "Error: `url` must be a string"
-    
+
     # attempt to `GET /swarms` on the remote swarm
     try:
         async with aiohttp.ClientSession() as session:
@@ -139,7 +139,11 @@ async def _is_valid_mail_root_response(response: aiohttp.ClientResponse) -> bool
 
     if not name or not swarm or not status:
         return False
-    if not isinstance(name, str) or not isinstance(swarm, str) or not isinstance(status, str):
+    if (
+        not isinstance(name, str)
+        or not isinstance(swarm, str)
+        or not isinstance(status, str)
+    ):
         return False
     if name != "mail" or status != "running":
         return False
@@ -177,7 +181,9 @@ async def _is_valid_mail_swarms_response(response: aiohttp.ClientResponse) -> bo
     for swarm in swarms:
         if not isinstance(swarm, dict):
             return False
-        if not isinstance(swarm.get("swarm_name"), str) or not isinstance(swarm.get("base_url"), str):
+        if not isinstance(swarm.get("swarm_name"), str) or not isinstance(
+            swarm.get("base_url"), str
+        ):
             return False
 
     return True
@@ -194,5 +200,5 @@ async def _swarm_registry_response_str(response: aiohttp.ClientResponse) -> str:
         return "No swarms found"
     if not isinstance(swarms, list):
         return "Error: `swarms` is not a list"
-    
+
     return "\n".join([f"{swarm['swarm_name']}@{swarm['base_url']}" for swarm in swarms])

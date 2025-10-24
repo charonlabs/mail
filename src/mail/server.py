@@ -94,7 +94,9 @@ async def _server_startup(app: FastAPI) -> None:
 
     # Shared HTTP session for any server-initiated interswarm calls
     app.state._http_session = ClientSession(
-        headers={"User-Agent": f"MAIL-Server/v{utils.get_protocol_version()}/{app.state.local_swarm_name} (github.com/charonlabs/mail)"}
+        headers={
+            "User-Agent": f"MAIL-Server/v{utils.get_protocol_version()}/{app.state.local_swarm_name} (github.com/charonlabs/mail)"
+        }
     )
 
     # more app state
@@ -121,7 +123,7 @@ def _register_task_binding(
     if api_key:
         binding["api_key"] = api_key
     if direct:
-        binding["direct"] = True # type: ignore
+        binding["direct"] = True  # type: ignore
     app.state.task_bindings[task_id] = binding
 
 
@@ -144,12 +146,18 @@ def _get_mail_instance_from_interswarm_message(
                 instance = app.state.swarm_mail_instances.get(id)
             else:
                 raise HTTPException(status_code=400, detail=f"invalid role: {role}")
-            
+
             if instance is None:
-                raise HTTPException(status_code=404, detail=f"no mail instance found for contributor: {role}:{id}@{swarm}")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"no mail instance found for contributor: {role}:{id}@{swarm}",
+                )
             return instance
-    
-    raise HTTPException(status_code=404, detail=f"no mail instance found for task with id {task_id}")
+
+    raise HTTPException(
+        status_code=404, detail=f"no mail instance found for task with id {task_id}"
+    )
+
 
 async def _server_shutdown(app: FastAPI) -> None:
     """
@@ -663,15 +671,22 @@ async def receive_interswarm_forward(request: Request):
     }
     for field, expected_type in REQUIRED_FIELDS.items():
         if field not in message:
-            raise HTTPException(status_code=400, detail=f"parameter '{field}' is required")
+            raise HTTPException(
+                status_code=400, detail=f"parameter '{field}' is required"
+            )
         if not isinstance(message[field], expected_type):
-            raise HTTPException(status_code=400, detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}",
+            )
 
     try:
         # create a new swarm instance for the task
         payload = message["payload"]
         swarm = await get_or_create_mail_instance("swarm", caller_id, caller_api_key)
-        _register_task_binding(app, payload["task_id"], "swarm", caller_id, caller_api_key)
+        _register_task_binding(
+            app, payload["task_id"], "swarm", caller_id, caller_api_key
+        )
         # post this message to the swarm
         await swarm.receive_interswarm_message(message, direction="forward")
         return types.PostInterswarmForwardResponse(
@@ -683,9 +698,12 @@ async def receive_interswarm_forward(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} server failed to receive interswarm forward message: {e}")
+        logger.error(
+            f"{_log_prelude(app)} server failed to receive interswarm forward message: {e}"
+        )
         raise HTTPException(
-            status_code=500, detail=f"server failed to receive interswarm forward message: {e}"
+            status_code=500,
+            detail=f"server failed to receive interswarm forward message: {e}",
         )
 
 
@@ -719,9 +737,14 @@ async def receive_interswarm_back(request: Request):
     }
     for field, expected_type in REQUIRED_FIELDS.items():
         if field not in message:
-            raise HTTPException(status_code=400, detail=f"parameter '{field}' is required")
+            raise HTTPException(
+                status_code=400, detail=f"parameter '{field}' is required"
+            )
         if not isinstance(message[field], expected_type):
-            raise HTTPException(status_code=400, detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"parameter '{field}' must be a {expected_type.__name__}, got {type(message[field]).__name__}",
+            )
 
     # if this task is not already running, raise an error
     payload = message["payload"]
@@ -742,9 +765,12 @@ async def receive_interswarm_back(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} server failed to receive interswarm back message: {e}")
+        logger.error(
+            f"{_log_prelude(app)} server failed to receive interswarm back message: {e}"
+        )
         raise HTTPException(
-            status_code=500, detail=f"server failed to receive interswarm back message: {e}"
+            status_code=500,
+            detail=f"server failed to receive interswarm back message: {e}",
         )
 
 
@@ -781,7 +807,11 @@ async def post_interswarm_message(request: Request):
         subject = data.get("subject", "Interswarm Message")
         msg_type = data.get("msg_type", "request")
         raw_task_id = data.get("task_id")
-        task_id = raw_task_id if isinstance(raw_task_id, str) and raw_task_id else str(uuid.uuid4())
+        task_id = (
+            raw_task_id
+            if isinstance(raw_task_id, str) and raw_task_id
+            else str(uuid.uuid4())
+        )
         routing_info = data.get("routing_info") or {}
         stream_requested = bool(data.get("stream"))
         ignore_pings = bool(data.get("ignore_stream_pings"))
@@ -904,9 +934,12 @@ async def post_interswarm_message(request: Request):
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"{_log_prelude(app)} server failed to send interswarm message: {e}")
+        logger.error(
+            f"{_log_prelude(app)} server failed to send interswarm message: {e}"
+        )
         raise HTTPException(
-            status_code=500, detail=f"server failed to send interswarm message: {str(e)}"
+            status_code=500,
+            detail=f"server failed to send interswarm message: {str(e)}",
         )
 
 

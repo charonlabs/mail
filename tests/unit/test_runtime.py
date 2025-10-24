@@ -388,7 +388,9 @@ class _SpyRouter:
         task_contributors: list[str],
         metadata: dict[str, Any] | None = None,
     ) -> MAILInterswarmMessage:
-        self.convert_calls.append((copy.deepcopy(message), task_owner, list(task_contributors)))
+        self.convert_calls.append(
+            (copy.deepcopy(message), task_owner, list(task_contributors))
+        )
         recipient_swarms = message.get("recipient_swarms")
         assert isinstance(recipient_swarms, list) and recipient_swarms
         target_swarm = recipient_swarms[0]
@@ -399,17 +401,21 @@ class _SpyRouter:
             target_swarm=target_swarm,
             timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
             payload=payload,
-            msg_type=message["msg_type"], # type: ignore
+            msg_type=message["msg_type"],  # type: ignore
             auth_token="token-remote",
             task_owner=task_owner,
             task_contributors=list(task_contributors),
             metadata=metadata or {},
         )
 
-    async def send_interswarm_message_forward(self, message: MAILInterswarmMessage) -> None:
+    async def send_interswarm_message_forward(
+        self, message: MAILInterswarmMessage
+    ) -> None:
         self.forward_sent.append(message)
 
-    async def send_interswarm_message_back(self, message: MAILInterswarmMessage) -> None:
+    async def send_interswarm_message_back(
+        self, message: MAILInterswarmMessage
+    ) -> None:
         self.back_sent.append(message)
 
 
@@ -443,7 +449,9 @@ async def test_send_interswarm_message_forward_delegates_to_router() -> None:
 
     await runtime._send_interswarm_message(outbound)
 
-    assert router.convert_calls, "expected convert_local_message_to_interswarm to be called"
+    assert router.convert_calls, (
+        "expected convert_local_message_to_interswarm to be called"
+    )
     (converted_message, owner, contributors) = router.convert_calls[0]
     assert converted_message["message"]["task_id"] == task_id
     assert owner == runtime.mail_tasks[task_id].task_owner
@@ -495,7 +503,9 @@ async def test_send_interswarm_message_back_delegates_to_router() -> None:
 
     await runtime._send_interswarm_message(response)
 
-    assert router.convert_calls, "expected convert_local_message_to_interswarm to be called"
+    assert router.convert_calls, (
+        "expected convert_local_message_to_interswarm to be called"
+    )
     assert not router.forward_sent
     assert router.back_sent
     assert router.back_sent[0]["target_swarm"] == "swarm-beta"
@@ -552,7 +562,10 @@ async def test_task_complete_idempotent_stashes_queue() -> None:
     assert runtime.message_queue.empty()
     history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name="supervisor")
     assert history_key in runtime.agent_histories
-    assert runtime.agent_histories[history_key][-1]["content"] == "SUCCESS: task already completed"
+    assert (
+        runtime.agent_histories[history_key][-1]["content"]
+        == "SUCCESS: task already completed"
+    )
 
     events = runtime.get_events_by_task_id(task_id)
     assert any(ev.event == "task_complete_call" for ev in events)
@@ -600,7 +613,11 @@ async def test_task_complete_resolves_pending_future() -> None:
     assert final_event.event == "new_message"
     assert isinstance(final_event.data, dict)
     extra = final_event.data.get("extra_data", {})
-    assert extra and extra.get("full_message", {}).get("message", {}).get("body") == "great success"
+    assert (
+        extra
+        and extra.get("full_message", {}).get("message", {}).get("body")
+        == "great success"
+    )
 
 
 @pytest.mark.asyncio
@@ -655,7 +672,9 @@ async def test_interswarm_message_preserves_user_pending_future() -> None:
 
 
 @pytest.mark.asyncio
-async def test_task_complete_notifies_remote_swarms(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_task_complete_notifies_remote_swarms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     runtime = MAILRuntime(
         agents={},
         actions={},
@@ -668,7 +687,9 @@ async def test_task_complete_notifies_remote_swarms(monkeypatch: pytest.MonkeyPa
 
     notified: dict[str, tuple[str, str, str] | None] = {"args": None}
 
-    async def fake_notify(self: MAILRuntime, task: str, finish: str, caller: str) -> None:
+    async def fake_notify(
+        self: MAILRuntime, task: str, finish: str, caller: str
+    ) -> None:
         notified["args"] = (task, finish, caller)
 
     monkeypatch.setattr(MAILRuntime, "_notify_remote_task_complete", fake_notify)

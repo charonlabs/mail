@@ -96,7 +96,9 @@ def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
     if "action_imports" in swarm_candidate:
         imports = swarm_candidate["action_imports"]
         if any(not isinstance(item, str) for item in imports):
-            raise ValueError("swarm candidate field 'action_imports' must be a list of strings")
+            raise ValueError(
+                "swarm candidate field 'action_imports' must be a list of strings"
+            )
 
     return
 

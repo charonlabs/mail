@@ -67,8 +67,13 @@ async def login(api_key: str) -> str:
             logger.warning(f"invalid API key: '{api_key}'")
             raise HTTPException(status_code=401, detail="invalid API key")
         else:
-            logger.error(f"failed to authenticate user or agent with API key: '{api_key}': '{response.status}'")
-            raise HTTPException(status_code=500, detail="failed to authenticate user or agent with API key")
+            logger.error(
+                f"failed to authenticate user or agent with API key: '{api_key}': '{response.status}'"
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="failed to authenticate user or agent with API key",
+            )
 
 
 async def get_token_info(token: str) -> dict[str, Any]:

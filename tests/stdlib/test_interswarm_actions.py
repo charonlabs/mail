@@ -35,7 +35,9 @@ class _DummyContext:
         return False
 
 
-def _patch_session(monkeypatch: pytest.MonkeyPatch, routes: dict[str, _DummyResponse]) -> None:
+def _patch_session(
+    monkeypatch: pytest.MonkeyPatch, routes: dict[str, _DummyResponse]
+) -> None:
     class _DummySession:
         async def __aenter__(self):
             return self
@@ -87,7 +89,9 @@ async def test_get_swarm_health_returns_status(monkeypatch: pytest.MonkeyPatch) 
 
 
 @pytest.mark.asyncio
-async def test_get_swarm_registry_returns_joined_rows(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_swarm_registry_returns_joined_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     Test that the `get_swarm_registry` action returns a newline-delimited list of the remote swarm's registered swarms.
     """
@@ -110,7 +114,9 @@ async def test_get_swarm_registry_returns_joined_rows(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
-async def test_ping_swarm_missing_url_returns_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ping_swarm_missing_url_returns_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     Test that the `ping_swarm` action returns an error if the URL is missing.
     """

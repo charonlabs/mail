@@ -128,7 +128,7 @@ async def mcp_call_tool(args: dict[str, Any]) -> str:
         return "Error: `tool_name` must be a string"
     if not isinstance(tool_input, dict):
         return "Error: `tool_input` must be a dictionary"
-    
+
     try:
         client = Client(server_url)
         async with client:
