@@ -56,7 +56,7 @@ verbose = false
 [
     {
         "name": "example",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
