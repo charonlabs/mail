@@ -16,6 +16,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Agents & Tools**: [agents-and-tools.md](/docs/agents-and-tools.md)
 - **Interswarm Messaging**: [interswarm.md](/docs/interswarm.md)
 - **Swarm Registry**: [registry.md](/docs/registry.md)
+- **Standard Library**: [stdlib/README.md](/docs/stdlib/README.md)
 - **Security**: [security.md](/docs/security.md)
 - **Testing**: [testing.md](/docs/testing.md)
 - **Examples**: [examples.md](/docs/examples.md)

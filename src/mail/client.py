@@ -31,8 +31,7 @@ from mail.net.types import (
     GetSwarmsDumpResponse,
     GetSwarmsResponse,
     GetWhoamiResponse,
-    PostInterswarmResponseResponse,
-    PostInterswarmSendResponse,
+    PostInterswarmMessageResponse,
     PostMessageResponse,
     PostSwarmsLoadResponse,
     PostSwarmsResponse,
@@ -423,14 +422,14 @@ class MAILClient:
     async def post_interswarm_response(
         self,
         message: MAILMessage,
-    ) -> PostInterswarmResponseResponse:
+    ) -> PostInterswarmMessageResponse:
         """
         Post an interswarm response to the MAIL server (`POST /interswarm/response`).
         """
         payload = dict(message)
 
         return cast(
-            PostInterswarmResponseResponse,
+            PostInterswarmMessageResponse,
             await self._request_json(
                 "POST",
                 "/interswarm/response",
@@ -449,7 +448,7 @@ class MAILClient:
         routing_info: dict[str, Any] | None = None,
         stream: bool | None = None,
         ignore_stream_pings: bool | None = None,
-    ) -> PostInterswarmSendResponse:
+    ) -> PostInterswarmMessageResponse:
         """
         Send an interswarm message to the MAIL server (`POST /interswarm/send`).
         """
@@ -474,10 +473,10 @@ class MAILClient:
             payload["ignore_stream_pings"] = ignore_stream_pings
 
         return cast(
-            PostInterswarmSendResponse,
+            PostInterswarmMessageResponse,
             await self._request_json(
                 "POST",
-                "/interswarm/send",
+                "/interswarm/message",
                 payload=payload,
             ),
         )

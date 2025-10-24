@@ -9,9 +9,15 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 
 ## Router ([src/mail/net/router.py](/src/mail/net/router.py))
 - Detects remote recipients and wraps messages into `MAILInterswarmMessage`
-- Uses the registry to find the remote base URL and (optional) resolved auth token
-- Sends to the remote server `/interswarm/message`; returns a `MAILMessage`
-- Incoming responses from remotes can be injected via `/interswarm/response`
+- Uses the registry to find the remote base URL and resolves auth tokens from `${SWARM_AUTH_TOKEN_<NAME>}` when present
+- Falls back to the message payload's `auth_token` when the registry entry does not supply one, and raises an explicit error if neither source is available
+- Sends new tasks to the remote server via `/interswarm/forward` and returns follow-up or completion traffic through `/interswarm/back`
+- When a local user/admin proxies a task, `post_interswarm_user_message` targets the remote `/interswarm/message` endpoint and returns the resulting `MAILMessage`
+
+### Authentication
+- Persistent registry entries store a reference to `${SWARM_AUTH_TOKEN_<SWARM>}`. Export these before starting each server so forwarded calls carry a valid bearer token.
+- For volatile or ad-hoc registrations you can still embed an `auth_token` on each message; the router now uses this as a fallback.
+- If both the registry and the payload omit a token, the router fails fast with `authentication token missing for swarm '<name>'` so issues surface locally rather than as a remote 401.
 
 ## Registry ([src/mail/net/registry.py](/src/mail/net/registry.py))
 - Tracks local and remote swarms, performs health checks, persists non-volatile entries
@@ -19,20 +25,25 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 - Validates whether required env vars are set and resolves them at runtime
 
 ## Server endpoints ([src/mail/server.py](/src/mail/server.py))
-- **POST `/interswarm/message`** (agent): remote swarms call this with a `MAILInterswarmMessage`
-- **POST `/interswarm/response`** (agent): remote swarms can return a direct `MAILMessage` response
-- **POST `/interswarm/send`** (admin/user): convenience endpoint to send to `agent@remote-swarm` via a local user instance
+- **POST `/interswarm/forward`** (agent): remote swarms send initial messages for a new or resumed task; body `{ "message": MAILInterswarmMessage }`
+- **POST `/interswarm/back`** (agent): remote swarms send follow-up or completion payloads for an existing task; body `{ "message": MAILInterswarmMessage }`
+- **POST `/interswarm/message`** (admin/user): local callers proxy a task to a remote swarm; body `{ user_token, body, targets, ... }`
 
 ## Enabling interswarm
 - Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
 - Ensure your persistent swarm template enables interswarm where needed (see agents & supervisor tools)
+- Export `SWARM_AUTH_TOKEN_<REMOTE>` for every persistent remote entry before starting the server (the registry logs a warning if the variable is missing).
 - Start two servers on different ports; register them with each other using `/swarms` endpoints
 
 ## Example flow
 1. User calls `POST /message` locally
 2. (optional) If the entrypoint agent is not interswarm-enabled, forward the user's message to one that it
 3. Interswarm-enabled agent sends a message to `target@remote-swarm` using otherwise-equal MAIL syntax
-4. Router wraps the message and POSTs to the remote `POST /interswarm/message`
-5. Remote swarm processes and returns a `MAILMessage` response
-6. Local server correlates the response to the user’s original task, and feeds the response back to that swarm
-7. Local swarm calls `task_complete` upon finishing the task
+4. Router wraps the message and POSTs to the remote `/interswarm/forward`
+5. Remote swarm processes the task; whenever it has a response or needs to resume locally it POSTs `/interswarm/back` to the origin swarm
+6. Local server correlates each `/back` payload to the user’s original task and feeds it into the local runtime
+7. Local swarm calls `task_complete` once a `broadcast_complete` arrives through the `/back` channel
+
+## Runtime behavior
+- Local agents still need explicit `comm_targets` to message peers in the same swarm, even when the address includes `@<local-swarm>`.
+- Remote recipients (e.g. `supervisor@swarm-beta`) bypass the local `comm_targets` guard so interswarm traffic is not blocked when agent names overlap across swarms.

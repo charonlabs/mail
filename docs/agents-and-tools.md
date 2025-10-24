@@ -7,9 +7,10 @@
 - Values inside `agent_params` support string prefixes resolved at load time: use `python::package.module:OBJECT` for Python exports and `url::https://...` to fetch JSON payloads that populate prompts or additional settings
 
 ## Actions
-- A `MAILAction` defines a structured tool interface backed by a Python function (import string)
-- Actions are declared once per swarm in [swarms.json](/swarms.json) and agents reference them by name in their `actions` list
-- Actions can also be created from Pydantic basemodels and function defs with `MAILAction.from_pydantic_model()` in [src/mail/api.py](/src/mail/api.py)
+- A `MAILAction` defines a structured tool interface backed by a Python function (or coroutine)
+- Author new actions with the `@mail.action` decorator or `MAILAction.from_pydantic_model()` helper in [src/mail/api.py](/src/mail/api.py)
+- Declare actions once per swarm in [swarms.json](/swarms.json); agents reference them by name in their `actions` list
+- Reuse shared actions via the swarm-level `action_imports` array (see [docs/stdlib](./stdlib/README.md) for the built-in catalogue)
 - Conversion helpers build Pydantic models and tool specs: see `MAILAction.to_tool_dict()` and `pydantic_model_to_tool()` in [src/mail/core/tools.py](/src/mail/core/tools.py) and [src/mail/api.py](/src/mail/api.py)
 
 ## Tool format

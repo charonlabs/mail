@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 1.1
-- **Date**: October 14, 2025
+- **Version**: 1.2-pre1
+- **Date**: October 24, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -42,7 +42,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ### `MAILAddress`
 
-- **Fields**: `address_type` (enum: `agent|user|system`), `address` (string).
+- **Fields**: `address_type` (enum: `agent|admin|user|system`), `address` (string).
 - No `additionalProperties`.
 
 ### `MAILRequest`
@@ -81,22 +81,44 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ### `MAILInterswarmMessage` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
 
-- **Required**: `message_id` (string), `source_swarm` (string), `target_swarm` (string), `timestamp` (date-time), `payload` (object), `msg_type` (enum: `request|response|broadcast|interrupt`).
+- **Required**: `message_id` (string), `source_swarm` (string), `target_swarm` (string), `timestamp` (date-time), `payload` (object), `msg_type` (enum: `request|response|broadcast|interrupt`), `task_owner` (string), `task_contributors` (array).
 - **Optional**: `auth_token` (string), `metadata` (object).
 - Payload binding mirrors `MAILMessage` (payload is a core MAIL payload, not the outer wrapper).
 
 ## Addressing
 
-- **Local agent**: `agent-name`
-- **Interswarm agent**: `agent-name@swarm-name`
-- `MAILAddress` MUST include `address_type` and `address`.
+- **Local address**: `name`
+- **Remote (interswarm) address**: `name@swarm`
+  
+### Type `admin`
+
+- Reserved for system administrators of a given MAIL swarm.
+- Field `address` MUST be set to a unique identifier for each administrator.
+- Field `address` MAY be a traditional username if those are fully unique; the reference implementation uses randomly-generated UUIDs for consistency.
+
+### Type `agent`
+
+- Reserved for autonomous agents participating in MAIL.
+- Field `address` is used to identify agents; values of `address` MUST be unique within a swarm.
+- Field `address` MAY follow interswarm schema.
+
+### Type `system`
+
+- Reserved for the swarm instance (runtime and router).
+- Field `address` MUST be set to the swarm name.
+
+### Type `user`
+
+- Reserved for end-users of a given MAIL swarm.
+- Field `address` MUST be set to a unique identifier for each user.
+- Field `address` MAY be a traditional username if those are fully unique; the reference implementation uses randomly-generated UUIDs for consistency.
 
 ## Message Semantics
 
 ### Priority and Ordering
 
 - **Tier 1 (highest)**: `*` from `system`
-- **Tier 2**: `*` from `user`
+- **Tier 2**: `*` from `admin|user`
 - **Tier 3**: `interrupt` from `agent`
 - **Tier 4**: `broadcast` from `agent`
 - **Tier 5 (lowest)**: `request|response` from `agent`
@@ -108,18 +130,31 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **Multi-recipient messages** use `recipients` (`MAILBroadcast`/`MAILInterrupt`).
 - Special recipient `agent: all` indicates broadcast to all local agents. Therefore, every agent MUST NOT have `address=all`.
 
-### Task Lifecycle
-
-- A **user task** is identified by `task_id`.
-- The task **completes** when a `broadcast_complete` for the corresponding `task_id` is produced by a supervisor in the swarm that initiated it.
-- Systems using `submit_and_wait` MUST resolve awaiting futures only when `broadcast_complete` for that `task_id` is observed.
-- A given task MAY be referenced in a future request from the calling user, even after `task_complete`. Resumed tasks MUST also resolve only on `task_complete`.
-
 ### Body Encoding
 
 - `body` is free-form string. Systems MAY include structured content (e.g., XML snippets) for prompt formatting; no XML semantics are mandated by this spec.
 
+## Tasks
+
+- A MAIL **task** is identified by `task_id`.
+- The task **completes** when a `broadcast_complete` for the corresponding `task_id` is produced by a supervisor in the swarm that initiated it.
+- Systems using `submit_and_wait` MUST resolve awaiting futures only when `broadcast_complete` for that `task_id` is observed.
+- Instances MUST store agent communication histories scoped by `task_id`.
+- A given task MAY be referenced in a future request from the calling user, even after `task_complete`. Like new tasks, resumed tasks MUST resolve only on `task_complete`.
+
+### Interswarm
+
+- A given swarm MAY collaborate with remote swarms on a task.
+- If a remote swarm gets messaged for a task with `task_id` *A*, it MUST use `task_id` *A* in its corresponding task process.
+- Interswarm messages MUST include a field `task_owner`, containing the name of the instance where the task was created (in the format `role:id@swarm_name`).
+- Interswarm messages MUST include a field `task_contributors`, containing the names of all instances that have processed this task. This list MUST include the `task_owner`.
+- If a remote swarm calls `task_complete`, the finish message MUST be returned to the swarm instance that called it.
+- When the `task_owner` instance calls `task_complete`, the remote swarms that contributed MUST be notified.
+
 ## Routing Semantics
+
+- Implementers SHOULD impose limits on the agents reachable by any given agent.
+  - The reference implementation requires a field `comm_targets: list[str]` for every agent, which serves this purpose.
 
 ### Local Routing
 
@@ -128,13 +163,8 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ### Interswarm Routing
 
-- If a recipient address includes `@<other-swarm>`, the message MUST be wrapped in `MAILInterswarmMessage` and sent to the remote swarm’s `/interswarm/message` endpoint.
-- **Outbound rewrite rules**:
-  - Sender address SHOULD be rewritten to include the local swarm (e.g., `supervisor@local-swarm`).
-  - `sender_swarm` and `recipient_swarm` SHOULD be set accordingly.
-  - For request/response flows, routers SHOULD set `metadata.expect_response = true` when a response is expected.
-- **Inbound response handling**:
-  - The origin swarm MUST deliver interswarm responses back into the local MAIL pipeline for processing and task finalization.
+- If a swarm qualifier is present (i.e., one or more addresses follow the format `agent-name@swarm-name`), the message MUST be delivered to the corresponding agent(s) by name. 
+- If a remote agent does not exist or is otherwise unreachable, the sending agent MUST be notified.
 
 ## Runtime Model
 
@@ -208,13 +238,13 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 - HTTP Bearer[^rfc6750] authentication.
 - **Roles**:
-  - `agent`: may call `/interswarm/message`, `/interswarm/response`.
-  - `user`: may call `/status`, `/whoami`, `/message`, `/swarms`, `/interswarm/send`.
-  - `admin`: inherits `user` access and may additionally call `/swarms` (POST), `/swarms/dump`, `/swarms/load`.
+  - `agent`: MAY call `/interswarm/forward`, `/interswarm/back`.
+  - `user`: MAY call `/status`, `/whoami`, `/message`, `/swarms`, `/interswarm/message`.
+  - `admin`: inherits `user` access and MAY additionally call `/swarms` (POST), `/swarms/dump`, `/swarms/load`.
 
 ### Endpoints
 
-- **`GET /`**: Server metadata. Returns `{ name, status, version }`.
+- **`GET /`**: Server metadata. Returns `{ name, version, swarm, status, uptime }`.
 - **`GET /health`**: Health probe for interswarm peers. Returns `{ status, swarm_name, timestamp }`.
 - **`GET /status`** (`user|admin`): Server status, including swarm and user-instance indicators.
 - **`GET /whoami`** (`user|admin`): Returns `{ username, role }` derived from the presented token. Useful for clients to confirm identity/role assignments.
@@ -223,14 +253,14 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - **`POST /swarms`** (`admin`): Body `{ name, base_url, auth_token?, volatile?, metadata? }`. Registers or updates a remote swarm. Non-volatile entries persist across restarts.
 - **`GET /swarms/dump`** (`admin`): Logs the active persistent swarm and returns `{ status, swarm_name }`.
 - **`POST /swarms/load`** (`admin`): Body `{ json: string }`. Replaces the persistent swarm definition with the provided JSON payload.
-- **`POST /interswarm/message`** (`agent`): Body is `MAILInterswarmMessage`. Delivers the wrapped payload into local MAIL and returns a `MAILMessage` response for request/response flows.
-- **`POST /interswarm/response`** (`agent`): Body is `MAILMessage`. Submits a remote swarm response back into the origin MAIL pipeline; returns `{ status, task_id }`.
-- **`POST /interswarm/send`** (`user|admin`): Body `{ user_token: string, body: string, targets?: string[], subject?: string, msg_type?: request|broadcast, task_id?: string, routing_info?: object, stream?: boolean, ignore_stream_pings?: boolean }`. Callers MUST provide either `message` or `body`, and either `target_agent` (single-recipient request) or `targets` (broadcast). When `stream=true`, the runtime propagates interswarm streaming metadata (`routing_info.stream = true`) and returns `{ response: MAILMessage, events: ServerSentEvent[] | null }`.
+- **`POST /interswarm/forward`** (`agent`): Body `{ message: MAILInterswarmMessage }`. Initiate a local task on a remote swarm and begin processing.
+- **`POST /interswarm/back`** (`agent`): Body `{ message: MAILInterswarmMessage }`. Resume an existing task on a remote swarm and begin processing.
+- **`POST /interswarm/message`** (`user|admin`): Body `{ user_token: string, body: string, targets?: string[], subject?: string, msg_type?: request|broadcast, task_id?: string, routing_info?: object, stream?: boolean, ignore_stream_pings?: boolean }`. Callers MUST provide either `message` or `body`, and either `target_agent` (single-recipient request) or `targets` (broadcast). When `stream=true`, the runtime propagates interswarm streaming metadata (`routing_info.stream = true`) and returns `{ response: MAILMessage, events: ServerSentEvent[] | null }`.
 
 ## Swarm Registry
 
 - **Purpose**: Service discovery, endpoint metadata, and health checks.
-- Endpoint model fields: `swarm_name`, `base_url`, `health_check_url`, `auth_token_ref`, `last_seen`, `is_active`, `metadata`, `volatile`.
+- **Endpoint model fields**: `swarm_name`, `base_url`, `health_check_url`, `auth_token_ref`, `last_seen`, `is_active`, `metadata`, `volatile`.
 - **Persistence**: Non-volatile endpoints MUST be persisted and reloaded on startup. Persistent auth tokens SHOULD be stored as environment variable references and resolved at runtime.
 - **Health**: Registries SHOULD perform periodic health checks; inactive endpoints are marked and MAY be skipped for routing.
 - **Discovery**: Implementations MAY discover swarms via known discovery URLs and register-found endpoints.
@@ -238,17 +268,37 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 ## Authentication and Authorization
 
 - Bearer tokens are required for protected endpoints.
-- Tokens SHOULD encode role and identity; systems MAY derive `user_id` or `agent_id` from token info to isolate MAIL instances.
+- Tokens SHOULD encode role and identity; systems MAY derive an ID from the caller (`agent|user|admin`) and their token info to isolate MAIL instances.
 - For interswarm requests, the registry MAY attach per-swarm auth tokens in the `Authorization` header.
 
 ## Error Handling
 
-- Router errors SHOULD be returned as `MAILMessage` with `msg_type = response`, `sender = {"address_type": "system", "address": {swarm_name}}`, and `subject = "Router Error"`.
-- Unknown recipients and inactive swarms SHOULD be logged; callers MAY receive a router error response.
+### Runtime
+
+- MAIL runtime systems SHOULD detect errors and handle them gracefully.
+- Runtime-level errors MUST be handled in one of the following ways:
+  1. **System response**: The system `{ address_type=system, address={swarm_name} }` sends a `MAILResponse` to the agent that caused the error. The current task otherwise continues normally.
+  2. **System broadcast**: The system sends a `MAILBroadcast` to `agent=all` (all agents in the local swarm). This is intended for more swarm-wide issues, or cases where an individual causing agent cannot be determined. The task otherwise continues normally.
+  3. **System task completion**: The system sends a `MAILBroadcast` with `msg_type=broadcast_complete` to `agent=all` to prematurely end the current task. This is intended for errors that render task continuation unfeasible. Implementers SHOULD use this sparingly and with caution.
+- System error messages SHOULD be easily discernible from normal MAIL messages; no format is mandated by this spec.
+  - In the reference implementation, all system error messages have subjects delimited by two colons (e.g. `::task_error::`, `::tool_call_error::`).
+  
+### Router
+
+- MAIL interswarm routers SHOULD detect errors and route them accordingly.
+- If an error occurs while the router is attempting to receive an interswarm message, the error SHOULD propogate back to the server and a non-`200` HTTP response MUST be returned.
+- If an error occurs while the router is attempting to send an interswarm message, the error SHOULD propogate back to the runtime in the form of a system error message.
+
+### Server
+
+- MAIL servers SHOULD be sensitive in detecting errors, but robust in handling them.
+- If a client does not provide the required authentication in a request to a given endpoint, the server MUST return an HTTP response with status `401`.
+- If a client provides an otherwise-malformed request to a given endpoint, the server MUST return an HTTP response with status `400`.
+- If the server encounters an unexpected error while handling a client request, it MUST return an HTTP response with status `500`. 
 
 ## Security Considerations
 
-- Use TLS[^rfc8446] for all inter-swarm communication.
+- Use TLS[^rfc8446] for all interswarm communication.
 - Validate all incoming MAIL/Interswarm payloads against schemas prior to processing.
 - **Rate-limit public endpoints**; protect registry mutation operations (admin role).
 - **Avoid embedding secrets** in persisted registry; prefer environment variable references.
@@ -260,7 +310,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Versioning
 
-- **Protocol version**: 1.1
+- **Protocol version**: 1.2-pre1
 - Backward-incompatible changes MUST bump the minor (or major) version and update OpenAPI `info.version`.
 
 ## References

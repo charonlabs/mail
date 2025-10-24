@@ -25,6 +25,8 @@ class SwarmsJSONSwarm(TypedDict):
     """The name of the swarm's default entrypoint agent."""
     enable_interswarm: bool  # default: False
     """Whether to enable interswarm communication for this swarm."""
+    action_imports: list[str]  # default: []
+    """Python import strings that resolve to pre-built MAILAction instances."""
     agents: list["SwarmsJSONAgent"]
     """The agents in this swarm."""
     actions: list["SwarmsJSONAction"]

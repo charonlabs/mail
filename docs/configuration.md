@@ -48,6 +48,7 @@ verbose = false
 - Defines the persistent swarm template loaded on server startup
 - Sets the entrypoint agent and the set of available agents and actions
 - Agents are built via factories referenced by import path strings; prompts and actions are configured per agent
+- `action_imports` lets you reuse decorated `MAILAction` objects (for example from `mail.stdlib`) without duplicating their schema in `actions`
 - A formal JSON schema for `swarms.json` can be found in [docs/swarms-schema.json](/docs/swarms-schema.json)
 
 ### Minimal example
@@ -55,7 +56,7 @@ verbose = false
 [
     {
         "name": "example",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [
@@ -118,6 +119,10 @@ verbose = false
                 },
                 "function": "python::mail.examples.math_dummy.actions:calculate_expression"
             }
+        ],
+        "action_imports": [
+            "python::mail.stdlib.mcp.actions:mcp_ping",
+            "python::mail.stdlib.mcp.actions:mcp_list_tools"
         ]
     }
 ]

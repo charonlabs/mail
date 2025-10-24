@@ -39,7 +39,7 @@ def test_load_swarms_json_from_string_accepts_valid_list() -> None:
     swarms = [
         {
             "name": "demo",
-            "version": "1.1.1",
+            "version": "1.2.0",
             "entrypoint": "alpha",
             "agents": [],
             "actions": [],
@@ -55,7 +55,7 @@ def test_build_swarm_from_swarms_json_populates_defaults() -> None:
     """
     data = {
         "name": "demo",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "entrypoint": "alpha",
         "agents": [
             _minimal_agent("alpha", ["beta"]),
@@ -65,6 +65,7 @@ def test_build_swarm_from_swarms_json_populates_defaults() -> None:
     }
     swarm = build_swarm_from_swarms_json(data)
     assert swarm["enable_interswarm"] is False
+    assert swarm["action_imports"] == []
     alpha = swarm["agents"][0]
     assert alpha["enable_entrypoint"] is False
     assert alpha["enable_interswarm"] is False
@@ -108,3 +109,20 @@ def test_build_swarms_from_swarms_json_validates_each_entry() -> None:
     with pytest.raises(ValueError) as exc:
         build_swarms_from_swarms_json([invalid])
     assert "must contain" in str(exc.value)
+
+
+def test_build_swarm_from_swarms_json_rejects_bad_action_imports() -> None:
+    """
+    `action_imports` must be a list of strings.
+    """
+    data = {
+        "name": "demo",
+        "version": "1.2.0",
+        "entrypoint": "alpha",
+        "agents": [_minimal_agent("alpha", [])],
+        "actions": [],
+        "action_imports": ["python::tests.conftest:make_stub_agent", 123],
+    }
+    with pytest.raises(ValueError) as exc:
+        build_swarm_from_swarms_json(data)
+    assert "action_imports" in str(exc.value)

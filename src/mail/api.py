@@ -6,9 +6,10 @@ import datetime
 import inspect
 import logging
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
-from typing import Any, Literal
+from functools import wraps
+from typing import Any, Literal, TypeVar, get_type_hints
 
 from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
@@ -29,6 +30,7 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
+from mail.core.message import MAILInterswarmMessage
 from mail.core.tools import MAIL_TOOL_NAMES
 from mail.factories.base import MAILAgentFunction
 from mail.net import SwarmRegistry
@@ -46,6 +48,8 @@ from mail.swarms_json import (
 from mail.utils import read_python_string, resolve_prefixed_string_references
 
 logger = logging.getLogger("mail.api")
+
+ActionLike = TypeVar("ActionLike", bound=Callable[..., Awaitable[str] | str])
 
 
 class MAILAgent:
@@ -406,9 +410,19 @@ class MAILAction:
         self,
         function: str | ActionFunction,
     ) -> ActionFunction:
+        resolved_function: Any
         if isinstance(function, str):
-            return read_python_string(function)
-        return function
+            resolved_function = read_python_string(function)
+        else:
+            resolved_function = function
+
+        if isinstance(resolved_function, MAILAction):
+            return resolved_function.function
+        if not callable(resolved_function):
+            raise TypeError(
+                f"action function must be callable, got {type(resolved_function)}"
+            )
+        return resolved_function  # type: ignore[return-value]
 
     @staticmethod
     def from_pydantic_model(
@@ -527,6 +541,98 @@ class MAILAction:
                 function: str = Field(description=str(self.function))
 
             return MAILActionBaseModel
+
+
+def action(
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    model: type[BaseModel] | None = None,
+    parameters: dict[str, Any] | None = None,
+    style: Literal["completions", "responses"] = "responses",
+) -> Callable[[ActionLike], MAILAction]:
+    """
+    Decorator that converts a Python callable into a MAILAction.
+    """
+
+    if model is not None and not issubclass(model, BaseModel):
+        msg = f"model must be a subclass of BaseModel, got {model}"
+        raise TypeError(msg)
+
+    def decorator(func: ActionLike) -> MAILAction:
+        action_name = name or func.__name__
+        docstring = description or inspect.getdoc(func) or ""
+        clean_description = inspect.cleandoc(docstring)
+        if len(clean_description) < 1:
+            raise ValueError(
+                f"Action '{action_name}' is missing a description. Provide one via "
+                "`description=` or add a docstring."
+            )
+
+        signature = inspect.signature(func)
+        if len(signature.parameters) != 1:
+            raise TypeError(
+                f"Action '{action_name}' must accept exactly one argument matching the "
+                "tool payload."
+            )
+
+        resolved_model = model
+        if resolved_model is None:
+            type_hints = get_type_hints(func)
+            first_param_name = next(iter(signature.parameters))
+            candidate = type_hints.get(first_param_name)
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                resolved_model = candidate
+
+        if resolved_model and parameters:
+            raise ValueError(
+                f"Action '{action_name}' cannot specify both model= and parameters=."
+            )
+
+        if resolved_model:
+            tool_definition = pydantic_model_to_tool(
+                resolved_model,
+                name=action_name,
+                description=clean_description,
+                style=style,
+            )
+            action_parameters = tool_definition["parameters"]
+        elif parameters:
+            action_parameters = parameters
+        else:
+            raise ValueError(
+                f"Action '{action_name}' must provide either a model= or parameters=."
+            )
+
+        @wraps(func)
+        async def runner(payload: dict[str, Any]) -> str:
+            if resolved_model is not None:
+                parsed_payload = resolved_model.model_validate(payload)
+            else:
+                parsed_payload = payload  # type: ignore
+
+            result = func(parsed_payload)
+            if inspect.isawaitable(result):
+                result = await result
+
+            if not isinstance(result, str):
+                raise TypeError(
+                    f"Action '{action_name}' returned {type(result)}, expected str."
+                )
+
+            return result
+
+        mail_action = MAILAction(
+            name=action_name,
+            description=clean_description,
+            parameters=action_parameters,
+            function=runner,
+        )
+        mail_action.callback = func  # type: ignore[attr-defined]
+        mail_action.parameters_model = resolved_model  # type: ignore[attr-defined]
+        return mail_action
+
+    return decorator
 
 
 class MAILSwarm:
@@ -953,37 +1059,72 @@ class MAILSwarm:
             },
         )
 
-    async def handle_interswarm_response(self, response_message: MAILMessage) -> None:
-        """
-        Handle an incoming response from a remote swarm.
-        """
-        await self._runtime.handle_interswarm_response(response_message)
-
     def get_pending_requests(self) -> dict[str, asyncio.Future[MAILMessage]]:
         """
         Get the pending requests for the swarm.
         """
         return self._runtime.pending_requests
 
-    async def route_interswarm_message(
+    async def receive_interswarm_message(
         self,
-        message: MAILMessage,
-        *,
-        stream_handler: StreamHandler | None = None,
-        ignore_stream_pings: bool = False,
-    ) -> MAILMessage:
+        message: MAILInterswarmMessage,
+        direction: Literal["forward", "back"] = "forward",
+    ) -> None:
         """
-        Route an interswarm message to the appropriate destination.
+        Receive an interswarm message from a remote swarm.
         """
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
 
-        return await router.route_message(
-            message,
-            stream_handler=stream_handler,
-            ignore_stream_pings=ignore_stream_pings,
-        )
+        try:
+            if direction == "forward":
+                await router.receive_interswarm_message_forward(message)
+            elif direction == "back":
+                await router.receive_interswarm_message_back(message)
+            else:
+                raise ValueError(f"invalid direction: {direction}")
+        except Exception as e:
+            raise ValueError(f"error routing interswarm message: {e}")
+
+    async def send_interswarm_message(
+        self,
+        message: MAILInterswarmMessage,
+        direction: Literal["forward", "back"] = "forward",
+    ) -> None:
+        """
+        Send an interswarm message to a remote swarm.
+        """
+        router = self._runtime.interswarm_router
+        if router is None:
+            raise ValueError("interswarm router not available")
+
+        try:
+            if direction == "forward":
+                await router.send_interswarm_message_forward(message)
+            elif direction == "back":
+                await router.send_interswarm_message_back(message)
+            else:
+                raise ValueError(f"invalid direction: {direction}")
+        except Exception as e:
+            raise ValueError(f"error sending interswarm message: {e}")
+
+    async def post_interswarm_user_message(
+        self,
+        message: MAILInterswarmMessage,
+    ) -> MAILMessage:
+        """
+        Post a message (from an admin or user) to a remote swarm.
+        """
+        router = self._runtime.interswarm_router
+        if router is None:
+            raise ValueError("interswarm router not available")
+
+        try:
+            result = await router.post_interswarm_user_message(message)
+            return result
+        except Exception as e:
+            raise ValueError(f"error posting interswarm user message: {e}")
 
     def get_subswarm(
         self, names: list[str], name_suffix: str, entrypoint: str | None = None
@@ -1368,9 +1509,28 @@ class MAILSwarmTemplate:
         """
         Create a `MAILSwarmTemplate` from a pre-parsed `SwarmsJSONSwarm` definition.
         """
-        actions = [
+        inline_actions = [
             MAILAction.from_swarms_json(action) for action in swarm_data["actions"]
         ]
+        imported_actions: list[MAILAction] = []
+        for import_path in swarm_data.get("action_imports", []):
+            resolved = read_python_string(import_path)
+            if not isinstance(resolved, MAILAction):
+                raise TypeError(
+                    f"action import '{import_path}' in swarm '{swarm_data['name']}' did not resolve to a MAILAction"
+                )
+            imported_actions.append(resolved)
+
+        combined_actions: dict[str, MAILAction] = {}
+        for action in imported_actions + inline_actions:
+            existing = combined_actions.get(action.name)
+            if existing and existing is not action:
+                raise ValueError(
+                    f"duplicate action definition for '{action.name}' in swarm '{swarm_data['name']}'"
+                )
+            combined_actions[action.name] = action
+
+        actions = list(combined_actions.values())
         actions_by_name = {action.name: action for action in actions}
         agents = [
             MAILAgentTemplate.from_swarms_json(agent, actions_by_name)

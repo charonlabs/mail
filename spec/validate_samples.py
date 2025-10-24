@@ -103,6 +103,8 @@ def sample_interswarm_request_wrapper():
         "timestamp": iso_now(),
         "payload": payload,
         "msg_type": "request",
+        "task_owner": "user:123@swarm-a",
+        "task_contributors": ["user:123@swarm-a"],
         "metadata": {"expect_response": True},
     }
 
@@ -209,6 +211,8 @@ def sample_interswarm_response_wrapper():
         "timestamp": iso_now(),
         "payload": payload,
         "msg_type": "response",
+        "task_owner": "user:123@swarm-a",
+        "task_contributors": ["user:123@swarm-a", "swarm:swarm-a@swarm-b"],
         "metadata": {"expect_response": False},
     }
 

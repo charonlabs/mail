@@ -101,3 +101,11 @@ def get_default_entrypoint_agent(
     Get the default entrypoint agent from the swarm template.
     """
     return swarm_template.entrypoint
+
+
+def init_task_bindings_dict() -> dict[str, dict[str, str]]:
+    """
+    Initialize the task bindings dictionary.
+    Should always be empty on startup.
+    """
+    return {}

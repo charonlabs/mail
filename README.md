@@ -46,7 +46,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 
 ### Transport Requirements
 - The **normative HTTP binding** is published in [spec/openapi.yaml](/spec/openapi.yaml) and implemented by the reference **FastAPI** service.
-- **`/message`** handles user tasks and local agent traffic. **`/interswarm/message`** federates swarms.
+- **`/message`** handles user tasks and local agent traffic. **`/interswarm/forward`** / **`/interswarm/back`** move agent traffic between swarms, and **`/interswarm/message`** proxies user/admin requests to a remote swarm.
 - Implementations MUST replay responses from remote swarms back into the local queue to complete task lifecycles.
 
 ### Conformance & Validation
@@ -87,7 +87,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.1.1
+git clone https://github.com/charonlabs/mail --branch v1.2.0
 cd mail
 
 # Install dependencies (preferred)

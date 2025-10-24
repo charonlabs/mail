@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Addison Kline
 
 import asyncio
+import copy
 import datetime
 import tempfile
 import uuid
@@ -14,9 +15,11 @@ from mail.core.agents import AgentCore
 from mail.core.message import (
     MAILBroadcast,
     MAILInterrupt,
+    MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
     create_agent_address,
+    format_agent_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
 from mail.core.tools import AgentToolCall
@@ -370,6 +373,374 @@ async def test_agent_can_await_message_records_event() -> None:
     while not runtime.message_queue.empty():
         runtime.message_queue.get_nowait()
         runtime.message_queue.task_done()
+
+
+class _SpyRouter:
+    def __init__(self) -> None:
+        self.convert_calls: list[tuple[MAILMessage, str, list[str]]] = []
+        self.forward_sent: list[MAILInterswarmMessage] = []
+        self.back_sent: list[MAILInterswarmMessage] = []
+
+    def convert_local_message_to_interswarm(
+        self,
+        message: MAILMessage,
+        task_owner: str,
+        task_contributors: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> MAILInterswarmMessage:
+        self.convert_calls.append(
+            (copy.deepcopy(message), task_owner, list(task_contributors))
+        )
+        recipient_swarms = message.get("recipient_swarms")
+        assert isinstance(recipient_swarms, list) and recipient_swarms
+        target_swarm = recipient_swarms[0]
+        payload = copy.deepcopy(message["message"])
+        return MAILInterswarmMessage(
+            message_id=str(uuid.uuid4()),
+            source_swarm="swarm-alpha",
+            target_swarm=target_swarm,
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+            payload=payload,
+            msg_type=message["msg_type"],  # type: ignore
+            auth_token="token-remote",
+            task_owner=task_owner,
+            task_contributors=list(task_contributors),
+            metadata=metadata or {},
+        )
+
+    async def send_interswarm_message_forward(
+        self, message: MAILInterswarmMessage
+    ) -> None:
+        self.forward_sent.append(message)
+
+    async def send_interswarm_message_back(
+        self, message: MAILInterswarmMessage
+    ) -> None:
+        self.back_sent.append(message)
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_message_forward_delegates_to_router() -> None:
+    """
+    Test that the runtime delegates to the interswarm router when sending an interswarm message to a remote swarm.
+    """
+    runtime = MAILRuntime(
+        agents={"analyst": _create_agent_core(comm_targets=[])},
+        actions={},
+        user_id="user-remote",
+        user_role="user",
+        swarm_name="swarm-alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+
+    router = _SpyRouter()
+    runtime.interswarm_router = router  # type: ignore[assignment]
+
+    task_id = "task-remote"
+    runtime._ensure_task_exists(task_id)
+
+    outbound = _make_request(
+        task_id,
+        sender="supervisor",
+        recipient="analyst@swarm-beta",
+    )
+    outbound["recipient_swarms"] = ["swarm-beta"]  # type: ignore
+
+    await runtime._send_interswarm_message(outbound)
+
+    assert router.convert_calls, (
+        "expected convert_local_message_to_interswarm to be called"
+    )
+    (converted_message, owner, contributors) = router.convert_calls[0]
+    assert converted_message["message"]["task_id"] == task_id
+    assert owner == runtime.mail_tasks[task_id].task_owner
+    assert contributors == runtime.mail_tasks[task_id].task_contributors
+    assert router.forward_sent, "expected forward send call"
+    assert router.forward_sent[0]["target_swarm"] == "swarm-beta"
+
+
+@pytest.mark.asyncio
+async def test_send_interswarm_message_back_delegates_to_router() -> None:
+    """
+    Test that the runtime delegates to the interswarm router when replying to a remote swarm.
+    """
+    runtime = MAILRuntime(
+        agents={"analyst": _create_agent_core(comm_targets=[])},
+        actions={},
+        user_id="user-remote",
+        user_role="user",
+        swarm_name="swarm-alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+
+    router = _SpyRouter()
+    runtime.interswarm_router = router  # type: ignore[assignment]
+
+    task_id = "task-remote"
+    runtime._ensure_task_exists(task_id)
+    task_state = runtime.mail_tasks[task_id]
+    task_state.task_contributors.append("agent:remote@swarm-beta")
+
+    response = MAILMessage(
+        id=str(uuid.uuid4()),
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        message={
+            "task_id": task_id,
+            "request_id": str(uuid.uuid4()),
+            "sender": create_agent_address("supervisor"),
+            "recipient": format_agent_address("supervisor", "swarm-beta"),
+            "subject": "::task_complete::",
+            "body": "Done",
+            "sender_swarm": "swarm-alpha",
+            "recipient_swarm": "swarm-beta",
+            "routing_info": {},
+        },
+        msg_type="response",
+    )
+    response["recipient_swarms"] = ["swarm-beta"]  # type: ignore
+
+    await runtime._send_interswarm_message(response)
+
+    assert router.convert_calls, (
+        "expected convert_local_message_to_interswarm to be called"
+    )
+    assert not router.forward_sent
+    assert router.back_sent
+    assert router.back_sent[0]["target_swarm"] == "swarm-beta"
+
+
+@pytest.mark.asyncio
+async def test_task_complete_idempotent_stashes_queue() -> None:
+    """
+    When a task is completed, the runtime should stash the message queue and mark the task as complete.
+    """
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-complete",
+        user_role="user",
+        swarm_name="swarm-alpha",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-complete"
+    runtime._ensure_task_exists(task_id)
+
+    follow_up = _make_broadcast(task_id, subject="Follow-up")
+    await runtime.submit(follow_up)
+    assert runtime.message_queue.qsize() == 1
+
+    call = AgentToolCall(
+        tool_name="task_complete",
+        tool_args={"finish_message": "done"},
+        tool_call_id="call-1",
+        completion={"role": "assistant", "content": "done"},
+    )
+
+    await runtime._handle_task_complete_call(task_id, "supervisor", call)
+
+    task_state = runtime.mail_tasks[task_id]
+    assert task_state.completed is True
+    assert task_state.task_message_queue, "expected queued messages to be stashed"
+
+    priority, seq, queued_message = await runtime.message_queue.get()
+    assert queued_message["msg_type"] == "broadcast_complete"
+    runtime.message_queue.task_done()
+    assert runtime.message_queue.empty()
+
+    duplicate_call = AgentToolCall(
+        tool_name="task_complete",
+        tool_args={"finish_message": "done"},
+        tool_call_id="call-2",
+        completion={"role": "assistant", "content": "done"},
+    )
+
+    await runtime._handle_task_complete_call(task_id, "supervisor", duplicate_call)
+
+    assert runtime.message_queue.empty()
+    history_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name="supervisor")
+    assert history_key in runtime.agent_histories
+    assert (
+        runtime.agent_histories[history_key][-1]["content"]
+        == "SUCCESS: task already completed"
+    )
+
+    events = runtime.get_events_by_task_id(task_id)
+    assert any(ev.event == "task_complete_call" for ev in events)
+    assert any(ev.event == "task_complete_call_duplicate" for ev in events)
+
+
+@pytest.mark.asyncio
+async def test_task_complete_resolves_pending_future() -> None:
+    """
+    When a task is completed, the runtime should resolve the pending future.
+    """
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-pending",
+        user_role="user",
+        swarm_name="pending-swarm",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-future"
+    runtime._ensure_task_exists(task_id)
+
+    pending: asyncio.Future[MAILMessage] = asyncio.Future()
+    runtime.pending_requests[task_id] = pending
+
+    call = AgentToolCall(
+        tool_name="task_complete",
+        tool_args={"finish_message": "great success"},
+        tool_call_id="call-pending",
+        completion={"role": "assistant", "content": "done"},
+    )
+
+    await runtime._handle_task_complete_call(task_id, "supervisor", call)
+
+    assert pending.done(), "expected pending future to resolve immediately"
+    result = pending.result()
+    assert result["msg_type"] == "broadcast_complete"
+    assert result["message"]["body"] == "great success"
+    assert runtime.response_messages[task_id]["message"]["body"] == "great success"
+
+    events = runtime.get_events_by_task_id(task_id)
+    assert events, "expected streaming events to be emitted"
+    final_event = events[-1]
+    assert final_event.event == "new_message"
+    assert isinstance(final_event.data, dict)
+    extra = final_event.data.get("extra_data", {})
+    assert (
+        extra
+        and extra.get("full_message", {}).get("message", {}).get("body")
+        == "great success"
+    )
+
+
+@pytest.mark.asyncio
+async def test_interswarm_message_preserves_user_pending_future() -> None:
+    """
+    When a user sends an interswarm message, the runtime should preserve the pending future.
+    """
+    runtime = MAILRuntime(
+        agents={"supervisor": _create_agent_core(comm_targets=[])},
+        actions={},
+        user_id="user-pend",
+        user_role="user",
+        swarm_name="alpha",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-user"
+    runtime._ensure_task_exists(task_id)
+    pending: asyncio.Future[MAILMessage] = asyncio.Future()
+    runtime.pending_requests[task_id] = pending
+
+    interswarm_message = MAILInterswarmMessage(
+        message_id=str(uuid.uuid4()),
+        source_swarm="swarm-beta",
+        target_swarm="alpha",
+        timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+        payload=MAILRequest(
+            task_id=task_id,
+            request_id=str(uuid.uuid4()),
+            sender=format_agent_address("remote-agent", "swarm-beta"),
+            recipient=format_agent_address("supervisor", "alpha"),
+            subject="Hello",
+            body="Body",
+            sender_swarm="swarm-beta",
+            recipient_swarm="alpha",
+            routing_info={},
+        ),
+        msg_type="request",
+        auth_token="token-remote",
+        task_owner=runtime.this_owner,
+        task_contributors=["agent:remote@swarm-beta", runtime.this_owner],
+        metadata={},
+    )
+
+    await runtime._receive_interswarm_message(interswarm_message)
+
+    assert runtime.pending_requests[task_id] is pending
+    priority, seq, queued_message = await runtime.message_queue.get()
+    runtime.message_queue.task_done()
+
+    assert queued_message["message"]["task_id"] == task_id
+
+
+@pytest.mark.asyncio
+async def test_task_complete_notifies_remote_swarms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-remote-complete",
+        user_role="user",
+        swarm_name="alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+
+    notified: dict[str, tuple[str, str, str] | None] = {"args": None}
+
+    async def fake_notify(
+        self: MAILRuntime, task: str, finish: str, caller: str
+    ) -> None:
+        notified["args"] = (task, finish, caller)
+
+    monkeypatch.setattr(MAILRuntime, "_notify_remote_task_complete", fake_notify)
+
+    task_id = "task-remote-complete"
+    runtime._ensure_task_exists(task_id)
+    runtime.mail_tasks[task_id].add_remote_swarm("swarm-beta")
+
+    call = AgentToolCall(
+        tool_name="task_complete",
+        tool_args={"finish_message": "All done"},
+        tool_call_id="tc-remote",
+        completion={"role": "assistant", "content": "done"},
+    )
+
+    await runtime._handle_task_complete_call(task_id, "supervisor", call)
+
+    assert runtime.mail_tasks[task_id].remote_swarms == {"swarm-beta"}
+    assert notified["args"] == (task_id, "All done", "supervisor")
+
+
+@pytest.mark.asyncio
+async def test_notify_remote_task_complete_sends_message() -> None:
+    runtime = MAILRuntime(
+        agents={},
+        actions={},
+        user_id="user-notify",
+        user_role="user",
+        swarm_name="alpha",
+        entrypoint="supervisor",
+        enable_interswarm=True,
+    )
+    sent: list[MAILMessage] = []
+    runtime.interswarm_router = object()  # type: ignore[assignment]
+
+    async def fake_send(self: MAILRuntime, message: MAILMessage) -> None:
+        sent.append(message)
+
+    runtime._send_interswarm_message = MethodType(fake_send, runtime)  # type: ignore[assignment]
+
+    task_id = "task-notify"
+    runtime._ensure_task_exists(task_id)
+    runtime.mail_tasks[task_id].add_remote_swarm("swarm-beta")
+
+    await runtime._notify_remote_task_complete(task_id, "Done", "supervisor")
+
+    assert sent, "expected interswarm completion message"
+    outbound = sent[0]
+    assert outbound["message"]["task_id"] == task_id
+    assert outbound["msg_type"] == "response"
+    assert outbound["message"]["subject"] == "::task_complete::"
 
 
 @pytest.mark.asyncio

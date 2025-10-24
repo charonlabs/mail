@@ -93,7 +93,6 @@ class PostMessageResponse(TypedDict):
 
     response: str
     """The response from the MAIL instance."""
-
     events: list[ServerSentEvent] | None
     """The events from the MAIL instance."""
 
@@ -105,10 +104,8 @@ class GetHealthResponse(TypedDict):
 
     status: str
     """The status of the MAIL instance."""
-
     swarm_name: str
     """The name of the swarm."""
-
     timestamp: str
     """The timestamp of the response."""
 
@@ -129,7 +126,6 @@ class PostSwarmsResponse(TypedDict):
 
     status: str
     """The status of the response."""
-
     swarm_name: str
     """The name of the swarm."""
 
@@ -141,7 +137,6 @@ class GetSwarmsDumpResponse(TypedDict):
 
     status: str
     """The status of the response."""
-
     swarm_name: str
     """The name of the swarm."""
 
@@ -153,33 +148,38 @@ class PostInterswarmMessageResponse(TypedDict):
 
     response: MAILMessage
     """The response from the MAIL instance."""
-
     events: list[ServerSentEvent] | None
     """The events from the MAIL instance."""
 
 
-class PostInterswarmResponseResponse(TypedDict):
+class PostInterswarmForwardResponse(TypedDict):
     """
-    Response for the MAIL server endpoint `POST /interswarm/response`.
+    Response for the MAIL server endpoint `POST /interswarm/forward`.
     """
 
+    swarm: str
+    """The name of the swarm."""
+    task_id: str
+    """The task ID of the interswarm message."""
     status: str
     """The status of the response."""
+    local_runner: str
+    """The local runner of the swarm (role:id@swarm)."""
 
+
+class PostInterswarmBackResponse(TypedDict):
+    """
+    Response for the MAIL server endpoint `POST /interswarm/back`.
+    """
+
+    swarm: str
+    """The name of the swarm."""
     task_id: str
-    """The task ID of the response."""
-
-
-class PostInterswarmSendResponse(TypedDict):
-    """
-    Response for the MAIL server endpoint `POST /interswarm/send`.
-    """
-
-    response: MAILMessage
-    """The response from the MAIL instance."""
-
-    events: list[ServerSentEvent] | None
-    """The events from the MAIL instance."""
+    """The task ID of the interswarm message."""
+    status: str
+    """The status of the response."""
+    local_runner: str
+    """The local runner of the swarm (role:id@swarm)."""
 
 
 class PostSwarmsLoadResponse(TypedDict):
@@ -189,6 +189,5 @@ class PostSwarmsLoadResponse(TypedDict):
 
     status: str
     """The status of the response."""
-
     swarm_name: str
     """The name of the swarm."""

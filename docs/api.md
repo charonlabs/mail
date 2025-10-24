@@ -24,17 +24,16 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpoint] }` | Lists swarms known to the local registry |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
-| POST | `/interswarm/message` | `Bearer` token with role `agent` | `MAILInterswarmMessage { message_id, source_swarm, target_swarm, payload, ... }` | `MAILMessage` (task response) | Routes an inbound interswarm request into the local runtime and returns the generated response |
-| POST | `/interswarm/response` | `Bearer` token with role `agent` | `MAILMessage { id, msg_type, message }` | `types.PostInterswarmResponseResponse { status, task_id }` | Injects a remote swarm response into the pending task queue |
-| POST | `/interswarm/send` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmSendResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Sends an outbound interswarm message (request or broadcast) using an existing user runtime |
+| POST | `/interswarm/forward` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmForwardResponse { swarm, task_id, status, local_runner }` | Accepts a remote swarm's new-task payload and spawns/attaches a local runtime |
+| POST | `/interswarm/back` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmBackResponse { swarm, task_id, status, local_runner }` | Injects a follow-up or completion payload from the remote swarm into the active local runtime |
+| POST | `/interswarm/message` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmMessageResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Proxies a user/admin task to a remote swarm using the caller's runtime and interswarm router |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
 
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
 - When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
-- To stream interswarm interactions, set `metadata.stream = true` on the `MAILInterswarmMessage`. The receiving swarm will return a `text/event-stream` response; add `metadata.ignore_stream_pings = true` if you prefer to suppress heartbeat `ping` events.
-- `POST /interswarm/send` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror the new interswarm streaming behaviour described above.
+- `POST /interswarm/message` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror local streaming; the server copies those hints into the interswarm `routing_info` it sends downstream.
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field
@@ -97,9 +96,34 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Key methods**:
   - `from_pydantic_model(model, function_str, name?, description?) -> MAILAction`: build from a Pydantic model definition.
   - `from_swarm_json(json_str) -> MAILAction`: rebuild from persisted `swarms.json` entries.
-  - `to_tool_dict(style="responses"|"completions") -> dict[str, Any]`: emit an OpenAI-compatible tool declaration.
-  - `to_pydantic_model(for_tools: bool = False) -> type[BaseModel]`: create a Pydantic model for validation or schema reuse.
-  - `_validate() -> None` and `_build_action_function(function) -> ActionFunction`: internal guards and loader utilities.
+   - `to_tool_dict(style="responses"|"completions") -> dict[str, Any]`: emit an OpenAI-compatible tool declaration.
+   - `to_pydantic_model(for_tools: bool = False) -> type[BaseModel]`: create a Pydantic model for validation or schema reuse.
+   - `_validate() -> None` and `_build_action_function(function) -> ActionFunction`: internal guards and loader utilities.
+
+#### `action` decorator (`mail.api`)
+- **Summary**: Decorator that turns a Python callable into a `MAILAction`, wiring up schema validation and tool metadata automatically.
+- **Parameters**:
+  - `name: str | None` – optional override; defaults to the function name.
+  - `description: str | None` – required unless supplied via docstring.
+  - `model: type[BaseModel] | None` – payload schema; inferred from the first argument annotation when it is a `BaseModel` subclass.
+  - `parameters: dict[str, Any] | None` – manual JSON schema (mutually exclusive with `model`).
+  - `style: Literal["responses", "completions"]` – schema flavor passed to `pydantic_model_to_tool` (default `"responses"`).
+- **Usage**:
+  ```python
+  from pydantic import BaseModel
+  from mail import action
+
+  class WeatherRequest(BaseModel):
+      city: str
+
+  @action(description="Return weather information for the requested city.")
+  async def get_weather(payload: WeatherRequest) -> str:
+      forecast = lookup_forecast(payload.city)
+      return forecast.json()
+
+  # get_weather is now a MAILAction ready to install on an agent:
+  weather_action = get_weather
+  ```
 
 #### `MAILAgent` (`mail.api`)
 - **Summary**: Concrete runtime agent produced by an agent factory and associated actions.
@@ -138,6 +162,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILSwarmTemplate` (`mail.api`)
 - **Summary**: Immutable swarm blueprint comprised of `MAILAgentTemplate`s and shared actions.
+- **Notes**: Inline definitions from `actions` may be combined with `action_imports` that resolve to decorated `MAILAction` objects (e.g., from `mail.stdlib`).
 - **Constructor parameters**: `name: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`.
 - **Key methods**:
   - `instantiate(instance_params, user_id?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).

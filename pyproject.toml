@@ -1,6 +1,6 @@
 [project]
 name = "mail"
-version = "1.1.1"
+version = "1.2.0"
 description = "Multi-Agent Interface Layer reference implementation"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,6 +24,7 @@ dependencies = [
     "litellm>=1.76.2",
     "numpydoc>=1.9.0",
     "openai>=1.106.1",
+    "fastmcp>=2.12.5",
 ]
 license = "Apache-2.0"
 classifiers = [

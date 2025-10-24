@@ -45,6 +45,30 @@
             "$ref": "#/definitions/Action"
           },
           "default": []
+        },
+        "breakpoint_tools": {
+          "type": "array",
+          "description": "Names of MAIL tools that should trigger a breakpoint when invoked",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "exclude_tools": {
+          "type": "array",
+          "description": "Names of built-in MAIL tools removed from the swarm",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "action_imports": {
+          "type": "array",
+          "description": "Python import strings resolving to pre-built MAILAction objects (e.g., 'python::mail.stdlib.mcp.actions:mcp_ping')",
+          "items": {
+            "type": "string"
+          },
+          "default": []
         }
       }
     },

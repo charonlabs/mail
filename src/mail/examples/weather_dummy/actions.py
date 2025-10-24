@@ -6,7 +6,34 @@ import json
 from random import Random
 from typing import Any
 
+from mail import action
 
+
+WEATHER_FORECAST_PARAMETERS = {
+    "type": "object",
+    "properties": {
+        "location": {
+            "type": "string",
+            "description": "The location to get the weather forecast for",
+        },
+        "days_ahead": {
+            "type": "integer",
+            "description": "The number of days ahead to get the weather forecast for",
+        },
+        "metric": {
+            "type": "boolean",
+            "description": "Whether to use metric units",
+        },
+    },
+    "required": ["location", "days_ahead", "metric"],
+}
+
+
+@action(
+    name="get_weather_forecast",
+    description="Get the weather forecast for a given location.",
+    parameters=WEATHER_FORECAST_PARAMETERS,
+)
 async def get_weather_forecast(args: dict[str, Any]) -> str:
     """
     Dummy action that returns the weather "forecast" for a given location.
