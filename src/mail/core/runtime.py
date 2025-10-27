@@ -368,11 +368,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     if isinstance(task_id_completed, str):
                         self.response_messages[task_id_completed] = message
                         self._ensure_task_exists(task_id_completed)
-                        if (
-                            not message["message"]["subject"]
-                            == "::breakpoint_tool_call::"
-                        ):
-                            self.mail_tasks[task_id_completed].mark_complete()
+                        self.mail_tasks[task_id_completed].mark_complete()
                         await self.mail_tasks[task_id_completed].queue_stash(
                             self.message_queue
                         )
@@ -617,11 +613,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     self.response_messages[task_id] = message
                     if isinstance(task_id, str):
                         self._ensure_task_exists(task_id)
-                        if (
-                            not message["message"]["subject"]
-                            == "::breakpoint_tool_call::"
-                        ):
-                            self.mail_tasks[task_id].mark_complete()
+                        self.mail_tasks[task_id].mark_complete()
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
                     if isinstance(task_id, str) and task_id in self.pending_requests:
                         # Resolve the pending request
