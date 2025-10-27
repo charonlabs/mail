@@ -127,7 +127,14 @@ class SwarmOAIClient:
                 )
             else:
                 for input_item in reversed(input):
-                    if "role" in input_item and input_item["role"] == "user":
+                    if (
+                        ("role" in input_item and input_item["role"] == "assistant")
+                        or "type" in input_item
+                        and (
+                            input_item["type"]
+                            in ["function_call_output", "function_call"]
+                        )
+                    ):
                         break
                     body = f"<environment>\n{input_item['content']}\n</environment>\n\n{body}"
                 out, events = await swarm.post_message(
