@@ -140,6 +140,8 @@ class SwarmOAIClient:
                 print(f"[DEBUG] swarm.post_message returned out={out} events={events}")
             else:
                 for input_item in reversed(input):
+                    if isinstance(input_item, BaseModel):
+                        input_item = input_item.model_dump()
                     if (
                         ("role" in input_item and input_item["role"] == "assistant")
                         or "type" in input_item
@@ -149,9 +151,7 @@ class SwarmOAIClient:
                         )
                     ):
                         break
-                    if isinstance(input_item, BaseModel):
-                        input_item = input_item.model_dump()
-                    body = f"<environment>\n{input_item['content']}\n</environment>\n\n{body}"
+                    body = f"{input_item['content']}\n\n{body}"
                 out, events = await swarm.post_message(
                     body=body,
                     subject="Task Request",
