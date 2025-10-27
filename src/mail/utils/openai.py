@@ -11,6 +11,7 @@ from openai.types.responses import (
     ResponseFunctionToolCall,
 )
 from openai._utils._transform import transform
+from rich import print
 import ujson
 
 from mail.api import MAILSwarmTemplate, MAILSwarm, MAILAction
@@ -45,6 +46,15 @@ class SwarmOAIClient:
             parallel_tool_calls: bool = True,
             **kwargs: Any,
         ) -> Response:
+            print("=== Create args ===")
+            print(f"input: {input}")
+            print(f"tools: {tools}")
+            print(f"instructions: {instructions}")
+            print(f"previous_response_id: {previous_response_id}")
+            print(f"tool_choice: {tool_choice}")
+            print(f"parallel_tool_calls: {parallel_tool_calls}")
+            print(f"kwargs: {kwargs}")
+            print("=== ===")
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
                 complete_agent = next(
