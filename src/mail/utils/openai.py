@@ -47,15 +47,6 @@ class SwarmOAIClient:
             parallel_tool_calls: bool = True,
             **kwargs: Any,
         ) -> Response:
-            print("=== Create args ===")
-            print(f"input: {input}")
-            print(f"tools: {tools}")
-            print(f"instructions: {instructions}")
-            print(f"previous_response_id: {previous_response_id}")
-            print(f"tool_choice: {tool_choice}")
-            print(f"parallel_tool_calls: {parallel_tool_calls}")
-            print(f"kwargs: {kwargs}")
-            print("=== ===")
             if self.owner.swarm is None:
                 new_swarm = self.owner.template
                 complete_agent = next(
@@ -139,9 +130,12 @@ class SwarmOAIClient:
                 )
                 print(f"[DEBUG] swarm.post_message returned out={out} events={events}")
             else:
+                print("[DEBUG] Entering default (non-function_call_output) block.")
                 for input_item in reversed(input):
+                    print(f"[DEBUG] Inspecting input_item: {input_item}")
                     if isinstance(input_item, BaseModel):
                         input_item = input_item.model_dump()
+                        print(f"[DEBUG] Converted BaseModel to dict: {input_item}")
                     if (
                         ("role" in input_item and input_item["role"] == "assistant")
                         or "type" in input_item
@@ -150,14 +144,19 @@ class SwarmOAIClient:
                             in ["function_call_output", "function_call"]
                         )
                     ):
+                        print(
+                            "[DEBUG] Breaking out of standard input-item scan loop (encountered assistant/function type)."
+                        )
                         break
                     body = f"{input_item['content']}\n\n{body}"
+                print(f"[DEBUG] Assembled body for post_message:\n{body}")
                 out, events = await swarm.post_message(
                     body=body,
                     subject="Task Request",
                     task_id=previous_response_id,
                     show_events=True,
                 )
+                print(f"[DEBUG] swarm.post_message returned out={out} events={events}")
             response_id = out["message"]["task_id"]
             dump = dump_mail_result(result=out, events=events, verbose=True)
             if not response_id in self.owner.result_dumps:
