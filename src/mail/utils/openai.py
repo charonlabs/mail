@@ -1,21 +1,18 @@
 import asyncio
+import uuid
 from datetime import datetime
 from typing import Any
-import uuid
 
+import ujson
 from openai.types.responses import (
     Response,
-    ResponseInputItem,
+    ResponseFunctionToolCall,
     ResponseOutputMessage,
     ResponseOutputText,
-    ResponseFunctionToolCall,
 )
-from openai._utils._transform import transform
 from pydantic import BaseModel
-from rich import print
-import ujson
 
-from mail.api import MAILSwarmTemplate, MAILSwarm, MAILAction
+from mail.api import MAILAction, MAILSwarm, MAILSwarmTemplate
 from mail.utils.serialize import dump_mail_result
 
 
@@ -98,28 +95,20 @@ class SwarmOAIClient:
             swarm = self.owner.swarm
             body = ""
             if "type" in input[-1] and input[-1]["type"] == "function_call_output":
-                print("[DEBUG] Entering function_call_output block.")
-                print(f"[DEBUG] input[-1]: {input[-1]}")
                 tool_responses: list[dict[str, Any]] = []
                 for input_item in reversed(input):
-                    print(f"[DEBUG] Inspecting input_item: {input_item}")
                     if (
                         "type" not in input_item
                         or input_item["type"] == "function_call"
                     ):
-                        print("[DEBUG] Breaking out of function_call_output scan loop.")
                         break
                     if input_item["type"] == "function_call_output":
-                        print(
-                            f"[DEBUG] Found function_call_output: call_id={input_item['call_id']}, output={input_item['output']}"
-                        )
                         tool_responses.append(
                             {
                                 "call_id": input_item["call_id"],
                                 "content": input_item["output"],
                             }
                         )
-                print(f"[DEBUG] tool_responses prepared: {tool_responses}")
                 out, events = await swarm.post_message(
                     body="",
                     subject="Tool Response",
@@ -128,14 +117,10 @@ class SwarmOAIClient:
                     resume_from="breakpoint_tool_call",
                     breakpoint_tool_call_result=tool_responses,
                 )
-                print(f"[DEBUG] swarm.post_message returned out={out} events={events}")
             else:
-                print("[DEBUG] Entering default (non-function_call_output) block.")
                 for input_item in reversed(input):
-                    print(f"[DEBUG] Inspecting input_item: {input_item}")
                     if isinstance(input_item, BaseModel):
                         input_item = input_item.model_dump()
-                        print(f"[DEBUG] Converted BaseModel to dict: {input_item}")
                     if (
                         ("role" in input_item and input_item["role"] == "assistant")
                         or "type" in input_item
@@ -144,22 +129,17 @@ class SwarmOAIClient:
                             in ["function_call_output", "function_call"]
                         )
                     ):
-                        print(
-                            "[DEBUG] Breaking out of standard input-item scan loop (encountered assistant/function type)."
-                        )
                         break
                     body = f"{input_item['content']}\n\n{body}"
-                print(f"[DEBUG] Assembled body for post_message:\n{body}")
                 out, events = await swarm.post_message(
                     body=body,
                     subject="Task Request",
                     task_id=previous_response_id,
                     show_events=True,
                 )
-                print(f"[DEBUG] swarm.post_message returned out={out} events={events}")
             response_id = out["message"]["task_id"]
             dump = dump_mail_result(result=out, events=events, verbose=True)
-            if not response_id in self.owner.result_dumps:
+            if response_id not in self.owner.result_dumps:
                 self.owner.result_dumps[response_id] = []
             self.owner.result_dumps[response_id].append(dump)
             has_called_tools = out["message"]["subject"] == "::breakpoint_tool_call::"
@@ -190,7 +170,6 @@ class SwarmOAIClient:
                 )
             tool_calls: list[ResponseFunctionToolCall] = []
             body = ujson.loads(out["message"]["body"])
-            print(f"=== Body ===\n{body}\n=== ===")
             for tool_call in body:
                 tool_calls.append(
                     ResponseFunctionToolCall(
