@@ -954,6 +954,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             logger.info(
                 f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload is a list and has breakpoint context"
             )
+            logger.info(
+                f"Current breakpoint tool calls: {self.last_breakpoint_tool_calls}"
+            )
             for resp in payload:
                 og_call = next(
                     (
