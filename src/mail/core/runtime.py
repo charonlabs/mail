@@ -2694,19 +2694,19 @@ The final response message is: '{finish_body}'""",
             extra_data={"full_message": response_message},
         )
 
-        pending = self.pending_requests.pop(task_id, None)
-        if pending is not None and not pending.done():
-            try:
-                pending.set_result(response_message)
-            except Exception as e:
-                logger.error(
-                    f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
-                )
-            else:
-                try:
-                    self._events_available.set()
-                except Exception:
-                    pass
+        # pending = self.pending_requests.pop(task_id, None)
+        # if pending is not None and not pending.done():
+        #     try:
+        #         pending.set_result(response_message)
+        #     except Exception as e:
+        #         logger.error(
+        #             f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
+        #         )
+        #     else:
+        #         try:
+        #             self._events_available.set()
+        #         except Exception:
+        #             pass
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)
