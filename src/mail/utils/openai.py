@@ -61,22 +61,6 @@ class SwarmOAIClient:
                     (a for a in new_swarm.agents if a.can_complete_tasks), None
                 )
                 assert complete_agent is not None
-                if len(tools) > 0:
-                    new_actions: list[MAILAction] = []
-                    for tool in tools:
-                        name = tool["name"]
-                        description = tool["description"]
-                        parameters = tool["parameters"]
-                        new_actions.append(
-                            MAILAction(
-                                name=name,
-                                description=description,
-                                parameters=parameters,
-                                function=async_lambda,
-                            )
-                        )
-                        complete_agent.actions += new_actions
-                        new_swarm.actions += new_actions
                 if instructions is not None:
                     raw_sys_msg = {"content": instructions}
                 else:
@@ -93,11 +77,30 @@ class SwarmOAIClient:
                         {"content": ""},
                     )
                 complete_agent.agent_params["system"] = (
-                    complete_agent.agent_params["system"]
-                    + raw_sys_msg["content"]
-                    + f"\n\nYou can perform actions in the environment by calling one of the following tools: {', '.join([a.name for a in new_actions])}"
+                    complete_agent.agent_params["system"] + raw_sys_msg["content"]
                 )
-                new_swarm.breakpoint_tools = [a.name for a in new_actions]
+                if len(tools) > 0:
+                    new_actions: list[MAILAction] = []
+                    for tool in tools:
+                        name = tool["name"]
+                        description = tool["description"]
+                        parameters = tool["parameters"]
+                        new_actions.append(
+                            MAILAction(
+                                name=name,
+                                description=description,
+                                parameters=parameters,
+                                function=async_lambda,
+                            )
+                        )
+                        complete_agent.actions += new_actions
+                        new_swarm.actions += new_actions
+                        complete_agent.agent_params["system"] = (
+                            complete_agent.agent_params["system"]
+                            + f"\n\nYou can perform actions in the environment by calling one of the following tools: {', '.join([a.name for a in new_actions])}"
+                        )
+                        new_swarm.breakpoint_tools = [a.name for a in new_actions]
+
                 self.owner.swarm = new_swarm.instantiate({"user_token": ""})
                 asyncio.create_task(self.owner.swarm.run_continuous())
             swarm = self.owner.swarm
