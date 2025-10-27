@@ -106,20 +106,28 @@ class SwarmOAIClient:
             swarm = self.owner.swarm
             body = ""
             if "type" in input[-1] and input[-1]["type"] == "function_call_output":
+                print("[DEBUG] Entering function_call_output block.")
+                print(f"[DEBUG] input[-1]: {input[-1]}")
                 tool_responses: list[dict[str, Any]] = []
                 for input_item in reversed(input):
+                    print(f"[DEBUG] Inspecting input_item: {input_item}")
                     if (
                         "type" not in input_item
                         or input_item["type"] == "function_call"
                     ):
+                        print("[DEBUG] Breaking out of function_call_output scan loop.")
                         break
                     if input_item["type"] == "function_call_output":
+                        print(
+                            f"[DEBUG] Found function_call_output: call_id={input_item['call_id']}, output={input_item['output']}"
+                        )
                         tool_responses.append(
                             {
                                 "call_id": input_item["call_id"],
                                 "content": input_item["output"],
                             }
                         )
+                print(f"[DEBUG] tool_responses prepared: {tool_responses}")
                 out, events = await swarm.post_message(
                     body="",
                     subject="Tool Response",
@@ -128,6 +136,7 @@ class SwarmOAIClient:
                     resume_from="breakpoint_tool_call",
                     breakpoint_tool_call_result=tool_responses,
                 )
+                print(f"[DEBUG] swarm.post_message returned out={out} events={events}")
             else:
                 for input_item in reversed(input):
                     if (
