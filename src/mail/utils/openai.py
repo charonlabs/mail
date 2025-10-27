@@ -185,7 +185,7 @@ class SwarmOAIClient:
                     ResponseFunctionToolCall(
                         call_id=tool_call["call_id"],
                         name=tool_call["name"],
-                        arguments=ujson.dumps(tool_call["arguments"]),
+                        arguments=tool_call["arguments"],
                         type="function_call",
                         id=tool_call["id"],
                         status=tool_call["status"],
