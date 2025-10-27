@@ -2660,22 +2660,9 @@ The final response message is: '{finish_body}'""",
         task_state = self.mail_tasks[task_id]
 
         if task_state.completed:
-            logger.info(
+            logger.warning(
                 f"{self._log_prelude()} agent '{caller}' called 'task_complete' for already completed task '{task_id}'"
             )
-            self._tool_call_response(
-                task_id=task_id,
-                caller=caller,
-                tool_call=call,
-                status="success",
-                details="task already completed",
-            )
-            self._submit_event(
-                "task_complete_call_duplicate",
-                task_id,
-                f"agent '{caller}' called 'task_complete' after completion",
-            )
-            return
 
         logger.info(
             f"{self._log_prelude()} task '{task_id}' completed by agent '{caller}'"
