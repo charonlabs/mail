@@ -603,8 +603,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 message_tuple = get_message_task.result()
                 # message_tuple structure: (priority, seq, message)
                 message = message_tuple[2]
+                logger.info(f"{self._log_prelude()} queue state: {self.message_queue}")
                 logger.info(
-                    f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' in continuous mode: '{message['message']['subject']}'"
+                    f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' and type '{message['msg_type']}' in continuous mode: '{message['message']['subject']}'"
                 )
                 task_id = message["message"]["task_id"]
 
