@@ -11,6 +11,7 @@ from openai.types.responses import (
     ResponseFunctionToolCall,
 )
 from openai._utils._transform import transform
+from pydantic import BaseModel
 from rich import print
 import ujson
 
@@ -148,6 +149,8 @@ class SwarmOAIClient:
                         )
                     ):
                         break
+                    if isinstance(input_item, BaseModel):
+                        input_item = input_item.model_dump()
                     body = f"<environment>\n{input_item['content']}\n</environment>\n\n{body}"
                 out, events = await swarm.post_message(
                     body=body,
