@@ -133,11 +133,13 @@ class SwarmOAIClient:
                 out, events = await swarm.post_message(
                     body=body,
                     subject="Task Request",
-                    task_id=str(id),
+                    task_id=previous_response_id,
                     show_events=True,
                 )
             response_id = out["message"]["task_id"]
             dump = dump_mail_result(result=out, events=events, verbose=True)
+            if not response_id in self.owner.result_dumps:
+                self.owner.result_dumps[response_id] = []
             self.owner.result_dumps[response_id].append(dump)
             has_called_tools = out["message"]["subject"] == "::breakpoint_tool_call::"
             if not has_called_tools:
