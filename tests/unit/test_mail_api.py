@@ -116,7 +116,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     """
     data = {
         "name": "myswarm",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "agents": [
             {
                 "name": "supervisor",
@@ -200,7 +200,7 @@ def test_agent_params_prefixed_python_strings_resolved() -> None:
     """
     data = {
         "name": "myswarm",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "agents": [
             {
                 "name": "supervisor",
@@ -236,7 +236,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
     base = {
         "name": "x",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "agents": [],
         "actions": [],
         "entrypoint": "supervisor",
@@ -258,7 +258,7 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 
     bad = {
         "name": 123,
-        "version": "1.1.1",
+        "version": "1.2.0",
         "agents": {},
         "actions": {},
         "entrypoint": 999,
@@ -280,14 +280,14 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     contents = [
         {
             "name": "other",
-            "version": "1.1.1",
+            "version": "1.2.0",
             "agents": [],
             "actions": [],
             "entrypoint": "s",
         },
         {
             "name": "target",
-            "version": "1.1.1",
+            "version": "1.2.0",
             "agents": [
                 {
                     "name": "supervisor",
@@ -680,7 +680,7 @@ def test_swarm_template_action_imports_populate_actions() -> None:
     """
     swarm_candidate = {
         "name": "imported",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "entrypoint": "alpha",
         "agents": [
             {
@@ -719,7 +719,7 @@ def test_swarm_template_action_imports_duplicate_names_raise() -> None:
     """
     swarm_candidate = {
         "name": "imported",
-        "version": "1.1.1",
+        "version": "1.2.0",
         "entrypoint": "alpha",
         "agents": [
             {

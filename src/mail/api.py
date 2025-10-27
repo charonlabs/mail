@@ -609,7 +609,7 @@ def action(
             if resolved_model is not None:
                 parsed_payload = resolved_model.model_validate(payload)
             else:
-                parsed_payload = payload # type: ignore
+                parsed_payload = payload  # type: ignore
 
             result = func(parsed_payload)
             if inspect.isawaitable(result):
@@ -1098,7 +1098,7 @@ class MAILSwarm:
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
-        
+
         try:
             if direction == "forward":
                 await router.send_interswarm_message_forward(message)
@@ -1119,7 +1119,7 @@ class MAILSwarm:
         router = self._runtime.interswarm_router
         if router is None:
             raise ValueError("interswarm router not available")
-        
+
         try:
             result = await router.post_interswarm_user_message(message)
             return result

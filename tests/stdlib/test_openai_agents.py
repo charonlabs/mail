@@ -24,7 +24,9 @@ class DummyToolCall:
 
 
 class DummyMessage:
-    def __init__(self, content: str | None, tool_calls: list[DummyToolCall] | None = None):
+    def __init__(
+        self, content: str | None, tool_calls: list[DummyToolCall] | None = None
+    ):
         self.content = content
         self.tool_calls = tool_calls or []
 
@@ -73,7 +75,9 @@ def patch_async_openai(monkeypatch: pytest.MonkeyPatch):
             self.responses = SimpleNamespace(create=responses_create)
             instances.append(self)
 
-    monkeypatch.setattr("mail.stdlib.openai.agents.openai.AsyncOpenAI", DummyAsyncOpenAI)
+    monkeypatch.setattr(
+        "mail.stdlib.openai.agents.openai.AsyncOpenAI", DummyAsyncOpenAI
+    )
     return instances
 
 
@@ -192,7 +196,9 @@ def test_supervisor_includes_supervisor_tools(patch_async_openai):
         return None
 
     tool_names = {
-        name for name in (extract_name(tool) for tool in supervisor.supervisor_fn.tools) if name
+        name
+        for name in (extract_name(tool) for tool in supervisor.supervisor_fn.tools)
+        if name
     }
     # Supervisor helpers should be available alongside user tools
     assert "lookup_weather" in tool_names

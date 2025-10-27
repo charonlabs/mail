@@ -38,7 +38,7 @@ async def http_get(args: dict[str, Any]) -> str:
         return "Error: `url` is required"
     if not isinstance(url, str):
         return "Error: `url` must be a string"
-    
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
@@ -94,7 +94,7 @@ async def http_post(args: dict[str, Any]) -> str:
         return "Error: `headers` must be a dictionary"
     if not isinstance(body, dict):
         return "Error: `body` must be a dictionary"
-    
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=body) as response:

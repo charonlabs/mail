@@ -59,7 +59,7 @@ def _wrap_interswarm(payload, msg_type: str) -> dict[str, object]:
         target_swarm="example",
         timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
         payload=payload,
-        msg_type=msg_type, # type: ignore
+        msg_type=msg_type,  # type: ignore
         auth_token="token-remote",
         task_owner="agent:remote@remote",
         task_contributors=["agent:remote@remote"],
@@ -80,7 +80,9 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "agent", "id": "ag-forward", "api_key": "api-key-forward"}),
+        lambda token: _async_return(
+            {"role": "agent", "id": "ag-forward", "api_key": "api-key-forward"}
+        ),
     )
 
     captured: dict[str, object] = {}
@@ -136,7 +138,9 @@ def test_interswarm_back_requires_running_task(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "agent", "id": "ag-back", "api_key": "api-key-back"}),
+        lambda token: _async_return(
+            {"role": "agent", "id": "ag-back", "api_key": "api-key-back"}
+        ),
     )
 
     payload = _make_response_payload(task_id="task-missing")
@@ -162,7 +166,9 @@ def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "agent", "id": "ag-back", "api_key": "api-key-back"}),
+        lambda token: _async_return(
+            {"role": "agent", "id": "ag-back", "api_key": "api-key-back"}
+        ),
     )
 
     captured: dict[str, object] = {}
@@ -220,7 +226,9 @@ def test_post_interswarm_message_forwards_to_router(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(
         "mail.utils.auth.get_token_info",
-        lambda token: _async_return({"role": "user", "id": "user-123", "api_key": "api-key-user"}),
+        lambda token: _async_return(
+            {"role": "user", "id": "user-123", "api_key": "api-key-user"}
+        ),
     )
 
     captured: dict[str, MAILInterswarmMessage] = {}

@@ -85,7 +85,9 @@ async def test_mcp_get_prompt_and_list_prompts() -> None:
     """
     Test that the `mcp_get_prompt` and `mcp_list_prompts` actions work.
     """
-    prompt_result = await mcp_get_prompt.function({"server_url": "https://mcp", "prompt_name": "intro"})  # type: ignore[arg-type]
+    prompt_result = await mcp_get_prompt.function(
+        {"server_url": "https://mcp", "prompt_name": "intro"}
+    )  # type: ignore[arg-type]
     prompts = await mcp_list_prompts.function({"server_url": "https://mcp"})  # type: ignore[arg-type]
 
     assert "'intro'" in prompt_result

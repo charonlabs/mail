@@ -36,7 +36,11 @@ class _DummyContext:
         return False
 
 
-def _make_session(monkeypatch: pytest.MonkeyPatch, responses: dict[str, str], calls: list[tuple[str, str, dict[str, Any]]]) -> None:
+def _make_session(
+    monkeypatch: pytest.MonkeyPatch,
+    responses: dict[str, str],
+    calls: list[tuple[str, str, dict[str, Any]]],
+) -> None:
     class _DummySession:
         async def __aenter__(self):
             return self
@@ -138,12 +142,18 @@ async def test_http_patch_and_delete(monkeypatch: pytest.MonkeyPatch) -> None:
     assert patch_result == "patched"
     assert delete_result == "deleted"
 
-    assert ("PATCH", "https://api.example.com/resource", {"headers": None, "json": {"field": "value"}}) in calls
+    assert (
+        "PATCH",
+        "https://api.example.com/resource",
+        {"headers": None, "json": {"field": "value"}},
+    ) in calls
     assert ("DELETE", "https://api.example.com/resource", {}) in calls
 
 
 @pytest.mark.asyncio
-async def test_http_head_and_options_forward_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_http_head_and_options_forward_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     Test that the `http_head` and `http_options` actions forward headers.
     """
@@ -165,7 +175,9 @@ async def test_http_head_and_options_forward_headers(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_http_post_missing_headers_returns_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_http_post_missing_headers_returns_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     Test that the `http_post` action returns an error if the headers are missing.
     """

@@ -87,7 +87,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.1.1
+git clone https://github.com/charonlabs/mail --branch v1.2.0
 cd mail
 
 # Install dependencies (preferred)

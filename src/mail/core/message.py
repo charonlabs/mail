@@ -175,11 +175,11 @@ def parse_task_contributor(contributor: str) -> tuple[str, str, str]:
         raise ValueError("task contributor must be in the format 'role:id@swarm'")
     if "@" not in contributor:
         raise ValueError("task contributor must be in the format 'role:id@swarm'")
-    
+
     role = contributor.split(":")[0]
     id = contributor.split(":")[1].split("@")[0]
     swarm = contributor.split("@")[1]
-    
+
     return role, id, swarm
 
 

@@ -35,7 +35,9 @@ class OpenAIChatCompletionsAgentFunction(MAILAgentFunction):
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
         can_complete_tasks: bool = False,
-        tool_format: Literal["completions", "responses"] = "completions", # kept for compatibility
+        tool_format: Literal[
+            "completions", "responses"
+        ] = "completions",  # kept for compatibility
         exclude_tools: list[str] = [],
         **kwargs: Any,
     ) -> None:
@@ -52,7 +54,7 @@ class OpenAIChatCompletionsAgentFunction(MAILAgentFunction):
         )
         self.model = model
         self.client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
+
     def __call__(
         self,
         messages: list[dict[str, Any]],
@@ -71,7 +73,7 @@ class OpenAIChatCompletionsAgentFunction(MAILAgentFunction):
         """
         Run a chat completion using the OpenAI API.
         """
-        response = await self.client.chat.completions.create( # type: ignore
+        response = await self.client.chat.completions.create(  # type: ignore
             model=self.model,
             messages=self._preprocess_messages(messages),
             tool_choice=tool_choice,
@@ -108,14 +110,17 @@ class OpenAIChatCompletionsAgentFunction(MAILAgentFunction):
         """
         Preprocess the tools for the OpenAI API.
         """
-        return [{
-            "type": "function",
-            "function": {
-                "name": tool["name"],
-                "description": tool["description"],
-                "parameters": tool["parameters"],
-            },
-        } for tool in self.tools]
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "parameters": tool["parameters"],
+                },
+            }
+            for tool in self.tools
+        ]
 
     def _postprocess_tool_calls(
         self,
@@ -207,7 +212,7 @@ class OpenAIChatCompletionsSupervisorFunction(SupervisorFunction):
             name=name,
             comm_targets=comm_targets,
             tools=tools,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
             tool_format="completions",
@@ -223,15 +228,15 @@ class OpenAIChatCompletionsSupervisorFunction(SupervisorFunction):
             tools=self.tools,
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             tool_format="completions",
             exclude_tools=exclude_tools,
             **kwargs,
         )
-    
+
     def __call__(
         self,
-        messages: list[dict[str, Any]], 
+        messages: list[dict[str, Any]],
         tool_choice: str | dict[str, str] = "required",
     ) -> Awaitable[AgentOutput]:
         """
@@ -254,7 +259,9 @@ class OpenAIResponsesAgentFunction(MAILAgentFunction):
         enable_entrypoint: bool = False,
         enable_interswarm: bool = False,
         can_complete_tasks: bool = False,
-        tool_format: Literal["completions", "responses"] = "responses", # kept for compatibility
+        tool_format: Literal[
+            "completions", "responses"
+        ] = "responses",  # kept for compatibility
         exclude_tools: list[str] = [],
         **kwargs: Any,
     ) -> None:
@@ -271,7 +278,7 @@ class OpenAIResponsesAgentFunction(MAILAgentFunction):
         )
         self.model = model
         self.client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    
+
     def __call__(
         self,
         messages: list[dict[str, Any]],
@@ -290,7 +297,7 @@ class OpenAIResponsesAgentFunction(MAILAgentFunction):
         """
         Run a response using the OpenAI API.
         """
-        response = await self.client.responses.create( # type: ignore
+        response = await self.client.responses.create(  # type: ignore
             model=self.model,
             input=self._preprocess_messages(messages),
             tool_choice=tool_choice,
@@ -371,19 +378,22 @@ class OpenAIResponsesAgentFunction(MAILAgentFunction):
                 entry["tool_call_id"] = message["tool_call_id"]
             normalized.append(entry)  # type: ignore[arg-type]
         return normalized
-    
+
     def _preprocess_tools(self) -> list[ToolParam]:
         """
         Preprocess the tools for the OpenAI API.
         """
-        return [{ # type: ignore
-            "type": "function",
-            "function": {
-                "name": tool["name"],
-                "description": tool.get("description"),
-                "parameters": tool.get("parameters"),
-            },
-        } for tool in self.tools]
+        return [
+            {  # type: ignore
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description"),
+                    "parameters": tool.get("parameters"),
+                },
+            }
+            for tool in self.tools
+        ]
 
 
 class OpenAIResponsesSupervisorFunction(SupervisorFunction):
@@ -408,7 +418,7 @@ class OpenAIResponsesSupervisorFunction(SupervisorFunction):
             name=name,
             comm_targets=comm_targets,
             tools=tools,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
             tool_format="responses",
@@ -424,12 +434,12 @@ class OpenAIResponsesSupervisorFunction(SupervisorFunction):
             tools=self.tools,
             enable_entrypoint=enable_entrypoint,
             enable_interswarm=enable_interswarm,
-            can_complete_tasks=True, # supervisor can always complete tasks; param kept for compatibility
+            can_complete_tasks=True,  # supervisor can always complete tasks; param kept for compatibility
             tool_format="responses",
             exclude_tools=exclude_tools,
             **kwargs,
         )
-    
+
     def __call__(
         self,
         messages: list[dict[str, Any]],

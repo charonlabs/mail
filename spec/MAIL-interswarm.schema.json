@@ -10,7 +10,9 @@
     "target_swarm",
     "timestamp",
     "payload",
-    "msg_type"
+    "msg_type",
+    "task_owner",
+    "task_contributors"
   ],
   "properties": {
     "message_id": { 
@@ -28,6 +30,14 @@
     "timestamp": { 
       "type": "string", 
       "format": "date-time" 
+    },
+    "task_owner": { 
+      "type": "string", 
+      "minLength": 1 
+    },
+    "task_contributors": { 
+      "type": "array", 
+      "items": { "type": "string" } 
     },
     "payload": { "type": "object" },
     "msg_type": {
