@@ -976,7 +976,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         logger.info(
             f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload: '{payload}'"
         )
-        if "task_id" not in self.last_breakpoint_tool_calls:
+        if task_id not in self.last_breakpoint_tool_calls:
             logger.error(
                 f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: last breakpoint tool calls for task '{task_id}' is not set"
             )
