@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 1.2-pre1
-- **Date**: October 24, 2025
+- **Version**: 1.2-pre2
+- **Date**: October 28, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -19,7 +19,7 @@
 - **Agent**: An autonomous process participating in MAIL.
 - **Entrypoint**: An agent capable of receiving MAIL messages directly from a user.
 - **Interswarm**: Communication between agents in different swarms via HTTP(S).
-- **MAIL Instance**: Runtime engine handling message queues,  agent interactions, and action calls for a user or swarm.
+- **MAIL Instance**: Runtime engine handling message queues,  agent interactions, and action calls for a user, admin, or swarm.
 - **Supervisor**: An agent capable of completing a task.
 - **Swarm**: A named deployment domain hosting a set of agents and providing a runtime for actions.
 - **Task**: A user-defined query sent to a swarm entrypoint that agents complete through collaboration over MAIL.
@@ -102,10 +102,16 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - Field `address` is used to identify agents; values of `address` MUST be unique within a swarm.
 - Field `address` MAY follow interswarm schema.
 
+#### Special agent `all`
+
+- Reserved to represent a shorthand for all agents in the local swarm.
+- All `task_complete` messages MUST have recipient agent `all`.
+- MAIL agents MUST NOT have the name `all` to ensure proper routing.
+
 ### Type `system`
 
 - Reserved for the swarm instance (runtime and router).
-- Field `address` MUST be set to the swarm name.
+- Field `address` MUST be set to the local swarm name.
 
 ### Type `user`
 
@@ -136,18 +142,39 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Tasks
 
-- A MAIL **task** is identified by `task_id`.
-- The task **completes** when a `broadcast_complete` for the corresponding `task_id` is produced by a supervisor in the swarm that initiated it.
-- Systems using `submit_and_wait` MUST resolve awaiting futures only when `broadcast_complete` for that `task_id` is observed.
-- Instances MUST store agent communication histories scoped by `task_id`.
-- A given task MAY be referenced in a future request from the calling user, even after `task_complete`. Like new tasks, resumed tasks MUST resolve only on `task_complete`.
+- A **task** is a collection of MAIL messages within one or more swarms associated with a user-defined goal.
+- Each task MUST be identified by a unique `task_id`.
+- A new task is created when the user sends a message to the swarm with a yet-unused value in the `task_id` field.
+- The swarm will continuously process messages with this `task_id` until `task_complete` is called.
+- When `task_complete` is called by the swarm where this task originated, the finishing message MUST be returned to the user.
+
+### Multi-Turn
+
+- A user MAY send a message to a swarm with a `task_id` that has been previously completed.
+- The swarm instance MUST contain agent communication histories by task and preserve these histories after task completion (see [MAIL Instances](#mail-instances) for more info).
+- Upon receiving a message with an existing `task_id`, the swarm instance MUST process messages with this `task_id` until `task_complete` is called.
+- Like with new tasks, the swarm instance MUST return the finishing message to the user.
+
+### Ownership & Contributing
+
+- Every MAIL task MUST have a defined `task_owner`.
+- The `task_owner` MUST be equal to the swarm instance where the task was created, following the schema defined below.
+- Every task MUST have a defined list of `task_contributors`, each contributor following the schema below.
+- `task_contributors` MUST include `task_owner`.
+
+#### Schema
+
+- `role:id@swarm`, where:
+  - `role` is one of `admin`, `user`, or `swarm`.
+  - `id` is the unique identifier of an individual `admin`, `user`, or `swarm` instance.
+  - `swarm` is the name of the MAIL swarm.
 
 ### Interswarm
 
 - A given swarm MAY collaborate with remote swarms on a task.
 - If a remote swarm gets messaged for a task with `task_id` *A*, it MUST use `task_id` *A* in its corresponding task process.
-- Interswarm messages MUST include a field `task_owner`, containing the name of the instance where the task was created (in the format `role:id@swarm_name`).
-- Interswarm messages MUST include a field `task_contributors`, containing the names of all instances that have processed this task. This list MUST include the `task_owner`.
+- Interswarm messages MUST include a field `task_owner`, following the schema above.
+- Interswarm messages MUST include a field `task_contributors`, following the schema above.
 - If a remote swarm calls `task_complete`, the finish message MUST be returned to the swarm instance that called it.
 - When the `task_owner` instance calls `task_complete`, the remote swarms that contributed MUST be notified.
 
@@ -166,19 +193,52 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 - If a swarm qualifier is present (i.e., one or more addresses follow the format `agent-name@swarm-name`), the message MUST be delivered to the corresponding agent(s) by name. 
 - If a remote agent does not exist or is otherwise unreachable, the sending agent MUST be notified.
 
-## Runtime Model
+## MAIL Instances
 
-- A **MAIL Instance**:
-  - Maintains per-task message histories for context.
-  - Executes agent tool calls, which may or may not be native to MAIL.
-  - Tracks pending requests keyed by `task_id`; resolves only on `broadcast_complete`.
-  - Supports continuous operation and graceful shutdown (waits for active tasks to finish).
-- **MAIL Tools**:
-  - See the [MAIL Tools](#mail-tools) section below.
-- **Actions (Third Party Tools)**: 
-  - Non-MAIL domain actions SHOULD emit action result broadcasts to inform interested agents.
-- **Concurrency**:
-  - Implementations SHOULD process asynchronously while preserving priority ordering semantics.
+- A **MAIL instance** is an individual runtime engine handling message queues, agent interactions, and action calls for a user, admin, or swarm.
+- Implementations MUST create discrete instances for each unique, authorized client.
+- Instances MUST be listed as the `task_owner` for all tasks created within it (see [Tasks](#tasks) for more info).
+- Instances MUST be included in the `task_contributors` list for all tasks created within it (see [Tasks](#tasks) for more info).
+- Instances MAY process remote tasks via interswarm messaging; in which case, said instance MUST be included in `task_contributors`.
+
+### Instance Types
+
+#### `admin`
+
+- Represents a MAIL instance belonging to a swarm user with type `admin` (i.e. a swarm administrator).
+- Functionally equivalent to instances with type `user`; administrator privileges exist at the server level but not inside MAIL instances.
+
+#### `swarm`
+
+- Represents a MAIL instance belonging to a swarm user with type `agent` (i.e. a remote swarm).
+- The name `swarm` is used instead of `agent` because all remote agents in the same swarm MUST share an instance in the local swarm (see [Why:instance type for `swarm` but not for `agent`](/spec/why/01.md) to learn more).
+- Swarm instances can contribute to remote tasks.
+- Swarm instances MUST NOT create new tasks.
+
+#### `user`
+
+- Represents a MAIL instance belonging a swarm user with type `user` (i.e. a swarm end-user).
+- User instances can create and complete defined tasks.
+- User instances MUST NOT contribute to remote tasks.
+
+### Runtime
+
+- A MAIL instance MUST contain a unique runtime for handling tasks, message queues, and action calls.
+- The runtime MUST maintain agent communication histories scoped by `task_id`.
+- Agents within a runtime MAY be provided histories or other swarm information from separate instances; this is not mandated by this spec.
+  - Implementers SHOULD exercise extreme caution to ensure potentially-sensitive user information does not cross instance boundaries.
+
+### Router
+
+- A MAIL instance MAY be provided access to a router for interswarm communication.
+- The router SHOULD be scoped to the server rather than by instance; interswarm routers like the one in the reference implementation do not need to be user-specific.
+
+### Server
+
+- A MAIL server is an HTTP server that hosts a continuous swarm and manages client instances scoped by type `admin`, `user`, or `swarm`.
+- The server MAY contain an interswarm router for managing sending messages to/receiving messages from remote swarms.
+- The server MUST include the endpoints specified in [openapi.yaml](/spec/openapi.yaml).
+- The server MAY include extra endpoints not included in this spec, so long as they do not interfere with the required endpoints.
 
 ## MAIL Tools
 
@@ -186,49 +246,49 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 - Create a `MAILMessage` with `msg_type=request` from the given input and send to the specified recipient.
 - **Required Parameters**: `target` (string), `subject` (string), `body` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `send_response`
 
 - Create a `MAILMessage` with `msg_type=response` from the given input and send it to the specified recipient.
 - **Required Parameters**: `target` (string), `subject` (string), `body` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `send_interrupt`
 
 - Create a `MAILMessage` with `msg_type=interrupt` from the given input and send it to the specified recipient.
 - **Required Parameters**: `target` (string), `subject` (string), `body` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `send_broadcast`
 
 - Create a `MAILMessage` with `msg_type=broadcast` and send it to `agent: all`.
 - **Required Parameters**: `subject` (string), `body` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `task_complete`
 
 - Create a `MAILMessage` with `msg_type=broadcast_complete` and send it to `agent: all`.
 - **Required Parameters**: `finish_message` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `acknowledge_broadcast`
 
 - Store a broadcast in agent memory without sending a response message.
 - **Optional Parameters**: `note` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `ignore_broadcast`
 
 - Do not respond to a broadcast or store it in agent memory.
 - **Optional Parameters**: `reason` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ### `await_message`
 
 - Indicate that the agent is finished with its current turn and should be scheduled again once a new MAIL message arrives.
 - **Optional Parameters**: `reason` (string)
-- **Returns**: None mandated by this spec.
+- **Returns**: A message indicating the success or failure of the operation.
 
 ## REST Transport
 
