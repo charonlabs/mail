@@ -108,8 +108,8 @@ class MAILRuntime:
         self._is_continuous = False
         self.exclude_tools = exclude_tools
         self.response_messages: dict[str, MAILMessage] = {}
-        self.last_breakpoint_caller: str | None = None
-        self.last_breakpoint_tool_calls: list[AgentToolCall] = []
+        self.last_breakpoint_caller: dict[str, str] = {}
+        self.last_breakpoint_tool_calls: dict[str, list[AgentToolCall]] = {}
         self.this_owner = f"{self.user_role}:{self.user_id}@{self.swarm_name}"
 
     def _log_prelude(self) -> str:
@@ -277,9 +277,12 @@ It is impossible to resume a task without `task_id` specified.""",
 It is impossible to resume a task without `{kwarg}` specified.""",
                             task_complete=True,
                         )
-                if self.last_breakpoint_caller is None:
+                if (
+                    task_id not in self.last_breakpoint_caller
+                    or self.last_breakpoint_caller[task_id] is None
+                ):
                     logger.error(
-                        f"{self._log_prelude()} last breakpoint caller is not set"
+                        f"{self._log_prelude()} last breakpoint caller for task '{task_id}' is not set"
                     )
                     return self._system_broadcast(
                         task_id=task_id,
@@ -287,7 +290,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         body="The last breakpoint caller is not set.",
                         task_complete=True,
                     )
-                breakpoint_tool_caller = self.last_breakpoint_caller
+                breakpoint_tool_caller = self.last_breakpoint_caller[task_id]
                 breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
                 result = await self._resume_task_from_breakpoint_tool_call(
@@ -472,12 +475,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         else:
             payload = breakpoint_tool_call_result
 
+        if task_id not in self.last_breakpoint_tool_calls:
+            logger.error(
+                f"{self._log_prelude()} last breakpoint tool calls for task '{task_id}' is not set"
+            )
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="::runtime_error::",
+                body="The last breakpoint tool calls is not set.",
+                task_complete=True,
+            )
+
         if isinstance(payload, list):
             for resp in payload:
                 og_call = next(
                     (
                         call
-                        for call in self.last_breakpoint_tool_calls
+                        for call in self.last_breakpoint_tool_calls[task_id]
                         if call.tool_call_id == resp["call_id"]
                     ),
                     None,
@@ -490,7 +504,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
                     )
         else:
-            if len(self.last_breakpoint_tool_calls) > 1:
+            if len(self.last_breakpoint_tool_calls[task_id]) > 1:
                 logger.error(
                     f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
                 )
@@ -501,7 +515,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     task_complete=True,
                 )
             result_msgs.append(
-                self.last_breakpoint_tool_calls[0].create_response_msg(
+                self.last_breakpoint_tool_calls[task_id][0].create_response_msg(
                     payload["content"]
                 )
             )
@@ -588,8 +602,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 message_tuple = get_message_task.result()
                 # message_tuple structure: (priority, seq, message)
                 message = message_tuple[2]
+                logger.info(f"{self._log_prelude()} queue state: {self.message_queue}")
                 logger.info(
-                    f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' in continuous mode: '{message['message']['subject']}'"
+                    f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' and type '{message['msg_type']}' in continuous mode: '{message['message']['subject']}'"
                 )
                 task_id = message["message"]["task_id"]
 
@@ -914,9 +929,16 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided"
                 )
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
-        breakpoint_tool_caller = (
-            kwargs.get("breakpoint_tool_caller") or self.last_breakpoint_caller
-        )
+        breakpoint_tool_caller = kwargs.get("breakpoint_tool_caller", None)
+        if breakpoint_tool_caller is None:
+            if task_id not in self.last_breakpoint_caller:
+                logger.error(
+                    f"{self._log_prelude} `submmit_breakpoint_tool_call_result`: last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
+                )
+                raise ValueError(
+                    f"last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
+                )
+            breakpoint_tool_caller = self.last_breakpoint_caller[task_id]
         breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
         if breakpoint_tool_caller is None:
@@ -946,15 +968,26 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         logger.info(
             f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload: '{payload}'"
         )
-
+        if task_id not in self.last_breakpoint_tool_calls:
+            logger.error(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: last breakpoint tool calls for task '{task_id}' is not set"
+            )
+            raise ValueError(
+                f"last breakpoint tool calls for task '{task_id}' is not set"
+            )
+        last_breakpoint_tool_calls = self.last_breakpoint_tool_calls[task_id]
         has_breakpoint_context = bool(self.last_breakpoint_tool_calls)
 
         if isinstance(payload, list) and has_breakpoint_context:
+            logger.info(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload is a list and has breakpoint context"
+            )
+            logger.info(f"Current breakpoint tool calls: {last_breakpoint_tool_calls}")
             for resp in payload:
                 og_call = next(
                     (
                         call
-                        for call in self.last_breakpoint_tool_calls
+                        for call in last_breakpoint_tool_calls
                         if call.tool_call_id == resp["call_id"]
                     ),
                     None,
@@ -966,9 +999,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         task_id,
                         f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
                     )
+                else:
+                    logger.warning(
+                        f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: no matching breakpoint tool call found for response: {resp}"
+                    )
         else:
             if isinstance(payload, dict) and has_breakpoint_context:
-                if len(self.last_breakpoint_tool_calls) > 1:
+                if len(last_breakpoint_tool_calls) > 1:
                     logger.error(
                         f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
                     )
@@ -976,7 +1013,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         "The last breakpoint tool calls is a list but only one call response was provided."
                     )
                 result_msgs.append(
-                    self.last_breakpoint_tool_calls[0].create_response_msg(
+                    last_breakpoint_tool_calls[0].create_response_msg(
                         payload["content"]
                     )
                 )
@@ -1733,8 +1770,8 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                         task_id,
                         f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}' with args: '{', '.join([ujson.dumps(call.tool_args) for call in breakpoint_calls])}'",
                     )
-                    self.last_breakpoint_caller = recipient
-                    self.last_breakpoint_tool_calls = breakpoint_calls
+                    self.last_breakpoint_caller[task_id] = recipient
+                    self.last_breakpoint_tool_calls[task_id] = breakpoint_calls
                     bp_dumps: list[dict[str, Any]] = []
                     if breakpoint_calls[0].completion:
                         bp_dumps.append(breakpoint_calls[0].completion)
@@ -2370,22 +2407,9 @@ The final response message is: '{finish_body}'""",
         task_state = self.mail_tasks[task_id]
 
         if task_state.completed:
-            logger.info(
+            logger.warning(
                 f"{self._log_prelude()} agent '{caller}' called 'task_complete' for already completed task '{task_id}'"
             )
-            self._tool_call_response(
-                task_id=task_id,
-                caller=caller,
-                tool_call=call,
-                status="success",
-                details="task already completed",
-            )
-            self._submit_event(
-                "task_complete_call_duplicate",
-                task_id,
-                f"agent '{caller}' called 'task_complete' after completion",
-            )
-            return
 
         logger.info(
             f"{self._log_prelude()} task '{task_id}' completed by agent '{caller}'"
@@ -2424,19 +2448,19 @@ The final response message is: '{finish_body}'""",
             extra_data={"full_message": response_message},
         )
 
-        pending = self.pending_requests.pop(task_id, None)
-        if pending is not None and not pending.done():
-            try:
-                pending.set_result(response_message)
-            except Exception as e:
-                logger.error(
-                    f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
-                )
-            else:
-                try:
-                    self._events_available.set()
-                except Exception:
-                    pass
+        # pending = self.pending_requests.pop(task_id, None)
+        # if pending is not None and not pending.done():
+        #     try:
+        #         pending.set_result(response_message)
+        #     except Exception as e:
+        #         logger.error(
+        #             f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
+        #         )
+        #     else:
+        #         try:
+        #             self._events_available.set()
+        #         except Exception:
+        #             pass
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)
