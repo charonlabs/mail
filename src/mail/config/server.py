@@ -56,6 +56,7 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
         "port": 8000,
         "host": "0.0.0.0",
         "reload": False,
+        "debug": False,
     }
     swarm_defaults: dict[str, Any] = {
         "name": "example-no-proxy",
@@ -88,6 +89,7 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
             "port": server_section.get("port", server_defaults["port"]),
             "host": server_section.get("host", server_defaults["host"]),
             "reload": server_section.get("reload", server_defaults["reload"]),
+            "debug": server_section.get("debug", server_defaults["debug"]),
         }
 
         swarm_section = server_section.get("swarm")
@@ -146,6 +148,7 @@ class ServerConfig(BaseModel):
     port: int = Field(default_factory=lambda: _server_defaults()["port"])
     host: str = Field(default_factory=lambda: _server_defaults()["host"])
     reload: bool = Field(default_factory=lambda: _server_defaults()["reload"])
+    debug: bool = Field(default_factory=lambda: _server_defaults()["debug"])
 
     swarm: SwarmConfig = Field(default_factory=SwarmConfig)
     settings: SettingsConfig = Field(default_factory=SettingsConfig)

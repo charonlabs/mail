@@ -42,6 +42,7 @@ uv run mail server
 python -m mail.server
 ```
 - Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
+- Need the OpenAI Responses bridge for integration testing? Start the server with `uv run mail server --debug` (or set `[server].debug = true`) to expose the debug-only `/responses` endpoint.
 - Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
 ## Try it
@@ -64,6 +65,12 @@ uv run mail client \
 http://localhost:8000 \
 --api-key $TOKEN
 ``` 
+- **Debug `/responses` (optional)**: 
+```bash
+uv run mail client http://localhost:8000 --api-key $TOKEN
+mail> responses '[{"role":"user","content":"Plan tomorrow"}]' '[]' \
+      --kwargs '{"api_key":"'"$TOKEN"'"}'
+```
 - **Send a message**: 
 ```bash
 curl -X POST http://localhost:8000/message \

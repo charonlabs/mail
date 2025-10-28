@@ -54,6 +54,8 @@ def _run_server_with_args(args: argparse.Namespace) -> None:
             server_overrides["port"] = args.port
         if args.reload is not None:
             server_overrides["reload"] = args.reload
+        if args.debug is not None:
+            server_overrides["debug"] = args.debug
 
         swarm_overrides: dict[str, object] = {}
         if args.swarm_name is not None:
@@ -162,9 +164,14 @@ def main() -> None:
     server_parser.add_argument(
         "-r",
         "--reload",
-        type=_str_to_bool,
-        required=False,
+        action="store_true",
         help="enable hot reloading",
+    )
+    server_parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="enable debug mode (enable optional endpoints)",
     )
     server_parser.add_argument(
         "-n",

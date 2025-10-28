@@ -62,6 +62,7 @@ The class implements `__aenter__` / `__aexit__`, so `async with` automatically o
 | Messaging | `post_message(message, entrypoint=None, show_events=False)`, `post_message_stream(message, entrypoint=None)` | Handles synchronous responses and SSE streaming. |
 | Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |
 | Interswarm | `post_interswarm_message(...)`, `post_interswarm_response(...)`, `send_interswarm_message(...)` | Submit or receive interswarm traffic. |
+| Debug/OpenAI | `debug_post_responses(api_key, input, tools, instructions=None, previous_response_id=None, tool_choice="auto", parallel_tool_calls=True, **kwargs)` | Calls the debug-only `/responses` endpoint; requires server debug mode. |
 
 All helpers return deserialized `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
 
@@ -129,22 +130,46 @@ follow_up = await client.post_message(
 
 - The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
 
+## OpenAI Responses bridge
+
+- Enable server debug mode (`mail server --debug` or `[server].debug = true`) before calling `debug_post_responses`. This instantiates the internal OpenAI bridge (`SwarmOAIClient`) and exposes `/responses`.
+- The helper expects the same payload shape as OpenAI's Responses API.
+- Any extra keyword arguments (for example, `"parallel_tool_calls"` overrides or custom metadata) are forwarded verbatim inside the request body and handed to `SwarmOAIClient` for execution.
+- Example (assuming you already have an authenticated `MAILClient` instance named `client`):
+
+  ```python
+  response = await client.debug_post_responses(
+      input=[
+          {"role": "system", "content": "You orchestrate the MAIL swarm."},
+          {"role": "user", "content": "Draft a response for tomorrow's stand-up."}
+      ],
+      tools=[],
+  )
+  print(response.output)
+  ```
+
+- The CLI exposes the same workflow with `mail client responses …`; see [cli.md](./cli.md) for the REPL syntax.
+
 ## Error Handling
+
 - HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
 - Non‑JSON responses raise `ValueError` annotated with the returned content type and body.
 - Always wrap calls in `try/except` when the network may be flaky or when tokens can expire.
 
 ## Testing & Utilities
+
 - Unit coverage lives in `tests/unit/test_mail_client.py`, using an in‑process aiohttp server to validate payloads and streaming behaviour.
 - `scripts/demo_client.py` launches a stubbed MAIL server and exercises the client end‑to‑end—useful for manual testing or onboarding demos.
 
 ## Integration Tips
+
 - **Reuse sessions** for high‑throughput scenarios by passing an externally managed `ClientSession`.
 - **Custom headers**: Extend `_build_headers` by subclassing `MAILClient` if you need additional per‑request metadata.
 - **Timeouts**: Provide an `aiohttp.ClientTimeout(total=...)` for fine control over connect/read limits.
 - **Logging**: Enable the `mail.client` logger for request traces (`logging.getLogger("mail.client").setLevel(logging.DEBUG)`).
 
 ## Related Documentation
+
 - [API Surfaces](./api.md) – discusses the HTTP routes that `MAILClient` calls.
 - [Quickstart](./quickstart.md) – shows how to run the server; you can replace `curl` steps with `MAILClient` snippets.
 - [Testing](./testing.md) – outlines the project’s testing strategy, including client exercises.

@@ -4,7 +4,6 @@
 import asyncio
 import copy
 import datetime
-import json
 import logging
 import uuid
 from asyncio import PriorityQueue, Task
@@ -109,8 +108,8 @@ class MAILRuntime:
         self._is_continuous = False
         self.exclude_tools = exclude_tools
         self.response_messages: dict[str, MAILMessage] = {}
-        self.last_breakpoint_caller: str | None = None
-        self.last_breakpoint_tool_calls: list[AgentToolCall] = []
+        self.last_breakpoint_caller: dict[str, str] = {}
+        self.last_breakpoint_tool_calls: dict[str, list[AgentToolCall]] = {}
         self.this_owner = f"{self.user_role}:{self.user_id}@{self.swarm_name}"
 
     def _log_prelude(self) -> str:
@@ -236,6 +235,7 @@ It is impossible to resume a task without `task_id` specified.""",
 
                 await self.mail_tasks[task_id].queue_load(self.message_queue)
                 self.mail_tasks[task_id].is_running = True
+                self.mail_tasks[task_id].completed = False
 
                 try:
                     result = await self._run_loop_for_task(task_id, action_override)
@@ -278,9 +278,12 @@ It is impossible to resume a task without `task_id` specified.""",
 It is impossible to resume a task without `{kwarg}` specified.""",
                             task_complete=True,
                         )
-                if self.last_breakpoint_caller is None:
+                if (
+                    task_id not in self.last_breakpoint_caller
+                    or self.last_breakpoint_caller[task_id] is None
+                ):
                     logger.error(
-                        f"{self._log_prelude()} last breakpoint caller is not set"
+                        f"{self._log_prelude()} last breakpoint caller for task '{task_id}' is not set"
                     )
                     return self._system_broadcast(
                         task_id=task_id,
@@ -288,15 +291,21 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         body="The last breakpoint caller is not set.",
                         task_complete=True,
                     )
-                breakpoint_tool_caller = self.last_breakpoint_caller
+                breakpoint_tool_caller = self.last_breakpoint_caller[task_id]
                 breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
-                result = await self._resume_task_from_breakpoint_tool_call(
-                    task_id,
-                    breakpoint_tool_caller,
-                    breakpoint_tool_call_result,
-                    action_override=action_override,
-                )
+                self.mail_tasks[task_id].completed = False
+                self.mail_tasks[task_id].is_running = True
+
+                try:
+                    result = await self._resume_task_from_breakpoint_tool_call(
+                        task_id,
+                        breakpoint_tool_caller,
+                        breakpoint_tool_call_result,
+                        action_override=action_override,
+                    )
+                finally:
+                    self.mail_tasks[task_id].is_running = False
 
             case None:  # start a new task
                 if task_id is None:
@@ -466,6 +475,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 task_complete=True,
             )
 
+        self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
         result_msgs: list[dict[str, Any]] = []
         if isinstance(breakpoint_tool_call_result, str):
@@ -473,12 +483,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         else:
             payload = breakpoint_tool_call_result
 
+        if task_id not in self.last_breakpoint_tool_calls:
+            logger.error(
+                f"{self._log_prelude()} last breakpoint tool calls for task '{task_id}' is not set"
+            )
+            return self._system_broadcast(
+                task_id=task_id,
+                subject="::runtime_error::",
+                body="The last breakpoint tool calls is not set.",
+                task_complete=True,
+            )
+
         if isinstance(payload, list):
             for resp in payload:
                 og_call = next(
                     (
                         call
-                        for call in self.last_breakpoint_tool_calls
+                        for call in self.last_breakpoint_tool_calls[task_id]
                         if call.tool_call_id == resp["call_id"]
                     ),
                     None,
@@ -491,7 +512,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
                     )
         else:
-            if len(self.last_breakpoint_tool_calls) > 1:
+            if len(self.last_breakpoint_tool_calls[task_id]) > 1:
                 logger.error(
                     f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
                 )
@@ -502,7 +523,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     task_complete=True,
                 )
             result_msgs.append(
-                self.last_breakpoint_tool_calls[0].create_response_msg(
+                self.last_breakpoint_tool_calls[task_id][0].create_response_msg(
                     payload["content"]
                 )
             )
@@ -589,8 +610,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 message_tuple = get_message_task.result()
                 # message_tuple structure: (priority, seq, message)
                 message = message_tuple[2]
+                logger.info(f"{self._log_prelude()} queue state: {self.message_queue}")
                 logger.info(
-                    f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' in continuous mode: '{message['message']['subject']}'"
+                    f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}' and type '{message['msg_type']}' in continuous mode: '{message['message']['subject']}'"
                 )
                 task_id = message["message"]["task_id"]
 
@@ -886,6 +908,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
         await self.submit(message)
@@ -905,6 +928,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self.mail_tasks[task_id].resume()
+        await self.mail_tasks[task_id].queue_load(self.message_queue)
+
         # ensure valid kwargs
         REQUIRED_KWARGS: dict[str, type] = {
             "breakpoint_tool_call_result": str,
@@ -915,9 +941,16 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: required keyword argument '{kwarg}' not provided"
                 )
                 raise ValueError(f"required keyword argument '{kwarg}' not provided")
-        breakpoint_tool_caller = (
-            kwargs.get("breakpoint_tool_caller") or self.last_breakpoint_caller
-        )
+        breakpoint_tool_caller = kwargs.get("breakpoint_tool_caller", None)
+        if breakpoint_tool_caller is None:
+            if task_id not in self.last_breakpoint_caller:
+                logger.error(
+                    f"{self._log_prelude} `submmit_breakpoint_tool_call_result`: last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
+                )
+                raise ValueError(
+                    f"last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
+                )
+            breakpoint_tool_caller = self.last_breakpoint_caller[task_id]
         breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
         if breakpoint_tool_caller is None:
@@ -947,15 +980,26 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         logger.info(
             f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload: '{payload}'"
         )
-
+        if task_id not in self.last_breakpoint_tool_calls:
+            logger.error(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: last breakpoint tool calls for task '{task_id}' is not set"
+            )
+            raise ValueError(
+                f"last breakpoint tool calls for task '{task_id}' is not set"
+            )
+        last_breakpoint_tool_calls = self.last_breakpoint_tool_calls[task_id]
         has_breakpoint_context = bool(self.last_breakpoint_tool_calls)
 
         if isinstance(payload, list) and has_breakpoint_context:
+            logger.info(
+                f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: payload is a list and has breakpoint context"
+            )
+            logger.info(f"Current breakpoint tool calls: {last_breakpoint_tool_calls}")
             for resp in payload:
                 og_call = next(
                     (
                         call
-                        for call in self.last_breakpoint_tool_calls
+                        for call in last_breakpoint_tool_calls
                         if call.tool_call_id == resp["call_id"]
                     ),
                     None,
@@ -967,9 +1011,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         task_id,
                         f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
                     )
+                else:
+                    logger.warning(
+                        f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: no matching breakpoint tool call found for response: {resp}"
+                    )
         else:
             if isinstance(payload, dict) and has_breakpoint_context:
-                if len(self.last_breakpoint_tool_calls) > 1:
+                if len(last_breakpoint_tool_calls) > 1:
                     logger.error(
                         f"{self._log_prelude()} last breakpoint tool calls is a list but only one call response was provided"
                     )
@@ -977,7 +1025,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         "The last breakpoint tool calls is a list but only one call response was provided."
                     )
                 result_msgs.append(
-                    self.last_breakpoint_tool_calls[0].create_response_msg(
+                    last_breakpoint_tool_calls[0].create_response_msg(
                         payload["content"]
                     )
                 )
@@ -1313,251 +1361,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         # Fall back to local processing
         await self._process_local_message(message, action_override)
-
-    #     async def _route_interswarm_message(self, message: MAILMessage) -> None:
-    #         """
-    #         Route a message via interswarm router.
-    #         """
-    #         if self.interswarm_router:
-    #             try:
-    #                 msg_content = message["message"]
-    #                 routing_info = (
-    #                     msg_content.get("routing_info")
-    #                     if isinstance(msg_content, dict)
-    #                     else None
-    #                 )
-    #                 stream_requested = isinstance(routing_info, dict) and bool(
-    #                     routing_info.get("stream")
-    #                 )
-    #                 ignore_stream_pings = isinstance(routing_info, dict) and bool(
-    #                     routing_info.get("ignore_stream_pings")
-    #                 )
-
-    #                 original_task_id = (
-    #                     msg_content.get("task_id")
-    #                     if isinstance(msg_content, dict)
-    #                     else None
-    #                 )
-    #                 original_request_id = (
-    #                     msg_content.get("request_id")
-    #                     if isinstance(msg_content, dict)
-    #                     else None
-    #                 )
-    #                 event_task_id: str | None = None
-
-    #                 async def forward_remote_event(
-    #                     event_name: str, payload: str | None
-    #                 ) -> None:
-    #                     if ignore_stream_pings and event_name == "ping":
-    #                         return
-
-    #                     try:
-    #                         data = json.loads(payload) if payload else {}
-    #                     except json.JSONDecodeError:
-    #                         data = {"raw": payload}
-
-    #                     if not isinstance(data, dict):
-    #                         data = {"raw": data}
-
-    #                     task_id = data.get("task_id")
-    #                     if not isinstance(task_id, str):
-    #                         return
-
-    #                     self._ensure_task_exists(task_id)
-
-    #                     sse = ServerSentEvent(data=data, event=event_name)
-
-    #                     try:
-    #                         self.mail_tasks[task_id].add_event(sse)
-    #                     except Exception:
-    #                         pass
-
-    #                     self.new_events.append(sse)
-    #                     try:
-    #                         self._events_available.set()
-    #                     except Exception:
-    #                         pass
-
-    #                 remote_targets: list[str] = []
-    #                 if isinstance(msg_content, dict):
-    #                     if "recipients" in msg_content:
-    #                         for addr in msg_content["recipients"]:  # type: ignore
-    #                             if isinstance(addr, dict):
-    #                                 candidate = addr.get("address")
-    #                                 if isinstance(candidate, str):
-    #                                     _, target_swarm = parse_agent_address(candidate)
-    #                                     if target_swarm and target_swarm != self.swarm_name:
-    #                                         remote_targets.append(candidate)
-    #                     elif "recipient" in msg_content:
-    #                         addr = msg_content["recipient"]  # type: ignore[assignment]
-    #                         if isinstance(addr, dict):
-    #                             candidate = addr.get("address")
-    #                             if isinstance(candidate, str):
-    #                                 _, target_swarm = parse_agent_address(candidate)
-    #                                 if target_swarm and target_swarm != self.swarm_name:
-    #                                     remote_targets.append(candidate)
-
-    #                 remote_swarms: set[str] = set()
-    #                 for candidate in remote_targets:
-    #                     _, target_swarm = parse_agent_address(candidate)
-    #                     if target_swarm:
-    #                         remote_swarms.add(target_swarm)
-
-    #                 if isinstance(routing_info, dict):
-    #                     routing_swarm = routing_info.get("remote_swarm")
-    #                     if isinstance(routing_swarm, str):
-    #                         remote_swarms.add(routing_swarm)
-
-    #                 task_state: MAILTask | None = None
-    #                 if isinstance(original_task_id, str):
-    #                     self._ensure_task_exists(original_task_id)
-    #                     task_state = self.mail_tasks[original_task_id]
-    #                     for swarm in remote_swarms:
-    #                         task_state.add_remote_swarm(swarm)
-
-    #                 remote_message = copy.deepcopy(message)
-    #                 remote_msg_content = remote_message["message"]
-    #                 if isinstance(remote_msg_content, dict):
-    #                     if isinstance(original_task_id, str):
-    #                         remote_msg_content["task_id"] = original_task_id
-    #                     remote_routing = remote_msg_content.get("routing_info")
-    #                     if not isinstance(remote_routing, dict):
-    #                         remote_routing = {}
-    #                     if isinstance(original_task_id, str):
-    #                         remote_routing["origin_task_id"] = original_task_id
-    #                     if isinstance(original_request_id, str):
-    #                         remote_routing["origin_request_id"] = original_request_id
-    #                     if remote_swarms:
-    #                         remote_routing["remote_swarm"] = next(iter(remote_swarms))
-    #                     remote_routing["origin_swarm"] = self.swarm_name
-    #                     remote_msg_content["routing_info"] = remote_routing
-
-    #                 detail_targets = (
-    #                     ", ".join(remote_targets) if remote_targets else "remote swarm"
-    #                 )
-    #                 event_task_id = (
-    #                     original_task_id
-    #                     if isinstance(original_task_id, str)
-    #                     else original_task_id
-    #                 )
-    #                 logger.info(
-    #                     f"{self._log_prelude()} sending interswarm message for task '{event_task_id}' to {detail_targets}"
-    #                 )
-    #                 if isinstance(event_task_id, str):
-    #                     self._submit_event(
-    #                         "interswarm_send",
-    #                         event_task_id,
-    #                         f"sending interswarm message to {detail_targets}",
-    #                     )
-
-    #                 response = await self.interswarm_router.route_message(
-    #                     remote_message,
-    #                     stream_handler=forward_remote_event if stream_requested else None,
-    #                     ignore_stream_pings=ignore_stream_pings,
-    #                 )
-
-    #                 response_msg = response.get("message")
-    #                 if isinstance(response_msg, dict):
-    #                     if isinstance(original_task_id, str):
-    #                         response_msg["task_id"] = original_task_id
-    #                     if isinstance(original_request_id, str):
-    #                         response_msg["request_id"] = original_request_id  # type: ignore
-    #                     response_routing = response_msg.get("routing_info")
-    #                     if not isinstance(response_routing, dict):
-    #                         response_routing = {}
-    #                     response_routing["remote_swarm"] = response_msg.get(
-    #                         "sender_swarm"
-    #                     )
-    #                     response_routing["origin_swarm"] = response_msg.get(
-    #                         "sender_swarm"
-    #                     )
-    #                     response_msg["routing_info"] = response_routing
-
-    #                 if message["msg_type"] == "response":
-    #                     sender_info = (
-    #                         response_msg.get("sender")
-    #                         if isinstance(response_msg, dict)
-    #                         else None
-    #                     )
-    #                     sender_type = (
-    #                         sender_info.get("address_type")
-    #                         if isinstance(sender_info, dict)
-    #                         else None
-    #                     )
-
-    #                     if sender_type == "system":
-    #                         if isinstance(event_task_id, str):
-    #                             self._submit_event(
-    #                                 "router_error",
-    #                                 event_task_id,
-    #                                 "remote swarm rejected interswarm response",
-    #                             )
-    #                         normalized = self._normalize_interswarm_response(
-    #                             original_task_id, response
-    #                         )
-    #                         await self._submit_from_interswarm(normalized)
-    #                     else:
-    #                         logger.info(
-    #                             f"{self._log_prelude()} delivered interswarm response for task '{event_task_id}' to remote swarm '{detail_targets}'"
-    #                         )
-    #                     return
-
-    #                 if isinstance(event_task_id, str):
-    #                     self._submit_event(
-    #                         "interswarm_receive",
-    #                         event_task_id,
-    #                         f"received response from swarm '{response['message'].get('sender_swarm', 'unknown')}'",
-    #                     )
-    #                 logger.info(
-    #                     f"{self._log_prelude()} received response from remote swarm for task '{response['message']['task_id']}', considering local handling"
-    #                 )
-
-    #                 normalized = self._normalize_interswarm_response(
-    #                     original_task_id, response
-    #                 )
-    #                 await self._submit_from_interswarm(normalized)
-    #             except Exception as e:
-    #                 logger.error(
-    #                     f"{self._log_prelude()} error in interswarm routing: '{e}'"
-    #                 )
-
-    #                 self._submit_event(
-    #                     "router_error",
-    #                     message["message"]["task_id"],
-    #                     f"error in interswarm routing: '{e}'",
-    #                 )
-
-    #                 # inform the sender that the message was not delivered
-    #                 await self._submit_from_interswarm(
-    #                     self._system_response(
-    #                         task_id=message["message"]["task_id"],
-    #                         recipient=message["message"]["sender"],
-    #                         subject="::router_error::",
-    #                         body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered.
-    # The MAIL interswarm router encountered the following error: '{e}'
-    # If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
-    #                     )
-    #                 )
-    #         else:
-    #             logger.error(f"{self._log_prelude()} interswarm router not available")
-
-    #             self._submit_event(
-    #                 "router_error",
-    #                 message["message"]["task_id"],
-    #                 "interswarm router not available",
-    #             )
-
-    #             # inform the sender that the message was not delivered
-    #             await self._submit_from_interswarm(
-    #                 self._system_response(
-    #                     task_id=message["message"]["task_id"],
-    #                     recipient=message["message"]["sender"],
-    #                     subject="::router_error::",
-    #                     body=f"""Your message to '{message["message"]["sender"]["address"]}' was not delivered.
-    # The MAIL interswarm router is not currently available.
-    # If your assigned task cannot be completed, inform your caller of this error and work together to come up with a solution.""",
-    #                 )
-    #             )
 
     def _convert_interswarm_message_to_local(
         self,
@@ -1979,8 +1782,8 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                         task_id,
                         f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}' with args: '{', '.join([ujson.dumps(call.tool_args) for call in breakpoint_calls])}'",
                     )
-                    self.last_breakpoint_caller = recipient
-                    self.last_breakpoint_tool_calls = breakpoint_calls
+                    self.last_breakpoint_caller[task_id] = recipient
+                    self.last_breakpoint_tool_calls[task_id] = breakpoint_calls
                     bp_dumps: list[dict[str, Any]] = []
                     if breakpoint_calls[0].completion:
                         bp_dumps.append(breakpoint_calls[0].completion)
@@ -2616,22 +2419,9 @@ The final response message is: '{finish_body}'""",
         task_state = self.mail_tasks[task_id]
 
         if task_state.completed:
-            logger.info(
+            logger.warning(
                 f"{self._log_prelude()} agent '{caller}' called 'task_complete' for already completed task '{task_id}'"
             )
-            self._tool_call_response(
-                task_id=task_id,
-                caller=caller,
-                tool_call=call,
-                status="success",
-                details="task already completed",
-            )
-            self._submit_event(
-                "task_complete_call_duplicate",
-                task_id,
-                f"agent '{caller}' called 'task_complete' after completion",
-            )
-            return
 
         logger.info(
             f"{self._log_prelude()} task '{task_id}' completed by agent '{caller}'"
@@ -2670,19 +2460,19 @@ The final response message is: '{finish_body}'""",
             extra_data={"full_message": response_message},
         )
 
-        pending = self.pending_requests.pop(task_id, None)
-        if pending is not None and not pending.done():
-            try:
-                pending.set_result(response_message)
-            except Exception as e:
-                logger.error(
-                    f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
-                )
-            else:
-                try:
-                    self._events_available.set()
-                except Exception:
-                    pass
+        # pending = self.pending_requests.pop(task_id, None)
+        # if pending is not None and not pending.done():
+        #     try:
+        #         pending.set_result(response_message)
+        #     except Exception as e:
+        #         logger.error(
+        #             f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
+        #         )
+        #     else:
+        #         try:
+        #             self._events_available.set()
+        #         except Exception:
+        #             pass
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)

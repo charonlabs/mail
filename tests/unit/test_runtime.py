@@ -975,15 +975,17 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
     async def action_override(payload: dict[str, object]) -> dict[str, object] | str:
         return payload
 
-    runtime.last_breakpoint_caller = tool_caller
-    runtime.last_breakpoint_tool_calls = [
-        AgentToolCall(
-            tool_name="noop",
-            tool_args={},
-            tool_call_id="noop-1",
-            completion={"role": "assistant", "content": "done"},
-        )
-    ]
+    runtime.last_breakpoint_caller = {task_id: tool_caller}
+    runtime.last_breakpoint_tool_calls = {
+        task_id: [
+            AgentToolCall(
+                tool_name="noop",
+                tool_args={},
+                tool_call_id="noop-1",
+                completion={"role": "assistant", "content": "done"},
+            )
+        ]
+    }
 
     result = await runtime.run_task(
         task_id=task_id,

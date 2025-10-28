@@ -7,6 +7,7 @@ from .auth import (
     extract_token_info,
     get_token_info,
     login,
+    require_debug,
 )
 from .logger import (
     get_loggers,
@@ -48,4 +49,5 @@ __all__ = [
     "get_protocol_version",
     "export",
     "serialize_mail_value",
+    "require_debug",
 ]
