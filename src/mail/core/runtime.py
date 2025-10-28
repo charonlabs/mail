@@ -235,6 +235,7 @@ It is impossible to resume a task without `task_id` specified.""",
 
                 await self.mail_tasks[task_id].queue_load(self.message_queue)
                 self.mail_tasks[task_id].is_running = True
+                self.mail_tasks[task_id].completed = False
 
                 try:
                     result = await self._run_loop_for_task(task_id, action_override)
@@ -293,12 +294,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 breakpoint_tool_caller = self.last_breakpoint_caller[task_id]
                 breakpoint_tool_call_result = kwargs["breakpoint_tool_call_result"]
 
-                result = await self._resume_task_from_breakpoint_tool_call(
-                    task_id,
-                    breakpoint_tool_caller,
-                    breakpoint_tool_call_result,
-                    action_override=action_override,
-                )
+                self.mail_tasks[task_id].completed = False
+                self.mail_tasks[task_id].is_running = True
+
+                try:
+                    result = await self._resume_task_from_breakpoint_tool_call(
+                        task_id,
+                        breakpoint_tool_caller,
+                        breakpoint_tool_call_result,
+                        action_override=action_override,
+                    )
+                finally:
+                    self.mail_tasks[task_id].is_running = False
 
             case None:  # start a new task
                 if task_id is None:
@@ -468,6 +475,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 task_complete=True,
             )
 
+        self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
         result_msgs: list[dict[str, Any]] = []
         if isinstance(breakpoint_tool_call_result, str):
@@ -900,6 +908,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
         await self.submit(message)
@@ -918,6 +927,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: task '{task_id}' not found"
             )
             raise ValueError(f"task '{task_id}' not found")
+
+        self.mail_tasks[task_id].resume()
+        await self.mail_tasks[task_id].queue_load(self.message_queue)
 
         # ensure valid kwargs
         REQUIRED_KWARGS: dict[str, type] = {

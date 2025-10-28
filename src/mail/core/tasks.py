@@ -222,6 +222,13 @@ class MAILTask:
         self.completed = True
         self.is_running = False
 
+    def resume(self) -> None:
+        """
+        Mark the completed task as running again.
+        """
+        self.completed = False
+        self.is_running = True
+
     def add_remote_swarm(self, remote_swarm: str) -> None:
         """
         Track a remote swarm participating in this task.
