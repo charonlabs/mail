@@ -17,6 +17,7 @@ from aiohttp import (
     ClientTimeout,
     ContentTypeError,
 )
+from openai.types.responses import Response
 from rich import console
 from rich.syntax import Syntax
 from sse_starlette import ServerSentEvent
@@ -499,6 +500,33 @@ class MAILClient:
             ),
         )
 
+    async def debug_post_responses(
+        self,
+        input: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        instructions: str | None = None,
+        previous_response_id: str | None = None,
+        tool_choice: str | dict[str, str] = "auto",
+        parallel_tool_calls: bool = True,
+        **kwargs: Any,
+    ) -> Response:
+        """
+        Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
+        """
+        payload: dict[str, Any] = {
+            "input": input,
+            "tools": tools,
+            "instructions": instructions,
+            "previous_response_id": previous_response_id,
+            "tool_choice": tool_choice,
+            "parallel_tool_calls": parallel_tool_calls,
+            "kwargs": kwargs,
+        }
+        return cast(
+            Response,
+            await self._request_json("POST", "/responses", payload=payload),
+        )
+
 
 class MAILClientCLI:
     """
@@ -862,6 +890,61 @@ class MAILClientCLI:
         )
         swarm_load_from_json_parser.set_defaults(func=self._swarm_load_from_json)
 
+        # command `responses`
+        responses_parser = subparsers.add_parser(
+            "responses",
+            aliases=["r", "resp"],
+            help="(user|admin) (debug only) post a responses request to the MAIL server",
+        )
+        responses_parser.add_argument(
+            "input",
+            type=json.loads,
+            help="the input to the responses request",
+        )
+        responses_parser.add_argument(
+            "tools",
+            type=json.loads,
+            help="the tools to the responses request",
+        )
+        responses_parser.add_argument(
+            "-i",
+            "--instructions",
+            type=str,
+            help="the instructions to the responses request",
+        )
+        responses_parser.add_argument(
+            "-pr",
+            "--previous-response-id",
+            type=str,
+            help="the previous response ID to the responses request",
+        )
+        responses_parser.add_argument(
+            "-tc",
+            "--tool-choice",
+            type=str,
+            help="the tool choice to the responses request",
+        )
+        responses_parser.add_argument(
+            "-ptc",
+            "--parallel-tool-calls",
+            action="store_true",
+            help="whether to parallel tool calls",
+        )
+        responses_parser.add_argument(
+            "-k",
+            "--kwargs",
+            type=json.loads,
+            help="the kwargs to the responses request",
+            default=f"{{}}",  # noqa: F541
+        )
+        responses_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `POST /responses`",
+        )
+        responses_parser.set_defaults(func=self._debug_post_responses)
+
         return parser
 
     async def _ping(self, args: argparse.Namespace) -> None:
@@ -1123,6 +1206,26 @@ class MAILClientCLI:
                 f"[red bold]error[/red bold] loading swarm from JSON: {e}"
             )
 
+    async def _debug_post_responses(self, args: argparse.Namespace) -> None:
+        """
+        Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
+        """
+        try:
+            response = await self.client.debug_post_responses(args.input, args.tools, args.instructions, args.previous_response_id, args.tool_choice, args.parallel_tool_calls, **args.kwargs)
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"response ID: [green]{response.id}[/green]")
+                self.client._console.print(f"response created at: [green]{response.created_at}[/green]")
+                self.client._console.print(f"response model: [green]{response.model}[/green]")
+                self.client._console.print(f"response object: [green]{response.object}[/green]")
+                self.client._console.print(f"response tools: [green]{response.tools}[/green]")
+                self.client._console.print(f"response output: [green]{response.output}[/green]")
+                self.client._console.print(f"response parallel tool calls: [green]{response.parallel_tool_calls}[/green]")
+                self.client._console.print(f"response tool choice: [green]{response.tool_choice}[/green]")
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] posting responses: {e}")
+    
     def _print_preamble(self) -> None:
         """
         Print the preamble for the MAIL client.

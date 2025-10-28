@@ -265,6 +265,11 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
         "mail.utils.auth.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),
     )
+    monkeypatch.setattr(
+        "mail.utils.get_token_info",
+        lambda token: _async_return({"role": "user", "id": "u-123"}),
+        raising=False,
+    )
 
     yield
 

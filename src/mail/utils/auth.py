@@ -183,3 +183,12 @@ async def extract_token_info(request: Request) -> dict[str, Any]:
     jwt = await login(token)
 
     return await get_token_info(jwt)
+
+
+def require_debug(request: Request) -> None:
+    """
+    Require the debug mode to be enabled.
+    """
+    if not request.app.state.debug:
+        logger.warning("debug mode is not enabled")
+        raise HTTPException(status_code=404, detail="Not found")

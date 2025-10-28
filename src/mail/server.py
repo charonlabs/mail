@@ -15,7 +15,7 @@ import os
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Literal
+from typing import Any, Literal
 
 import uvicorn
 from aiohttp import ClientSession
@@ -37,6 +37,7 @@ from mail.core.message import (
 )
 from mail.net import types as types
 from mail.utils.logger import init_logger
+from mail.utils.openai import SwarmOAIClient
 
 from .api import MAILSwarm, MAILSwarmTemplate
 
@@ -74,6 +75,8 @@ async def _server_startup(app: FastAPI) -> None:
     cfg = _server_config
 
     # set defaults
+    app.state.debug = cfg.debug
+
     # swarm stuff
     app.state.persistent_swarm = server_utils.get_default_persistent_swarm(cfg)
     app.state.admin_mail_instances = server_utils.init_mail_instances_dict()
@@ -91,6 +94,10 @@ async def _server_startup(app: FastAPI) -> None:
     app.state.default_entrypoint_agent = server_utils.get_default_entrypoint_agent(
         app.state.persistent_swarm
     )
+
+    # Debug-only state
+    if app.state.debug:
+        app.state.openai_client = SwarmOAIClient(app.state.persistent_swarm)
 
     # Shared HTTP session for any server-initiated interswarm calls
     app.state._http_session = ClientSession(
@@ -967,6 +974,83 @@ async def load_swarm_from_json(request: Request):
         )
 
 
+@app.post(
+    "/responses",
+    dependencies=[
+        Depends(utils.require_debug),
+    ],
+    include_in_schema=False,
+)
+async def responses(request: Request):
+    """
+    Obtain a MAIL response in the form of an OpenAI `/responses`-style API call.
+    """
+    data = await request.json()
+
+    # parse the request
+    REQUIRED_PARAMS: dict[str, Any] = {
+        "api_key": str,
+        "input": list,
+        "tools": list,
+    }
+    OPTIONAL_PARAMS: dict[str, Any] = {
+        "instructions": str,
+        "previous_response_id": str,
+        "tool_choice": str | dict,
+        "parallel_tool_calls": bool,
+    }
+    for param, expected_type in REQUIRED_PARAMS.items():
+        if param not in data:
+            raise HTTPException(status_code=400, detail=f"parameter '{param}' is required")
+        if not isinstance(data[param], expected_type):
+            raise HTTPException(status_code=400, detail=f"parameter '{param}' must be a {expected_type.__name__}, got {type(data[param]).__name__}")
+    for param, expected_type in OPTIONAL_PARAMS.items():
+        if param not in data:
+            continue
+        if not isinstance(data[param], expected_type):
+            raise HTTPException(status_code=400, detail=f"parameter '{param}' must be a {expected_type.__name__}, got {type(data[param]).__name__}")
+
+    api_key = data["api_key"]
+    input = data["input"]
+    tools = data["tools"]
+    instructions = data.get("instructions")
+    previous_response_id = data.get("previous_response_id")
+    tool_choice = data.get("tool_choice")
+    parallel_tool_calls = data.get("parallel_tool_calls")
+    kwargs = data.get("kwargs") or {}
+
+    # get the caller's user ID from the API key
+    try:
+        token_info = await utils.get_token_info(api_key)
+        user_id = token_info["id"]
+        user_role = token_info["role"]
+    except Exception as e:
+        logger.error(f"{_log_prelude(app)} error getting token info: {e}")
+        raise HTTPException(status_code=401, detail="invalid API key")
+
+    # ensure the caller's MAIL instance is ready
+    caller_mail_instance = await get_or_create_mail_instance(user_role, user_id, api_key)
+    assert caller_mail_instance is not None
+
+    # fetch the client and run the response
+    client = app.state.openai_client
+    assert client is not None
+
+    try:
+        response = await client.responses.create(
+            input=input,
+            tools=tools,
+            instructions=instructions,
+            previous_response_id=previous_response_id,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            **kwargs,
+        )        
+        return response
+    except Exception as e:
+        logger.error(f"{_log_prelude(app)} error running responses: {e}")
+        raise HTTPException(status_code=500, detail=f"error running responses: {e}")
+
 def run_server(
     cfg: ServerConfig,
 ):
@@ -981,7 +1065,7 @@ def run_server(
     os.environ["SWARM_SOURCE"] = cfg.swarm.source
     os.environ.setdefault("BASE_URL", server_utils.compute_external_base_url(cfg))
 
-    uvicorn.run("mail.server:app", host=cfg.host, port=cfg.port, reload=cfg.reload)
+    uvicorn.run(app, host=cfg.host, port=cfg.port, reload=cfg.reload)
 
 
 if __name__ == "__main__":

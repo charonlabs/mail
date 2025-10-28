@@ -42,6 +42,7 @@ class SwarmOAIClient:
             previous_response_id: str | None = None,
             tool_choice: str | dict[str, str] = "auto",
             parallel_tool_calls: bool = True,
+            api_key: str | None = None,
             **kwargs: Any,
         ) -> Response:
             if self.owner.swarm is None:
