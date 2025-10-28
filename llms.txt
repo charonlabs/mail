@@ -289,6 +289,7 @@ Use `mail version` any time you need to confirm the reference implementation and
   [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
 - Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
+- Pass `--debug` (or set `[server].debug = true`) when you need the debug-only surface, including the OpenAI-compatible `/responses` endpoint. Leave it off for production deployments.
 - Example:
 
   ```bash
@@ -324,6 +325,7 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 | `message-stream "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
 | `message-interswarm "…" '["agent@remote"]' $USER_TOKEN` | Proxy a request to another swarm (requires interswarm). |
 | `swarms-get`, `swarm-register`, `swarm-dump`, `swarm-load-from-json` | Inspect or mutate the swarm registry and persistent template. |
+| `responses INPUT TOOLS [--instructions …] [--previous-response-id …] [--tool-choice …] [--parallel-tool-calls] [--kwargs '{…}']` | Debug-only OpenAI `/responses` call; requires the server to run with `--debug` and a JSON payload for `INPUT`/`TOOLS`. |
 
 The REPL uses `shlex.split`, so quoting works as expected:
 
@@ -363,6 +365,16 @@ Errors raised by `argparse` are caught and reported without exiting the loop, le
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
 - Combine with `uv run` for isolated environments, e.g. `uv run mail client …`.
 - Logging inherits the standard logging configuration. Setting `MAIL_LOG_LEVEL=DEBUG` will surface detailed request/response traces while you use the REPL.
+
+### OpenAI Responses from the REPL
+- Ensure the server was started with `--debug`; the `/responses` endpoint is hidden otherwise.
+- Supply `INPUT` and `TOOLS` as JSON strings. A minimal request looks like:
+
+  ```shell
+  mail> responses '[{"role":"user","content":"Summarise the plan"}]' '[]' 
+  ```
+
+- Provide additional OpenAI-compatible fields through the optional flags (for example `--instructions "System prompt"` or `--previous-response-id ...`). The command forwards the parsed JSON directly to the HTTP API.
 
 For deeper programmatic examples refer to [docs/client.md](./client.md).
 
@@ -602,6 +614,7 @@ uv run mail server
 python -m mail.server
 ```
 - Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
+- Need the OpenAI Responses bridge for integration testing? Start the server with `uv run mail server --debug` (or set `[server].debug = true`) to expose the debug-only `/responses` endpoint.
 - Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
 ## Try it
@@ -624,6 +637,12 @@ uv run mail client \
 http://localhost:8000 \
 --api-key $TOKEN
 ``` 
+- **Debug `/responses` (optional)**: 
+```bash
+uv run mail client http://localhost:8000 --api-key $TOKEN
+mail> responses '[{"role":"user","content":"Plan tomorrow"}]' '[]' \
+      --kwargs '{"api_key":"'"$TOKEN"'"}'
+```
 - **Send a message**: 
 ```bash
 curl -X POST http://localhost:8000/message \
@@ -790,12 +809,19 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | POST | `/interswarm/back` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmBackResponse { swarm, task_id, status, local_runner }` | Injects a follow-up or completion payload from the remote swarm into the active local runtime |
 | POST | `/interswarm/message` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmMessageResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Proxies a user/admin task to a remote swarm using the caller's runtime and interswarm router |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
+| POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { api_key: str, input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
 
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
 - When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - `POST /interswarm/message` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror local streaming; the server copies those hints into the interswarm `routing_info` it sends downstream.
+
+### Debug mode & OpenAI compatibility
+- Enabling server debug mode (`mail server --debug` or `[server].debug = true`) bootstraps a `SwarmOAIClient` alongside the FastAPI app so it can mirror OpenAI's `/responses` API.
+- `POST /responses` expects the caller's `api_key` plus the OpenAI-style `input`, `tools`, `instructions`, `previous_response_id`, and other optional fields. The API key is used to hydrate or reuse the caller's MAIL runtime before piping the request into the OpenAI bridge.
+- Responses conform to `openai.types.responses.Response`, letting you plug a MAIL swarm behind clients or SDKs that already speak the OpenAI Responses protocol. Because it is debug-only, the route is hidden from the generated OpenAPI document.
+- Wrap it from code via `MAILClient.debug_post_responses(...)` or from the REPL using `mail client responses …` (see [client.md](/docs/client.md) and [cli.md](/docs/cli.md) for usage).
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field
@@ -1450,6 +1476,7 @@ The class implements `__aenter__` / `__aexit__`, so `async with` automatically o
 | Messaging | `post_message(message, entrypoint=None, show_events=False)`, `post_message_stream(message, entrypoint=None)` | Handles synchronous responses and SSE streaming. |
 | Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |
 | Interswarm | `post_interswarm_message(...)`, `post_interswarm_response(...)`, `send_interswarm_message(...)` | Submit or receive interswarm traffic. |
+| Debug/OpenAI | `debug_post_responses(api_key, input, tools, instructions=None, previous_response_id=None, tool_choice="auto", parallel_tool_calls=True, **kwargs)` | Calls the debug-only `/responses` endpoint; requires server debug mode. |
 
 All helpers return deserialized `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
 
@@ -1517,22 +1544,46 @@ follow_up = await client.post_message(
 
 - The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
 
+## OpenAI Responses bridge
+
+- Enable server debug mode (`mail server --debug` or `[server].debug = true`) before calling `debug_post_responses`. This instantiates the internal OpenAI bridge (`SwarmOAIClient`) and exposes `/responses`.
+- The helper expects the same payload shape as OpenAI's Responses API.
+- Any extra keyword arguments (for example, `"parallel_tool_calls"` overrides or custom metadata) are forwarded verbatim inside the request body and handed to `SwarmOAIClient` for execution.
+- Example (assuming you already have an authenticated `MAILClient` instance named `client`):
+
+  ```python
+  response = await client.debug_post_responses(
+      input=[
+          {"role": "system", "content": "You orchestrate the MAIL swarm."},
+          {"role": "user", "content": "Draft a response for tomorrow's stand-up."}
+      ],
+      tools=[],
+  )
+  print(response.output)
+  ```
+
+- The CLI exposes the same workflow with `mail client responses …`; see [cli.md](./cli.md) for the REPL syntax.
+
 ## Error Handling
+
 - HTTP transport errors raise `RuntimeError` with the originating `aiohttp` exception chained.
 - Non‑JSON responses raise `ValueError` annotated with the returned content type and body.
 - Always wrap calls in `try/except` when the network may be flaky or when tokens can expire.
 
 ## Testing & Utilities
+
 - Unit coverage lives in `tests/unit/test_mail_client.py`, using an in‑process aiohttp server to validate payloads and streaming behaviour.
 - `scripts/demo_client.py` launches a stubbed MAIL server and exercises the client end‑to‑end—useful for manual testing or onboarding demos.
 
 ## Integration Tips
+
 - **Reuse sessions** for high‑throughput scenarios by passing an externally managed `ClientSession`.
 - **Custom headers**: Extend `_build_headers` by subclassing `MAILClient` if you need additional per‑request metadata.
 - **Timeouts**: Provide an `aiohttp.ClientTimeout(total=...)` for fine control over connect/read limits.
 - **Logging**: Enable the `mail.client` logger for request traces (`logging.getLogger("mail.client").setLevel(logging.DEBUG)`).
 
 ## Related Documentation
+
 - [API Surfaces](./api.md) – discusses the HTTP routes that `MAILClient` calls.
 - [Quickstart](./quickstart.md) – shows how to run the server; you can replace `curl` steps with `MAILClient` snippets.
 - [Testing](./testing.md) – outlines the project’s testing strategy, including client exercises.
@@ -1833,6 +1884,7 @@ This section explains the runtime, server, and networking layers that make up a 
 ## Runtime
 - **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution
 - **Task queue snapshots**: task-specific messages are stashed when `task_complete` or breakpoint pauses occur and reloaded when the task resumes, preserving execution ordering
+- **Task state tracking**: each logical task is represented by a `MAILTask` record that persists the running/completed flag, SSE event log, stashed queue snapshot, and any remote swarms participating in the conversation so resumes and audits stay consistent
 - **Agent histories**: maintained per agent for context and multi-turn behavior
 - **Pending requests**: tracked futures keyed by task_id for correlating final responses and streaming
 - **Events and SSE**: events are collected and streamed via Server-Sent Events (SSE) with heartbeat pings
@@ -1842,6 +1894,7 @@ This section explains the runtime, server, and networking layers that make up a 
 - **Persistent template**: built at startup from [swarms.json](/swarms.json) into `MAILSwarmTemplate`
 - **User isolation**: each authenticated user gets a dedicated `MAILSwarm` instance with its own runtime loop
 - **Endpoints**: `GET /`, `GET /status`, `POST /message` (+SSE), interswarm endpoints, and registry management; see [api.md](/docs/api.md)
+- **Debug mode**: turn on `[server].debug` (or run `mail server --debug`) to instantiate a `SwarmOAIClient` and expose the OpenAI-compatible `/responses` endpoint together with other diagnostic helpers; keep it off in production to minimise the HTTP surface
 - **Lifespan**: on startup, initializes registry, loads the persistent swarm, and starts health checks; on shutdown, cleans up instances and saves persistent registry state
 
 ## Interswarm
@@ -1874,6 +1927,7 @@ This page describes the configuration surfaces for a MAIL deployment: the projec
 port = 8000
 host = "0.0.0.0"
 reload = false
+debug = false
 
 [server.swarm]
 name = "example-no-proxy"
@@ -1888,14 +1942,15 @@ timeout = 3600.0
 verbose = false
 ```
 
-- The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`).
+- The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`) and whether debug-only integrations are exposed (`debug`).
 - The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry_file`, also accepted as legacy `registry`), and the runtime swarm name (`name`).
 - The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
-- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
+- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--debug`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
 - The CLI command `mail client` honors `timeout` from `[client]` and allows `--timeout` to override it per invocation.
 - Set `MAIL_CONFIG_PATH` to point at an alternate `mail.toml` (for example per environment). `mail server --config /path/to/mail.toml` temporarily overrides this variable for the lifetime of the command.
+- Toggle `[server].debug` (or pass `mail server --debug`) when you need the optional OpenAI-compatible `/responses` endpoint or other debug helpers exposed by the FastAPI app. Leave it `false` for production deployments to keep the surface minimal.
 
 ## Environment variables
 - `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy used by agents
