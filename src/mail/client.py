@@ -514,6 +514,7 @@ class MAILClient:
         Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
         """
         payload: dict[str, Any] = {
+            "api_key": self.api_key,
             "input": input,
             "tools": tools,
             "instructions": instructions,
@@ -1211,7 +1212,13 @@ class MAILClientCLI:
         Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
         """
         try:
+            api_key = self.client.api_key
+            if api_key is None:
+                self.client._console.print("[red bold]error[/red bold] posting responses: not logged in")
+                return
+
             response = await self.client.debug_post_responses(args.input, args.tools, args.instructions, args.previous_response_id, args.tool_choice, args.parallel_tool_calls, **args.kwargs)
+            
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:

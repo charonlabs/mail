@@ -19,6 +19,7 @@ Use `mail version` any time you need to confirm the reference implementation and
   [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
 - Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
+- Pass `--debug` (or set `[server].debug = true`) when you need the debug-only surface, including the OpenAI-compatible `/responses` endpoint. Leave it off for production deployments.
 - Example:
 
   ```bash
@@ -54,6 +55,7 @@ Once inside you will see the prompt `mail>`. The REPL accepts any of the subcomm
 | `message-stream "…" [--task-id …] [--resume-from …] [--kwargs '{…}']` | Stream SSE events; each event is printed as it arrives. |
 | `message-interswarm "…" '["agent@remote"]' $USER_TOKEN` | Proxy a request to another swarm (requires interswarm). |
 | `swarms-get`, `swarm-register`, `swarm-dump`, `swarm-load-from-json` | Inspect or mutate the swarm registry and persistent template. |
+| `responses INPUT TOOLS [--instructions …] [--previous-response-id …] [--tool-choice …] [--parallel-tool-calls] [--kwargs '{…}']` | Debug-only OpenAI `/responses` call; requires the server to run with `--debug` and a JSON payload for `INPUT`/`TOOLS`. |
 
 The REPL uses `shlex.split`, so quoting works as expected:
 
@@ -93,5 +95,15 @@ Errors raised by `argparse` are caught and reported without exiting the loop, le
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
 - Combine with `uv run` for isolated environments, e.g. `uv run mail client …`.
 - Logging inherits the standard logging configuration. Setting `MAIL_LOG_LEVEL=DEBUG` will surface detailed request/response traces while you use the REPL.
+
+### OpenAI Responses from the REPL
+- Ensure the server was started with `--debug`; the `/responses` endpoint is hidden otherwise.
+- Supply `INPUT` and `TOOLS` as JSON strings. A minimal request looks like:
+
+  ```shell
+  mail> responses '[{"role":"user","content":"Summarise the plan"}]' '[]' 
+  ```
+
+- Provide additional OpenAI-compatible fields through the optional flags (for example `--instructions "System prompt"` or `--previous-response-id ...`). The command forwards the parsed JSON directly to the HTTP API.
 
 For deeper programmatic examples refer to [docs/client.md](./client.md).

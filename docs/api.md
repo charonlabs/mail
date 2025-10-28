@@ -28,12 +28,19 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | POST | `/interswarm/back` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmBackResponse { swarm, task_id, status, local_runner }` | Injects a follow-up or completion payload from the remote swarm into the active local runtime |
 | POST | `/interswarm/message` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmMessageResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Proxies a user/admin task to a remote swarm using the caller's runtime and interswarm router |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
+| POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { api_key: str, input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
 
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
 - When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - `POST /interswarm/message` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror local streaming; the server copies those hints into the interswarm `routing_info` it sends downstream.
+
+### Debug mode & OpenAI compatibility
+- Enabling server debug mode (`mail server --debug` or `[server].debug = true`) bootstraps a `SwarmOAIClient` alongside the FastAPI app so it can mirror OpenAI's `/responses` API.
+- `POST /responses` expects the caller's `api_key` plus the OpenAI-style `input`, `tools`, `instructions`, `previous_response_id`, and other optional fields. The API key is used to hydrate or reuse the caller's MAIL runtime before piping the request into the OpenAI bridge.
+- Responses conform to `openai.types.responses.Response`, letting you plug a MAIL swarm behind clients or SDKs that already speak the OpenAI Responses protocol. Because it is debug-only, the route is hidden from the generated OpenAPI document.
+- Wrap it from code via `MAILClient.debug_post_responses(...)` or from the REPL using `mail client responses …` (see [client.md](/docs/client.md) and [cli.md](/docs/cli.md) for usage).
 
 ### Error handling
 - FastAPI raises **standard HTTP errors** with a `detail` field
