@@ -509,7 +509,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     self._submit_event(
                         "breakpoint_action_complete",
                         task_id,
-                        f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
+                        f"breakpoint action complete (caller = {breakpoint_tool_caller}):\n{resp['content']}",
                     )
         else:
             if len(self.last_breakpoint_tool_calls[task_id]) > 1:
@@ -530,7 +530,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             self._submit_event(
                 "breakpoint_action_complete",
                 task_id,
-                f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
+                f"breakpoint action complete (caller = {breakpoint_tool_caller}):\n{payload['content']}",
             )
 
         # append the breakpoint tool call result to the agent history
@@ -1009,7 +1009,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     self._submit_event(
                         "breakpoint_action_complete",
                         task_id,
-                        f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{resp['content']}'",
+                        f"breakpoint action complete (caller = {breakpoint_tool_caller}):\n{resp['content']}",
                     )
                 else:
                     logger.warning(
@@ -1032,13 +1032,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self._submit_event(
                     "breakpoint_action_complete",
                     task_id,
-                    f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload['content']}'",
+                    f"breakpoint action complete (caller = {breakpoint_tool_caller}):\n{payload['content']}",
                 )
             else:
                 self._submit_event(
                     "breakpoint_action_complete",
                     task_id,
-                    f"breakpoint action complete(caller = '{breakpoint_tool_caller}'):\n'{payload}'",
+                    f"breakpoint action complete (caller = {breakpoint_tool_caller}):\n{payload}",
                 )
 
         if isinstance(payload, list) and not has_breakpoint_context:
@@ -1444,7 +1444,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             self._submit_event(
                 "interswarm_message_received",
                 task_id,
-                f"received interswarm message from swarm '{message['source_swarm']}'",
+                f"received interswarm message from swarm {message['source_swarm']}",
             )
         except Exception as e:
             logger.error(
@@ -1501,7 +1501,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self._submit_event(
                     "interswarm_message_sent",
                     task_id,
-                    f"sent interswarm message forward to swarm '{interswarm_message['target_swarm']}'",
+                    f"sent interswarm message forward to swarm {interswarm_message['target_swarm']}",
                 )
             except Exception as e:
                 logger.error(
@@ -1524,7 +1524,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self._submit_event(
                     "interswarm_message_sent",
                     task_id,
-                    f"sent interswarm message back to swarm '{interswarm_message['target_swarm']}'",
+                    f"sent interswarm message back to swarm {interswarm_message['target_swarm']}",
                 )
             except Exception as e:
                 logger.error(
@@ -1649,7 +1649,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         self._submit_event(
                             "agent_error",
                             message["message"]["task_id"],
-                            f"agent '{message['message']['sender']['address']}' attempted to send a message to the user ('{self.user_id}')",
+                            f"agent {message['message']['sender']['address']} attempted to send a message to the user ({self.user_id})",
                         )
                         self._send_message(
                             sender_agent["address"],
@@ -1667,7 +1667,7 @@ Otherwise, continue working with your agents to complete the user's task.""",
                         self._submit_event(
                             "task_error",
                             message["message"]["task_id"],
-                            f"agent '{recipient_agent}' is the swarm name; message from '{message['message']['sender']['address']}' cannot be delivered to it",
+                            f"agent {recipient_agent} is the swarm name; message from {message['message']['sender']['address']} cannot be delivered to it",
                         )
                         await self.submit(
                             self._system_broadcast(
@@ -1686,7 +1686,7 @@ In order to prevent infinite loops, system-to-system messages immediately end th
                         self._submit_event(
                             "agent_error",
                             message["message"]["task_id"],
-                            f"agent '{recipient_agent}' is unknown; message from '{message['message']['sender']['address']}' cannot be delivered to it",
+                            f"agent {recipient_agent} is unknown; message from {message['message']['sender']['address']} cannot be delivered to it",
                         )
                         self._send_message(
                             sender_agent["address"],
@@ -1780,7 +1780,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     self._submit_event(
                         "breakpoint_tool_call",
                         task_id,
-                        f"agent '{recipient}' used breakpoint tools '{', '.join([call.tool_name for call in breakpoint_calls])}' with args: '{', '.join([ujson.dumps(call.tool_args) for call in breakpoint_calls])}'",
+                        f"agent {recipient} used breakpoint tools {', '.join([call.tool_name for call in breakpoint_calls])} with args: {', '.join([ujson.dumps(call.tool_args) for call in breakpoint_calls])}",
                     )
                     self.last_breakpoint_caller[task_id] = recipient
                     self.last_breakpoint_tool_calls[task_id] = breakpoint_calls
@@ -1889,7 +1889,7 @@ Otherwise, determine the best course of action to complete your task.""",
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"error acknowledging broadcast for agent '{recipient}': {e}",
+                                    f"error acknowledging broadcast for agent {recipient}: {e}",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -1906,7 +1906,7 @@ Use this information to decide how to complete your task.""",
                         case "ignore_broadcast":
                             # Explicitly ignore without storing or responding
                             logger.info(
-                                f"{self._log_prelude()} agent '{recipient}' called 'ignore_broadcast'"
+                                f"{self._log_prelude()} agent {recipient} called ignore_broadcast"
                             )
                             self._tool_call_response(
                                 task_id=task_id,
@@ -1918,7 +1918,7 @@ Use this information to decide how to complete your task.""",
                             self._submit_event(
                                 "broadcast_ignored",
                                 task_id,
-                                f"agent '{recipient}' called 'ignore_broadcast'",
+                                f"agent {recipient} called ignore_broadcast",
                             )
                             # No further action
                         case "await_message":
@@ -1937,7 +1937,7 @@ Use this information to decide how to complete your task.""",
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"agent '{recipient}' called 'await_message' but the message queue is empty",
+                                    f"agent {recipient} called await_message but the message queue is empty",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -2016,7 +2016,7 @@ Consider sending a message to another agent to keep the task alive.""",
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"error sending message for agent '{recipient}': {e}",
+                                    f"error sending message for agent {recipient}: {e}",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -2065,7 +2065,7 @@ Use this information to decide how to complete your task.""",
                                 self._submit_event(
                                     "help_called",
                                     task_id,
-                                    f"agent '{recipient}' called 'help'",
+                                    f"agent {recipient} called help",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -2089,7 +2089,7 @@ Use this information to decide how to complete your task.""",
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"error calling help tool for agent '{recipient}': {e}",
+                                    f"error calling help tool for agent {recipient}: {e}",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -2123,7 +2123,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 self._submit_event(
                                     "action_error",
                                     task_id,
-                                    f"agent '{recipient}' not found",
+                                    f"agent {recipient} not found",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -2151,7 +2151,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 self._submit_event(
                                     "action_error",
                                     task_id,
-                                    f"action '{action_name}' not found",
+                                    f"action {action_name} not found",
                                 )
                                 self._system_response(
                                     task_id=task_id,
@@ -2175,7 +2175,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 self._submit_event(
                                     "action_error",
                                     task_id,
-                                    f"agent '{action_caller}' cannot access action '{action_name}'",
+                                    f"agent {action_caller} cannot access action {action_name}",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -2193,7 +2193,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                             self._submit_event(
                                 "action_call",
                                 task_id,
-                                f"agent '{recipient}' executing action tool: '{call.tool_name}' with args: '{ujson.dumps(call.tool_args)}'",
+                                f"agent {recipient} executing action tool: {call.tool_name} with args: {ujson.dumps(call.tool_args)}",
                             )
                             try:
                                 # execute the action function
@@ -2213,7 +2213,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 self._submit_event(
                                     "action_complete",
                                     task_id,
-                                    f"action complete (caller = '{recipient}'):\n'{result_message.get('content')}'",
+                                    f"action complete (caller = {recipient}):\n{result_message.get('content')}",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -2238,7 +2238,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                 self._submit_event(
                                     "action_error",
                                     task_id,
-                                    f"action error (caller = '{recipient}', tool = '{call.tool_name}'):\n{e}",
+                                    f"action error (caller = {recipient}, tool = {call.tool_name}):\n{e}",
                                 )
                                 await self.submit(
                                     self._system_broadcast(
@@ -2269,7 +2269,7 @@ Use this information to decide how to complete your task.""",
                 self._submit_event(
                     "agent_error",
                     task_id,
-                    f"error scheduling message for agent '{recipient}': {e}",
+                    f"error scheduling message for agent {recipient}: {e}",
                 )
                 await self.submit(
                     self._system_response(
@@ -2444,7 +2444,7 @@ The final response message is: '{finish_body}'""",
         self._submit_event(
             "task_complete_call",
             task_id,
-            f"agent '{caller}' called 'task_complete', full response to follow",
+            f"agent {caller} called task_complete, full response to follow",
         )
 
         await task_state.queue_stash(self.message_queue)
@@ -2456,7 +2456,7 @@ The final response message is: '{finish_body}'""",
         self._submit_event(
             "new_message",
             task_id,
-            f"task_complete response from '{caller}'",
+            f"task_complete response from {caller}",
             extra_data={"full_message": response_message},
         )
 

@@ -21,6 +21,7 @@ from openai.types.responses import Response
 from rich import console
 from rich.syntax import Syntax
 from sse_starlette import ServerSentEvent
+import ujson
 
 import mail.utils as utils
 from mail.config import ClientConfig
@@ -1168,14 +1169,11 @@ class MAILClientCLI:
                 **args.kwargs,
             )
             async for event in response:
-                parsed_event = {
+                event_dict = {
                     "event": event.event,
                     "data": event.data,
                 }
-                self.client._console.print(
-                    json.dumps(parsed_event, indent=2, ensure_ascii=False)
-                )
-                self._print_embedded_xml(parsed_event)
+                self.client._console.print(self._strip_event(event_dict))
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] posting message: {e}"
@@ -1349,6 +1347,35 @@ class MAILClientCLI:
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] getting task: {e}")
 
+    def _strip_event(self, event: Any) -> str:
+        """
+        Strip the event from the task.
+        """
+        if isinstance(event, str):
+            return event
+
+        data = event.get("data")
+        if data is None:
+            return "unknown"
+        if isinstance(data, str):
+            if data == "":
+                return "unknown"
+
+            # this witchcraft swaps the quotes in the string so that ujson.loads can parse it
+            data = data.replace("\"", "::tmp::")
+            data = data.replace("\'", "\"")
+            data = data.replace("::tmp::", "\'")
+
+            # replace any None values with "unknown"
+            data = data.replace("None", "\"unknown\"")
+
+            data = ujson.loads(data)
+
+        timestamp = data.get("timestamp", "unknown")
+        description = data.get("description", "unknown (possible ping)")
+
+        return f"\t{timestamp} - {description}"
+
     def _strip_events(self, events: Any) -> list[str]:
         """
         Strip the events from the task.
@@ -1360,12 +1387,7 @@ class MAILClientCLI:
         
         events_list: list[str] = []
         for event in events:
-            data = event.get("data")
-            if data is None:
-                continue
-            timestamp = data.get("timestamp", "unknown")
-            description = data.get("description", "unknown")
-            events_list.append(f"\t{timestamp} - {description}")
+            events_list.append(self._strip_event(event))
         return events_list
 
     def _print_preamble(self) -> None:
