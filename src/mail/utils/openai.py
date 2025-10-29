@@ -10,7 +10,7 @@ from openai.types.responses import (
     ResponseOutputMessage,
     ResponseOutputText,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from mail.api import MAILAction, MAILSwarm, MAILSwarmTemplate
 from mail.utils.serialize import dump_mail_result
@@ -20,15 +20,25 @@ async def async_lambda(x: Any) -> Any:
     return x
 
 
+def build_oai_clients_dict() -> dict[str, "SwarmOAIClient"]:
+    """
+    Build a dictionary of SwarmOAIClient instances for each API key in the environment.
+    """
+    return {}
+
+
 class SwarmOAIClient:
     def __init__(
         self,
         template: MAILSwarmTemplate,
+        instance: MAILSwarm | None = None,
+        validate_responses: bool = True,
     ):
         self.responses = self.Responses(self)
         self.template = template
         self.result_dumps: dict[str, list[Any]] = {}
-        self.swarm: MAILSwarm | None = None
+        self.swarm = instance
+        self.validate_responses = validate_responses
 
     class Responses:
         def __init__(self, owner: "SwarmOAIClient"):
@@ -145,7 +155,7 @@ class SwarmOAIClient:
             self.owner.result_dumps[response_id].append(dump)
             has_called_tools = out["message"]["subject"] == "::breakpoint_tool_call::"
             if not has_called_tools:
-                return Response(
+                response = Response(
                     id=response_id,
                     created_at=float(datetime.now().timestamp()),
                     model=f"{swarm.name}",
@@ -169,6 +179,8 @@ class SwarmOAIClient:
                     parallel_tool_calls=parallel_tool_calls,
                     tool_choice=tool_choice,  # type: ignore
                 )
+                return response
+                        
             tool_calls: list[ResponseFunctionToolCall] = []
             body = ujson.loads(out["message"]["body"])
             for tool_call in body:
@@ -182,13 +194,19 @@ class SwarmOAIClient:
                         status=tool_call["status"],
                     )
                 )
-            return Response(
-                id=response_id,
-                created_at=float(datetime.now().timestamp()),
-                model=f"{swarm.name}",
-                object="response",
-                tools=tools,  # type: ignore
-                output=tool_calls,  # type: ignore
-                parallel_tool_calls=parallel_tool_calls,
-                tool_choice=tool_choice,  # type: ignore
-            )
+            try:
+                return Response(
+                    id=response_id,
+                    created_at=float(datetime.now().timestamp()),
+                    model=f"{swarm.name}",
+                    object="response",
+                    tools=tools,  # type: ignore
+                    output=tool_calls,  # type: ignore
+                    parallel_tool_calls=parallel_tool_calls,
+                    tool_choice=tool_choice,  # type: ignore
+                )
+            except ValidationError as e:
+                if self.owner.validate_responses:
+                    raise e
+                else:
+                    return response

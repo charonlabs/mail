@@ -10,6 +10,7 @@
 
 import asyncio
 import datetime
+import json
 import logging
 import os
 import time
@@ -20,6 +21,7 @@ from typing import Any, Literal
 import uvicorn
 from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
+from pydantic import ConfigDict, ValidationError
 
 import mail.net.server_utils as server_utils
 import mail.utils as utils
@@ -37,7 +39,7 @@ from mail.core.message import (
 )
 from mail.net import types as types
 from mail.utils.logger import init_logger
-from mail.utils.openai import SwarmOAIClient
+from mail.utils.openai import SwarmOAIClient, build_oai_clients_dict
 
 from .api import MAILSwarm, MAILSwarmTemplate
 
@@ -97,7 +99,7 @@ async def _server_startup(app: FastAPI) -> None:
 
     # Debug-only state
     if app.state.debug:
-        app.state.openai_client = SwarmOAIClient(app.state.persistent_swarm)
+        app.state.openai_clients = build_oai_clients_dict()
 
     # Shared HTTP session for any server-initiated interswarm calls
     app.state._http_session = ClientSession(
@@ -1021,7 +1023,8 @@ async def responses(request: Request):
 
     # get the caller's user ID from the API key
     try:
-        token_info = await utils.get_token_info(api_key)
+        jwt = await utils.login(api_key)
+        token_info = await utils.get_token_info(jwt)
         user_id = token_info["id"]
         user_role = token_info["role"]
     except Exception as e:
@@ -1033,8 +1036,14 @@ async def responses(request: Request):
     assert caller_mail_instance is not None
 
     # fetch the client and run the response
-    client = app.state.openai_client
-    assert client is not None
+    client = app.state.openai_clients.get(api_key)
+    if client is None:
+        client = SwarmOAIClient(
+            app.state.persistent_swarm,
+            caller_mail_instance,
+            validate_responses=False,
+        )
+        app.state.openai_clients[api_key] = client
 
     try:
         response = await client.responses.create(
@@ -1046,7 +1055,7 @@ async def responses(request: Request):
             parallel_tool_calls=parallel_tool_calls,
             **kwargs,
         )        
-        return response
+        return response.model_dump_json()
     except Exception as e:
         logger.error(f"{_log_prelude(app)} error running responses: {e}")
         raise HTTPException(status_code=500, detail=f"error running responses: {e}")

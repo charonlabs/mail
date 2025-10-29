@@ -119,13 +119,17 @@ class MAILClient:
     def _build_headers(
         self,
         extra: dict[str, str] | None = None,
+        ignore_auth: bool = False,
     ) -> dict[str, str]:
         """
         Build headers for the HTTP request.
         """
-        headers: dict[str, str] = {"Accept": "application/json"}
+        headers: dict[str, str] = {
+            "Accept": "application/json",
+            "User-Agent": f"MAIL-Client/{utils.get_version()} (github.com/charonlabs/mail)",
+        }
 
-        if self.api_key:
+        if self.api_key and not ignore_auth:
             headers["Authorization"] = f"Bearer {self.api_key}"
         if extra:
             headers.update(extra)
@@ -139,6 +143,7 @@ class MAILClient:
         *,
         payload: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        ignore_auth: bool = False,
     ) -> Any:
         """
         Make a request to a remote MAIL swarm via HTTP.
@@ -152,7 +157,7 @@ class MAILClient:
                 method,
                 url,
                 json=payload,
-                headers=self._build_headers(headers),
+                headers=self._build_headers(headers, ignore_auth),
             ) as response:
                 response.raise_for_status()
                 return await self._read_json(response)
@@ -506,8 +511,8 @@ class MAILClient:
         tools: list[dict[str, Any]],
         instructions: str | None = None,
         previous_response_id: str | None = None,
-        tool_choice: str | dict[str, str] = "auto",
-        parallel_tool_calls: bool = True,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
         **kwargs: Any,
     ) -> Response:
         """
@@ -517,15 +522,22 @@ class MAILClient:
             "api_key": self.api_key,
             "input": input,
             "tools": tools,
-            "instructions": instructions,
-            "previous_response_id": previous_response_id,
-            "tool_choice": tool_choice,
-            "parallel_tool_calls": parallel_tool_calls,
-            "kwargs": kwargs,
         }
+
+        if instructions is not None:
+            payload["instructions"] = instructions
+        if previous_response_id is not None:
+            payload["previous_response_id"] = previous_response_id
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
+        if parallel_tool_calls is not None:
+            payload["parallel_tool_calls"] = parallel_tool_calls
+        if kwargs:
+            payload["kwargs"] = kwargs
+            
         return cast(
             Response,
-            await self._request_json("POST", "/responses", payload=payload),
+            await self._request_json("POST", "/responses", payload=payload, ignore_auth=True),
         )
 
 
@@ -928,7 +940,8 @@ class MAILClientCLI:
         responses_parser.add_argument(
             "-ptc",
             "--parallel-tool-calls",
-            action="store_true",
+            action=argparse.BooleanOptionalAction,
+            default=None,
             help="whether to parallel tool calls",
         )
         responses_parser.add_argument(
@@ -1217,8 +1230,23 @@ class MAILClientCLI:
                 self.client._console.print("[red bold]error[/red bold] posting responses: not logged in")
                 return
 
-            response = await self.client.debug_post_responses(args.input, args.tools, args.instructions, args.previous_response_id, args.tool_choice, args.parallel_tool_calls, **args.kwargs)
-            
+            tool_choice = args.tool_choice
+            if tool_choice is not None:
+                try:
+                    tool_choice = json.loads(tool_choice)
+                except (TypeError, json.JSONDecodeError):
+                    pass
+
+            response = await self.client.debug_post_responses(
+                args.input,
+                args.tools,
+                args.instructions,
+                args.previous_response_id,
+                tool_choice,
+                args.parallel_tool_calls,
+                **(args.kwargs or {}),
+            )
+
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:
