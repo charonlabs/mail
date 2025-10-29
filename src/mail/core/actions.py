@@ -55,7 +55,7 @@ class ActionCore:
                 return ("error", {"content": f"failed to execute action tool: {e}"})
         else:
             try:
-                response = await action_override(call.tool_args)
+                response = await action_override(call)  # type: ignore
                 if isinstance(response, str):
                     return ("success", {"content": response})
                 return ("success", response)
