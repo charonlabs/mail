@@ -31,6 +31,7 @@ from mail.core import (
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
 from mail.core.message import MAILInterswarmMessage
+from mail.core.tasks import MAILTask
 from mail.core.tools import MAIL_TOOL_NAMES
 from mail.factories.base import MAILAgentFunction
 from mail.net import SwarmRegistry
@@ -1199,12 +1200,28 @@ class MAILSwarm:
         )
 
     def get_response_message(self, task_id: str) -> MAILMessage | None:
-        """Get the response message for a given task ID. Mostly used after streaming response events."""
+        """
+        Get the response message for a given task ID. Mostly used after streaming response events.
+        """
         return self._runtime.get_response_message(task_id)
 
     def get_events(self, task_id: str) -> list[ServerSentEvent]:
-        """Get the events for a given task ID. Mostly used after streaming response events."""
+        """
+        Get the events for a given task ID. Mostly used after streaming response events.
+        """
         return self._runtime.get_events_by_task_id(task_id)
+
+    def get_all_tasks(self) -> dict[str, MAILTask]:
+        """
+        Get all tasks for the swarm.
+        """
+        return self._runtime.mail_tasks
+
+    def get_task_by_id(self, task_id: str) -> MAILTask | None:
+        """
+        Get a task by ID.
+        """
+        return self._runtime.mail_tasks.get(task_id)
 
 
 class MAILSwarmTemplate:
