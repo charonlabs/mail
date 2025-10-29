@@ -519,7 +519,6 @@ class MAILClient:
         Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
         """
         payload: dict[str, Any] = {
-            "api_key": self.api_key,
             "input": input,
             "tools": tools,
         }
@@ -534,10 +533,9 @@ class MAILClient:
             payload["parallel_tool_calls"] = parallel_tool_calls
         if kwargs:
             payload["kwargs"] = kwargs
-            
-        return cast(
-            Response,
-            await self._request_json("POST", "/responses", payload=payload, ignore_auth=True),
+
+        return Response.model_validate_json(
+            await self._request_json("POST", "/responses", payload=payload)
         )
 
 
@@ -1225,11 +1223,6 @@ class MAILClientCLI:
         Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
         """
         try:
-            api_key = self.client.api_key
-            if api_key is None:
-                self.client._console.print("[red bold]error[/red bold] posting responses: not logged in")
-                return
-
             tool_choice = args.tool_choice
             if tool_choice is not None:
                 try:
@@ -1248,19 +1241,35 @@ class MAILClientCLI:
             )
 
             if args.verbose:
-                self.client._console.print(json.dumps(response, indent=2))
+                self.client._console.print(response.model_dump())
             else:
                 self.client._console.print(f"response ID: [green]{response.id}[/green]")
-                self.client._console.print(f"response created at: [green]{response.created_at}[/green]")
-                self.client._console.print(f"response model: [green]{response.model}[/green]")
-                self.client._console.print(f"response object: [green]{response.object}[/green]")
-                self.client._console.print(f"response tools: [green]{response.tools}[/green]")
-                self.client._console.print(f"response output: [green]{response.output}[/green]")
-                self.client._console.print(f"response parallel tool calls: [green]{response.parallel_tool_calls}[/green]")
-                self.client._console.print(f"response tool choice: [green]{response.tool_choice}[/green]")
+                self.client._console.print(
+                    f"response created at: [green]{response.created_at}[/green]"
+                )
+                self.client._console.print(
+                    f"response model: [green]{response.model}[/green]"
+                )
+                self.client._console.print(
+                    f"response object: [green]{response.object}[/green]"
+                )
+                self.client._console.print(
+                    f"response tools: [green]{response.tools}[/green]"
+                )
+                self.client._console.print(
+                    f"response output: [green]{response.output}[/green]"
+                )
+                self.client._console.print(
+                    f"response parallel tool calls: [green]{response.parallel_tool_calls}[/green]"
+                )
+                self.client._console.print(
+                    f"response tool choice: [green]{response.tool_choice}[/green]"
+                )
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] posting responses: {e}")
-    
+            self.client._console.print(
+                f"[red bold]error[/red bold] posting responses: {e}"
+            )
+
     def _print_preamble(self) -> None:
         """
         Print the preamble for the MAIL client.

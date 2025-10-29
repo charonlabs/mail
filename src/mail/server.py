@@ -980,6 +980,7 @@ async def load_swarm_from_json(request: Request):
     "/responses",
     dependencies=[
         Depends(utils.require_debug),
+        Depends(utils.caller_is_admin_or_user),
     ],
     include_in_schema=False,
 )
@@ -991,59 +992,64 @@ async def responses(request: Request):
 
     # parse the request
     REQUIRED_PARAMS: dict[str, Any] = {
-        "api_key": str,
         "input": list,
         "tools": list,
     }
     OPTIONAL_PARAMS: dict[str, Any] = {
-        "instructions": str,
-        "previous_response_id": str,
-        "tool_choice": str | dict,
-        "parallel_tool_calls": bool,
+        "instructions": str | None,
+        "previous_response_id": str | None,
+        "tool_choice": str | dict | None,
+        "parallel_tool_calls": bool | None,
     }
+    logger.info(f"{_log_prelude(app)} responses: {data}")
     for param, expected_type in REQUIRED_PARAMS.items():
         if param not in data:
-            raise HTTPException(status_code=400, detail=f"parameter '{param}' is required")
+            raise HTTPException(
+                status_code=400, detail=f"parameter '{param}' is required"
+            )
         if not isinstance(data[param], expected_type):
-            raise HTTPException(status_code=400, detail=f"parameter '{param}' must be a {expected_type.__name__}, got {type(data[param]).__name__}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"parameter '{param}' must be a {expected_type.__name__}, got {type(data[param]).__name__}",
+            )
     for param, expected_type in OPTIONAL_PARAMS.items():
         if param not in data:
             continue
         if not isinstance(data[param], expected_type):
-            raise HTTPException(status_code=400, detail=f"parameter '{param}' must be a {expected_type.__name__}, got {type(data[param]).__name__}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"parameter '{param}' must be a {expected_type.__name__}, got {type(data[param]).__name__}",
+            )
 
-    api_key = data["api_key"]
     input = data["input"]
     tools = data["tools"]
     instructions = data.get("instructions")
     previous_response_id = data.get("previous_response_id")
-    tool_choice = data.get("tool_choice")
-    parallel_tool_calls = data.get("parallel_tool_calls")
+    tool_choice = data.get("tool_choice") or "auto"
+    parallel_tool_calls = data.get("parallel_tool_calls") or True
     kwargs = data.get("kwargs") or {}
 
     # get the caller's user ID from the API key
-    try:
-        jwt = await utils.login(api_key)
-        token_info = await utils.get_token_info(jwt)
-        user_id = token_info["id"]
-        user_role = token_info["role"]
-    except Exception as e:
-        logger.error(f"{_log_prelude(app)} error getting token info: {e}")
-        raise HTTPException(status_code=401, detail="invalid API key")
+    caller_info = await utils.extract_token_info(request)
+    caller_id = caller_info["id"]
+    caller_role = caller_info["role"]
+    assert caller_role in ["admin", "user"]
 
     # ensure the caller's MAIL instance is ready
-    caller_mail_instance = await get_or_create_mail_instance(user_role, user_id, api_key)
+    caller_mail_instance = await get_or_create_mail_instance(
+        caller_role, caller_id, caller_info["api_key"]
+    )
     assert caller_mail_instance is not None
 
     # fetch the client and run the response
-    client = app.state.openai_clients.get(api_key)
+    client = app.state.openai_clients.get(caller_info["api_key"])
     if client is None:
         client = SwarmOAIClient(
             app.state.persistent_swarm,
             caller_mail_instance,
             validate_responses=False,
         )
-        app.state.openai_clients[api_key] = client
+        app.state.openai_clients[caller_info["api_key"]] = client
 
     try:
         response = await client.responses.create(
@@ -1054,11 +1060,12 @@ async def responses(request: Request):
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             **kwargs,
-        )        
+        )
         return response.model_dump_json()
     except Exception as e:
         logger.error(f"{_log_prelude(app)} error running responses: {e}")
         raise HTTPException(status_code=500, detail=f"error running responses: {e}")
+
 
 def run_server(
     cfg: ServerConfig,
