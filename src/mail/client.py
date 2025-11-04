@@ -10,6 +10,7 @@ import shlex
 from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
+import ujson
 from aiohttp import (
     ClientResponse,
     ClientResponseError,
@@ -538,6 +539,18 @@ class MAILClient:
             await self._request_json("POST", "/responses", payload=payload)
         )
 
+    async def get_tasks(self) -> dict[str, Any]:
+        """
+        Get the list of tasks for this caller.
+        """
+        return await self._request_json("GET", "/tasks")
+
+    async def get_task(self, task_id: str) -> dict[str, Any]:
+        """
+        Get a specific task for this caller.
+        """
+        return await self._request_json("GET", "/task", payload={"task_id": task_id})
+
 
 class MAILClientCLI:
     """
@@ -957,6 +970,39 @@ class MAILClientCLI:
         )
         responses_parser.set_defaults(func=self._debug_post_responses)
 
+        # command `tasks-get`
+        tasks_get_parser = subparsers.add_parser(
+            "tasks-get",
+            aliases=["tsg", "tasks-g"],
+            help="(user|admin) get the list of tasks for this caller",
+        )
+        tasks_get_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `GET /tasks`",
+        )
+        tasks_get_parser.set_defaults(func=self._tasks_get)
+
+        # command `task-get`
+        task_get_parser = subparsers.add_parser(
+            "task-get",
+            aliases=["tg", "task-g"],
+            help="(user|admin) get a specific task for this caller",
+        )
+        task_get_parser.add_argument(
+            "task_id",
+            type=str,
+            help="the ID of the task to get",
+        )
+        task_get_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `GET /task`",
+        )
+        task_get_parser.set_defaults(func=self._task_get)
+
         return parser
 
     async def _ping(self, args: argparse.Namespace) -> None:
@@ -1123,14 +1169,11 @@ class MAILClientCLI:
                 **args.kwargs,
             )
             async for event in response:
-                parsed_event = {
+                event_dict = {
                     "event": event.event,
                     "data": event.data,
                 }
-                self.client._console.print(
-                    json.dumps(parsed_event, indent=2, ensure_ascii=False)
-                )
-                self._print_embedded_xml(parsed_event)
+                self.client._console.print(self._strip_event(event_dict))
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] posting message: {e}"
@@ -1269,6 +1312,83 @@ class MAILClientCLI:
             self.client._console.print(
                 f"[red bold]error[/red bold] posting responses: {e}"
             )
+
+    async def _tasks_get(self, args: argparse.Namespace) -> None:
+        """
+        Get the list of tasks for this caller.
+        """
+        try:
+            response = await self.client.get_tasks()
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"found {len(response)} tasks:")
+                for task_id, task in response.items():
+                    self.client._console.print(f"{task_id} - completed: {task.get('completed', 'unknown')}")
+                    self.client._console.print("  - events:")
+                    for event in self._strip_events(task.get('events', 'unknown')):
+                        self.client._console.print(event)
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] getting tasks: {e}")
+
+    async def _task_get(self, args: argparse.Namespace) -> None:
+        """
+        Get a specific task for this caller.
+        """
+        try:
+            response = await self.client.get_task(args.task_id)
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(f"task '{response['task_id']}' - completed: {response.get('completed', 'unknown')}")
+                self.client._console.print("  - events:")
+                for event in self._strip_events(response.get('events', 'unknown')):
+                    self.client._console.print(event)
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] getting task: {e}")
+
+    def _strip_event(self, event: Any) -> str:
+        """
+        Strip the event from the task.
+        """
+        if isinstance(event, str):
+            return event
+
+        data = event.get("data")
+        if data is None:
+            return "unknown"
+        if isinstance(data, str):
+            if data == "":
+                return "unknown"
+
+            # this witchcraft swaps the quotes in the string so that ujson.loads can parse it
+            data = data.replace("\"", "::tmp::")
+            data = data.replace("\'", "\"")
+            data = data.replace("::tmp::", "\'")
+
+            # replace any None values with "unknown"
+            data = data.replace("None", "\"unknown\"")
+
+            data = ujson.loads(data)
+
+        timestamp = data.get("timestamp", "unknown")
+        description = data.get("description", "unknown (possible ping)")
+
+        return f"\t{timestamp} - {description}"
+
+    def _strip_events(self, events: Any) -> list[str]:
+        """
+        Strip the events from the task.
+        """
+        if isinstance(events, str):
+            if events == "unknown":
+                return []
+            return [events]
+        
+        events_list: list[str] = []
+        for event in events:
+            events_list.append(self._strip_event(event))
+        return events_list
 
     def _print_preamble(self) -> None:
         """

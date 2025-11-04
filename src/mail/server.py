@@ -10,7 +10,6 @@
 
 import asyncio
 import datetime
-import json
 import logging
 import os
 import time
@@ -21,7 +20,6 @@ from typing import Any, Literal
 import uvicorn
 from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
-from pydantic import ConfigDict, ValidationError
 
 import mail.net.server_utils as server_utils
 import mail.utils as utils
@@ -1066,6 +1064,60 @@ async def responses(request: Request):
         logger.error(f"{_log_prelude(app)} error running responses: {e}")
         raise HTTPException(status_code=500, detail=f"error running responses: {e}")
 
+
+@app.get(
+    "/tasks",
+    dependencies=[Depends(utils.caller_is_admin_or_user)],
+)
+async def get_tasks(request: Request):
+    """
+    Get the list of tasks for this caller.
+    """
+    caller_info = await utils.extract_token_info(request)
+    caller_id = caller_info["id"]
+    caller_role = caller_info["role"]
+    assert caller_role in ["admin", "user"]
+
+    mail_instance = await get_or_create_mail_instance(
+        caller_role, caller_id, caller_info["api_key"]
+    )
+    assert mail_instance is not None
+
+    tasks = mail_instance.get_all_tasks()
+
+    return tasks
+
+
+@app.get(
+    "/task",
+    dependencies=[Depends(utils.caller_is_admin_or_user)],
+)
+async def get_task(request: Request):
+    """
+    Get a specific task for this caller.
+    """
+    caller_info = await utils.extract_token_info(request)
+    caller_id = caller_info["id"]
+    caller_role = caller_info["role"]
+    assert caller_role in ["admin", "user"]
+
+    body = await request.json()
+    task_id = body.get("task_id")
+
+    if task_id is None:
+        raise HTTPException(status_code=400, detail="task_id is required")
+    if not isinstance(task_id, str):
+        raise HTTPException(status_code=400, detail="task_id must be a string")
+
+    mail_instance = await get_or_create_mail_instance(caller_role, caller_id, caller_info["api_key"])
+    assert mail_instance is not None
+
+    task = mail_instance.get_task_by_id(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"task '{task_id}' not found")
+
+    return task
+    
 
 def run_server(
     cfg: ServerConfig,

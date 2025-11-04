@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: MAIL Server API
-  version: "1.2-pre1"
+  version: "1.2"
   description: REST API for the Multi-Agent Interface Layer (MAIL) server, including interswarm messaging.
 servers:
   - url: http://localhost:8000
