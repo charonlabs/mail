@@ -10,6 +10,7 @@ import shlex
 from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
+import ujson
 from aiohttp import (
     ClientResponse,
     ClientResponseError,
@@ -119,13 +120,17 @@ class MAILClient:
     def _build_headers(
         self,
         extra: dict[str, str] | None = None,
+        ignore_auth: bool = False,
     ) -> dict[str, str]:
         """
         Build headers for the HTTP request.
         """
-        headers: dict[str, str] = {"Accept": "application/json"}
+        headers: dict[str, str] = {
+            "Accept": "application/json",
+            "User-Agent": f"MAIL-Client/{utils.get_version()} (github.com/charonlabs/mail)",
+        }
 
-        if self.api_key:
+        if self.api_key and not ignore_auth:
             headers["Authorization"] = f"Bearer {self.api_key}"
         if extra:
             headers.update(extra)
@@ -139,6 +144,7 @@ class MAILClient:
         *,
         payload: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        ignore_auth: bool = False,
     ) -> Any:
         """
         Make a request to a remote MAIL swarm via HTTP.
@@ -152,7 +158,7 @@ class MAILClient:
                 method,
                 url,
                 json=payload,
-                headers=self._build_headers(headers),
+                headers=self._build_headers(headers, ignore_auth),
             ) as response:
                 response.raise_for_status()
                 return await self._read_json(response)
@@ -506,27 +512,44 @@ class MAILClient:
         tools: list[dict[str, Any]],
         instructions: str | None = None,
         previous_response_id: str | None = None,
-        tool_choice: str | dict[str, str] = "auto",
-        parallel_tool_calls: bool = True,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
         **kwargs: Any,
     ) -> Response:
         """
         Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
         """
         payload: dict[str, Any] = {
-            "api_key": self.api_key,
             "input": input,
             "tools": tools,
-            "instructions": instructions,
-            "previous_response_id": previous_response_id,
-            "tool_choice": tool_choice,
-            "parallel_tool_calls": parallel_tool_calls,
-            "kwargs": kwargs,
         }
-        return cast(
-            Response,
-            await self._request_json("POST", "/responses", payload=payload),
+
+        if instructions is not None:
+            payload["instructions"] = instructions
+        if previous_response_id is not None:
+            payload["previous_response_id"] = previous_response_id
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
+        if parallel_tool_calls is not None:
+            payload["parallel_tool_calls"] = parallel_tool_calls
+        if kwargs:
+            payload["kwargs"] = kwargs
+
+        return Response.model_validate_json(
+            await self._request_json("POST", "/responses", payload=payload)
         )
+
+    async def get_tasks(self) -> dict[str, Any]:
+        """
+        Get the list of tasks for this caller.
+        """
+        return await self._request_json("GET", "/tasks")
+
+    async def get_task(self, task_id: str) -> dict[str, Any]:
+        """
+        Get a specific task for this caller.
+        """
+        return await self._request_json("GET", "/task", payload={"task_id": task_id})
 
 
 class MAILClientCLI:
@@ -928,7 +951,8 @@ class MAILClientCLI:
         responses_parser.add_argument(
             "-ptc",
             "--parallel-tool-calls",
-            action="store_true",
+            action=argparse.BooleanOptionalAction,
+            default=None,
             help="whether to parallel tool calls",
         )
         responses_parser.add_argument(
@@ -945,6 +969,39 @@ class MAILClientCLI:
             help="view the full JSON response for `POST /responses`",
         )
         responses_parser.set_defaults(func=self._debug_post_responses)
+
+        # command `tasks-get`
+        tasks_get_parser = subparsers.add_parser(
+            "tasks-get",
+            aliases=["tsg", "tasks-g"],
+            help="(user|admin) get the list of tasks for this caller",
+        )
+        tasks_get_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `GET /tasks`",
+        )
+        tasks_get_parser.set_defaults(func=self._tasks_get)
+
+        # command `task-get`
+        task_get_parser = subparsers.add_parser(
+            "task-get",
+            aliases=["tg", "task-g"],
+            help="(user|admin) get a specific task for this caller",
+        )
+        task_get_parser.add_argument(
+            "task_id",
+            type=str,
+            help="the ID of the task to get",
+        )
+        task_get_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `GET /task`",
+        )
+        task_get_parser.set_defaults(func=self._task_get)
 
         return parser
 
@@ -1112,14 +1169,11 @@ class MAILClientCLI:
                 **args.kwargs,
             )
             async for event in response:
-                parsed_event = {
+                event_dict = {
                     "event": event.event,
                     "data": event.data,
                 }
-                self.client._console.print(
-                    json.dumps(parsed_event, indent=2, ensure_ascii=False)
-                )
-                self._print_embedded_xml(parsed_event)
+                self.client._console.print(self._strip_event(event_dict))
         except Exception as e:
             self.client._console.print(
                 f"[red bold]error[/red bold] posting message: {e}"
@@ -1212,27 +1266,134 @@ class MAILClientCLI:
         Post a responses request to the MAIL server in the form of an OpenAI `/responses`-style API call.
         """
         try:
-            api_key = self.client.api_key
-            if api_key is None:
-                self.client._console.print("[red bold]error[/red bold] posting responses: not logged in")
-                return
+            tool_choice = args.tool_choice
+            if tool_choice is not None:
+                try:
+                    tool_choice = json.loads(tool_choice)
+                except (TypeError, json.JSONDecodeError):
+                    pass
 
-            response = await self.client.debug_post_responses(args.input, args.tools, args.instructions, args.previous_response_id, args.tool_choice, args.parallel_tool_calls, **args.kwargs)
-            
+            response = await self.client.debug_post_responses(
+                args.input,
+                args.tools,
+                args.instructions,
+                args.previous_response_id,
+                tool_choice,
+                args.parallel_tool_calls,
+                **(args.kwargs or {}),
+            )
+
+            if args.verbose:
+                self.client._console.print(response.model_dump())
+            else:
+                self.client._console.print(f"response ID: [green]{response.id}[/green]")
+                self.client._console.print(
+                    f"response created at: [green]{response.created_at}[/green]"
+                )
+                self.client._console.print(
+                    f"response model: [green]{response.model}[/green]"
+                )
+                self.client._console.print(
+                    f"response object: [green]{response.object}[/green]"
+                )
+                self.client._console.print(
+                    f"response tools: [green]{response.tools}[/green]"
+                )
+                self.client._console.print(
+                    f"response output: [green]{response.output}[/green]"
+                )
+                self.client._console.print(
+                    f"response parallel tool calls: [green]{response.parallel_tool_calls}[/green]"
+                )
+                self.client._console.print(
+                    f"response tool choice: [green]{response.tool_choice}[/green]"
+                )
+        except Exception as e:
+            self.client._console.print(
+                f"[red bold]error[/red bold] posting responses: {e}"
+            )
+
+    async def _tasks_get(self, args: argparse.Namespace) -> None:
+        """
+        Get the list of tasks for this caller.
+        """
+        try:
+            response = await self.client.get_tasks()
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:
-                self.client._console.print(f"response ID: [green]{response.id}[/green]")
-                self.client._console.print(f"response created at: [green]{response.created_at}[/green]")
-                self.client._console.print(f"response model: [green]{response.model}[/green]")
-                self.client._console.print(f"response object: [green]{response.object}[/green]")
-                self.client._console.print(f"response tools: [green]{response.tools}[/green]")
-                self.client._console.print(f"response output: [green]{response.output}[/green]")
-                self.client._console.print(f"response parallel tool calls: [green]{response.parallel_tool_calls}[/green]")
-                self.client._console.print(f"response tool choice: [green]{response.tool_choice}[/green]")
+                self.client._console.print(f"found {len(response)} tasks:")
+                for task_id, task in response.items():
+                    self.client._console.print(
+                        f"{task_id} - completed: {task.get('completed', 'unknown')}"
+                    )
+                    self.client._console.print("  - events:")
+                    for event in self._strip_events(task.get("events", "unknown")):
+                        self.client._console.print(event)
         except Exception as e:
-            self.client._console.print(f"[red bold]error[/red bold] posting responses: {e}")
-    
+            self.client._console.print(f"[red bold]error[/red bold] getting tasks: {e}")
+
+    async def _task_get(self, args: argparse.Namespace) -> None:
+        """
+        Get a specific task for this caller.
+        """
+        try:
+            response = await self.client.get_task(args.task_id)
+            if args.verbose:
+                self.client._console.print(json.dumps(response, indent=2))
+            else:
+                self.client._console.print(
+                    f"task '{response['task_id']}' - completed: {response.get('completed', 'unknown')}"
+                )
+                self.client._console.print("  - events:")
+                for event in self._strip_events(response.get("events", "unknown")):
+                    self.client._console.print(event)
+        except Exception as e:
+            self.client._console.print(f"[red bold]error[/red bold] getting task: {e}")
+
+    def _strip_event(self, event: Any) -> str:
+        """
+        Strip the event from the task.
+        """
+        if isinstance(event, str):
+            return event
+
+        data = event.get("data")
+        if data is None:
+            return "unknown"
+        if isinstance(data, str):
+            if data == "":
+                return "unknown"
+
+            # this witchcraft swaps the quotes in the string so that ujson.loads can parse it
+            data = data.replace('"', "::tmp::")
+            data = data.replace("'", '"')
+            data = data.replace("::tmp::", "'")
+
+            # replace any None values with "unknown"
+            data = data.replace("None", '"unknown"')
+
+            data = ujson.loads(data)
+
+        timestamp = data.get("timestamp", "unknown")
+        description = data.get("description", "unknown (possible ping)")
+
+        return f"\t{timestamp} - {description}"
+
+    def _strip_events(self, events: Any) -> list[str]:
+        """
+        Strip the events from the task.
+        """
+        if isinstance(events, str):
+            if events == "unknown":
+                return []
+            return [events]
+
+        events_list: list[str] = []
+        for event in events:
+            events_list.append(self._strip_event(event))
+        return events_list
+
     def _print_preamble(self) -> None:
         """
         Print the preamble for the MAIL client.

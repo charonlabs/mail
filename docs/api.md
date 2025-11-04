@@ -19,6 +19,8 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
 | GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { id, role }` | Returns the caller identifier and role associated with the provided token |
 | POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
+| GET | `/tasks` | `Bearer` token with role `admin` or `user` | `None` | `dict[str, TaskRecord]` | Lists all tasks owned by the caller together with runtime metadata |
+| GET | `/task` | `Bearer` token with role `admin` or `user` | `JSON { task_id: str }` | `TaskRecord` | Returns the full record for a single task, including SSE history and queue snapshot |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
 | POST | `/health` | `Bearer` token with role `admin` | `JSON { status: str }` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Updates the health status reported to other swarms |
 | GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpoint] }` | Lists swarms known to the local registry |
@@ -29,6 +31,12 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | POST | `/interswarm/message` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmMessageResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Proxies a user/admin task to a remote swarm using the caller's runtime and interswarm router |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
 | POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { api_key: str, input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
+
+**TaskRecord** aligns with [`mail.core.tasks.MAILTask`](/src/mail/core/tasks.py):
+- `task_id`, `task_owner`, `task_contributors`, `start_time`, `is_running`, `completed`, `remote_swarms` summarise runtime status
+- `events` echoes the task's Server-Sent Event log (each entry is serialised with `event`, `id`, `retry`, `data`)
+- `task_message_queue` contains any stashed downstream messages used when resuming paused work
+`GET /task` expects a small JSON body with `task_id` even though it is a GET request—this keeps the signature consistent with other task-management helpers without exposing the identifier in query parameters.
 
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`

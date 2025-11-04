@@ -25,7 +25,7 @@ This section explains the runtime, server, and networking layers that make up a 
 ## Server and API
 - **Persistent template**: built at startup from [swarms.json](/swarms.json) into `MAILSwarmTemplate`
 - **User isolation**: each authenticated user gets a dedicated `MAILSwarm` instance with its own runtime loop
-- **Endpoints**: `GET /`, `GET /status`, `POST /message` (+SSE), interswarm endpoints, and registry management; see [api.md](/docs/api.md)
+- **Endpoints**: `GET /`, `GET /status`, `POST /message` (+SSE), `GET /tasks`, `GET /task`, interswarm endpoints, and registry management; see [api.md](/docs/api.md)
 - **Debug mode**: turn on `[server].debug` (or run `mail server --debug`) to instantiate a `SwarmOAIClient` and expose the OpenAI-compatible `/responses` endpoint together with other diagnostic helpers; keep it off in production to minimise the HTTP surface
 - **Lifespan**: on startup, initializes registry, loads the persistent swarm, and starts health checks; on shutdown, cleans up instances and saves persistent registry state
 

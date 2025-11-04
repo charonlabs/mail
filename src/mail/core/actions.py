@@ -3,6 +3,7 @@
 
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
+import logging
 
 from mail.core.tools import AgentToolCall
 
@@ -42,6 +43,7 @@ class ActionCore:
         """
         Execute an action tool and return the response within a MAIL runtime.
         """
+        logger = logging.getLogger("mail.actions")
         if actions:
             action = actions.get(self.name)
             if action:
@@ -55,7 +57,8 @@ class ActionCore:
                 return ("error", {"content": f"failed to execute action tool: {e}"})
         else:
             try:
-                response = await action_override(call.tool_args)
+                response = await action_override(call)  # type: ignore
+                logger.info(f"action override response: {response}")
                 if isinstance(response, str):
                     return ("success", {"content": response})
                 return ("success", response)

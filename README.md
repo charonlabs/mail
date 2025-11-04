@@ -46,7 +46,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 
 ### Transport Requirements
 - The **normative HTTP binding** is published in [spec/openapi.yaml](/spec/openapi.yaml) and implemented by the reference **FastAPI** service.
-- **`/message`** handles user tasks and local agent traffic. **`/interswarm/forward`** / **`/interswarm/back`** move agent traffic between swarms, and **`/interswarm/message`** proxies user/admin requests to a remote swarm.
+- **`/message`** handles user tasks and local agent traffic. **`/tasks`** returns the caller's in-flight and completed tasks, and **`/task`** fetches a specific task record by ID. **`/interswarm/forward`** / **`/interswarm/back`** move agent traffic between swarms, and **`/interswarm/message`** proxies user/admin requests to a remote swarm.
 - Implementations MUST replay responses from remote swarms back into the local queue to complete task lifecycles.
 
 ### Conformance & Validation
@@ -60,6 +60,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 - **Persistent swarm runtime** with pluggable agents, tools, and memory backends.
 - **Task resume safety** via automatic queue snapshots that stash pending task messages on completion/breakpoints and restore them when the user resumes work.
 - **FastAPI HTTP server** exposing REST endpoints, **Server-Sent Events (SSE)** streams, and **interswarm messaging** routes.
+- **Task introspection API** surfaces `GET /tasks` and `GET /task` so callers can audit active work, inspect SSE timelines, and resume confidently from any state.
 - **CLI launcher** (`mail server`, `mail client`) for running the server and an interactive REPL without writing code.
 - **Async MAIL client** (`MAILClient`) mirroring the REST API with SSE helpers for quick integrations.
 - Built-in **swarm registry** with **health checks** and **service discovery** for distributed deployments.
