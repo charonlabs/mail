@@ -1324,9 +1324,11 @@ class MAILClientCLI:
             else:
                 self.client._console.print(f"found {len(response)} tasks:")
                 for task_id, task in response.items():
-                    self.client._console.print(f"{task_id} - completed: {task.get('completed', 'unknown')}")
+                    self.client._console.print(
+                        f"{task_id} - completed: {task.get('completed', 'unknown')}"
+                    )
                     self.client._console.print("  - events:")
-                    for event in self._strip_events(task.get('events', 'unknown')):
+                    for event in self._strip_events(task.get("events", "unknown")):
                         self.client._console.print(event)
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] getting tasks: {e}")
@@ -1340,9 +1342,11 @@ class MAILClientCLI:
             if args.verbose:
                 self.client._console.print(json.dumps(response, indent=2))
             else:
-                self.client._console.print(f"task '{response['task_id']}' - completed: {response.get('completed', 'unknown')}")
+                self.client._console.print(
+                    f"task '{response['task_id']}' - completed: {response.get('completed', 'unknown')}"
+                )
                 self.client._console.print("  - events:")
-                for event in self._strip_events(response.get('events', 'unknown')):
+                for event in self._strip_events(response.get("events", "unknown")):
                     self.client._console.print(event)
         except Exception as e:
             self.client._console.print(f"[red bold]error[/red bold] getting task: {e}")
@@ -1362,12 +1366,12 @@ class MAILClientCLI:
                 return "unknown"
 
             # this witchcraft swaps the quotes in the string so that ujson.loads can parse it
-            data = data.replace("\"", "::tmp::")
-            data = data.replace("\'", "\"")
-            data = data.replace("::tmp::", "\'")
+            data = data.replace('"', "::tmp::")
+            data = data.replace("'", '"')
+            data = data.replace("::tmp::", "'")
 
             # replace any None values with "unknown"
-            data = data.replace("None", "\"unknown\"")
+            data = data.replace("None", '"unknown"')
 
             data = ujson.loads(data)
 
@@ -1384,7 +1388,7 @@ class MAILClientCLI:
             if events == "unknown":
                 return []
             return [events]
-        
+
         events_list: list[str] = []
         for event in events:
             events_list.append(self._strip_event(event))

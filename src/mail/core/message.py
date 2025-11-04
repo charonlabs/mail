@@ -308,6 +308,7 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
 """,
     }
 
+
 def build_interswarm_mail_xml(message: MAILInterswarmMessage) -> dict[str, str]:
     """
     Build the XML representation of an interswarm MAIL message.
@@ -316,11 +317,21 @@ def build_interswarm_mail_xml(message: MAILInterswarmMessage) -> dict[str, str]:
         "role": "user",
         "content": f"""
 <incoming_message>
-<timestamp>{datetime.datetime.fromisoformat(message["timestamp"]).astimezone(datetime.UTC).isoformat()}</timestamp>
+<timestamp>{
+            datetime.datetime.fromisoformat(message["timestamp"])
+            .astimezone(datetime.UTC)
+            .isoformat()
+        }</timestamp>
 <from type="agent">{message["payload"]["sender"]["address"]}</from>
 <to>
-{[f'<address type="agent">{recipient["address"]}</address>' for recipient in message["payload"]["recipients"]] if "recipients" in message["payload"] # type: ignore
-else f'<address type="agent">{message["payload"]["recipient"]["address"]}</address>'}
+{
+            [
+                f'<address type="agent">{recipient["address"]}</address>'
+                for recipient in message["payload"]["recipients"]
+            ]
+            if "recipients" in message["payload"]  # type: ignore
+            else f'<address type="agent">{message["payload"]["recipient"]["address"]}</address>'
+        }
 </to>
 <subject>{message["payload"]["subject"]}</subject>
 <body>{message["payload"]["body"]}</body>

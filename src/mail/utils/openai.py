@@ -180,7 +180,7 @@ class SwarmOAIClient:
                     tool_choice=tool_choice,  # type: ignore
                 )
                 return response
-                        
+
             tool_calls: list[ResponseFunctionToolCall] = []
             body = ujson.loads(out["message"]["body"])
             for tool_call in body:

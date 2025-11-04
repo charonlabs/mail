@@ -1109,7 +1109,9 @@ async def get_task(request: Request):
     if not isinstance(task_id, str):
         raise HTTPException(status_code=400, detail="task_id must be a string")
 
-    mail_instance = await get_or_create_mail_instance(caller_role, caller_id, caller_info["api_key"])
+    mail_instance = await get_or_create_mail_instance(
+        caller_role, caller_id, caller_info["api_key"]
+    )
     assert mail_instance is not None
 
     task = mail_instance.get_task_by_id(task_id)
@@ -1117,7 +1119,7 @@ async def get_task(request: Request):
         raise HTTPException(status_code=404, detail=f"task '{task_id}' not found")
 
     return task
-    
+
 
 def run_server(
     cfg: ServerConfig,
