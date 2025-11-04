@@ -10,6 +10,7 @@ import shlex
 from collections.abc import AsyncIterator
 from typing import Any, Literal, cast
 
+import ujson
 from aiohttp import (
     ClientResponse,
     ClientResponseError,
@@ -21,7 +22,6 @@ from openai.types.responses import Response
 from rich import console
 from rich.syntax import Syntax
 from sse_starlette import ServerSentEvent
-import ujson
 
 import mail.utils as utils
 from mail.config import ClientConfig

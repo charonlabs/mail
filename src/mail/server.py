@@ -10,7 +10,6 @@
 
 import asyncio
 import datetime
-import json
 import logging
 import os
 import time
@@ -21,7 +20,6 @@ from typing import Any, Literal
 import uvicorn
 from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
-from pydantic import ConfigDict, ValidationError
 
 import mail.net.server_utils as server_utils
 import mail.utils as utils

@@ -34,6 +34,7 @@ from .message import (
     MAILInterswarmMessage,
     MAILMessage,
     MAILResponse,
+    build_interswarm_mail_xml,
     build_mail_xml,
     create_agent_address,
     create_system_address,
@@ -1501,7 +1502,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self._submit_event(
                     "interswarm_message_sent",
                     task_id,
-                    f"sent interswarm message forward to swarm {interswarm_message['target_swarm']}",
+                    f"sent interswarm message forward to swarm {interswarm_message['target_swarm']}:\n{build_interswarm_mail_xml(interswarm_message)['content']}",
                 )
             except Exception as e:
                 logger.error(
@@ -1524,7 +1525,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self._submit_event(
                     "interswarm_message_sent",
                     task_id,
-                    f"sent interswarm message back to swarm {interswarm_message['target_swarm']}",
+                    f"sent interswarm message back to swarm {interswarm_message['target_swarm']}:\n{build_interswarm_mail_xml(interswarm_message)['content']}",
                 )
             except Exception as e:
                 logger.error(
@@ -2456,7 +2457,7 @@ The final response message is: '{finish_body}'""",
         self._submit_event(
             "new_message",
             task_id,
-            f"task_complete response from {caller}",
+            f"task_complete response from {caller}:\n{build_mail_xml(response_message)['content']}",
             extra_data={"full_message": response_message},
         )
 
