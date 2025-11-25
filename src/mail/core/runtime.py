@@ -5,17 +5,23 @@ import asyncio
 import copy
 import datetime
 import logging
+import traceback
 import uuid
 from asyncio import PriorityQueue, Task
 from collections import defaultdict
 from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
+import langsmith as ls
+import rich
+import tiktoken
 import ujson
 from langmem import create_memory_store_manager
+from litellm import aresponses
 from sse_starlette import ServerSentEvent
 
 from mail.net import InterswarmRouter, SwarmRegistry
+from mail.utils.context import get_model_ctx_len
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
 from mail.utils.store import get_langmem_store
 from mail.utils.string_builder import build_mail_help_string
@@ -33,6 +39,7 @@ from .message import (
     MAILBroadcast,
     MAILInterswarmMessage,
     MAILMessage,
+    MAILRequest,
     MAILResponse,
     build_interswarm_mail_xml,
     build_mail_xml,
@@ -44,6 +51,7 @@ from .tasks import MAILTask
 from .tools import (
     AgentToolCall,
     convert_call_to_mail_message,
+    convert_manual_step_call_to_mail_message,
 )
 
 logger = logging.getLogger("mail.runtime")
@@ -107,6 +115,11 @@ class MAILRuntime:
             )
         self.breakpoint_tools = breakpoint_tools
         self._is_continuous = False
+        self._is_manual = False
+        # Message buffer for manual mode
+        self.manual_message_buffer: dict[str, list[MAILMessage]] = defaultdict(list)
+        self.manual_return_events: dict[str, asyncio.Event] = defaultdict(asyncio.Event)
+        self.manual_return_messages: dict[str, MAILMessage | None] = defaultdict(None)
         self.exclude_tools = exclude_tools
         self.response_messages: dict[str, MAILMessage] = {}
         self.last_breakpoint_caller: dict[str, str] = {}
@@ -562,16 +575,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self,
         max_steps: int | None = None,
         action_override: ActionOverrideFunction | None = None,
+        mode: Literal["continuous", "manual"] = "continuous",
     ) -> None:
         """
         Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
         """
-        logger.info(
-            f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'..."
-        )
         self._is_continuous = True
+        self._is_manual = mode == "manual"
         steps = 0
+        if self._is_manual:
+            logger.info(
+                f"{self._log_prelude()} starting manual MAIL operation for user '{self.user_id}'..."
+            )
+        else:
+            logger.info(
+                f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'..."
+            )
         while not self.shutdown_event.is_set():
             try:
                 logger.debug(
@@ -1639,7 +1659,20 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 sender_agent = message["message"]["sender"]
                 if recipient_agent in self.agents:
-                    self._send_message(recipient_agent, message, action_override)
+                    if (
+                        not self._is_manual
+                        or message["message"]["sender"]["address_type"] == "system"
+                    ):
+                        self._send_message(recipient_agent, message, action_override)
+                    else:
+                        key = AGENT_HISTORY_KEY.format(
+                            task_id=message["message"]["task_id"],
+                            agent_name=recipient_agent,
+                        )
+                        self.manual_message_buffer[key].append(message)
+                        logger.info(
+                            f"{self._log_prelude()} added message to manual message buffer for agent '{recipient_agent}'"
+                        )
                 else:
                     logger.warning(
                         f"{self._log_prelude()} unknown local agent: '{recipient_agent}'"
@@ -1707,11 +1740,115 @@ Your directly reachable agents can be found in the tool definitions for `send_re
 
         return None
 
+    async def _manual_step(
+        self,
+        task_id: str,
+        target: str,
+        response_targets: list[str] | None = None,
+        response_type: Literal["broadcast", "response", "request"] = "broadcast",
+        payload: str | None = None,
+        dynamic_ctx_ratio: float = 0.0,
+        _llm: str | None = None,
+        _system: str | None = None,
+    ) -> MAILMessage:
+        """
+        Manually step a target agent and return the response message.
+        """
+        if not response_type == "broadcast" and response_targets is None:
+            raise ValueError(
+                "response_targets must be provided for non-broadcast response types"
+            )
+        response_targets = response_targets or ["all"]
+        while not self.message_queue.empty():
+            await asyncio.sleep(0.1)
+        if target not in self.agents:
+            logger.warning(f"{self._log_prelude()} unknown agent: '{target}'")
+            raise ValueError(f"unknown agent target: '{target}'")
+        if response_targets is not None:
+            for response_target in response_targets:
+                if (
+                    response_target not in self.agents
+                    and not response_target == MAIL_ALL_LOCAL_AGENTS["address"]
+                ):
+                    logger.warning(
+                        f"{self._log_prelude()} unknown agent: '{response_target}'"
+                    )
+                    raise ValueError(
+                        f"unknown agent response target: '{response_target}'"
+                    )
+        buffer_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=target)
+        self.manual_return_events[buffer_key].clear()
+        self.manual_return_messages[buffer_key] = None
+        buffer = self.manual_message_buffer.get(buffer_key, [])
+        body = ""
+        for message in buffer:
+            public_message = False
+            private_group = False
+            if "recipients" in message["message"]:
+                if (
+                    message["message"]["recipients"][0]["address"]  # type: ignore
+                    == MAIL_ALL_LOCAL_AGENTS["address"]
+                ):
+                    body += "<public_message>\n"
+                    public_message = True
+                else:
+                    body += "<private_message>\n"
+                    private_group = True
+            else:
+                body += "<private_message>\n"
+            body += f"<from>{message['message']['sender']['address']}</from>\n"
+            if private_group:
+                to = [
+                    address["address"]
+                    for address in message["message"]["recipients"]  # type: ignore
+                ]
+                body += f"<to>{', '.join(to)}</to>\n"
+            body += f"{message['message']['body']}\n"
+            if public_message:
+                body += "</public_message>\n\n\n"
+            else:
+                body += "</private_message>\n\n\n"
+
+        body += payload or ""
+        body = body.rstrip()
+
+        message = MAILMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+            message=MAILRequest(
+                task_id=task_id,
+                request_id=str(uuid.uuid4()),
+                sender=create_system_address("system"),
+                recipient=create_agent_address(target),
+                subject="::manual_step::",
+                body=body,
+                sender_swarm=None,
+                recipient_swarm=None,
+                routing_info={
+                    "manual_response_type": response_type,
+                    "manual_response_targets": response_targets,
+                },
+            ),
+            msg_type="buffered",
+        )
+        self.manual_message_buffer[buffer_key].clear()
+
+        self._send_message(target, message, None, dynamic_ctx_ratio, _llm, _system)
+        await self.manual_return_events[buffer_key].wait()
+        if self.manual_return_messages[buffer_key] is None:
+            raise RuntimeError(
+                f"no return message for agent '{target}' for task '{task_id}'"
+            )
+        return self.manual_return_messages[buffer_key]  # type: ignore
+
     def _send_message(
         self,
         recipient: str,
         message: MAILMessage,
         action_override: ActionOverrideFunction | None = None,
+        dynamic_ctx_ratio: float = 0.0,
+        _llm: str | None = None,
+        _system: str | None = None,
     ) -> None:
         """
         Send a message to a recipient.
@@ -1739,7 +1876,10 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             try:
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
-                tool_choice: str | dict[str, str] = "required"
+                tool_choice: str | dict[str, str] = (
+                    "required" if not self._is_manual else "auto"
+                )
+                routing_info = message["message"].get("routing_info", {})
 
                 # get agent history for this task
                 agent_history_key = AGENT_HISTORY_KEY.format(
@@ -1750,14 +1890,29 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 if (
                     message["message"]["sender"]["address_type"] == "system"
                     and message["message"]["subject"] == "::maximum_steps_reached::"
+                    and not self._is_manual
                 ):
                     tool_choice = {"type": "function", "name": "task_complete"}
 
                 if not message["message"]["subject"].startswith(
                     "::action_complete_broadcast::"
                 ):
-                    incoming_message = build_mail_xml(message)
-                    history.append(incoming_message)
+                    if not message["msg_type"] == "buffered":
+                        incoming_message = build_mail_xml(message)
+                        history.append(incoming_message)
+                    else:
+                        history.append(
+                            {"role": "user", "content": message["message"]["body"]}
+                        )
+
+                if dynamic_ctx_ratio > 0.0 and _llm is not None:
+                    history = await self._compress_context(
+                        self.agents[recipient],
+                        _llm,
+                        _system,
+                        dynamic_ctx_ratio,
+                        history,
+                    )
 
                 # agent function is called here
                 agent_fn = self.agents[recipient].function
@@ -1814,6 +1969,28 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 # handle tool calls
                 for call in tool_calls:
                     match call.tool_name:
+                        case "text_output":
+                            logger.info(
+                                f"{self._log_prelude()} agent '{recipient}' sent raw text output with content: '{call.tool_args['content']}'"
+                            )
+                            call.tool_args["target"] = message["message"]["sender"][
+                                "address"
+                            ]
+                            assert routing_info is not None
+                            res_type = routing_info.get(
+                                "manual_response_type", "broadcast"
+                            )
+                            res_targets = routing_info.get(
+                                "manual_response_targets", ["all"]
+                            )
+                            outgoing_message = convert_manual_step_call_to_mail_message(
+                                call, recipient, task_id, res_targets, res_type
+                            )
+                            self.manual_return_messages[agent_history_key] = (
+                                outgoing_message
+                            )
+                            await self.submit(outgoing_message)
+                            self.manual_return_events[agent_history_key].set()
                         case "acknowledge_broadcast":
                             try:
                                 # Only store if this was a broadcast; otherwise treat as no-op
@@ -2260,6 +2437,7 @@ Use this information to decide how to complete your task.""",
                 logger.error(
                     f"{self._log_prelude()} error scheduling message for agent '{recipient}': {e}"
                 )
+                traceback.print_exc()
                 self._tool_call_response(
                     task_id=task_id,
                     caller=recipient,
@@ -2400,6 +2578,153 @@ The final response message is: '{finish_body}'""",
             )
 
         return normalised
+
+    async def _compress_context(
+        self,
+        agent: AgentCore,
+        llm: str,
+        system: str | None,
+        ratio: float,
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Compress the context of a list of messages based on the dynamic context ratio.
+
+        When context exceeds (ratio * model_context_length) tokens, older messages
+        (excluding the system prompt and recent messages) are summarized into a
+        single compressed context block.
+        """
+        if llm.startswith("openai/gpt-5") or llm.startswith("openai/o3"):
+            tokenizer = tiktoken.get_encoding("o200k_base")
+        else:
+            tokenizer = tiktoken.get_encoding("cl100k_base")
+        try:
+            ctx_len = get_model_ctx_len(llm)
+        except Exception:
+            logger.warning("failed to get context length for agent")
+            logger.error(traceback.format_exc())
+            return messages
+
+        def get_content_from_messages(msgs: list[dict[str, Any]]) -> str:
+            """Extract text content from messages, handling both dict and object formats."""
+            full_content = ""
+            for item in msgs:
+                # Handle both dict-style and object-style messages
+                if isinstance(item, dict):
+                    content = item.get("content")
+                else:
+                    content = getattr(item, "content", None)
+
+                if content is None:
+                    continue
+
+                if isinstance(content, str):
+                    full_content += content + "\n\n"
+                elif hasattr(content, "text"):
+                    full_content += content.text + "\n\n"
+                elif isinstance(content, list):
+                    # Handle list of content blocks (e.g., OpenAI responses format)
+                    for block in content:
+                        if isinstance(block, dict) and "text" in block:
+                            full_content += block["text"] + "\n\n"
+                        elif hasattr(block, "text"):
+                            full_content += block.text + "\n\n"
+            return full_content
+
+        if system is None:
+            system = ""
+        full_content = get_content_from_messages(messages)
+        full_content = system + full_content
+        tokens = tokenizer.encode(full_content)
+        threshold = int(ctx_len * ratio)
+        rich.print(
+            f"Context: [{len(tokens)}/{ctx_len}] ({(len(tokens) / ctx_len) * 100:.2f}%)"
+        )
+
+        if len(tokens) > threshold:
+            # Find a good cutoff point, keeping at least 4 recent messages
+            rev_messages = messages[::-1]
+            stop_idx = -1
+            min_recent_to_keep = 4
+
+            for idx, item in enumerate(rev_messages[min_recent_to_keep:]):
+                # Check if this is a "boundary" message we can split at
+                is_boundary = False
+                if isinstance(item, dict):
+                    role = item.get("role")
+                    msg_type = item.get("type")
+                    is_boundary = (
+                        role in ("user", "assistant") or msg_type == "function_call"
+                    )
+                else:
+                    is_boundary = hasattr(item, "role") or (
+                        hasattr(item, "type") and item.type == "function_call"
+                    )
+
+                if is_boundary:
+                    # Account for the slice offset when calculating original index
+                    stop_idx = len(rev_messages) - (idx + min_recent_to_keep) - 1
+                    break
+
+            if stop_idx > 1:  # Ensure we have messages to compact (after system prompt)
+                is_first_msg_sys = messages[0].get("role") == "system"
+                msgs_to_compact = (
+                    messages[1:stop_idx] if is_first_msg_sys else messages[0:stop_idx]
+                )
+                if not msgs_to_compact:
+                    return messages
+
+                compacted_content = get_content_from_messages(msgs_to_compact)
+                if not compacted_content.strip():
+                    return messages
+
+                # Keep system prompt (messages[0]) and recent messages (messages[stop_idx:])
+                if is_first_msg_sys:
+                    messages = [messages[0]] + messages[stop_idx:]
+                else:
+                    messages = messages[stop_idx:]
+
+                with ls.trace(
+                    name="compress_context",
+                    run_type="llm",
+                    inputs={
+                        "messages": messages,
+                        "compacted_content": compacted_content,
+                    },
+                ) as rt:
+                    res = await aresponses(
+                        input="Compress the following messages of LLM context into a single, concise summary:\n"
+                        + compacted_content,
+                        instructions="Your goal is to compress given LLM context in a manner that is most likely to be useful to the LLM. Your summary will be inserted into the LLM's context in place of the original messages, so it should be concise while retaining important information.",
+                        model="openai/gpt-5.1",
+                        reasoning={"effort": "none"},
+                    )
+                    rt.end(outputs={"output": res})
+
+                # Extract the summary and insert after system prompt
+                for output in res.output:
+                    summary_text = None
+                    if isinstance(output, dict):
+                        if output.get("type") == "message":
+                            content_list = output.get("content", [])
+                            if content_list and isinstance(content_list[0], dict):
+                                summary_text = content_list[0].get("text", "")
+                    elif hasattr(output, "type") and output.type == "message":
+                        if hasattr(output, "content") and output.content:
+                            summary_text = output.content[0].text
+
+                    if summary_text:
+                        # Insert after system prompt (position 1), not before it
+                        messages.insert(
+                            1 if is_first_msg_sys else 0,
+                            {
+                                "role": "user",
+                                "content": f"[COMPRESSED CONTEXT FROM EARLIER IN CONVERSATION]\n\n{summary_text}",
+                            },
+                        )
+                        break  # Only insert one summary
+
+        return messages
 
     async def _handle_task_complete_call(
         self,
