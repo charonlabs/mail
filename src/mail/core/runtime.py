@@ -1967,6 +1967,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     ]
 
                 # handle tool calls
+                has_emitted_act_broadcast = False
                 for call in tool_calls:
                     match call.tool_name:
                         case "text_output":
@@ -2303,15 +2304,17 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"agent {recipient} not found",
                                 )
-                                await self.submit(
-                                    self._system_broadcast(
-                                        task_id=task_id,
-                                        subject="::tool_call_error::",
-                                        body=f"""An agent called `{call.tool_name}` but the agent was not found.
-This should never happen; consider informing the MAIL developers of this issue if you see it.""",
-                                        task_complete=True,
+                                if not has_emitted_act_broadcast:
+                                    await self.submit(
+                                        self._system_broadcast(
+                                            task_id=task_id,
+                                            subject="::tool_call_error::",
+                                            body=f"""An agent called `{call.tool_name}` but the agent was not found.
+    This should never happen; consider informing the MAIL developers of this issue if you see it.""",
+                                            task_complete=True,
+                                        )
                                     )
-                                )
+                                    has_emitted_act_broadcast = True
                                 continue
 
                             action = self.actions.get(action_name)
@@ -2331,12 +2334,14 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action {action_name} not found",
                                 )
-                                self._system_response(
-                                    task_id=task_id,
-                                    recipient=create_agent_address(recipient),
-                                    subject="::action_error::",
-                                    body=f"""The action '{action_name}' cannot be found in this swarm.""",
-                                )
+                                if not has_emitted_act_broadcast:
+                                    self._system_response(
+                                        task_id=task_id,
+                                        recipient=create_agent_address(recipient),
+                                        subject="::action_error::",
+                                        body=f"""The action '{action_name}' cannot be found in this swarm.""",
+                                    )
+                                    has_emitted_act_broadcast = True
                                 continue
 
                             if not action_caller.can_access_action(action_name):
@@ -2355,14 +2360,16 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"agent {action_caller} cannot access action {action_name}",
                                 )
-                                await self.submit(
-                                    self._system_response(
-                                        task_id=task_id,
-                                        recipient=create_agent_address(recipient),
-                                        subject="::action_error::",
-                                        body=f"The action '{action_name}' is not available.",
+                                if not has_emitted_act_broadcast:
+                                    await self.submit(
+                                        self._system_response(
+                                            task_id=task_id,
+                                            recipient=create_agent_address(recipient),
+                                            subject="::action_error::",
+                                            body=f"The action '{action_name}' is not available.",
+                                        )
                                     )
-                                )
+                                    has_emitted_act_broadcast = True
                                 continue
 
                             logger.info(
@@ -2393,14 +2400,18 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action complete (caller = {recipient}):\n{result_message.get('content')}",
                                 )
-                                await self.submit(
-                                    self._system_broadcast(
-                                        task_id=task_id,
-                                        subject="::action_complete_broadcast::",
-                                        body="",
-                                        recipients=[create_agent_address(recipient)],
+                                if not has_emitted_act_broadcast:
+                                    await self.submit(
+                                        self._system_broadcast(
+                                            task_id=task_id,
+                                            subject="::action_complete_broadcast::",
+                                            body="",
+                                            recipients=[
+                                                create_agent_address(recipient)
+                                            ],
+                                        )
                                     )
-                                )
+                                    has_emitted_act_broadcast = True
                                 continue
                             except Exception as e:
                                 logger.error(
@@ -2418,18 +2429,22 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action error (caller = {recipient}, tool = {call.tool_name}):\n{e}",
                                 )
-                                await self.submit(
-                                    self._system_broadcast(
-                                        task_id=task_id,
-                                        subject="::action_error::",
-                                        body=f"""An error occurred while executing the action tool `{call.tool_name}`.
+                                if not has_emitted_act_broadcast:
+                                    await self.submit(
+                                        self._system_broadcast(
+                                            task_id=task_id,
+                                            subject="::action_error::",
+                                            body=f"""An error occurred while executing the action tool `{call.tool_name}`.
 Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the action tool `{call.tool_name}` is not implemented properly.
 Use this information to decide how to complete your task.""",
-                                        task_complete=True,
-                                        recipients=[create_agent_address(recipient)],
+                                            task_complete=True,
+                                            recipients=[
+                                                create_agent_address(recipient)
+                                            ],
+                                        )
                                     )
-                                )
+                                    has_emitted_act_broadcast = True
                                 continue
 
                 self.agent_histories.setdefault(agent_history_key, [])
