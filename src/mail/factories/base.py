@@ -471,6 +471,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         responses=outputs,
                     )
                 )
+            return "", agent_tool_calls
         else:
             assert len(message_chunks) > 0
             agent_tool_calls.append(
@@ -482,7 +483,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 )
             )
 
-        return message_chunks[0], agent_tool_calls
+            return message_chunks[0], agent_tool_calls
 
     async def _stream_responses(
         self,

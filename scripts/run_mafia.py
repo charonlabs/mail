@@ -14,7 +14,7 @@ LLMS = [
     "openai/o3",
     "anthropic/claude-opus-4-5-20251101",
     "anthropic/claude-sonnet-4-5",
-    "anthropic/claude-haiku-4-5",
+    "moonshot/kimi-k2-thinking",
 ]
 
 

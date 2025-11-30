@@ -816,6 +816,7 @@ Your task: Welcome the players to the game. Set the scene for the story.
 Create an atmospheric introduction to the town and the looming threat of the Mafia.
 Don't state the players' bios word-for-word, but you may use elements of them. Each player has a unique background and personality, of which the bio is just a short description.
 Do NOT reveal anyone's role. Just set the stage dramatically.
+What you say is heard by EVERYONE, no matter what, so you must be careful not to reveal any information that would give away the role of any player.
 """
         )
 
@@ -906,7 +907,7 @@ You CANNOT protect yourself.
 
 Available targets: {", ".join(other_players)}
 
-Respond with: "I protect [player_name]"
+Your response must end with: "I protect [player_name]"
 """,
             )
 
@@ -959,7 +960,7 @@ You CANNOT investigate yourself.
 
 Available targets: {", ".join(other_players)}
 
-Respond with: "I investigate [player_name]"
+Your response must end with: "I investigate [player_name]"
 """,
             )
 
@@ -1209,7 +1210,7 @@ Announce the start of nominations and explain the process to the players.
 You may nominate one player for execution, or pass.
 Current confirmed nominees: {self.nominees if self.nominees else "None yet"}
 
-Respond with: "I nominate [player_name]" or "I pass"
+Your response must end with: "I nominate [player_name]" or "I pass"
 """,
             )
 
@@ -1224,7 +1225,7 @@ If they nominated someone:
 3. Ask OTHER players (not the nominator) if anyone wants to second
 4. When someone says yes, call add_nominee(player_name, seconder_name) again to confirm
 
-If they passed, acknowledge it, and the system will automatically move to the next player.
+If they passed, acknowledge it, and the system will automatically move to the next player who hasn't themselves been confirmed as a nominee.
 
 Current confirmed nominees: {self.nominees}
 Pending nominations: {list(self.pending_nominations.keys()) if self.pending_nominations else "None"}
@@ -1270,6 +1271,7 @@ If yes: Call add_nominee({pending_nominee}, {voter.persona.name}) to confirm the
         The tool will return a confirmation message. Announce this to everyone.
 
 If no: Acknowledge it, and the system will automatically move to the next player for seconding.
+Only players who haven't themselves been confirmed as a nominee can second. A player cannot second their own nomination.
 
 Pending nominations: {list(self.pending_nominations.keys()) if self.pending_nominations else "None"}
 Confirmed nominees: {self.nominees}
@@ -1348,7 +1350,7 @@ should go to the gallows. The nominee with the most votes will be condemned.
 Vote for which nominee should go to the gallows.
 Nominees: {", ".join(self.nominees)}
 
-Respond with: "I vote for [nominee_name]"
+Your response must end with: "I vote for [nominee_name]"
 """,
             )
 
@@ -1382,7 +1384,7 @@ The tool will automatically determine the winner or indicate if a revote is need
 === TRIAL REVOTE ===
 There was a tie. Vote again, choosing ONLY from: {", ".join(tied)}
 
-Respond with: "I vote for [nominee_name]"
+Your response must end with: "I vote for [nominee_name]"
 """,
                 )
 
@@ -1452,7 +1454,7 @@ Ask each player for their vote.
 === EXECUTION VOTE ===
 Vote to execute or spare {self.condemned}.
 
-Respond with: "execute" or "spare"
+Your response must end with your vote: "execute" or "spare"
 """,
             )
 
