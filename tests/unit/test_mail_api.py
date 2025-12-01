@@ -117,6 +117,9 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     data = {
         "name": "myswarm",
         "version": "1.2.0",
+        "description": "demo swarm",
+        "keywords": ["demo", "mail"],
+        "public": True,
         "agents": [
             {
                 "name": "supervisor",
@@ -148,6 +151,9 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     assert isinstance(swarm._runtime, FakeMAILRuntime)
     assert swarm._runtime.user_id == "u-1"
     assert swarm._runtime.swarm_name == "myswarm"
+    assert tmpl.description == "demo swarm"
+    assert tmpl.keywords == ["demo", "mail"]
+    assert tmpl.public is True
 
 
 def test_swarm_level_exclude_tools_union() -> None:

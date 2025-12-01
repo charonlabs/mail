@@ -24,15 +24,16 @@ class SwarmRegistry:
         self,
         local_swarm_name: str,
         local_base_url: str,
-        local_swarm_description: str,
-        local_swarm_keywords: list[str] = [],
-        local_swarm_public: bool = False,
         persistence_file: str | None = None,
+        *,
+        local_swarm_description: str = "",
+        local_swarm_keywords: list[str] | None = None,
+        local_swarm_public: bool = False,
     ):
         self.local_swarm_name = local_swarm_name
         self.local_base_url = local_base_url
         self.local_swarm_description = local_swarm_description
-        self.local_swarm_keywords = local_swarm_keywords
+        self.local_swarm_keywords = list(local_swarm_keywords or [])
         self.local_swarm_public = local_swarm_public
         self.endpoints: dict[str, SwarmEndpoint] = {}
         self.health_check_interval = 30  # seconds
@@ -190,6 +191,16 @@ class SwarmRegistry:
         """
         return self.endpoints.copy()
 
+    def get_public_endpoints(self) -> dict[str, SwarmEndpoint]:
+        """
+        Get all public endpoints.
+        """
+        return {
+            name: endpoint
+            for name, endpoint in self.endpoints.items()
+            if endpoint.get("public", False)
+        }
+
     def get_active_endpoints(self) -> dict[str, SwarmEndpoint]:
         """
         Get all active endpoints.
@@ -221,6 +232,9 @@ class SwarmRegistry:
             data = {
                 "local_swarm_name": self.local_swarm_name,
                 "local_base_url": self.local_base_url,
+                "local_swarm_description": self.local_swarm_description,
+                "local_swarm_keywords": self.local_swarm_keywords,
+                "local_swarm_public": self.local_swarm_public,
                 "endpoints": {
                     name: {
                         "swarm_name": endpoint["swarm_name"],
@@ -233,6 +247,10 @@ class SwarmRegistry:
                         "last_seen": endpoint["last_seen"].isoformat()
                         if endpoint["last_seen"]
                         else None,
+                        "latency": endpoint.get("latency", None),
+                        "swarm_description": endpoint.get("swarm_description", ""),
+                        "keywords": endpoint.get("keywords", []),
+                        "public": endpoint.get("public", False),
                         "is_active": endpoint["is_active"],
                         "metadata": endpoint.get("metadata"),
                         "volatile": endpoint.get("volatile", True),
@@ -381,6 +399,21 @@ class SwarmRegistry:
 
             with open(self.persistence_file) as f:
                 data = json.load(f)
+
+            self.local_swarm_description = data.get(
+                "local_swarm_description", self.local_swarm_description
+            )
+            self.local_swarm_keywords = data.get(
+                "local_swarm_keywords", self.local_swarm_keywords
+            )
+            self.local_swarm_public = data.get(
+                "local_swarm_public", self.local_swarm_public
+            )
+            local_endpoint = self.endpoints.get(self.local_swarm_name)
+            if local_endpoint:
+                local_endpoint["swarm_description"] = self.local_swarm_description
+                local_endpoint["keywords"] = self.local_swarm_keywords
+                local_endpoint["public"] = self.local_swarm_public
 
             # Only load endpoints that aren't already registered
             loaded_count = 0
@@ -590,6 +623,9 @@ class SwarmRegistry:
         return {
             "local_swarm_name": self.local_swarm_name,
             "local_base_url": self.local_base_url,
+            "local_swarm_description": self.local_swarm_description,
+            "local_swarm_keywords": self.local_swarm_keywords,
+            "local_swarm_public": self.local_swarm_public,
             "endpoints": {
                 name: {
                     "swarm_name": endpoint["swarm_name"],
@@ -602,6 +638,10 @@ class SwarmRegistry:
                     if endpoint["last_seen"]
                     else None,
                     "is_active": endpoint["is_active"],
+                    "latency": endpoint.get("latency", None),
+                    "swarm_description": endpoint.get("swarm_description", ""),
+                    "keywords": endpoint.get("keywords", []),
+                    "public": endpoint.get("public", False),
                     "metadata": endpoint.get("metadata"),
                     "volatile": endpoint.get("volatile", True),
                 }
@@ -615,11 +655,12 @@ class SwarmRegistry:
         Create registry from dictionary.
         """
         registry = cls(
-            data["local_swarm_name"],
-            data["local_base_url"],
-            data["local_swarm_description"],
-            data["local_swarm_keywords"],
-            data["local_swarm_public"],
+            data.get("local_swarm_name", ""),
+            data.get("local_base_url", ""),
+            data.get("persistence_file"),
+            local_swarm_description=data.get("local_swarm_description", ""),
+            local_swarm_keywords=data.get("local_swarm_keywords", []),
+            local_swarm_public=data.get("local_swarm_public", False),
         )
 
         for name, endpoint_data in data["endpoints"].items():

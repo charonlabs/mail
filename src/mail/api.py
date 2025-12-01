@@ -1382,10 +1382,10 @@ class MAILSwarmTemplate:
             swarm_registry = SwarmRegistry(
                 self.name,
                 base_url,
-                self.description,
-                self.keywords,
-                self.public,
                 registry_file,
+                local_swarm_description=self.description,
+                local_swarm_keywords=self.keywords,
+                local_swarm_public=self.public,
             )
         else:
             swarm_registry = None
@@ -1592,6 +1592,7 @@ class MAILSwarmTemplate:
             task_message_limit=task_message_limit,
             description=swarm_data.get("description", ""),
             keywords=swarm_data.get("keywords", []),
+            public=swarm_data.get("public", False),
         )
 
     @staticmethod

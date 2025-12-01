@@ -88,7 +88,9 @@ async def _server_startup(app: FastAPI) -> None:
     app.state.task_bindings = server_utils.init_task_bindings_dict()
 
     # Interswarm messaging support
-    app.state.swarm_registry = server_utils.get_default_swarm_registry(cfg)
+    app.state.swarm_registry = server_utils.get_default_swarm_registry(
+        cfg, app.state.persistent_swarm
+    )
     app.state.local_swarm_name = server_utils.get_default_swarm_name(cfg)
     app.state.local_base_url = server_utils.get_default_base_url(cfg)
     app.state.default_entrypoint_agent = server_utils.get_default_entrypoint_agent(
@@ -586,7 +588,7 @@ async def list_swarms():
     if not app.state.swarm_registry:
         raise HTTPException(status_code=503, detail="swarm registry not available")
 
-    endpoints = app.state.swarm_registry.get_all_endpoints()
+    endpoints = app.state.swarm_registry.get_public_endpoints()
 
     swarms = [types.SwarmEndpoint(**endpoint) for endpoint in endpoints.values()]
 

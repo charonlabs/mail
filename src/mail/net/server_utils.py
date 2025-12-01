@@ -60,22 +60,22 @@ def init_mail_tasks_dict() -> dict[str, asyncio.Task]:
 
 
 def get_default_swarm_registry(
-    cfg: ServerConfig,
+    cfg: ServerConfig, swarm: MAILSwarmTemplate
 ) -> SwarmRegistry:
     """
     Get the default swarm registry from the server config.
     """
-    swarm_name = get_default_swarm_name(cfg)
+    swarm_name = swarm.name
     swarm_registry_file = cfg.swarm.registry_file
     local_base_url = get_default_base_url(cfg)
 
     return SwarmRegistry(
         local_swarm_name=swarm_name,
         local_base_url=local_base_url,
-        local_swarm_description=cfg.swarm.description,
-        local_swarm_keywords=cfg.swarm.keywords,
-        local_swarm_public=cfg.swarm.public,
         persistence_file=swarm_registry_file,
+        local_swarm_description=swarm.description,
+        local_swarm_keywords=swarm.keywords,
+        local_swarm_public=swarm.public,
     )
 
 
