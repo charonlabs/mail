@@ -10,6 +10,8 @@ from typing import Any
 
 import aiohttp
 
+from mail import utils
+
 from .types import SwarmEndpoint, SwarmInfo
 
 logger = logging.getLogger("mail.registry")
@@ -66,6 +68,7 @@ class SwarmRegistry:
         self.endpoints[self.local_swarm_name] = SwarmEndpoint(
             swarm_name=self.local_swarm_name,
             base_url=base_url,
+            version=utils.get_protocol_version(),
             health_check_url=f"{base_url}/health",
             auth_token_ref=None,
             last_seen=datetime.datetime.now(datetime.UTC),
@@ -107,6 +110,7 @@ class SwarmRegistry:
         self.endpoints[swarm_name] = SwarmEndpoint(
             swarm_name=swarm_name,
             base_url=base_url,
+            version=swarm_info["version"],
             health_check_url=f"{base_url}/health",
             auth_token_ref=auth_token_ref,
             last_seen=datetime.datetime.now(datetime.UTC),
@@ -142,7 +146,7 @@ class SwarmRegistry:
                         swarm_info = json.get("swarm", {})
                         return SwarmInfo(
                             name=swarm_info.get("name"),
-                            version=swarm_info.get("version"),
+                            version=json.get("protocol_version"),
                             description=swarm_info.get("description", ""),
                             entrypoint=swarm_info.get("entrypoint"),
                             keywords=swarm_info.get("keywords", []),
@@ -240,6 +244,7 @@ class SwarmRegistry:
                     name: {
                         "swarm_name": endpoint["swarm_name"],
                         "base_url": endpoint["base_url"],
+                        "version": endpoint["version"],
                         "health_check_url": endpoint["health_check_url"],
                         "auth_token_ref": self._get_auth_token_ref(
                             endpoint.get("swarm_name", ""),
@@ -428,6 +433,7 @@ class SwarmRegistry:
                     endpoint = SwarmEndpoint(
                         swarm_name=endpoint_data["swarm_name"],
                         base_url=endpoint_data["base_url"],
+                        version=endpoint_data["version"],
                         health_check_url=endpoint_data["health_check_url"],
                         auth_token_ref=auth_token,
                         last_seen=datetime.datetime.fromisoformat(
@@ -631,6 +637,7 @@ class SwarmRegistry:
                 name: {
                     "swarm_name": endpoint["swarm_name"],
                     "base_url": endpoint["base_url"],
+                    "version": endpoint["version"],
                     "health_check_url": endpoint["health_check_url"],
                     "auth_token_ref": self._get_auth_token_ref(
                         endpoint.get("swarm_name", ""), endpoint.get("auth_token_ref")
@@ -678,6 +685,7 @@ class SwarmRegistry:
             endpoint = SwarmEndpoint(
                 swarm_name=endpoint_data["swarm_name"],
                 base_url=endpoint_data["base_url"],
+                version=endpoint_data["version"],
                 health_check_url=endpoint_data["health_check_url"],
                 auth_token_ref=auth_token,
                 last_seen=datetime.datetime.fromisoformat(endpoint_data["last_seen"])

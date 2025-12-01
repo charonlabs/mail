@@ -18,6 +18,8 @@ class SwarmEndpoint(TypedDict):
     """The name of the swarm."""
     base_url: str
     """The base URL of the swarm (e.g., https://swarm1.example.com)."""
+    version: str
+    """The version of the swarm."""
     health_check_url: str
     """The health check endpoint URL."""
     auth_token_ref: str | None
@@ -40,6 +42,31 @@ class SwarmEndpoint(TypedDict):
     """Whether this swarm is volatile (will be removed from the registry when the server shuts down)."""
 
 
+class SwarmEndpointCleaned(TypedDict):
+    """
+    Represents a swarm endpoint for interswarm communication.
+    """
+
+    swarm_name: str
+    """The name of the swarm."""
+    base_url: str
+    """The base URL of the swarm (e.g., https://swarm1.example.com)."""
+    version: str
+    """The protocol version of the swarm."""
+    last_seen: datetime.datetime | None
+    """When this swarm was last seen/heard from."""
+    is_active: bool
+    """Whether this swarm is currently active."""
+    latency: float | None
+    """The latency of the swarm in seconds."""
+    swarm_description: str
+    """The description of the swarm."""
+    keywords: list[str]
+    """The keywords of the swarm."""
+    metadata: dict[str, Any] | None
+    """Additional metadata about the swarm."""
+
+
 class SwarmInfo(TypedDict):
     """
     Information about the current swarm.
@@ -48,7 +75,7 @@ class SwarmInfo(TypedDict):
     name: str
     """The name of the swarm."""
     version: str
-    """The version of the swarm."""
+    """The protocol version of the swarm."""
     description: str
     """The description of the swarm."""
     entrypoint: str
@@ -142,7 +169,7 @@ class GetSwarmsResponse(TypedDict):
     Response for the MAIL server endpoint `GET /swarms`.
     """
 
-    swarms: list[SwarmEndpoint]
+    swarms: list[SwarmEndpointCleaned]
     """The swarms that are running."""
 
 
