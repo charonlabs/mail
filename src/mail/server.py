@@ -621,7 +621,7 @@ async def register_swarm(request: Request):
                 status_code=400, detail="name and base_url are required"
             )
 
-        app.state.swarm_registry.register_swarm(
+        await app.state.swarm_registry.register_swarm(
             swarm_name, base_url, auth_token, metadata, volatile
         )
         return types.PostSwarmsResponse(

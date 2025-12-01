@@ -139,13 +139,14 @@ class SwarmRegistry:
                 async with session.get(swarm_url, timeout=timeout) as response: # GET the root
                     if response.status == 200:
                         json = await response.json()
+                        swarm_info = json.get("swarm", {})
                         return SwarmInfo(
-                            name=json.get("name"),
-                            version=json.get("version"),
-                            description=json.get("description", ""),
-                            entrypoint=json.get("entrypoint"),
-                            keywords=json.get("keywords", []),
-                            public=json.get("public", False),
+                            name=swarm_info.get("name"),
+                            version=swarm_info.get("version"),
+                            description=swarm_info.get("description", ""),
+                            entrypoint=swarm_info.get("entrypoint"),
+                            keywords=swarm_info.get("keywords", []),
+                            public=swarm_info.get("public", False),
                         )
                     else:
                         logger.error(f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {response.status}")
