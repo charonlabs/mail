@@ -644,6 +644,7 @@ class MAILSwarm:
     def __init__(
         self,
         name: str,
+        version: str,
         agents: list[MAILAgent],
         actions: list[MAILAction],
         entrypoint: str,
@@ -654,8 +655,11 @@ class MAILSwarm:
         breakpoint_tools: list[str] = [],
         exclude_tools: list[str] = [],
         task_message_limit: int | None = None,
+        description: str = "",
+        keywords: list[str] = [],
     ) -> None:
         self.name = name
+        self.version = version
         self.agents = agents
         self.actions = actions
         self.entrypoint = entrypoint
@@ -666,6 +670,8 @@ class MAILSwarm:
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
         self.task_message_limit = task_message_limit
+        self.description = description
+        self.keywords = keywords
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
@@ -1193,6 +1199,7 @@ class MAILSwarm:
 
         return MAILSwarmTemplate(
             name=f"{self.name}-{name_suffix}",
+            version=self.version,
             agents=selected_agents,
             actions=actions,
             entrypoint=entrypoint_agent.name,
@@ -1235,6 +1242,7 @@ class MAILSwarmTemplate:
     def __init__(
         self,
         name: str,
+        version: str,
         agents: list[MAILAgentTemplate],
         actions: list[MAILAction],
         entrypoint: str,
@@ -1242,8 +1250,12 @@ class MAILSwarmTemplate:
         breakpoint_tools: list[str] = [],
         exclude_tools: list[str] = [],
         task_message_limit: int | None = None,
+        description: str = "",
+        keywords: list[str] = [],
+        public: bool = False,
     ) -> None:
         self.name = name
+        self.version = version
         self.agents = agents
         self.actions = actions
         self.entrypoint = entrypoint
@@ -1251,6 +1263,9 @@ class MAILSwarmTemplate:
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
         self.task_message_limit = task_message_limit
+        self.description = description
+        self.keywords = keywords
+        self.public = public
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
@@ -1364,7 +1379,14 @@ class MAILSwarmTemplate:
         Instantiate a MAILSwarm from a MAILSwarmTemplate.
         """
         if self.enable_interswarm:
-            swarm_registry = SwarmRegistry(self.name, base_url, registry_file)
+            swarm_registry = SwarmRegistry(
+                self.name,
+                base_url,
+                self.description,
+                self.keywords,
+                self.public,
+                registry_file,
+            )
         else:
             swarm_registry = None
 
@@ -1433,6 +1455,7 @@ class MAILSwarmTemplate:
 
         return MAILSwarm(
             name=self.name,
+            version=self.version,
             agents=agents,
             actions=self.actions,
             entrypoint=self.entrypoint,
@@ -1443,6 +1466,8 @@ class MAILSwarmTemplate:
             breakpoint_tools=self.breakpoint_tools,
             exclude_tools=self.exclude_tools,
             task_message_limit=self.task_message_limit,
+            description=self.description,
+            keywords=self.keywords,
         )
 
     def get_subswarm(
@@ -1511,6 +1536,7 @@ class MAILSwarmTemplate:
 
         return MAILSwarmTemplate(
             name=f"{self.name}-{name_suffix}",
+            version=self.version,
             agents=selected_agents,
             actions=actions,
             entrypoint=entrypoint_agent.name,
@@ -1556,6 +1582,7 @@ class MAILSwarmTemplate:
 
         return MAILSwarmTemplate(
             name=swarm_data["name"],
+            version=swarm_data["version"],
             agents=agents,
             actions=actions,
             entrypoint=swarm_data["entrypoint"],
@@ -1563,6 +1590,8 @@ class MAILSwarmTemplate:
             breakpoint_tools=swarm_data["breakpoint_tools"],
             exclude_tools=swarm_data["exclude_tools"],
             task_message_limit=task_message_limit,
+            description=swarm_data.get("description", ""),
+            keywords=swarm_data.get("keywords", []),
         )
 
     @staticmethod

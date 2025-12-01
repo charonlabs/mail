@@ -26,10 +26,37 @@ class SwarmEndpoint(TypedDict):
     """When this swarm was last seen/heard from."""
     is_active: bool
     """Whether this swarm is currently active."""
+    latency: float | None
+    """The latency of the swarm in seconds."""
+    swarm_description: str
+    """The description of the swarm."""
+    keywords: list[str]
+    """The keywords of the swarm."""
     metadata: dict[str, Any] | None
     """Additional metadata about the swarm."""
+    public: bool
+    """Whether this swarm is publicly accessible."""
     volatile: bool
     """Whether this swarm is volatile (will be removed from the registry when the server shuts down)."""
+
+
+class SwarmInfo(TypedDict):
+    """
+    Information about the current swarm.
+    """
+
+    name: str
+    """The name of the swarm."""
+    version: str
+    """The version of the swarm."""
+    description: str
+    """The description of the swarm."""
+    entrypoint: str
+    """The default entrypoint of the swarm."""
+    keywords: list[str]
+    """The keywords of the swarm."""
+    public: bool
+    """Whether this swarm is publicly accessible."""
 
 
 class SwarmStatus(TypedDict):
@@ -50,10 +77,10 @@ class GetRootResponse(TypedDict):
 
     name: str
     """The name of the service; should always be `mail`."""
-    version: str
-    """The version of MAIL that is running."""
-    swarm: str
-    """The name of the swarm that is running."""
+    protocol_version: str
+    """The version of the MAIL protocol that is being used."""
+    swarm: SwarmInfo
+    """Information about the swarm that is running."""
     status: str
     """The status of the service; should always be `running`."""
     uptime: float

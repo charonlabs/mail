@@ -72,6 +72,9 @@ def get_default_swarm_registry(
     return SwarmRegistry(
         local_swarm_name=swarm_name,
         local_base_url=local_base_url,
+        local_swarm_description=cfg.swarm.description,
+        local_swarm_keywords=cfg.swarm.keywords,
+        local_swarm_public=cfg.swarm.public,
         persistence_file=swarm_registry_file,
     )
 

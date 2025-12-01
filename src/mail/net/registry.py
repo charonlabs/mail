@@ -10,7 +10,7 @@ from typing import Any
 
 import aiohttp
 
-from .types import SwarmEndpoint
+from .types import SwarmEndpoint, SwarmInfo
 
 logger = logging.getLogger("mail.registry")
 
@@ -24,10 +24,16 @@ class SwarmRegistry:
         self,
         local_swarm_name: str,
         local_base_url: str,
+        local_swarm_description: str,
+        local_swarm_keywords: list[str] = [],
+        local_swarm_public: bool = False,
         persistence_file: str | None = None,
     ):
         self.local_swarm_name = local_swarm_name
         self.local_base_url = local_base_url
+        self.local_swarm_description = local_swarm_description
+        self.local_swarm_keywords = local_swarm_keywords
+        self.local_swarm_public = local_swarm_public
         self.endpoints: dict[str, SwarmEndpoint] = {}
         self.health_check_interval = 30  # seconds
         self.health_check_task: asyncio.Task | None = None
@@ -63,12 +69,16 @@ class SwarmRegistry:
             auth_token_ref=None,
             last_seen=datetime.datetime.now(datetime.UTC),
             is_active=True,
+            latency=None,
+            swarm_description=self.local_swarm_description,
+            keywords=self.local_swarm_keywords,
+            public=self.local_swarm_public,
             metadata=None,
             volatile=False,  # Local swarm is never volatile
         )
         logger.info(f"{self._log_prelude()} registered local swarm")
 
-    def register_swarm(
+    async def register_swarm(
         self,
         swarm_name: str,
         base_url: str,
@@ -91,6 +101,8 @@ class SwarmRegistry:
         else:
             auth_token_ref = auth_token
 
+        swarm_info = await self._get_remote_swarm_info(base_url)
+
         self.endpoints[swarm_name] = SwarmEndpoint(
             swarm_name=swarm_name,
             base_url=base_url,
@@ -98,6 +110,10 @@ class SwarmRegistry:
             auth_token_ref=auth_token_ref,
             last_seen=datetime.datetime.now(datetime.UTC),
             is_active=True,
+            latency=None,
+            swarm_description=swarm_info["description"],
+            keywords=swarm_info["keywords"],
+            public=swarm_info["public"],
             metadata=metadata,
             volatile=volatile,
         )
@@ -108,6 +124,34 @@ class SwarmRegistry:
         # Save persistent endpoints if this swarm is non-volatile
         if not volatile:
             self.save_persistent_endpoints()
+
+    async def _get_remote_swarm_info(
+        self,
+        swarm_url: str,
+    ) -> SwarmInfo:
+        """
+        Get the information about a remote swarm.
+        """
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(swarm_url, timeout=timeout) as response: # GET the root
+                    if response.status == 200:
+                        json = await response.json()
+                        return SwarmInfo(
+                            name=json.get("name"),
+                            version=json.get("version"),
+                            description=json.get("description", ""),
+                            entrypoint=json.get("entrypoint"),
+                            keywords=json.get("keywords", []),
+                            public=json.get("public", False),
+                        )
+                    else:
+                        logger.error(f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {response.status}")
+                        raise RuntimeError(f"failed to get remote swarm info from {swarm_url}: {response.status}")
+        except Exception as e:
+            logger.error(f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {e}")
+            raise RuntimeError(f"failed to get remote swarm info from {swarm_url}: {e}")
 
     def unregister_swarm(self, swarm_name: str) -> None:
         """
@@ -357,6 +401,10 @@ class SwarmRegistry:
                         )
                         if endpoint_data["last_seen"]
                         else None,
+                        latency=endpoint_data.get("latency", None),
+                        swarm_description=endpoint_data.get("swarm_description", ""),
+                        keywords=endpoint_data.get("keywords", []),
+                        public=endpoint_data.get("public", False),
                         is_active=endpoint_data["is_active"],
                         metadata=endpoint_data.get("metadata"),
                         volatile=endpoint_data.get("volatile", True),
@@ -523,11 +571,12 @@ class SwarmRegistry:
                             and base_url
                             and swarm_name != self.local_swarm_name
                         ):
-                            self.register_swarm(
+                            await self.register_swarm(
                                 swarm_name=swarm_name,
                                 base_url=base_url,
                                 auth_token=swarm_info.get("auth_token"),
                                 metadata=swarm_info.get("metadata"),
+                                volatile=swarm_info.get("volatile", True),
                             )
         except Exception as e:
             logger.error(
@@ -565,7 +614,13 @@ class SwarmRegistry:
         """
         Create registry from dictionary.
         """
-        registry = cls(data["local_swarm_name"], data["local_base_url"])
+        registry = cls(
+            data["local_swarm_name"],
+            data["local_base_url"],
+            data["local_swarm_description"],
+            data["local_swarm_keywords"],
+            data["local_swarm_public"],
+        )
 
         for name, endpoint_data in data["endpoints"].items():
             # Handle both old format (auth_token) and new format (auth_token_ref)
@@ -586,6 +641,10 @@ class SwarmRegistry:
                 last_seen=datetime.datetime.fromisoformat(endpoint_data["last_seen"])
                 if endpoint_data["last_seen"]
                 else None,
+                latency=endpoint_data.get("latency", None),
+                swarm_description=endpoint_data.get("swarm_description", ""),
+                keywords=endpoint_data.get("keywords", []),
+                public=endpoint_data.get("public", False),
                 is_active=endpoint_data["is_active"],
                 metadata=endpoint_data.get("metadata"),
                 volatile=endpoint_data.get("volatile", True),

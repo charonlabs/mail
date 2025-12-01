@@ -337,8 +337,15 @@ async def root():
     """
     return types.GetRootResponse(
         name="mail",
-        version=utils.get_protocol_version(),
-        swarm=app.state.local_swarm_name,
+        protocol_version=utils.get_protocol_version(),
+        swarm=types.SwarmInfo(
+            name=app.state.persistent_swarm.name,
+            version=app.state.persistent_swarm.version,
+            description=app.state.persistent_swarm.description,
+            entrypoint=app.state.default_entrypoint_agent,
+            keywords=app.state.persistent_swarm.keywords,
+            public=app.state.persistent_swarm.public,
+        ),
         status="running",
         uptime=time.time() - app.state.start_time,
     )
