@@ -203,14 +203,17 @@ paths:
                       type: object
                       additionalProperties: false
                       properties:
-                        name: { type: string }
+                        swarm_name: { type: string }
                         base_url: { type: string }
+                        version: { type: string }
                         is_active: { type: boolean }
                         last_seen: { 
                           type: string, 
                           format: date-time, 
                           nullable: true 
                         }
+                        swarm_description: { type: string }
+                        keywords: { type: array, items: { type: string } }
                         metadata: { 
                           type: object, 
                           nullable: true 

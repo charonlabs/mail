@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 1.2
-- **Date**: November 4, 2025
+- **Version**: 1.3-pre1
+- **Date**: December 2, 2025
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, runtime, and REST transport for interoperable communication among autonomous agents within and across swarms.
 - **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
@@ -319,11 +319,27 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Swarm Registry
 
-- **Purpose**: Service discovery, endpoint metadata, and health checks.
-- **Endpoint model fields**: `swarm_name`, `base_url`, `health_check_url`, `auth_token_ref`, `last_seen`, `is_active`, `metadata`, `volatile`.
-- **Persistence**: Non-volatile endpoints MUST be persisted and reloaded on startup. Persistent auth tokens SHOULD be stored as environment variable references and resolved at runtime.
-- **Health**: Registries SHOULD perform periodic health checks; inactive endpoints are marked and MAY be skipped for routing.
-- **Discovery**: Implementations MAY discover swarms via known discovery URLs and register-found endpoints.
+- Interswarm-enabled deployments MUST maintain a registry of remote swarms that can be contacted.
+- Registered swarms marked as `volatile` MUST NOT persist in the registry on server shutdown.
+- Deployment administrators MAY register remote swarms by using the `POST /swarms/register` endpoint.
+  - This endpoint MUST accept the following parameters:
+    - `swarm_name` (string): The name of the remote MAIL swarm to register.
+    - `base_url` (string): The base URL of the swarm to register.
+  - Upon registration, the deployment MUST attempt to retrieve further metadata from the remote swarm:
+    - `version` (string): The version of the MAIL protocol this swarm is operating on.
+    - `last_seen` (string): The UTC timestamp of when this swarm was last seen.
+    - `swarm_description` (string): A natural-language description of the swarm and its functionality.
+    - `keywords` (array): A list of keyword strings for this swarm.
+- The endpoint `GET /swarms` MUST provide a list of all public remote swarms in this deployment's registry.
+  - Swarms that are not `public` MUST NOT be listed in the response for `GET /swarms`.
+  - Each swarm listed in this endpoint response MUST contain the following variables:
+    - `swarm_name` (string): Same as above.
+    - `base_url` (string): Same as above.
+    - `version` (string): Same as above.
+    - `last_seen` (string): Same as above.
+    - `swarm_description` (string): Same as above.
+    - `keywords` (array): Same as above.
+  - This endpoint SHOULD NOT expose swarm parameters such as `auth_token_ref`, `public`, and `volatile`.
 
 ## Authentication and Authorization
 
@@ -370,7 +386,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ## Versioning
 
-- **Protocol version**: 1.2
+- **Protocol version**: 1.3-pre1
 - Backward-incompatible changes MUST bump the minor (or major) version and update OpenAPI `info.version`.
 
 ## References
