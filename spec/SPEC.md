@@ -325,6 +325,9 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
   - This endpoint MUST accept the following parameters:
     - `swarm_name` (string): The name of the remote MAIL swarm to register.
     - `base_url` (string): The base URL of the swarm to register.
+  - Furthermore, this endpoint MAY accept the following parameters:
+    - `volatile` (bool): Whether or not this swarm should persist in the registry.
+    - `metadata` (object): Extra swarm metadata.
   - Upon registration, the deployment MUST attempt to retrieve further metadata from the remote swarm:
     - `version` (string): The version of the MAIL protocol this swarm is operating on.
     - `last_seen` (string): The UTC timestamp of when this swarm was last seen.
@@ -339,6 +342,9 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
     - `last_seen` (string): Same as above.
     - `swarm_description` (string): Same as above.
     - `keywords` (array): Same as above.
+  - Furthermore, each swarm listed MAY contain the following variables:
+    - `latency` (float): The latency of this swarm in seconds.
+    - `metadata` (object): Extra swarm metadata.
   - This endpoint SHOULD NOT expose swarm parameters such as `auth_token_ref`, `public`, and `volatile`.
 
 ## Authentication and Authorization
