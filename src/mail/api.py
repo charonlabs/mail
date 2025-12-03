@@ -1003,6 +1003,20 @@ class MAILSwarm:
 
         return await self._runtime.is_interswarm_running()
 
+    async def load_agent_histories_from_db(self) -> None:
+        """
+        Load existing agent histories from the database.
+        Only has effect when enable_db_agent_histories is True.
+        """
+        await self._runtime.load_agent_histories_from_db()
+
+    async def load_tasks_from_db(self) -> None:
+        """
+        Load existing tasks from the database.
+        Only has effect when enable_db_agent_histories is True.
+        """
+        await self._runtime.load_tasks_from_db()
+
     async def run_continuous(
         self,
         max_steps: int | None = None,

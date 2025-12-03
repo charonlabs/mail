@@ -309,6 +309,10 @@ async def get_or_create_mail_instance(
             # Start interswarm messaging
             await mail_instance.start_interswarm()
 
+            # Load existing agent histories and tasks from the database
+            await mail_instance.load_agent_histories_from_db()
+            await mail_instance.load_tasks_from_db()
+
             # Start the MAIL instance in continuous mode for this role
             logger.info(
                 f"{_log_prelude(app)} starting MAIL continuous mode for {role} '{id}'"
