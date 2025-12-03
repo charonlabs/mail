@@ -21,6 +21,12 @@ class SwarmsJSONSwarm(TypedDict):
     """The swarm's name."""
     version: str
     """The version of `mail` to build this swarm with."""
+    description: str # default: ""
+    """The description of the swarm."""
+    keywords: list[str] # default: []
+    """The keywords of the swarm."""
+    public: bool # default: False
+    """Whether this swarm is publicly accessible."""
     entrypoint: str
     """The name of the swarm's default entrypoint agent."""
     enable_interswarm: bool  # default: False

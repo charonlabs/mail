@@ -711,7 +711,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         try:
             match resume_from:
                 case "user_response":
-                    await self._submit_user_response(task_id, **kwargs)
+                    await self._submit_user_response(task_id, message, **kwargs)
                 case "breakpoint_tool_call":
                     await self._submit_breakpoint_tool_call_result(task_id, **kwargs)
                 case (
