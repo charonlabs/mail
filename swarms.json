@@ -7,6 +7,7 @@
         "keywords": ["demo", "example", "weather", "math", "charon-labs"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -54,6 +55,7 @@
         "keywords": ["demo", "example", "weather", "math", "charon-labs", "no-proxy"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -105,6 +107,7 @@
         "keywords": ["demo", "example", "weather", "math", "charon-labs", "interswarm"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -161,6 +164,7 @@
         "keywords": ["demo", "example", "consultant", "analyst", "charon-labs", "interswarm"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",

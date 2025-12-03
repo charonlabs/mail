@@ -327,7 +327,7 @@ def build_interswarm_mail_xml(message: MAILInterswarmMessage) -> dict[str, str]:
 {
             [
                 f'<address type="agent">{recipient["address"]}</address>'
-                for recipient in message["payload"]["recipients"]
+                for recipient in message["payload"]["recipients"]  # type: ignore
             ]
             if "recipients" in message["payload"]  # type: ignore
             else f'<address type="agent">{message["payload"]["recipient"]["address"]}</address>'

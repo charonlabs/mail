@@ -41,6 +41,8 @@ class SwarmsJSONSwarm(TypedDict):
     """The tools that can be used to breakpoint the swarm."""
     exclude_tools: list[str]  # default: []
     """The names of MAIL tools that should not be available to the swarm."""
+    enable_db_agent_histories: bool  # default: False
+    """Whether to enable database persistence for agent histories."""
 
 
 class SwarmsJSONAgent(TypedDict):

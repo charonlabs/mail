@@ -126,6 +126,15 @@ def _print_version(_args: argparse.Namespace) -> None:
     )
 
 
+def _run_db_init(_args: argparse.Namespace) -> None:
+    """
+    Initialize the database tables for MAIL.
+    """
+    from mail.db.init import create_tables
+
+    asyncio.run(create_tables())
+
+
 def main() -> None:
     # top-level MAIL parser
     parser = argparse.ArgumentParser(
@@ -234,6 +243,12 @@ def main() -> None:
     # command `version`
     version_parser = subparsers.add_parser("version", help="print the version of MAIL")
     version_parser.set_defaults(func=_print_version)
+
+    # command `db-init`
+    db_init_parser = subparsers.add_parser(
+        "db-init", help="initialize database tables for agent history persistence"
+    )
+    db_init_parser.set_defaults(func=_run_db_init)
 
     # parse CLI args
     args = parser.parse_args()

@@ -657,6 +657,7 @@ class MAILSwarm:
         task_message_limit: int | None = None,
         description: str = "",
         keywords: list[str] = [],
+        enable_db_agent_histories: bool = False,
     ) -> None:
         self.name = name
         self.version = version
@@ -686,6 +687,7 @@ class MAILSwarm:
             entrypoint=entrypoint,
             breakpoint_tools=breakpoint_tools,
             exclude_tools=exclude_tools,
+            enable_db_agent_histories=enable_db_agent_histories,
         )
         self._validate()
 
@@ -1001,6 +1003,20 @@ class MAILSwarm:
 
         return await self._runtime.is_interswarm_running()
 
+    async def load_agent_histories_from_db(self) -> None:
+        """
+        Load existing agent histories from the database.
+        Only has effect when enable_db_agent_histories is True.
+        """
+        await self._runtime.load_agent_histories_from_db()
+
+    async def load_tasks_from_db(self) -> None:
+        """
+        Load existing tasks from the database.
+        Only has effect when enable_db_agent_histories is True.
+        """
+        await self._runtime.load_tasks_from_db()
+
     async def run_continuous(
         self,
         max_steps: int | None = None,
@@ -1204,6 +1220,7 @@ class MAILSwarm:
             actions=actions,
             entrypoint=entrypoint_agent.name,
             enable_interswarm=self.enable_interswarm,
+            enable_db_agent_histories=self._runtime.enable_db_agent_histories,
         )
 
     def get_response_message(self, task_id: str) -> MAILMessage | None:
@@ -1253,6 +1270,7 @@ class MAILSwarmTemplate:
         description: str = "",
         keywords: list[str] = [],
         public: bool = False,
+        enable_db_agent_histories: bool = False,
     ) -> None:
         self.name = name
         self.version = version
@@ -1266,6 +1284,7 @@ class MAILSwarmTemplate:
         self.description = description
         self.keywords = keywords
         self.public = public
+        self.enable_db_agent_histories = enable_db_agent_histories
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._validate()
@@ -1468,6 +1487,7 @@ class MAILSwarmTemplate:
             task_message_limit=self.task_message_limit,
             description=self.description,
             keywords=self.keywords,
+            enable_db_agent_histories=self.enable_db_agent_histories,
         )
 
     def get_subswarm(
@@ -1543,6 +1563,7 @@ class MAILSwarmTemplate:
             enable_interswarm=self.enable_interswarm,
             breakpoint_tools=self.breakpoint_tools,
             exclude_tools=self.exclude_tools,
+            enable_db_agent_histories=self.enable_db_agent_histories,
         )
 
     @staticmethod
@@ -1593,6 +1614,7 @@ class MAILSwarmTemplate:
             description=swarm_data.get("description", ""),
             keywords=swarm_data.get("keywords", []),
             public=swarm_data.get("public", False),
+            enable_db_agent_histories=swarm_data.get("enable_db_agent_histories", False),
         )
 
     @staticmethod

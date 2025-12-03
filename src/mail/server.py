@@ -36,6 +36,7 @@ from mail.core.message import (
     parse_task_contributors,
 )
 from mail.net import types as types
+from mail.db.utils import close_pool as close_db_pool
 from mail.utils.logger import init_logger
 from mail.utils.openai import SwarmOAIClient, build_oai_clients_dict
 
@@ -242,6 +243,12 @@ async def _server_shutdown(app: FastAPI) -> None:
             pass
         app.state._http_session = None
 
+    # Close the database connection pool
+    try:
+        await close_db_pool()
+    except Exception as e:
+        logger.warning(f"error closing database pool: {e}")
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -301,6 +308,10 @@ async def get_or_create_mail_instance(
 
             # Start interswarm messaging
             await mail_instance.start_interswarm()
+
+            # Load existing agent histories and tasks from the database
+            await mail_instance.load_agent_histories_from_db()
+            await mail_instance.load_tasks_from_db()
 
             # Start the MAIL instance in continuous mode for this role
             logger.info(
