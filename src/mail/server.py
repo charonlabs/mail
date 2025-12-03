@@ -36,6 +36,7 @@ from mail.core.message import (
     parse_task_contributors,
 )
 from mail.net import types as types
+from mail.db.utils import close_pool as close_db_pool
 from mail.utils.logger import init_logger
 from mail.utils.openai import SwarmOAIClient, build_oai_clients_dict
 
@@ -241,6 +242,12 @@ async def _server_shutdown(app: FastAPI) -> None:
         except Exception:
             pass
         app.state._http_session = None
+
+    # Close the database connection pool
+    try:
+        await close_db_pool()
+    except Exception as e:
+        logger.warning(f"error closing database pool: {e}")
 
 
 app = FastAPI(lifespan=lifespan)

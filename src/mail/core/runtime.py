@@ -15,6 +15,7 @@ import ujson
 from langmem import create_memory_store_manager
 from sse_starlette import ServerSentEvent
 
+from mail.db.utils import create_agent_history
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
 from mail.utils.store import get_langmem_store
@@ -69,6 +70,7 @@ class MAILRuntime:
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
         exclude_tools: list[str] = [],
+        enable_db_agent_histories: bool = False,
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
         # Structure: (priority, seq, message)
@@ -81,6 +83,7 @@ class MAILRuntime:
         self.actions = actions
         # Agent histories in an LLM-friendly format
         self.agent_histories: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self.enable_db_agent_histories = enable_db_agent_histories
         # MAIL tasks in swarm memory
         self.mail_tasks: dict[str, MAILTask] = {}
         # asyncio tasks that are currently active
@@ -2451,6 +2454,9 @@ The final response message is: '{finish_body}'""",
         await task_state.queue_stash(self.message_queue)
         task_state.mark_complete()
 
+        # Persist agent histories to the database if enabled
+        await self._persist_agent_histories_to_db(task_id)
+
         self.response_messages[task_id] = response_message
 
         # Emit a synthetic new_message event so streaming clients receive the final content.
@@ -2460,20 +2466,6 @@ The final response message is: '{finish_body}'""",
             f"task_complete response from {caller}:\n{build_mail_xml(response_message)['content']}",
             extra_data={"full_message": response_message},
         )
-
-        # pending = self.pending_requests.pop(task_id, None)
-        # if pending is not None and not pending.done():
-        #     try:
-        #         pending.set_result(response_message)
-        #     except Exception as e:
-        #         logger.error(
-        #             f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
-        #         )
-        #     else:
-        #         try:
-        #             self._events_available.set()
-        #         except Exception:
-        #             pass
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)
@@ -2587,6 +2579,59 @@ The final response message is: '{finish_body}'""",
         )
 
         return
+
+    def _detect_tool_format(
+        self, history: list[dict[str, Any]]
+    ) -> Literal["completions", "responses"]:
+        """
+        Detect the tool format used in a history based on entry structure.
+        Returns 'completions' if entries have 'role' key, 'responses' if they have 'type' key.
+        Defaults to 'responses' if unable to determine.
+        """
+        for entry in history:
+            if isinstance(entry, dict):
+                if "role" in entry:
+                    return "completions"
+                if "type" in entry:
+                    return "responses"
+        return "responses"
+
+    async def _persist_agent_histories_to_db(self, task_id: str) -> None:
+        """
+        Persist all agent histories for a given task to the database.
+        Only called when enable_db_agent_histories is True.
+        """
+        if not self.enable_db_agent_histories:
+            return
+
+        for agent_name in self.agents:
+            agent_history_key = AGENT_HISTORY_KEY.format(
+                task_id=task_id, agent_name=agent_name
+            )
+            history = self.agent_histories.get(agent_history_key, [])
+
+            if not history:
+                continue
+
+            tool_format = self._detect_tool_format(history)
+
+            try:
+                await create_agent_history(
+                    swarm_name=self.swarm_name,
+                    caller_role=self.user_role,
+                    caller_id=self.user_id,
+                    tool_format=tool_format,
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    history=history,
+                )
+                logger.info(
+                    f"{self._log_prelude()} persisted history for agent '{agent_name}' (task '{task_id}', format '{tool_format}')"
+                )
+            except Exception as e:
+                logger.error(
+                    f"{self._log_prelude()} failed to persist history for agent '{agent_name}' (task '{task_id}'): {e}"
+                )
 
     def _submit_event(
         self,
