@@ -1967,7 +1967,8 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     ]
 
                 # handle tool calls
-                has_emitted_act_broadcast = False
+                has_action_completed = False
+                action_errors: list[tuple[str, Exception]] = []
                 for call in tool_calls:
                     match call.tool_name:
                         case "text_output":
@@ -2304,17 +2305,14 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"agent {recipient} not found",
                                 )
-                                if not has_emitted_act_broadcast:
-                                    await self.submit(
-                                        self._system_broadcast(
-                                            task_id=task_id,
-                                            subject="::tool_call_error::",
-                                            body=f"""An agent called `{call.tool_name}` but the agent was not found.
-    This should never happen; consider informing the MAIL developers of this issue if you see it.""",
-                                            task_complete=True,
-                                        )
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(f"""An agent called `{call.tool_name}` but the agent was not found.
+    This should never happen; consider informing the MAIL developers of this issue if you see it."""),
                                     )
-                                    has_emitted_act_broadcast = True
+                                )
                                 continue
 
                             action = self.actions.get(action_name)
@@ -2334,14 +2332,15 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action {action_name} not found",
                                 )
-                                if not has_emitted_act_broadcast:
-                                    self._system_response(
-                                        task_id=task_id,
-                                        recipient=create_agent_address(recipient),
-                                        subject="::action_error::",
-                                        body=f"""The action '{action_name}' cannot be found in this swarm.""",
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(
+                                            f"""The action '{action_name}' cannot be found in this swarm."""
+                                        ),
                                     )
-                                    has_emitted_act_broadcast = True
+                                )
                                 continue
 
                             if not action_caller.can_access_action(action_name):
@@ -2360,16 +2359,15 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"agent {action_caller} cannot access action {action_name}",
                                 )
-                                if not has_emitted_act_broadcast:
-                                    await self.submit(
-                                        self._system_response(
-                                            task_id=task_id,
-                                            recipient=create_agent_address(recipient),
-                                            subject="::action_error::",
-                                            body=f"The action '{action_name}' is not available.",
-                                        )
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(
+                                            f"""The action '{action_name}' is not available."""
+                                        ),
                                     )
-                                    has_emitted_act_broadcast = True
+                                )
                                 continue
 
                             logger.info(
@@ -2400,18 +2398,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action complete (caller = {recipient}):\n{result_message.get('content')}",
                                 )
-                                if not has_emitted_act_broadcast:
-                                    await self.submit(
-                                        self._system_broadcast(
-                                            task_id=task_id,
-                                            subject="::action_complete_broadcast::",
-                                            body="",
-                                            recipients=[
-                                                create_agent_address(recipient)
-                                            ],
-                                        )
-                                    )
-                                    has_emitted_act_broadcast = True
+                                has_action_completed = True
                                 continue
                             except Exception as e:
                                 logger.error(
@@ -2429,23 +2416,39 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action error (caller = {recipient}, tool = {call.tool_name}):\n{e}",
                                 )
-                                if not has_emitted_act_broadcast:
-                                    await self.submit(
-                                        self._system_broadcast(
-                                            task_id=task_id,
-                                            subject="::action_error::",
-                                            body=f"""An error occurred while executing the action tool `{call.tool_name}`.
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(f"""An error occurred while executing the action tool `{call.tool_name}`.
 Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the action tool `{call.tool_name}` is not implemented properly.
-Use this information to decide how to complete your task.""",
-                                            task_complete=True,
-                                            recipients=[
-                                                create_agent_address(recipient)
-                                            ],
-                                        )
+Use this information to decide how to complete your task."""),
                                     )
-                                    has_emitted_act_broadcast = True
+                                )
                                 continue
+
+                if len(action_errors) > 0:
+                    error_msg = "\n".join(
+                        [f"Error: {error[0]}\n{error[1]}" for error in action_errors]
+                    )
+                    await self.submit(
+                        self._system_response(
+                            task_id=task_id,
+                            recipient=create_agent_address(recipient),
+                            subject="::action_error::",
+                            body=error_msg,
+                        )
+                    )
+                elif has_action_completed:
+                    await self.submit(
+                        self._system_broadcast(
+                            task_id=task_id,
+                            subject="::action_complete::",
+                            body="Action completed successfully",
+                            recipients=[create_agent_address(recipient)],
+                        )
+                    )
 
                 self.agent_histories.setdefault(agent_history_key, [])
             except Exception as e:
