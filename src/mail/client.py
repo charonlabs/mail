@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import readline
 import shlex
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any, Literal, cast
 
 import ujson
 from aiohttp import (
+    ClientError,
     ClientResponse,
     ClientResponseError,
     ClientSession,
@@ -335,17 +338,46 @@ class MAILClient:
         Minimal SSE parser to stitch chunked bytes into ServerSentEvent instances.
         """
         buffer = ""
-        async for chunk in response.content.iter_any():
-            buffer += chunk.decode("utf-8", errors="replace")
-            if "\r" in buffer:
-                buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
+        try:
+            async for chunk in response.content.iter_any():
+                buffer += chunk.decode("utf-8", errors="replace")
+                if "\r" in buffer:
+                    buffer = buffer.replace("\r\n", "\n").replace("\r", "\n")
 
+                while "\n\n" in buffer:
+                    raw_event, buffer = buffer.split("\n\n", 1)
+                    if not raw_event.strip():
+                        continue
+                    event_kwargs: dict[str, Any] = {}
+                    data_lines: list[str] = []
+                    for line in raw_event.splitlines():
+                        if not line or line.startswith(":"):
+                            continue
+                        field, _, value = line.partition(":")
+                        value = value.lstrip(" ")
+                        if field == "data":
+                            data_lines.append(value)
+                        elif field == "event":
+                            event_kwargs["event"] = value
+                        elif field == "id":
+                            event_kwargs["id"] = value
+                        elif field == "retry":
+                            try:
+                                event_kwargs["retry"] = int(value)
+                            except ValueError:
+                                pass
+                    data_payload = "\n".join(data_lines) if data_lines else None
+                    event_kwargs.setdefault("event", "message")
+                    yield ServerSentEvent(data=data_payload, **event_kwargs)
+        except (TimeoutError, ClientError) as e:
+            self.logger.warning(f"SSE stream interrupted: {e}")
+            # Process any remaining complete events in the buffer before returning
             while "\n\n" in buffer:
                 raw_event, buffer = buffer.split("\n\n", 1)
                 if not raw_event.strip():
                     continue
-                event_kwargs: dict[str, Any] = {}
-                data_lines: list[str] = []
+                event_kwargs = {}
+                data_lines = []
                 for line in raw_event.splitlines():
                     if not line or line.startswith(":"):
                         continue
@@ -357,11 +389,6 @@ class MAILClient:
                         event_kwargs["event"] = value
                     elif field == "id":
                         event_kwargs["id"] = value
-                    elif field == "retry":
-                        try:
-                            event_kwargs["retry"] = int(value)
-                        except ValueError:
-                            pass
                 data_payload = "\n".join(data_lines) if data_lines else None
                 event_kwargs.setdefault("event", "message")
                 yield ServerSentEvent(data=data_payload, **event_kwargs)
@@ -571,6 +598,14 @@ class MAILClientCLI:
             config=self._config,
         )
         self.parser = self._build_parser()
+
+        # Initialize readline history
+        self._history_file = Path.home() / ".mail_history"
+        try:
+            readline.read_history_file(self._history_file)
+        except FileNotFoundError:
+            pass
+        readline.set_history_length(1000)
 
     def _build_parser(self) -> argparse.ArgumentParser:
         """
@@ -1168,15 +1203,28 @@ class MAILClientCLI:
                 resume_from=args.resume_from,
                 **args.kwargs,
             )
-            async for event in response:
-                event_dict = {
-                    "event": event.event,
-                    "data": event.data,
-                }
-                self.client._console.print(self._strip_event(event_dict))
         except Exception as e:
             self.client._console.print(
-                f"[red bold]error[/red bold] posting message: {e}"
+                f"[red bold]error[/red bold] connecting to server: {e}"
+            )
+            return
+
+        try:
+            async for event in response:
+                try:
+                    event_dict = {
+                        "event": event.event,
+                        "data": event.data,
+                    }
+                    self.client._console.print(self._strip_event(event_dict))
+                except Exception as e:
+                    self.client._console.print(
+                        f"[yellow]warning: failed to process event: {e}[/yellow]"
+                    )
+                    continue
+        except Exception as e:
+            self.client._console.print(
+                f"[red bold]error[/red bold] streaming response: {e}"
             )
 
     async def _swarms_get(self, args: argparse.Namespace) -> None:
@@ -1373,7 +1421,10 @@ class MAILClientCLI:
             # replace any None values with "unknown"
             data = data.replace("None", '"unknown"')
 
-            data = ujson.loads(data)
+            try:
+                data = ujson.loads(data)
+            except (ujson.JSONDecodeError, ValueError):
+                return "\t[malformed event data]"
 
         timestamp = data.get("timestamp", "unknown")
         description = data.get("description", "unknown (possible ping)")
@@ -1503,6 +1554,12 @@ class MAILClientCLI:
                 continue
 
             await func(args)
+
+        # Save readline history on exit
+        try:
+            readline.write_history_file(self._history_file)
+        except OSError:
+            pass
 
     @staticmethod
     def _collect_xml_strings(candidate: Any) -> list[str]:

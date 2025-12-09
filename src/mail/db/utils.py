@@ -294,12 +294,12 @@ async def update_task(
 
     if task_contributors is not None:
         updates.append(f"task_contributors = ${param_idx}")
-        params.append(json.dumps(task_contributors))
+        params.append(json.dumps(task_contributors)) # type: ignore
         param_idx += 1
 
     if remote_swarms is not None:
         updates.append(f"remote_swarms = ${param_idx}")
-        params.append(json.dumps(remote_swarms))
+        params.append(json.dumps(remote_swarms)) # type: ignore
         param_idx += 1
 
     if not updates:
@@ -313,7 +313,7 @@ async def update_task(
     WHERE task_id = ${param_idx} AND swarm_name = ${param_idx + 1}
           AND caller_role = ${param_idx + 2} AND caller_id = ${param_idx + 3}
     """
-    params.extend([task_id, swarm_name, caller_role, caller_id])
+    params.extend([task_id, swarm_name, caller_role, caller_id]) # type: ignore
 
     async with pool.acquire() as connection:
         await connection.execute(query, *params)
