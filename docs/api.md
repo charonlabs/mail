@@ -15,7 +15,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 
 | Method | Path | Auth required | Request body | Response body | Summary |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, version, swarm, uptime }` | Returns MAIL service metadata and version string |
+| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, protocol_version, swarm: SwarmInfo, uptime }` | Returns MAIL service metadata and version string. `SwarmInfo` includes `name`, `entrypoint`, `keywords`, and `is_public`. |
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
 | GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { id, role }` | Returns the caller identifier and role associated with the provided token |
 | POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
@@ -23,7 +23,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | GET | `/task` | `Bearer` token with role `admin` or `user` | `JSON { task_id: str }` | `TaskRecord` | Returns the full record for a single task, including SSE history and queue snapshot |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
 | POST | `/health` | `Bearer` token with role `admin` | `JSON { status: str }` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Updates the health status reported to other swarms |
-| GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpoint] }` | Lists swarms known to the local registry |
+| GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpointCleaned] }` | Lists swarms known to the local registry. Returns cleaned endpoints (auth tokens hidden) with fields: `swarm_name`, `base_url`, `version`, `last_seen`, `is_active`, `latency`, `swarm_description`, `keywords`, `metadata`. |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/forward` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmForwardResponse { swarm, task_id, status, local_runner }` | Accepts a remote swarm's new-task payload and spawns/attaches a local runtime |
