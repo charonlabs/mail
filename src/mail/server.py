@@ -36,6 +36,7 @@ from mail.core.message import (
     parse_task_contributors,
 )
 from mail.net import types as types
+from mail.db.utils import close_pool as close_db_pool
 from mail.utils.logger import init_logger
 from mail.utils.openai import SwarmOAIClient, build_oai_clients_dict
 
@@ -88,7 +89,9 @@ async def _server_startup(app: FastAPI) -> None:
     app.state.task_bindings = server_utils.init_task_bindings_dict()
 
     # Interswarm messaging support
-    app.state.swarm_registry = server_utils.get_default_swarm_registry(cfg)
+    app.state.swarm_registry = server_utils.get_default_swarm_registry(
+        cfg, app.state.persistent_swarm
+    )
     app.state.local_swarm_name = server_utils.get_default_swarm_name(cfg)
     app.state.local_base_url = server_utils.get_default_base_url(cfg)
     app.state.default_entrypoint_agent = server_utils.get_default_entrypoint_agent(
@@ -240,6 +243,12 @@ async def _server_shutdown(app: FastAPI) -> None:
             pass
         app.state._http_session = None
 
+    # Close the database connection pool
+    try:
+        await close_db_pool()
+    except Exception as e:
+        logger.warning(f"error closing database pool: {e}")
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -300,6 +309,10 @@ async def get_or_create_mail_instance(
             # Start interswarm messaging
             await mail_instance.start_interswarm()
 
+            # Load existing agent histories and tasks from the database
+            await mail_instance.load_agent_histories_from_db()
+            await mail_instance.load_tasks_from_db()
+
             # Start the MAIL instance in continuous mode for this role
             logger.info(
                 f"{_log_prelude(app)} starting MAIL continuous mode for {role} '{id}'"
@@ -337,8 +350,15 @@ async def root():
     """
     return types.GetRootResponse(
         name="mail",
-        version=utils.get_protocol_version(),
-        swarm=app.state.local_swarm_name,
+        protocol_version=utils.get_protocol_version(),
+        swarm=types.SwarmInfo(
+            name=app.state.persistent_swarm.name,
+            version=app.state.persistent_swarm.version,
+            description=app.state.persistent_swarm.description,
+            entrypoint=app.state.default_entrypoint_agent,
+            keywords=app.state.persistent_swarm.keywords,
+            public=app.state.persistent_swarm.public,
+        ),
         status="running",
         uptime=time.time() - app.state.start_time,
     )
@@ -579,9 +599,19 @@ async def list_swarms():
     if not app.state.swarm_registry:
         raise HTTPException(status_code=503, detail="swarm registry not available")
 
-    endpoints = app.state.swarm_registry.get_all_endpoints()
+    endpoints = app.state.swarm_registry.get_public_endpoints()
 
-    swarms = [types.SwarmEndpoint(**endpoint) for endpoint in endpoints.values()]
+    swarms = [types.SwarmEndpointCleaned(
+        swarm_name=endpoint["swarm_name"],
+        base_url=endpoint["base_url"],
+        version=endpoint["version"],
+        last_seen=endpoint["last_seen"],
+        is_active=endpoint["is_active"],
+        latency=endpoint["latency"],
+        swarm_description=endpoint["swarm_description"],
+        keywords=endpoint["keywords"],
+        metadata=endpoint["metadata"],
+    ) for endpoint in endpoints.values()]
 
     return types.GetSwarmsResponse(
         swarms=swarms,
@@ -612,7 +642,7 @@ async def register_swarm(request: Request):
                 status_code=400, detail="name and base_url are required"
             )
 
-        app.state.swarm_registry.register_swarm(
+        await app.state.swarm_registry.register_swarm(
             swarm_name, base_url, auth_token, metadata, volatile
         )
         return types.PostSwarmsResponse(

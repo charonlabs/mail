@@ -62,6 +62,9 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
         "name": "example-no-proxy",
         "source": "swarms.json",
         "registry_file": "registries/example-no-proxy.json",
+        "description": "",
+        "keywords": [],
+        "public": False,
     }
     settings_defaults: dict[str, Any] = {
         "task_message_limit": 15,
@@ -102,6 +105,9 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
                 "name": swarm_section.get("name", swarm_defaults["name"]),
                 "source": swarm_section.get("source", swarm_defaults["source"]),
                 "registry_file": registry_value or swarm_defaults["registry_file"],
+                "description": swarm_section.get("description", swarm_defaults["description"]),
+                "keywords": swarm_section.get("keywords", swarm_defaults["keywords"]),
+                "public": swarm_section.get("public", swarm_defaults["public"]),
             }
 
             settings_section = server_section.get("settings")
@@ -132,6 +138,9 @@ def _settings_defaults() -> dict[str, Any]:
 
 class SwarmConfig(BaseModel):
     name: str = Field(default_factory=lambda: _swarm_defaults()["name"])
+    description: str = Field(default_factory=lambda: _swarm_defaults()["description"])
+    keywords: list[str] = Field(default_factory=lambda: _swarm_defaults()["keywords"])
+    public: bool = Field(default_factory=lambda: _swarm_defaults()["public"])
     source: str = Field(default_factory=lambda: _swarm_defaults()["source"])
     registry_file: str = Field(
         default_factory=lambda: _swarm_defaults()["registry_file"]

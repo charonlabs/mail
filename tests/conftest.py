@@ -16,8 +16,15 @@ class FakeSwarmRegistry:
     """
 
     def __init__(
-        self, local_swarm_name: str, base_url: str, persistence_file: str
-    ) -> None:  # noqa: ARG002
+        self,
+        local_swarm_name: str,
+        base_url: str,
+        persistence_file: str | None = None,
+        *,
+        local_swarm_description: str = "",  # noqa: ARG002
+        local_swarm_keywords: list[str] | None = None,  # noqa: ARG002
+        local_swarm_public: bool = False,  # noqa: ARG002, FBT001, FBT002
+    ) -> None:
         self.local_swarm_name = local_swarm_name
         self.base_url = base_url
         self.persistence_file = persistence_file
@@ -185,6 +192,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
 
     stub_swarm = MAILSwarmTemplate(
+        version="1.2.0",
         name=os.getenv("SWARM_NAME", "example"),
         agents=[
             MAILAgentTemplate(

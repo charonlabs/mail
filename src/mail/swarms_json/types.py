@@ -21,6 +21,12 @@ class SwarmsJSONSwarm(TypedDict):
     """The swarm's name."""
     version: str
     """The version of `mail` to build this swarm with."""
+    description: str # default: ""
+    """The description of the swarm."""
+    keywords: list[str] # default: []
+    """The keywords of the swarm."""
+    public: bool # default: False
+    """Whether this swarm is publicly accessible."""
     entrypoint: str
     """The name of the swarm's default entrypoint agent."""
     enable_interswarm: bool  # default: False
@@ -35,6 +41,8 @@ class SwarmsJSONSwarm(TypedDict):
     """The tools that can be used to breakpoint the swarm."""
     exclude_tools: list[str]  # default: []
     """The names of MAIL tools that should not be available to the swarm."""
+    enable_db_agent_histories: bool  # default: False
+    """Whether to enable database persistence for agent histories."""
 
 
 class SwarmsJSONAgent(TypedDict):

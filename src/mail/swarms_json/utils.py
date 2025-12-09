@@ -111,6 +111,9 @@ def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
     return SwarmsJSONSwarm(
         name=swarm_candidate["name"],
         version=swarm_candidate["version"],
+        description=swarm_candidate.get("description", ""),
+        keywords=swarm_candidate.get("keywords", []),
+        public=swarm_candidate.get("public", False),
         entrypoint=swarm_candidate["entrypoint"],
         agents=[
             build_agent_from_swarms_json(agent) for agent in swarm_candidate["agents"]
@@ -123,6 +126,7 @@ def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
         enable_interswarm=swarm_candidate.get("enable_interswarm", False),
         breakpoint_tools=swarm_candidate.get("breakpoint_tools", []),
         exclude_tools=swarm_candidate.get("exclude_tools", []),
+        enable_db_agent_histories=swarm_candidate.get("enable_db_agent_histories", False),
     )
 
 
