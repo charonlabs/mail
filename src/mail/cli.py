@@ -4,12 +4,15 @@
 import argparse
 import asyncio
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from mail import utils
 from mail.client import MAILClientCLI
 from mail.config import ClientConfig, ServerConfig
 from mail.server import run_server
+from mail.url_scheme import parse_swarm_url
 
 
 def _str_to_bool(value: str | bool) -> bool:
@@ -89,6 +92,16 @@ def _run_client_with_args(args: argparse.Namespace) -> None:
     """
     Run a MAIL client with the given CLI args.
     """
+    # Parse swarm:// URLs if provided
+    swarm_url = parse_swarm_url(args.url)
+    if swarm_url:
+        if not swarm_url.server:
+            print("Error: swarm:// URL must include a 'server' parameter")
+            return
+        args.url = f"https://{swarm_url.server}"
+        if swarm_url.token and not args.api_key:
+            args.api_key = swarm_url.token
+
     original_config_path = os.environ.get("MAIL_CONFIG_PATH")
     env_overridden = False
 
@@ -133,6 +146,93 @@ def _run_db_init(_args: argparse.Namespace) -> None:
     from mail.db.init import create_tables
 
     asyncio.run(create_tables())
+
+
+def _register_url_handler(_args: argparse.Namespace) -> None:
+    """
+    Register the MAIL client as the OS handler for swarm:// URLs.
+    """
+    platform = sys.platform
+
+    if platform == "linux":
+        _register_linux()
+    elif platform == "darwin":
+        _register_macos()
+    elif platform.startswith("win"):
+        _register_windows()
+    else:
+        print(f"Unsupported platform: {platform}")
+
+
+def _register_linux() -> None:
+    """
+    Register `swarm://` URL handler on Linux using XDG.
+    """
+    desktop_entry = """[Desktop Entry]
+Name=MAIL Client
+Comment=Connect to MAIL servers via swarm:// URLs
+Exec=mail client %u
+Type=Application
+MimeType=x-scheme-handler/swarm;
+Terminal=true
+NoDisplay=true
+"""
+    applications_dir = Path.home() / ".local" / "share" / "applications"
+    applications_dir.mkdir(parents=True, exist_ok=True)
+
+    desktop_file = applications_dir / "mail-swarm.desktop"
+    desktop_file.write_text(desktop_entry)
+    print(f"Created {desktop_file}")
+
+    # Register as default handler
+    try:
+        subprocess.run(
+            ["xdg-mime", "default", "mail-swarm.desktop", "x-scheme-handler/swarm"],
+            check=True,
+        )
+        print("Registered as default handler for swarm:// URLs")
+    except FileNotFoundError:
+        print("Warning: xdg-mime not found. Please run manually:")
+        print("  xdg-mime default mail-swarm.desktop x-scheme-handler/swarm")
+    except subprocess.CalledProcessError as e:
+        print(f"Error registering handler: {e}")
+
+
+def _register_macos() -> None:
+    """
+    Print instructions for macOS URL handler registration.
+    """
+    print("macOS URL handler registration requires app bundling.")
+    print()
+    print("To register swarm:// URLs, add this to your app's Info.plist:")
+    print()
+    print("  <key>CFBundleURLTypes</key>")
+    print("  <array>")
+    print("    <dict>")
+    print("      <key>CFBundleURLName</key>")
+    print("      <string>MAIL Swarm Protocol</string>")
+    print("      <key>CFBundleURLSchemes</key>")
+    print("      <array>")
+    print("        <string>swarm</string>")
+    print("      </array>")
+    print("    </dict>")
+    print("  </array>")
+
+
+def _register_windows() -> None:
+    """
+    Print instructions for Windows URL handler registration.
+    """
+    mail_path = sys.executable.replace("python", "mail")
+    print("Windows URL handler registration requires registry access.")
+    print()
+    print("Run these commands in an Administrator PowerShell:")
+    print()
+    print('  New-Item -Path "HKCU:\\Software\\Classes\\swarm" -Force')
+    print('  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm" -Name "(Default)" -Value "URL:MAIL Swarm Protocol"')
+    print('  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm" -Name "URL Protocol" -Value ""')
+    print('  New-Item -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Force')
+    print(f'  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Name "(Default)" -Value \'"{mail_path}" client "%1"\'')
 
 
 def main() -> None:
@@ -217,7 +317,7 @@ def main() -> None:
     client_parser.add_argument(
         "url",
         type=str,
-        help="URL of the MAIL server",
+        help="URL of the MAIL server (supports http://, https://, or swarm://)",
     )
     client_parser.add_argument(
         "-ak",
@@ -249,6 +349,12 @@ def main() -> None:
         "db-init", help="initialize database tables for agent history persistence"
     )
     db_init_parser.set_defaults(func=_run_db_init)
+
+    # command `register`
+    register_parser = subparsers.add_parser(
+        "register", help="register as OS handler for swarm:// URLs"
+    )
+    register_parser.set_defaults(func=_register_url_handler)
 
     # parse CLI args
     args = parser.parse_args()
