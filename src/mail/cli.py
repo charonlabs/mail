@@ -235,6 +235,38 @@ def _register_windows() -> None:
     print(f'  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Name "(Default)" -Value \'"{mail_path}" client "%1"\'')
 
 
+def _run_ping(args: argparse.Namespace) -> None:
+    """
+    Ping a MAIL server to check connectivity.
+    """
+    import httpx
+
+    url = args.url
+    # Handle swarm:// URLs
+    swarm_url = parse_swarm_url(url)
+    if swarm_url:
+        if not swarm_url.server:
+            print("Error: swarm:// URL must include a 'server' parameter")
+            sys.exit(1)
+        url = f"https://{swarm_url.server}"
+
+    try:
+        with httpx.Client(timeout=args.timeout) as client:
+            response = client.get(f"{url.rstrip('/')}/health")
+            response.raise_for_status()
+            data = response.json()
+            print(f"✓ {data.get('swarm_name', 'MAIL server')} is {data.get('status', 'up')}")
+    except httpx.ConnectError:
+        print(f"✗ Cannot connect to {url}")
+        sys.exit(1)
+    except httpx.HTTPStatusError as e:
+        print(f"✗ Server returned {e.response.status_code}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"✗ Error: {e}")
+        sys.exit(1)
+
+
 def main() -> None:
     # top-level MAIL parser
     parser = argparse.ArgumentParser(
@@ -355,6 +387,22 @@ def main() -> None:
         "register", help="register as OS handler for swarm:// URLs"
     )
     register_parser.set_defaults(func=_register_url_handler)
+
+    # command `ping`
+    ping_parser = subparsers.add_parser("ping", help="check if a MAIL server is reachable")
+    ping_parser.set_defaults(func=_run_ping)
+    ping_parser.add_argument(
+        "url",
+        type=str,
+        help="URL of the MAIL server",
+    )
+    ping_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=5.0,
+        help="timeout in seconds (default: 5)",
+    )
 
     # parse CLI args
     args = parser.parse_args()
