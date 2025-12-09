@@ -67,7 +67,7 @@ async def test_mail_client_rest_endpoints() -> None:
 
     async def handle_root(request: web.Request) -> web.Response:
         assert_auth(request)
-        return web.json_response({"name": "mail", "status": "ok", "version": "1.2"})
+        return web.json_response({"name": "mail", "status": "ok", "version": "1.3"})
 
     async def handle_status(request: web.Request) -> web.Response:
         assert_auth(request)

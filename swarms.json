@@ -1,7 +1,7 @@
 [
     {
         "name": "example",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "description": "A simple example swarm created by Charon Labs.",
         "public": true,
         "keywords": ["demo", "example", "weather", "math", "charon-labs"],
@@ -49,7 +49,7 @@
     },
     {
         "name": "example-no-proxy",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "description": "A simple example swarm created by Charon Labs that does not use a proxy for LLM calls.",
         "public": true,
         "keywords": ["demo", "example", "weather", "math", "charon-labs", "no-proxy"],
@@ -101,7 +101,7 @@
     },
     {
         "name": "swarm-alpha",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "description": "A simple example swarm created by Charon Labs to demonstrate interswarm communication.",
         "public": true,
         "keywords": ["demo", "example", "weather", "math", "charon-labs", "interswarm"],
@@ -158,7 +158,7 @@
     },
     {
         "name": "swarm-beta",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "description": "A simple example swarm created by Charon Labs to demonstrate interswarm communication.",
         "public": true,
         "keywords": ["demo", "example", "consultant", "analyst", "charon-labs", "interswarm"],
