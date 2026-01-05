@@ -16,6 +16,25 @@ from mail.net.registry import SwarmRegistry
 from mail.net.router import InterswarmRouter
 
 
+@pytest.fixture()
+def stub_remote_info(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Avoid real network lookups when registering swarms in tests.
+    """
+
+    async def _fake_remote_info(self, base_url: str):  # noqa: ARG002
+        return {
+            "name": "remote",
+            "version": "1.0.0",
+            "description": "",
+            "entrypoint": "main",
+            "keywords": [],
+            "public": False,
+        }
+
+    monkeypatch.setattr(SwarmRegistry, "_get_remote_swarm_info", _fake_remote_info)
+
+
 def _make_interswarm_request(
     *,
     target_swarm: str,
@@ -136,12 +155,16 @@ async def test_receive_interswarm_back_dispatches_to_handler() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_interswarm_message_forward_posts_to_forward_endpoint() -> None:
+async def test_send_interswarm_message_forward_posts_to_forward_endpoint(
+    stub_remote_info: None,
+) -> None:
     """
     Test that the interswarm router posts to the forward endpoint when sending an interswarm message to a remote swarm.
     """
     registry = SwarmRegistry("local", "http://localhost:8000")
-    registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
+    await registry.register_swarm(
+        "remote", "http://remote:9999", auth_token="token-remote"
+    )
     router = InterswarmRouter(registry, "local")
 
     router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
@@ -162,12 +185,16 @@ async def test_send_interswarm_message_forward_posts_to_forward_endpoint() -> No
 
 
 @pytest.mark.asyncio
-async def test_send_interswarm_message_back_posts_to_back_endpoint() -> None:
+async def test_send_interswarm_message_back_posts_to_back_endpoint(
+    stub_remote_info: None,
+) -> None:
     """
     Test that the interswarm router posts to the back endpoint when sending an interswarm message to a remote swarm.
     """
     registry = SwarmRegistry("local", "http://localhost:8000")
-    registry.register_swarm("remote", "http://remote:9999", auth_token="token-remote")
+    await registry.register_swarm(
+        "remote", "http://remote:9999", auth_token="token-remote"
+    )
     router = InterswarmRouter(registry, "local")
 
     router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
@@ -188,12 +215,14 @@ async def test_send_interswarm_message_back_posts_to_back_endpoint() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_interswarm_forward_falls_back_to_message_token() -> None:
+async def test_send_interswarm_forward_falls_back_to_message_token(
+    stub_remote_info: None,
+) -> None:
     """
     If the registry lacks a token, the router should fall back to the message payload.
     """
     registry = SwarmRegistry("local", "http://localhost:8000")
-    registry.register_swarm("remote", "http://remote:9999")
+    await registry.register_swarm("remote", "http://remote:9999")
     router = InterswarmRouter(registry, "local")
     router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
 
@@ -209,12 +238,14 @@ async def test_send_interswarm_forward_falls_back_to_message_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_interswarm_forward_errors_when_no_token_available() -> None:
+async def test_send_interswarm_forward_errors_when_no_token_available(
+    stub_remote_info: None,
+) -> None:
     """
     If neither the registry nor the message provides a token, the router should raise.
     """
     registry = SwarmRegistry("local", "http://localhost:8000")
-    registry.register_swarm("remote", "http://remote:9999")
+    await registry.register_swarm("remote", "http://remote:9999")
     router = InterswarmRouter(registry, "local")
     router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
 
@@ -226,12 +257,14 @@ async def test_send_interswarm_forward_errors_when_no_token_available() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_interswarm_back_falls_back_to_message_token() -> None:
+async def test_send_interswarm_back_falls_back_to_message_token(
+    stub_remote_info: None,
+) -> None:
     """
     Fallback token behavior should also apply when sending interswarm responses back.
     """
     registry = SwarmRegistry("local", "http://localhost:8000")
-    registry.register_swarm("remote", "http://remote:9999")
+    await registry.register_swarm("remote", "http://remote:9999")
     router = InterswarmRouter(registry, "local")
     router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
 
@@ -247,12 +280,14 @@ async def test_send_interswarm_back_falls_back_to_message_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_send_interswarm_back_errors_when_no_token_available() -> None:
+async def test_send_interswarm_back_errors_when_no_token_available(
+    stub_remote_info: None,
+) -> None:
     """
     Ensure interswarm responses raise if no token is available.
     """
     registry = SwarmRegistry("local", "http://localhost:8000")
-    registry.register_swarm("remote", "http://remote:9999")
+    await registry.register_swarm("remote", "http://remote:9999")
     router = InterswarmRouter(registry, "local")
     router.session = _DummySession([_DummyResponse(200)])  # type: ignore[assignment]
 

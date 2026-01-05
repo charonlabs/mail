@@ -12,7 +12,7 @@ To use one of these actions from configuration:
 ```json
 {
   "name": "example",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "entrypoint": "supervisor",
   "agents": [...],
   "actions": [],

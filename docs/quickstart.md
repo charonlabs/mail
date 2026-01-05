@@ -13,7 +13,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
 ### Cloning the repo
 ```bash
 git clone https://github.com/charonlabs/mail.git \
---branch v1.2.0
+--branch v1.3.0-pre1
 ```
 
 ### Installing dependencies
@@ -31,6 +31,7 @@ pip install -e .
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access via the proxy
   - Optional overrides: `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE` – these supersede values hydrated from `mail.toml`
+  - Optional: `DATABASE_URL` for PostgreSQL persistence of agent histories and task state (see [database.md](/docs/database.md))
 
 ## Run
 - Start the server:
@@ -46,7 +47,12 @@ python -m mail.server
 - Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
 ## Try it
-- **Basic server info**: 
+- **Check connectivity**:
+```bash
+# Quick health check using the CLI
+uv run mail ping http://localhost:8000
+```
+- **Basic server info**:
 ```bash
 # Get the swarm name, status, and protocol version
 curl http://localhost:8000/

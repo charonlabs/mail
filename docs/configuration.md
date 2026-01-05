@@ -37,13 +37,22 @@ verbose = false
 - Toggle `[server].debug` (or pass `mail server --debug`) when you need the optional OpenAI-compatible `/responses` endpoint or other debug helpers exposed by the FastAPI app. Leave it `false` for production deployments to keep the surface minimal.
 
 ## Environment variables
+
+### Required
 - `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy used by agents
 - `AUTH_ENDPOINT`: URL for login endpoint used by the server (Bearer API key -> temporary token)
 - `TOKEN_INFO_ENDPOINT`: URL for token info endpoint (Bearer temporary token -> {role,id,api_key})
+
+### Swarm Identity & Networking
 - `SWARM_NAME`: Name of this swarm instance. Overrides the value calculated from `mail.toml`.
 - `BASE_URL`: Base URL for this server. Overrides the derived value (defaults to `http://localhost:<port>`).
 - `SWARM_SOURCE`: Path to the swarm template JSON loaded on startup. Overrides `[server.swarm.source]` from `mail.toml`.
 - `SWARM_REGISTRY_FILE`: Path used by the server to persist non-volatile registry entries. Overrides the `mail.toml` default.
+
+### Database Persistence (Optional)
+- `DATABASE_URL`: PostgreSQL connection string for agent history and task persistence. Format: `postgresql://user:password@host:port/database`. When set, the runtime automatically saves and restores conversation histories, task state, and event timelines. Run `mail db-init` to create the required tables. See [database.md](./database.md) for details.
+
+### Provider Keys
 - Optional provider keys consumed by your proxy (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
 
 ## swarms.json
@@ -58,7 +67,7 @@ verbose = false
 [
     {
         "name": "example",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [

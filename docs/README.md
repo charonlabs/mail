@@ -9,6 +9,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - **Docker Deployment**: [docker.md](/docs/docker.md)
 - **Architecture**: [architecture.md](/docs/architecture.md)
 - **Configuration**: [configuration.md](/docs/configuration.md)
+- **Database Persistence**: [database.md](/docs/database.md)
 - **API (HTTP & Python)**: [api.md](/docs/api.md)
 - **CLI**: [cli.md](/docs/cli.md)
 - **HTTP Client**: [client.md](/docs/client.md)

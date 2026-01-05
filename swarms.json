@@ -1,9 +1,13 @@
 [
     {
         "name": "example",
-        "version": "1.2.0",
+        "version": "1.3.0",
+        "description": "A simple example swarm created by Charon Labs.",
+        "public": true,
+        "keywords": ["demo", "example", "weather", "math", "charon-labs"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -11,8 +15,8 @@
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.supervisor.prompts:SYSPROMPT"
                 }
             },
@@ -21,8 +25,8 @@
                 "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT"
                 }
             },
@@ -31,8 +35,8 @@
                 "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT"
                 }
             }
@@ -45,9 +49,13 @@
     },
     {
         "name": "example-no-proxy",
-        "version": "1.2.0",
+        "version": "1.3.0",
+        "description": "A simple example swarm created by Charon Labs that does not use a proxy for LLM calls.",
+        "public": true,
+        "keywords": ["demo", "example", "weather", "math", "charon-labs", "no-proxy"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -56,8 +64,8 @@
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
@@ -67,8 +75,8 @@
                 "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
@@ -78,8 +86,8 @@
                 "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
@@ -93,9 +101,13 @@
     },
     {
         "name": "swarm-alpha",
-        "version": "1.2.0",
+        "version": "1.3.0",
+        "description": "A simple example swarm created by Charon Labs to demonstrate interswarm communication.",
+        "public": true,
+        "keywords": ["demo", "example", "weather", "math", "charon-labs", "interswarm"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -104,32 +116,37 @@
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
-                    "use_proxy": false
+                    "use_proxy": false,
+                    "tool_format": "completions"
                 }
             },
             {
                 "name": "weather",
                 "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
-                    "use_proxy": false
+                    "use_proxy": false,
+                    "tool_format": "completions"
                 },
-                "actions": ["get_weather_forecast"]
+                "actions": ["get_weather_forecast"],
+                "tool_format": "completions"
             },
             {
                 "name": "math",
                 "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "tool_format": "completions",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
-                    "use_proxy": false
+                    "use_proxy": false,
+                    "tool_format": "completions"
                 }
             }
         ],
@@ -141,9 +158,13 @@
     },
     {
         "name": "swarm-beta",
-        "version": "1.2.0",
+        "version": "1.3.0",
+        "description": "A simple example swarm created by Charon Labs to demonstrate interswarm communication.",
+        "public": true,
+        "keywords": ["demo", "example", "consultant", "analyst", "charon-labs", "interswarm"],
         "entrypoint": "supervisor",
         "enable_interswarm": true,
+        "enable_db_agent_histories": true,
         "agents": [
             {
                 "name": "supervisor",
@@ -152,34 +173,259 @@
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
-                    "use_proxy": false
-                }
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
             },
             {
                 "name": "consultant",
                 "factory": "python::mail.examples.consultant_dummy.agent:LiteLLMConsultantFunction",
                 "comm_targets": ["supervisor", "analyst"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.consultant_dummy.prompts:SYSPROMPT",
-                    "use_proxy": false
-                }
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
             },
             {
                 "name": "analyst",
                 "factory": "python::mail.examples.analyst_dummy.agent:LiteLLMAnalystFunction",
                 "comm_targets": ["supervisor", "consultant"],
-                "agent_params": { 
-                    "llm": "openai/gpt-5-mini",
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.analyst_dummy.prompts:SYSPROMPT",
-                    "use_proxy": false
-                }
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
             }
         ],
         "actions": [],
         "action_imports": []
+    },
+    {
+        "name": "support",
+        "version": "1.3.0",
+        "description": "Customer support swarm demonstrating ticket handling, FAQ search, sentiment analysis, and escalation workflows.",
+        "public": true,
+        "keywords": ["demo", "example", "support", "customer-service", "faq", "sentiment", "charon-labs"],
+        "entrypoint": "coordinator",
+        "enable_interswarm": true,
+        "enable_db_agent_histories": true,
+        "agents": [
+            {
+                "name": "coordinator",
+                "factory": "python::mail.examples.support.coordinator.agent:LiteLLMCoordinatorFunction",
+                "comm_targets": ["faq", "classifier", "sentiment"],
+                "enable_entrypoint": true,
+                "can_complete_tasks": true,
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.support.coordinator.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "faq",
+                "factory": "python::mail.examples.support.faq.agent:LiteLLMFaqFunction",
+                "comm_targets": ["coordinator"],
+                "actions": ["search_faq"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.support.faq.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "classifier",
+                "factory": "python::mail.examples.support.classifier.agent:LiteLLMClassifierFunction",
+                "comm_targets": ["coordinator", "sentiment"],
+                "actions": ["classify_ticket"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.support.classifier.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "sentiment",
+                "factory": "python::mail.examples.support.sentiment.agent:LiteLLMSentimentFunction",
+                "comm_targets": ["coordinator", "classifier"],
+                "actions": ["analyze_sentiment", "create_escalation"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.support.sentiment.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            }
+        ],
+        "actions": [],
+        "action_imports": [
+            "python::mail.examples.support.faq.actions:search_faq",
+            "python::mail.examples.support.classifier.actions:classify_ticket",
+            "python::mail.examples.support.sentiment.actions:analyze_sentiment",
+            "python::mail.examples.support.sentiment.actions:create_escalation"
+        ]
+    },
+    {
+        "name": "data-analysis",
+        "version": "1.3.0",
+        "description": "Data analysis swarm demonstrating data processing, statistical calculations, and report generation.",
+        "public": true,
+        "keywords": ["demo", "example", "data", "analytics", "statistics", "reports", "charon-labs"],
+        "entrypoint": "analyst",
+        "enable_interswarm": false,
+        "enable_db_agent_histories": true,
+        "agents": [
+            {
+                "name": "analyst",
+                "factory": "python::mail.examples.data_analysis.analyst.agent:LiteLLMAnalystFunction",
+                "comm_targets": ["processor", "statistics", "reporter"],
+                "enable_entrypoint": true,
+                "can_complete_tasks": true,
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.data_analysis.analyst.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "processor",
+                "factory": "python::mail.examples.data_analysis.processor.agent:LiteLLMProcessorFunction",
+                "comm_targets": ["analyst", "statistics"],
+                "actions": ["generate_sample_data", "parse_csv"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.data_analysis.processor.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "statistics",
+                "factory": "python::mail.examples.data_analysis.statistics.agent:LiteLLMStatisticsFunction",
+                "comm_targets": ["analyst", "processor"],
+                "actions": ["calculate_statistics", "run_correlation"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.data_analysis.statistics.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "reporter",
+                "factory": "python::mail.examples.data_analysis.reporter.agent:LiteLLMReporterFunction",
+                "comm_targets": ["analyst"],
+                "actions": ["format_report"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.data_analysis.reporter.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            }
+        ],
+        "actions": [],
+        "action_imports": [
+            "python::mail.examples.data_analysis.processor.actions:generate_sample_data",
+            "python::mail.examples.data_analysis.processor.actions:parse_csv",
+            "python::mail.examples.data_analysis.statistics.actions:calculate_statistics",
+            "python::mail.examples.data_analysis.statistics.actions:run_correlation",
+            "python::mail.examples.data_analysis.reporter.actions:format_report"
+        ]
+    },
+    {
+        "name": "research",
+        "version": "1.3.0",
+        "description": "Research assistant swarm demonstrating information gathering, fact verification, and summarization workflows.",
+        "public": true,
+        "keywords": ["demo", "example", "research", "facts", "verification", "summarization", "charon-labs"],
+        "entrypoint": "researcher",
+        "enable_interswarm": false,
+        "enable_db_agent_histories": true,
+        "agents": [
+            {
+                "name": "researcher",
+                "factory": "python::mail.examples.research.researcher.agent:LiteLLMResearcherFunction",
+                "comm_targets": ["searcher", "verifier", "summarizer"],
+                "enable_entrypoint": true,
+                "can_complete_tasks": true,
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.research.researcher.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "searcher",
+                "factory": "python::mail.examples.research.searcher.agent:LiteLLMSearcherFunction",
+                "comm_targets": ["researcher", "verifier"],
+                "actions": ["search_topic", "extract_facts"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.research.searcher.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "verifier",
+                "factory": "python::mail.examples.research.verifier.agent:LiteLLMVerifierFunction",
+                "comm_targets": ["researcher", "searcher"],
+                "actions": ["verify_claim", "rate_confidence"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.research.verifier.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            },
+            {
+                "name": "summarizer",
+                "factory": "python::mail.examples.research.summarizer.agent:LiteLLMSummarizerFunction",
+                "comm_targets": ["researcher"],
+                "actions": ["summarize_text", "create_bibliography"],
+                "agent_params": {
+                    "llm": "anthropic/claude-opus-4-5-20251101",
+                    "system": "python::mail.examples.research.summarizer.prompts:SYSPROMPT",
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
+            }
+        ],
+        "actions": [],
+        "action_imports": [
+            "python::mail.examples.research.searcher.actions:search_topic",
+            "python::mail.examples.research.searcher.actions:extract_facts",
+            "python::mail.examples.research.verifier.actions:verify_claim",
+            "python::mail.examples.research.verifier.actions:rate_confidence",
+            "python::mail.examples.research.summarizer.actions:summarize_text",
+            "python::mail.examples.research.summarizer.actions:create_bibliography"
+        ]
     }
 ]

@@ -40,12 +40,33 @@ if __name__ == "__main__":
 
 ## Connection Options
 - `MAILClient(base_url, api_key=None, session=None, config=None)`
-  - `base_url`: Root URL for the MAIL server (no trailing slash).
+  - `base_url`: Root URL for the MAIL server (no trailing slash). Supports standard HTTP/HTTPS URLs.
   - `api_key`: Optional JWT or API key. When provided, every request includes `Authorization: Bearer <api_key>`.
   - `session`: Provide your own `aiohttp.ClientSession` to share connections or customise connectors. The client will not close externally supplied sessions.
   - `config`: Pass a `ClientConfig` instance (for example `ClientConfig(timeout=120.0, verbose=True)`) to reuse or override defaults hydrated from `mail.toml`.
 
 The class implements `__aenter__` / `__aexit__`, so `async with` automatically opens and closes the HTTP session (`aclose()` is also available).
+
+### `swarm://` URL Support
+
+The CLI client (`mail client`) supports `swarm://` URLs for convenient connection sharing:
+
+```bash
+# Connect using swarm:// URL
+uv run mail client "swarm://connect?server=example.com&token=my-api-key"
+```
+
+The URL is automatically parsed and converted:
+- `server` parameter becomes the HTTPS base URL
+- `token` parameter is used as the API key (if not overridden by `--api-key`)
+
+Supported URL formats:
+```
+swarm://connect?server=<hostname>&token=<api_key>
+swarm://invite?server=<hostname>&token=<api_key>
+```
+
+See [cli.md](./cli.md) for more details on URL scheme handling and OS registration.
 
 ### ClientConfig and mail.toml
 - `ClientConfig` pulls its defaults from the `[client]` table in `mail.toml` (`timeout` and `verbose`).

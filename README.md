@@ -88,7 +88,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.2.0
+git clone https://github.com/charonlabs/mail --branch v1.3.0-pre1
 cd mail
 
 # Install dependencies (preferred)
@@ -183,6 +183,7 @@ mail/
 - **Protocol message format reference**: [docs/message-format.md](/docs/message-format.md)
 - **HTTP/API surface**: [docs/api.md](/docs/api.md)
 - **Swarm configuration & registry operations**: [docs/configuration.md](/docs/configuration.md), [docs/registry.md](/docs/registry.md)
+- **Database persistence**: [docs/database.md](/docs/database.md)
 - **HTTP client usage**: [docs/client.md](/docs/client.md)
 - **Security hardening checklist**: [docs/security.md](/docs/security.md)
 - **Agents, tools, and examples**: [docs/agents-and-tools.md](/docs/agents-and-tools.md), [docs/examples.md](/docs/examples.md)

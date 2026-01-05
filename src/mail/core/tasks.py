@@ -234,3 +234,64 @@ class MAILTask:
         Track a remote swarm participating in this task.
         """
         self.remote_swarms.add(remote_swarm)
+
+    def to_db_dict(self) -> dict:
+        """
+        Serialize the task to a dictionary for database storage.
+        Does not include events (stored separately) or task_message_queue (not persisted).
+        """
+        return {
+            "task_id": self.task_id,
+            "task_owner": self.task_owner,
+            "task_contributors": self.task_contributors,
+            "remote_swarms": list(self.remote_swarms),
+            "is_running": self.is_running,
+            "completed": self.completed,
+            "start_time": self.start_time.isoformat(),
+        }
+
+    @classmethod
+    def from_db_dict(cls, data: dict) -> "MAILTask":
+        """
+        Create a MAILTask from a database record dictionary.
+        """
+        task = cls(
+            task_id=data["task_id"],
+            task_owner=data["task_owner"],
+            task_contributors=data.get("task_contributors", []),
+        )
+        # Restore state from DB
+        task.is_running = data.get("is_running", False)
+        task.completed = data.get("completed", False)
+        task.remote_swarms = set(data.get("remote_swarms", []))
+
+        # Parse start_time if it's a string
+        start_time = data.get("start_time")
+        if start_time:
+            if isinstance(start_time, str):
+                task.start_time = datetime.datetime.fromisoformat(start_time)
+            elif isinstance(start_time, datetime.datetime):
+                task.start_time = start_time
+
+        return task
+
+    def add_event_from_db(self, event_data: dict) -> None:
+        """
+        Add an event from a database record.
+        """
+        import json
+
+        # Parse event data if it's a JSON string
+        data = event_data.get("data")
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                pass  # Keep as string if not valid JSON
+
+        event = ServerSentEvent(
+            event=event_data.get("event"),
+            data=data,
+            id=event_data.get("id"),
+        )
+        self.events.append(event)

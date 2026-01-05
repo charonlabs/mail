@@ -20,6 +20,17 @@ from langmem import create_memory_store_manager
 from litellm import aresponses
 from sse_starlette import ServerSentEvent
 
+from mail.db.utils import (
+    create_agent_history,
+    create_task,
+    create_task_event,
+    create_task_response,
+    load_agent_histories,
+    load_task_events,
+    load_task_responses,
+    load_tasks,
+    update_task,
+)
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.context import get_model_ctx_len
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
@@ -77,6 +88,7 @@ class MAILRuntime:
         enable_interswarm: bool = False,
         breakpoint_tools: list[str] = [],
         exclude_tools: list[str] = [],
+        enable_db_agent_histories: bool = False,
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
         # Structure: (priority, seq, message)
@@ -89,6 +101,7 @@ class MAILRuntime:
         self.actions = actions
         # Agent histories in an LLM-friendly format
         self.agent_histories: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self.enable_db_agent_histories = enable_db_agent_histories
         # MAIL tasks in swarm memory
         self.mail_tasks: dict[str, MAILTask] = {}
         # asyncio tasks that are currently active
@@ -147,6 +160,91 @@ class MAILRuntime:
         if self.interswarm_router:
             await self.interswarm_router.stop()
             logger.info(f"{self._log_prelude()} stopped interswarm messaging")
+
+    async def load_agent_histories_from_db(self) -> None:
+        """
+        Load existing agent histories from the database.
+        Only called when enable_db_agent_histories is True.
+        """
+        if not self.enable_db_agent_histories:
+            return
+
+        try:
+            histories = await load_agent_histories(
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+            )
+            # Merge loaded histories into agent_histories
+            for key, history_list in histories.items():
+                if key in self.agent_histories:
+                    # Prepend loaded history to any existing history
+                    self.agent_histories[key] = history_list + self.agent_histories[key]
+                else:
+                    self.agent_histories[key] = history_list
+
+            logger.info(
+                f"{self._log_prelude()} loaded {len(histories)} agent histories from database"
+            )
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to load agent histories from database: {e}"
+            )
+
+        # Also load tasks from DB
+        await self.load_tasks_from_db()
+
+    async def load_tasks_from_db(self) -> None:
+        """
+        Load existing tasks from the database.
+        Only called when enable_db_agent_histories is True.
+        """
+        if not self.enable_db_agent_histories:
+            return
+
+        try:
+            # Load task metadata
+            task_records = await load_tasks(
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+            )
+
+            for task_data in task_records:
+                task_id = task_data["task_id"]
+                if task_id in self.mail_tasks:
+                    continue  # Don't overwrite existing tasks
+
+                # Reconstruct task from DB data
+                task = MAILTask.from_db_dict(task_data)
+                self.mail_tasks[task_id] = task
+
+                # Load events for this task
+                events = await load_task_events(
+                    task_id=task_id,
+                    swarm_name=self.swarm_name,
+                    caller_role=self.user_role,
+                    caller_id=self.user_id,
+                )
+                for event_data in events:
+                    task.add_event_from_db(event_data)
+
+            # Load response messages
+            responses = await load_task_responses(
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+            )
+            for task_id, response in responses.items():
+                self.response_messages[task_id] = response  # type: ignore
+
+            logger.info(
+                f"{self._log_prelude()} loaded {len(task_records)} tasks and {len(responses)} responses from database"
+            )
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to load tasks from database: {e}"
+            )
 
     async def is_interswarm_running(self) -> bool:
         """
@@ -324,7 +422,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             case None:  # start a new task
                 if task_id is None:
                     task_id = str(uuid.uuid4())
-                self._ensure_task_exists(task_id)
+                await self._ensure_task_exists(task_id)
 
                 self.mail_tasks[task_id].is_running = True
 
@@ -387,7 +485,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     task_id_completed = message["message"].get("task_id")
                     if isinstance(task_id_completed, str):
                         self.response_messages[task_id_completed] = message
-                        self._ensure_task_exists(task_id_completed)
+                        await self._ensure_task_exists(task_id_completed)
                         self.mail_tasks[task_id_completed].mark_complete()
                         await self.mail_tasks[task_id_completed].queue_stash(
                             self.message_queue
@@ -641,7 +739,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     # Check if this completes a pending request
                     self.response_messages[task_id] = message
                     if isinstance(task_id, str):
-                        self._ensure_task_exists(task_id)
+                        await self._ensure_task_exists(task_id)
                         self.mail_tasks[task_id].mark_complete()
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
                     if isinstance(task_id, str) and task_id in self.pending_requests:
@@ -737,7 +835,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 case (
                     None
                 ):  # start a new task (task_id should be provided in the message)
-                    self._ensure_task_exists(task_id)
+                    await self._ensure_task_exists(task_id)
 
                     self.mail_tasks[task_id].is_running = True
 
@@ -1223,7 +1321,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         return
 
-    def _ensure_task_exists(
+    async def _ensure_task_exists(
         self,
         task_id: str,
         task_owner: str | None = None,
@@ -1239,7 +1337,38 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 task_contributors = [task_owner]
             else:
                 task_contributors.append(task_owner)
-            self.mail_tasks[task_id] = MAILTask(task_id, task_owner, task_contributors)
+            task = MAILTask(task_id, task_owner, task_contributors)
+            self.mail_tasks[task_id] = task
+
+            # Persist to DB if enabled
+            if self.enable_db_agent_histories:
+                await self._persist_task_to_db(task)
+
+    async def _persist_task_to_db(self, task: MAILTask) -> None:
+        """
+        Persist a task to the database.
+        """
+        try:
+            task_data = task.to_db_dict()
+            await create_task(
+                task_id=task_data["task_id"],
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+                task_owner=task_data["task_owner"],
+                task_contributors=task_data["task_contributors"],
+                remote_swarms=task_data["remote_swarms"],
+                start_time=task_data["start_time"],
+                is_running=task_data["is_running"],
+                completed=task_data["completed"],
+            )
+            logger.debug(
+                f"{self._log_prelude()} persisted task '{task.task_id}' to database"
+            )
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to persist task '{task.task_id}' to database: {e}"
+            )
 
     def _add_remote_task(
         self,
@@ -1284,7 +1413,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         # make sure this task_id exists in swarm memory
         task_id = message["message"]["task_id"]
-        self._ensure_task_exists(task_id)
+        await self._ensure_task_exists(task_id)
         task_state = self.mail_tasks[task_id]
 
         if (
@@ -2759,7 +2888,7 @@ The final response message is: '{finish_body}'""",
             "finish_message", "Task completed successfully"
         )
 
-        self._ensure_task_exists(task_id)
+        await self._ensure_task_exists(task_id)
         task_state = self.mail_tasks[task_id]
 
         if task_state.completed:
@@ -2794,6 +2923,13 @@ The final response message is: '{finish_body}'""",
         await task_state.queue_stash(self.message_queue)
         task_state.mark_complete()
 
+        # Persist agent histories to the database if enabled
+        await self._persist_agent_histories_to_db(task_id)
+
+        # Persist task completion status and response to DB
+        if self.enable_db_agent_histories:
+            await self._persist_task_completion_to_db(task_id, response_message)
+
         self.response_messages[task_id] = response_message
 
         # Emit a synthetic new_message event so streaming clients receive the final content.
@@ -2803,20 +2939,6 @@ The final response message is: '{finish_body}'""",
             f"task_complete response from {caller}:\n{build_mail_xml(response_message)['content']}",
             extra_data={"full_message": response_message},
         )
-
-        # pending = self.pending_requests.pop(task_id, None)
-        # if pending is not None and not pending.done():
-        #     try:
-        #         pending.set_result(response_message)
-        #     except Exception as e:
-        #         logger.error(
-        #             f"{self._log_prelude()} failed to resolve pending request for task '{task_id}': {e}"
-        #         )
-        #     else:
-        #         try:
-        #             self._events_available.set()
-        #         except Exception:
-        #             pass
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)
@@ -2931,6 +3053,59 @@ The final response message is: '{finish_body}'""",
 
         return
 
+    def _detect_tool_format(
+        self, history: list[dict[str, Any]]
+    ) -> Literal["completions", "responses"]:
+        """
+        Detect the tool format used in a history based on entry structure.
+        Returns 'completions' if entries have 'role' key, 'responses' if they have 'type' key.
+        Defaults to 'responses' if unable to determine.
+        """
+        for entry in history:
+            if isinstance(entry, dict):
+                if "role" in entry:
+                    return "completions"
+                if "type" in entry:
+                    return "responses"
+        return "responses"
+
+    async def _persist_agent_histories_to_db(self, task_id: str) -> None:
+        """
+        Persist all agent histories for a given task to the database.
+        Only called when enable_db_agent_histories is True.
+        """
+        if not self.enable_db_agent_histories:
+            return
+
+        for agent_name in self.agents:
+            agent_history_key = AGENT_HISTORY_KEY.format(
+                task_id=task_id, agent_name=agent_name
+            )
+            history = self.agent_histories.get(agent_history_key, [])
+
+            if not history:
+                continue
+
+            tool_format = self._detect_tool_format(history)
+
+            try:
+                await create_agent_history(
+                    swarm_name=self.swarm_name,
+                    caller_role=self.user_role,
+                    caller_id=self.user_id,
+                    tool_format=tool_format,
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    history=history,
+                )
+                logger.info(
+                    f"{self._log_prelude()} persisted history for agent '{agent_name}' (task '{task_id}', format '{tool_format}')"
+                )
+            except Exception as e:
+                logger.error(
+                    f"{self._log_prelude()} failed to persist history for agent '{agent_name}' (task '{task_id}'): {e}"
+                )
+
     def _submit_event(
         self,
         event: str,
@@ -2941,7 +3116,14 @@ The final response message is: '{finish_body}'""",
         """
         Submit an event to the event queue.
         """
-        self._ensure_task_exists(task_id)
+        # Ensure task exists in memory (sync check, DB persistence happens elsewhere)
+        if task_id not in self.mail_tasks:
+            task_owner = self.this_owner
+            task = MAILTask(task_id, task_owner, [task_owner])
+            self.mail_tasks[task_id] = task
+            # Schedule DB persistence in background if enabled
+            if self.enable_db_agent_histories:
+                asyncio.create_task(self._persist_task_to_db(task))
 
         if extra_data is None:
             extra_data = {}
@@ -2962,7 +3144,71 @@ The final response message is: '{finish_body}'""",
             self._events_available.set()
         except Exception:
             pass
+
+        # Persist event to DB in background if enabled
+        if self.enable_db_agent_histories:
+            asyncio.create_task(self._persist_event_to_db(task_id, sse))
+
         return None
+
+    async def _persist_event_to_db(self, task_id: str, sse: ServerSentEvent) -> None:
+        """
+        Persist an event to the database.
+        """
+        try:
+            # Serialize event data to string if needed
+            event_data = sse.data
+            if event_data is not None and not isinstance(event_data, str):
+                import json
+                event_data = json.dumps(event_data)
+
+            await create_task_event(
+                task_id=task_id,
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+                event_type=sse.event,
+                event_data=event_data,
+                event_id=sse.id,
+            )
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to persist event for task '{task_id}': {e}"
+            )
+
+    async def _persist_task_completion_to_db(
+        self, task_id: str, response_message: MAILMessage
+    ) -> None:
+        """
+        Persist task completion status and response message to the database.
+        """
+        try:
+            # Update task status
+            await update_task(
+                task_id=task_id,
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+                is_running=False,
+                completed=True,
+            )
+
+            # Save response message
+            await create_task_response(
+                task_id=task_id,
+                swarm_name=self.swarm_name,
+                caller_role=self.user_role,
+                caller_id=self.user_id,
+                response=response_message,  # type: ignore
+            )
+
+            logger.info(
+                f"{self._log_prelude()} persisted task completion for task '{task_id}'"
+            )
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to persist task completion for task '{task_id}': {e}"
+            )
 
     def get_events_by_task_id(self, task_id: str) -> list[ServerSentEvent]:
         """

@@ -1,7 +1,6 @@
 # MAIL Command-Line Interface
 
-The reference implementation ships with a convenience CLI that lets you run the FastAPI server and talk to it interactively from the same entry point.
-Both commands are exposed via the console script `mail`, which is installed when you install this package (`uv sync` or `pip install -e .`).
+The reference implementation ships with a convenience CLI that lets you run the FastAPI server and talk to it interactively from the same entry point. Both commands are exposed via the console script `mail`, which is installed when you install this package (`uv sync` or `pip install -e .`).
 
 ## Commands
 
@@ -9,10 +8,12 @@ Both commands are exposed via the console script `mail`, which is installed when
 mail server   # run the FastAPI reference server
 mail client   # launch the interactive MAIL client REPL
 mail version  # print MAIL reference + protocol version information
+mail ping     # check if a MAIL server is reachable
+mail db-init  # initialize database tables for persistence
+mail register # register as OS handler for swarm:// URLs
 ```
 
-The top-level parser accepts the same flags regardless of how you invoke it, for example `python -m mail.cli …` or `uv run mail …`.
-Use `mail version` any time you need to confirm the reference implementation and protocol version advertised by the CLI.
+The top-level parser accepts the same flags regardless of how you invoke it, for example `python -m mail.cli …` or `uv run mail …`. Use `mail version` any time you need to confirm the reference implementation and protocol version advertised by the CLI.
 
 ### `mail server`
 - Configuration defaults are read from `mail.toml` (see
@@ -90,6 +91,87 @@ Errors raised by `argparse` are caught and reported without exiting the loop, le
         --task-id weather-123 \
         --resume-from user_response
   ```
+
+### `mail ping`
+
+Check if a MAIL server is reachable and display its health status.
+
+```shell
+uv run mail ping http://localhost:8000
+```
+
+- The command calls `GET /health` on the target server and reports the swarm name and status.
+- Use `--timeout` to override the default 5-second timeout.
+- Supports `swarm://` URLs (see below), which are automatically converted to HTTPS.
+
+```shell
+# With custom timeout
+uv run mail ping http://localhost:8000 --timeout 10
+
+# Using swarm:// URL
+uv run mail ping "swarm://connect?server=example.com"
+```
+
+On success, you'll see output like:
+```
+✓ my-swarm is healthy
+```
+
+On failure:
+```
+✗ Cannot connect to http://localhost:8000
+```
+
+### `mail db-init`
+
+Initialize PostgreSQL database tables for agent history and task persistence.
+
+```shell
+uv run mail db-init
+```
+
+- Requires the `DATABASE_URL` environment variable to be set.
+- Creates four tables: `agent_histories`, `tasks`, `task_events`, `task_responses`.
+- Safe to run multiple times (uses `CREATE TABLE IF NOT EXISTS`).
+- See [database.md](./database.md) for schema details and setup instructions.
+
+### `mail register`
+
+Register the MAIL client as the operating system handler for `swarm://` URLs.
+
+```shell
+uv run mail register
+```
+
+This enables clicking `swarm://` links in browsers or other applications to automatically open the MAIL client.
+
+**Platform support:**
+
+- **Linux**: Creates a `.desktop` file and registers via `xdg-mime`. Fully automated.
+- **macOS**: Prints `Info.plist` configuration for app bundling (manual setup required).
+- **Windows**: Prints PowerShell commands for registry modification (requires Administrator).
+
+### `swarm://` URL Scheme
+
+The CLI supports `swarm://` URLs for connecting to MAIL servers. This provides a convenient way to share connection details.
+
+**Supported formats:**
+```
+swarm://connect?server=<hostname>&token=<api_key>
+swarm://invite?server=<hostname>&token=<api_key>
+```
+
+Both `mail client` and `mail ping` accept these URLs:
+
+```shell
+# Connect to a server using swarm:// URL
+uv run mail client "swarm://connect?server=example.com&token=my-api-key"
+
+# Ping a server using swarm:// URL
+uv run mail ping "swarm://connect?server=example.com"
+```
+
+The URL is automatically converted to `https://<server>`, and the token (if provided) is used as the API key.
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
