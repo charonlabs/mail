@@ -277,10 +277,15 @@ def build_body_xml(content: dict[str, Any]) -> str:
     return str(dict2xml(content, wrap="body", indent=""))
 
 
-def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
+def build_mail_xml(message: "MAILMessage", is_manual: bool = False) -> dict[str, str]:
     """
     Build the XML representation of a MAIL message.
     """
+    if is_manual:
+        return {
+            "role": "user",
+            "content": message["message"]["body"],
+        }
     to = (
         message["message"]["recipient"]  # type: ignore
         if "recipient" in message["message"]
@@ -292,7 +297,6 @@ def build_mail_xml(message: "MAILMessage") -> dict[str, str]:
     sender = message["message"]["sender"]
     sender_str = get_address_string(sender)
     sender_type = get_address_type(sender)
-
     return {
         "role": "user",
         "content": f"""
@@ -352,6 +356,11 @@ class MAILMessage(TypedDict):
     message: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt
     """The message content."""
     msg_type: Literal[
-        "request", "response", "broadcast", "interrupt", "broadcast_complete"
+        "request",
+        "response",
+        "broadcast",
+        "interrupt",
+        "broadcast_complete",
+        "buffered",
     ]
     """The type of the message."""

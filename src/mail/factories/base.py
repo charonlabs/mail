@@ -1,20 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline, Ryan Heaton
 
+import asyncio
 import logging
 import warnings
 from abc import abstractmethod
 from collections.abc import Awaitable
 from typing import Any, Literal
-from uuid import uuid4
 
 import langsmith as ls
+import litellm
+import rich
 import ujson
 from litellm import (
     OutputFunctionToolCall,
+    ResponsesAPIResponse,
     acompletion,
     aresponses,
 )
+from litellm.types.utils import ModelResponse
 
 from mail.core.agents import AgentFunction, AgentOutput
 from mail.core.tools import AgentToolCall, create_mail_tools
@@ -48,6 +52,7 @@ def base_agent_factory(
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
+    stream_tokens: bool = False,
     _debug_include_mail_tools: bool = True,
 ) -> AgentFunction:
     warnings.warn(
@@ -74,6 +79,7 @@ def base_agent_factory(
         max_tokens=max_tokens,
         memory=memory,
         use_proxy=use_proxy,
+        stream_tokens=stream_tokens,
         _debug_include_mail_tools=_debug_include_mail_tools,
     )
 
@@ -155,6 +161,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         max_tokens: int | None = None,
         memory: bool = True,
         use_proxy: bool = True,
+        stream_tokens: bool = False,
         _debug_include_mail_tools: bool = True,
     ) -> None:
         self.extra_headers: dict[str, str] = {}
@@ -204,6 +211,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         self.max_tokens = max_tokens
         self.memory = memory
         self.use_proxy = use_proxy
+        self.stream_tokens = stream_tokens
         self._debug_include_mail_tools = _debug_include_mail_tools
 
     def __call__(
@@ -219,7 +227,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         else:
             return self._run_responses(messages, tool_choice)
 
-    def _preprocess(
+    async def _preprocess(
         self,
         messages: list[dict[str, Any]],
         style: Literal["completions", "responses"],
@@ -253,9 +261,11 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         """
         Execute a LiteLLM completion-style call on behalf of the MAIL agent.
         """
-        messages, agent_tools = self._preprocess(
+        litellm.drop_params = True
+        messages, agent_tools = await self._preprocess(
             messages, "completions", exclude_tools=self.exclude_tools
         )
+        retries = 5
 
         with ls.trace(
             name=f"{self.name}_completions",
@@ -269,51 +279,103 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 "tool_choice": tool_choice,
             },
         ) as rt:
-            res = await acompletion(
-                model=self.llm,
-                messages=messages,
-                tools=agent_tools,
-                thinking=self.thinking,
-                reasoning_effort=self.reasoning_effort,
-                max_tokens=self.max_tokens,
-                tool_choice=tool_choice,
-                extra_headers=self.extra_headers,
-            )
-            rt.end(outputs={"output": res})
+            while retries > 0:
+                try:
+                    if self.stream_tokens:
+                        res = await self._stream_completions(
+                            messages, agent_tools, tool_choice
+                        )
+                    else:
+                        res = await acompletion(
+                            model=self.llm,
+                            messages=messages,
+                            tools=agent_tools,
+                            thinking=self.thinking,
+                            reasoning_effort=self.reasoning_effort,
+                            max_tokens=self.max_tokens,
+                            tool_choice=tool_choice if len(agent_tools) > 0 else None,
+                            extra_headers=self.extra_headers,
+                        )
+                    rt.end(outputs={"output": res})
+                    break
+                except Exception as e:
+                    retries -= 1
+                    logger.warning(f"Error running completion: {e}")
+                    logger.warning(f"Retrying {retries} more times")
+                    await asyncio.sleep(retries)
 
-        msg = res.choices[0].message
+        msg = res.choices[0].message  # type: ignore
         tool_calls: list[AgentToolCall] = []
         # Normalize assistant message to a dict so we can ensure consistent tool_call ids
-        assistant_dict = msg.to_dict()
-        # Prepare patched tool_calls list for assistant message
-        assistant_tool_calls: list[dict[str, Any]] = []
+        assistant_dict = msg.to_dict()  # type: ignore
         if getattr(msg, "tool_calls", None):
-            for tc in msg.tool_calls:
-                call_id = tc.id or f"call_{uuid4()}"
-                # Patch assistant tool_calls with consistent id
-                assistant_tool_calls.append(
-                    {
-                        "id": call_id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    }
-                )
+            for tc in msg.tool_calls:  # type: ignore
+                call_id = tc.id
                 tool_calls.append(
                     AgentToolCall(
-                        tool_name=tc.function.name,
+                        tool_name=tc.function.name,  # type: ignore
                         tool_args=ujson.loads(tc.function.arguments),
                         tool_call_id=call_id,
                         completion=assistant_dict,
                     )
                 )
-        # If there were tool calls, ensure the assistant message reflects the ids we used
-        if assistant_tool_calls:
-            assistant_dict["tool_calls"] = assistant_tool_calls
+        if len(tool_calls) == 0:
+            tool_calls.append(
+                AgentToolCall(
+                    tool_name="text_output",
+                    tool_args={"content": msg.content},
+                    tool_call_id="",
+                    completion=assistant_dict,
+                )
+            )
 
         return msg.content, tool_calls
+
+    async def _stream_completions(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> ModelResponse:
+        """
+        Stream a LiteLLM completion-style call to the terminal.
+        """
+        litellm.drop_params = True
+        stream = await acompletion(
+            model=self.llm,
+            messages=messages,
+            tools=tools,
+            thinking=self.thinking,
+            reasoning_effort=self.reasoning_effort,
+            max_tokens=self.max_tokens,
+            tool_choice=tool_choice if len(tools) > 0 else None,
+            extra_headers=self.extra_headers,
+            stream=True,
+        )
+        chunks = []
+        is_response = False
+        is_reasoning = False
+        async for chunk in stream:
+            delta = chunk.choices[0].delta
+            if getattr(delta, "reasoning_content", None) is not None:
+                if not is_reasoning:
+                    rich.print(
+                        f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                    )
+                    is_reasoning = True
+                rich.print(delta.reasoning_content, end="", flush=True)
+            elif getattr(delta, "content", None) is not None:
+                if not is_response:
+                    rich.print(
+                        f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                    )
+                    is_response = True
+                rich.print(delta.content, end="", flush=True)
+            chunks.append(chunk)
+
+        final_completion = litellm.stream_chunk_builder(chunks, messages=messages)
+        assert isinstance(final_completion, ModelResponse)
+        return final_completion
 
     async def _run_responses(
         self,
@@ -323,10 +385,11 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         """
         Execute a LiteLLM responses-style call on behalf of the MAIL agent.
         """
-        messages, agent_tools = self._preprocess(
+        litellm.drop_params = True
+        messages, agent_tools = await self._preprocess(
             messages, "responses", exclude_tools=self.exclude_tools
         )
-
+        retries = 5
         with ls.trace(
             name=f"{self.name}_responses",
             run_type="llm",
@@ -339,44 +402,56 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 "tool_choice": tool_choice,
             },
         ) as rt:
-            res = await aresponses(
-                input=messages,
-                model=self.llm,
-                max_output_tokens=self.max_tokens,
-                include=["reasoning.encrypted_content"],
-                reasoning={
-                    "effort": self.reasoning_effort,
+            include: list[str] = []
+            reasoning: dict[str, Any] = {}
+            if litellm.supports_reasoning(self.llm):
+                include.append("reasoning.encrypted_content")
+                reasoning = {
+                    "effort": self.reasoning_effort or "medium",
                     "summary": "auto",
-                },
-                tool_choice=tool_choice,
-                tools=agent_tools,
-                extra_headers=self.extra_headers,
-            )
-            rt.end(outputs={"output": res})
+                }
+            while retries > 0:
+                try:
+                    if self.stream_tokens:
+                        res = await self._stream_responses(
+                            messages, include, reasoning, agent_tools, tool_choice
+                        )
+                    else:
+                        res = await aresponses(
+                            input=messages,
+                            model=self.llm,
+                            max_output_tokens=self.max_tokens,
+                            include=include,
+                            reasoning=reasoning,
+                            tool_choice=tool_choice,
+                            tools=agent_tools,
+                            extra_headers=self.extra_headers,
+                        )
+                    rt.end(outputs={"output": res})
+                    break
+                except Exception as e:
+                    retries -= 1
+                    logger.warning(f"Error running responses: {e}")
+                    logger.warning(f"Retrying {retries} more times")
+                    await asyncio.sleep(retries)
 
         tool_calls: list[OutputFunctionToolCall] = []
-        message: str = ""
+        message_chunks: list[str] = []
 
         for output in res.output:
             if isinstance(output, dict):
                 if output["type"] == "function_call":
                     tool_calls.append(output)  # type: ignore
                 elif output["type"] == "message":
-                    message = output["content"][0]["text"]
+                    message_chunks.append(output["content"][0]["text"])
             elif output.type == "function_call":
-                tool_calls.append(output)
+                tool_calls.append(output)  # type: ignore
             elif output.type == "message":
-                message = output.content[0].text
+                message_chunks.append(output.content[0].text)  # type: ignore
 
         agent_tool_calls: list[AgentToolCall] = []
         res_dict = res.model_dump()
         outputs = res_dict["output"]
-
-        # make sure outputs with type "output_text" have type "text"
-        for output in outputs:
-            if output["type"] == "message":
-                if output["content"][0]["type"] == "output_text":
-                    output["content"][0]["type"] = "text"
 
         if len(tool_calls) > 0:
             # Build assistant.tool_calls and AgentToolCall objects with consistent ids
@@ -396,5 +471,72 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         responses=outputs,
                     )
                 )
+            return "", agent_tool_calls
+        else:
+            assert len(message_chunks) > 0
+            agent_tool_calls.append(
+                AgentToolCall(
+                    tool_name="text_output",
+                    tool_args={"content": message_chunks[0]},
+                    tool_call_id="",
+                    responses=outputs,
+                )
+            )
 
-        return message, agent_tool_calls
+            return message_chunks[0], agent_tool_calls
+
+    async def _stream_responses(
+        self,
+        messages: list[dict[str, Any]],
+        include: list[str],
+        reasoning: dict[str, Any],
+        tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> ResponsesAPIResponse:
+        """
+        Stream a LiteLLM responses-style call to the terminal.
+        """
+        litellm.drop_params = True
+        stream = await aresponses(
+            input=messages,
+            model=self.llm,
+            max_output_tokens=self.max_tokens,
+            include=include,
+            reasoning=reasoning,
+            tool_choice=tool_choice,
+            tools=tools,
+            extra_headers=self.extra_headers,
+            stream=True,
+        )
+
+        final_response = None
+
+        async for event in stream:
+            match event.type:
+                case "response.created":
+                    rich.print(
+                        f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                    )
+                case "response.reasoning_summary_text.delta":
+                    # Stream reasoning text
+                    rich.print(event.delta, end="", flush=True)
+
+                case "response.reasoning_summary_text.done":
+                    # Reasoning part complete
+                    rich.print("\n\n")
+
+                case "response.output_item.added":
+                    if event.item["type"] == "message":
+                        rich.print(
+                            f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                        )
+
+                case "response.output_text.delta":
+                    rich.print(event.delta, end="", flush=True)
+
+                case "response.completed":
+                    final_response = event.response
+
+        assert final_response is not None
+        assert isinstance(final_response, ResponsesAPIResponse)
+        return final_response

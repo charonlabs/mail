@@ -138,7 +138,7 @@ def convert_call_to_mail_message(
                 ),
                 msg_type="request",
             )
-        case "send_response":
+        case "send_response" | "text_output":
             return MAILMessage(
                 id=str(uuid4()),
                 timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
@@ -147,8 +147,9 @@ def convert_call_to_mail_message(
                     request_id=str(uuid4()),
                     sender=sender_address,
                     recipient=create_agent_address(call.tool_args["target"]),
-                    subject=call.tool_args["subject"],
-                    body=call.tool_args["body"],
+                    subject=call.tool_args.get("subject", ""),
+                    body=call.tool_args.get("body", None)
+                    or call.tool_args.get("content", ""),
                     sender_swarm=None,
                     recipient_swarm=None,
                     routing_info={},
@@ -208,6 +209,82 @@ def convert_call_to_mail_message(
             )
         case _:
             raise ValueError(f"Unknown tool name: {call.tool_name}")
+
+
+def convert_manual_step_call_to_mail_message(
+    call: AgentToolCall,
+    sender: str,
+    task_id: str,
+    response_targets: list[str],
+    response_type: Literal["broadcast", "response", "request"],
+) -> MAILMessage:
+    """
+    Convert a MAIL tool call to a MAIL message.
+    """
+    # Convert sender string to MAILAddress (assuming it's an agent)
+    sender_address = create_agent_address(sender)
+    targets = []
+    for target in response_targets:
+        if target == "all":
+            targets.append(create_agent_address("all"))
+        else:
+            targets.append(create_agent_address(target))
+
+    match response_type:
+        case "request":
+            return MAILMessage(
+                id=str(uuid4()),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                message=MAILRequest(
+                    task_id=task_id,
+                    request_id=str(uuid4()),
+                    sender=sender_address,
+                    recipient=targets[0],
+                    subject=call.tool_args.get("subject", ""),
+                    body=call.tool_args.get("body", None)
+                    or call.tool_args.get("content", ""),
+                    sender_swarm=None,
+                    recipient_swarm=None,
+                    routing_info={},
+                ),
+                msg_type="request",
+            )
+        case "response":
+            return MAILMessage(
+                id=str(uuid4()),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                message=MAILResponse(
+                    task_id=task_id,
+                    request_id=str(uuid4()),
+                    sender=sender_address,
+                    recipient=targets[0],
+                    subject=call.tool_args.get("subject", ""),
+                    body=call.tool_args.get("body", None)
+                    or call.tool_args.get("content", ""),
+                    sender_swarm=None,
+                    recipient_swarm=None,
+                    routing_info={},
+                ),
+                msg_type="response",
+            )
+        case "broadcast":
+            return MAILMessage(
+                id=str(uuid4()),
+                timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                message=MAILBroadcast(
+                    task_id=task_id,
+                    broadcast_id=str(uuid4()),
+                    sender=sender_address,
+                    recipients=targets,
+                    subject=call.tool_args.get("subject", ""),
+                    body=call.tool_args.get("body", None)
+                    or call.tool_args.get("content", ""),
+                    sender_swarm=None,
+                    recipient_swarms=None,
+                    routing_info={},
+                ),
+                msg_type="broadcast",
+            )
 
 
 def create_request_tool(
