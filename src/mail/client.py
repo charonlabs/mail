@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
 import readline
@@ -1406,6 +1407,7 @@ class MAILClientCLI:
         if isinstance(event, str):
             return event
 
+        event_type = event.get("event")
         data = event.get("data")
         if data is None:
             return "unknown"
@@ -1425,6 +1427,9 @@ class MAILClientCLI:
                 try:
                     payload = ujson.loads(payload)
                 except (ujson.JSONDecodeError, ValueError):
+                    if event_type == "task_complete":
+                        timestamp = datetime.datetime.now(datetime.UTC).isoformat()
+                        return f"\t{timestamp} - {payload}"
                     return payload
 
         if not isinstance(payload, dict):
