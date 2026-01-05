@@ -11,8 +11,8 @@ async def _action_echo(args: dict) -> str:  # noqa: ANN001
     return f"echo:{args.get('x')}"
 
 
-async def _override_upper(args: dict):  # noqa: ANN001
-    return f"OVERRIDE:{str(args.get('x')).upper()}"
+async def _override_upper(call):  # noqa: ANN001
+    return f"OVERRIDE:{str(call.tool_args.get('x')).upper()}"
 
 
 _action_echo_core = ActionCore(

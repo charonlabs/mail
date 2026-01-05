@@ -67,8 +67,10 @@
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
-                    "use_proxy": false
-                }
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
             },
             {
                 "name": "weather",
@@ -78,8 +80,10 @@
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
-                    "use_proxy": false
-                }
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
             },
             {
                 "name": "math",
@@ -89,8 +93,10 @@
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
                     "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
-                    "use_proxy": false
-                }
+                    "use_proxy": false,
+                    "tool_format": "completions"
+                },
+                "tool_format": "completions"
             }
         ],
         "actions": [],

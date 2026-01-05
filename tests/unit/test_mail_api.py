@@ -30,6 +30,7 @@ class FakeMAILRuntime:
         enable_interswarm: bool | None = None,  # noqa: ARG002
         breakpoint_tools: list[str] | None = None,  # noqa: ARG002
         exclude_tools: list[str] | None = None,  # noqa: ARG002
+        enable_db_agent_histories: bool = False,  # noqa: ARG002
     ) -> None:
         self.agents = agents
         self.actions = actions
@@ -552,7 +553,7 @@ def test_mailaction_to_pydantic_model_unsupported_type_raises() -> None:
 
     with pytest.raises(ValueError) as exc:
         action.to_pydantic_model(for_tools=True)
-    assert "unsupported type" in str(exc.value)
+    assert "unsupported JSON schema type" in str(exc.value)
 
 
 @pytest.mark.parametrize("missing", ["name", "description", "parameters", "function"])

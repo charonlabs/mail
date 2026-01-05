@@ -99,7 +99,8 @@ def test_post_responses_validates_payload():
         app.state.debug = True
         response = client.post(
             "/responses",
-            json={"api_key": "test-key", "input": "not-a-list", "tools": []},
+            headers={"Authorization": "Bearer test-key"},
+            json={"input": "not-a-list", "tools": []},
         )
         assert response.status_code == 400
         assert response.json()["detail"].startswith("parameter 'input' must be a list")
@@ -112,21 +113,31 @@ def test_post_responses_calls_openai_client(monkeypatch: pytest.MonkeyPatch):
     """
     from mail.server import app
 
+    class DummyResponse:
+        def __init__(self) -> None:
+            self.id = "resp-123"
+            self.output = [{"type": "message", "content": "ok"}]
+
+        def model_dump_json(self) -> str:
+            import json
+
+            return json.dumps({"id": self.id, "output": self.output})
+
     class DummyResponses:
         def __init__(self) -> None:
             self.called_with: dict[str, Any] | None = None
 
-        async def create(self, **kwargs: Any) -> dict[str, Any]:
+        async def create(self, **kwargs: Any) -> DummyResponse:
             self.called_with = kwargs
-            return {"id": "resp-123", "output": [{"type": "message", "content": "ok"}]}
+            return DummyResponse()
 
     class DummyOpenAIClient:
         def __init__(self) -> None:
             self.responses = DummyResponses()
 
     async def fake_get_token_info(token: str) -> dict[str, str]:
-        assert token == "resp-api-key"
-        return {"role": "user", "id": "u-456"}
+        # patched_server mocks login to return "fake-jwt", so we receive that here
+        return {"role": "user", "id": "u-456", "api_key": "resp-api-key"}
 
     monkeypatch.setattr("mail.utils.get_token_info", fake_get_token_info, raising=False)
     monkeypatch.setattr(
@@ -144,11 +155,11 @@ def test_post_responses_calls_openai_client(monkeypatch: pytest.MonkeyPatch):
     with TestClient(app) as client:
         app.state.debug = True
         dummy_client = DummyOpenAIClient()
-        app.state.openai_client = dummy_client
+        app.state.openai_clients = {"resp-api-key": dummy_client}
         response = client.post(
             "/responses",
+            headers={"Authorization": "Bearer resp-api-key"},
             json={
-                "api_key": "resp-api-key",
                 "input": input_payload,
                 "tools": tools_payload,
                 "instructions": instructions,
@@ -160,7 +171,11 @@ def test_post_responses_calls_openai_client(monkeypatch: pytest.MonkeyPatch):
         )
 
         assert response.status_code == 200
-        assert response.json()["id"] == "resp-123"
+        # Server returns model_dump_json(), which is a JSON string; FastAPI wraps it
+        import json
+
+        response_data = json.loads(response.json())
+        assert response_data["id"] == "resp-123"
 
         assert dummy_client.responses.called_with == {
             "input": input_payload,

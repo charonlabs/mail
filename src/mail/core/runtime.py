@@ -959,7 +959,26 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         )
                         continue
 
-            # Future completed; emit a final task_complete event with the response body
+            # Future completed; drain any remaining events before emitting final response
+            if self.new_events:
+                events_to_emit = self.new_events
+                self.new_events = []
+                self._events_available.clear()
+                for ev in events_to_emit:
+                    try:
+                        self.mail_tasks[task_id].add_event(ev)
+                    except Exception:
+                        pass
+                    try:
+                        if (
+                            isinstance(ev.data, dict)
+                            and ev.data.get("task_id") == task_id
+                        ):
+                            yield ev
+                    except Exception:
+                        continue
+
+            # Emit the final task_complete event with the response body
             try:
                 response = future.result()
                 yield ServerSentEvent(
@@ -2895,6 +2914,19 @@ The final response message is: '{finish_body}'""",
             logger.warning(
                 f"{self._log_prelude()} agent '{caller}' called 'task_complete' for already completed task '{task_id}'"
             )
+            self._tool_call_response(
+                task_id=task_id,
+                caller=caller,
+                tool_call=call,
+                status="success",
+                details="task already completed",
+            )
+            self._submit_event(
+                "task_complete_call_duplicate",
+                task_id,
+                f"agent {caller} called task_complete on already completed task",
+            )
+            return
 
         logger.info(
             f"{self._log_prelude()} task '{task_id}' completed by agent '{caller}'"
@@ -2933,6 +2965,8 @@ The final response message is: '{finish_body}'""",
         self.response_messages[task_id] = response_message
 
         # Emit a synthetic new_message event so streaming clients receive the final content.
+        # This must happen BEFORE resolving the pending request, otherwise the streaming
+        # loop will exit before this event is emitted.
         self._submit_event(
             "new_message",
             task_id,
@@ -2942,6 +2976,15 @@ The final response message is: '{finish_body}'""",
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)
+
+        # Resolve pending request if one exists - do this LAST so streaming clients
+        # have a chance to receive the new_message event before the stream closes
+        if task_id in self.pending_requests:
+            logger.info(
+                f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
+            )
+            future = self.pending_requests.pop(task_id)
+            future.set_result(response_message)
 
     def _system_broadcast(
         self,
