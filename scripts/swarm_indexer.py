@@ -12,9 +12,7 @@ from typing import Any
 import aiohttp
 
 
-async def _is_valid_swarm_response(
-    response_json: dict[str, Any]
-) -> bool:
+async def _is_valid_swarm_response(response_json: dict[str, Any]) -> bool:
     REQUIRED_FIELDS = {
         "swarms": list,
     }
@@ -34,9 +32,9 @@ async def _is_valid_swarm_response(
             return False
         if not isinstance(response_json[field], field_type):
             return False
-    
+
     for swarm in response_json.get("swarms", []):
-        for field, field_type in SWARM_REQUIRED_FIELDS.items(): # type: ignore
+        for field, field_type in SWARM_REQUIRED_FIELDS.items():  # type: ignore
             if field not in swarm:
                 print(f"ERROR: {field} not in swarm")
                 return False
@@ -65,7 +63,9 @@ async def _get_swarm_info(url: str) -> list[dict[str, Any]]:
             return []
 
 
-async def _clean_swarm_results(results: list[list[dict[str, Any]]]) -> dict[str, dict[str, Any]]:
+async def _clean_swarm_results(
+    results: list[list[dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
     combined_list = [result for sublist in results for result in sublist if result]
 
     # remove duplicates
@@ -76,12 +76,13 @@ async def _clean_swarm_results(results: list[list[dict[str, Any]]]) -> dict[str,
         if swarm_key not in unique_swarms:
             unique_swarms[swarm_key] = swarm
         else:
-            if swarm['last_seen'] > unique_swarms[swarm_key]['last_seen']:
+            if swarm["last_seen"] > unique_swarms[swarm_key]["last_seen"]:
                 unique_swarms[swarm_key] = swarm
 
     print(f"found {len(unique_swarms)} unique swarms")
 
     return unique_swarms
+
 
 async def _crawl_swarms(urls: list[str]) -> dict[str, dict[str, Any]]:
     tasks = []

@@ -8,6 +8,7 @@ class AgentHistoriesDB(TypedDict):
     """
     A database record for storing agent histories.
     """
+
     id: str
     swarm_name: str
     caller_role: Literal["admin", "agent", "user"]
@@ -22,6 +23,7 @@ class TaskDB(TypedDict):
     """
     A database record for storing MAILTask metadata.
     """
+
     id: str
     task_id: str
     swarm_name: str
@@ -39,6 +41,7 @@ class TaskEventDB(TypedDict):
     """
     A database record for storing task SSE events.
     """
+
     id: str
     task_id: str
     swarm_name: str
@@ -53,11 +56,10 @@ class TaskResponseDB(TypedDict):
     """
     A database record for storing task response messages.
     """
+
     id: str
     task_id: str
     swarm_name: str
     caller_role: Literal["admin", "agent", "user"]
     caller_id: str
     response: dict[str, Any]
-
-

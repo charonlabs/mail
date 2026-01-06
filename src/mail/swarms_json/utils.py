@@ -126,7 +126,9 @@ def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:
         enable_interswarm=swarm_candidate.get("enable_interswarm", False),
         breakpoint_tools=swarm_candidate.get("breakpoint_tools", []),
         exclude_tools=swarm_candidate.get("exclude_tools", []),
-        enable_db_agent_histories=swarm_candidate.get("enable_db_agent_histories", False),
+        enable_db_agent_histories=swarm_candidate.get(
+            "enable_db_agent_histories", False
+        ),
     )
 
 

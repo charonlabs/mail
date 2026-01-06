@@ -6,7 +6,7 @@
 import csv
 import io
 import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from random import Random
 from typing import Any
 
@@ -19,11 +19,23 @@ DATASET_GENERATORS = {
         "description": "Sales transaction data",
     },
     "users": {
-        "columns": ["user_id", "signup_date", "age", "subscription_type", "activity_score"],
+        "columns": [
+            "user_id",
+            "signup_date",
+            "age",
+            "subscription_type",
+            "activity_score",
+        ],
         "description": "User account data",
     },
     "inventory": {
-        "columns": ["product_id", "category", "stock_level", "reorder_point", "unit_cost"],
+        "columns": [
+            "product_id",
+            "category",
+            "stock_level",
+            "reorder_point",
+            "unit_cost",
+        ],
         "description": "Inventory tracking data",
     },
     "weather": {
@@ -32,13 +44,22 @@ DATASET_GENERATORS = {
     },
 }
 
-PRODUCTS = ["Widget A", "Widget B", "Gadget Pro", "Gadget Lite", "Service Plan", "Accessory Pack"]
+PRODUCTS = [
+    "Widget A",
+    "Widget B",
+    "Gadget Pro",
+    "Gadget Lite",
+    "Service Plan",
+    "Accessory Pack",
+]
 REGIONS = ["North", "South", "East", "West", "Central"]
 SUBSCRIPTION_TYPES = ["free", "basic", "pro", "enterprise"]
 CATEGORIES = ["Electronics", "Furniture", "Clothing", "Food", "Tools"]
 
 
-def _generate_sales_row(rng: Random, row_idx: int, base_date: datetime) -> dict[str, Any]:
+def _generate_sales_row(
+    rng: Random, row_idx: int, base_date: datetime
+) -> dict[str, Any]:
     """Generate a single sales row."""
     date = base_date + timedelta(days=rng.randint(0, 365))
     product = rng.choice(PRODUCTS)
@@ -56,7 +77,9 @@ def _generate_sales_row(rng: Random, row_idx: int, base_date: datetime) -> dict[
     }
 
 
-def _generate_users_row(rng: Random, row_idx: int, base_date: datetime) -> dict[str, Any]:
+def _generate_users_row(
+    rng: Random, row_idx: int, base_date: datetime
+) -> dict[str, Any]:
     """Generate a single user row."""
     signup_date = base_date + timedelta(days=rng.randint(0, 730))
     age = rng.randint(18, 75)
@@ -72,7 +95,9 @@ def _generate_users_row(rng: Random, row_idx: int, base_date: datetime) -> dict[
     }
 
 
-def _generate_inventory_row(rng: Random, row_idx: int, base_date: datetime) -> dict[str, Any]:
+def _generate_inventory_row(
+    rng: Random, row_idx: int, base_date: datetime
+) -> dict[str, Any]:
     """Generate a single inventory row."""
     stock = rng.randint(0, 1000)
     reorder = rng.randint(10, 200)
@@ -87,7 +112,9 @@ def _generate_inventory_row(rng: Random, row_idx: int, base_date: datetime) -> d
     }
 
 
-def _generate_weather_row(rng: Random, row_idx: int, base_date: datetime) -> dict[str, Any]:
+def _generate_weather_row(
+    rng: Random, row_idx: int, base_date: datetime
+) -> dict[str, Any]:
     """Generate a single weather row."""
     date = base_date + timedelta(days=row_idx)
     # Temperature varies seasonally
@@ -146,10 +173,12 @@ async def generate_sample_data(args: dict[str, Any]) -> str:
         return f"Error: {e} is required"
 
     if dataset not in DATASET_GENERATORS:
-        return json.dumps({
-            "error": f"Unknown dataset: {dataset}",
-            "available_datasets": list(DATASET_GENERATORS.keys()),
-        })
+        return json.dumps(
+            {
+                "error": f"Unknown dataset: {dataset}",
+                "available_datasets": list(DATASET_GENERATORS.keys()),
+            }
+        )
 
     if rows < 1 or rows > 1000:
         return json.dumps({"error": "Rows must be between 1 and 1000"})
@@ -167,13 +196,15 @@ async def generate_sample_data(args: dict[str, Any]) -> str:
         row = generator(rng, i, base_date)
         data.append(row)
 
-    return json.dumps({
-        "dataset": dataset,
-        "description": DATASET_GENERATORS[dataset]["description"],
-        "columns": DATASET_GENERATORS[dataset]["columns"],
-        "row_count": len(data),
-        "data": data,
-    })
+    return json.dumps(
+        {
+            "dataset": dataset,
+            "description": DATASET_GENERATORS[dataset]["description"],
+            "columns": DATASET_GENERATORS[dataset]["columns"],
+            "row_count": len(data),
+            "data": data,
+        }
+    )
 
 
 PARSE_CSV_PARAMETERS = {
@@ -211,13 +242,13 @@ async def parse_csv(args: dict[str, Any]) -> str:
             return json.dumps({"error": "No header row found in CSV"})
 
         data = []
-        errors = []
+        errors: list[str] = []
         for i, row in enumerate(reader):
             # Try to convert numeric values
-            parsed_row = {}
+            parsed_row: dict[str, Any] = {}
             for col, val in row.items():
                 if val is None or val == "":
-                    parsed_row[col] = None
+                    parsed_row[col] = None  # type: ignore
                 else:
                     # Try to parse as number
                     try:
@@ -247,14 +278,16 @@ async def parse_csv(args: dict[str, Any]) -> str:
             else:
                 column_types[col] = "string"
 
-        return json.dumps({
-            "success": True,
-            "columns": list(columns),
-            "column_types": column_types,
-            "row_count": len(data),
-            "data": data,
-            "parse_errors": errors if errors else None,
-        })
+        return json.dumps(
+            {
+                "success": True,
+                "columns": list(columns),
+                "column_types": column_types,
+                "row_count": len(data),
+                "data": data,
+                "parse_errors": errors if errors else None,
+            }
+        )
 
     except csv.Error as e:
         return json.dumps({"error": f"CSV parsing error: {str(e)}"})

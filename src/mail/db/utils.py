@@ -28,19 +28,17 @@ async def get_pool() -> asyncpg.Pool:
         database_url = os.getenv("DATABASE_URL")
         if database_url is None:
             raise ValueError("DATABASE_URL is not set")
-        
+
         logger.info(f"creating new connection pool to {database_url}")
         _pool = await asyncpg.create_pool(
             database_url,
             min_size=5,
             max_size=20,
             command_timeout=60,
-            server_settings={
-                "application_name": "mail-server"
-            }
+            server_settings={"application_name": "mail-server"},
         )
         logger.info("connection pool created")
-        
+
     return _pool
 
 
@@ -77,27 +75,39 @@ async def _db_execute(
         except asyncpg.ConnectionDoesNotExistError:
             # connection was closed, try to recreate pool
             if attempt < max_retries - 1:
-                logger.warning(f"database connection lost, retrying... ({attempt + 1}/{max_retries})")
+                logger.warning(
+                    f"database connection lost, retrying... ({attempt + 1}/{max_retries})"
+                )
                 global _pool
                 _pool = None
                 await asyncio.sleep(retry_delay)
                 pool = await get_pool()
             else:
-                logger.error(f"failed to reconnect to database after {max_retries} attempts")
+                logger.error(
+                    f"failed to reconnect to database after {max_retries} attempts"
+                )
                 raise
         except asyncpg.ConnectionFailureError as e:
             if attempt < max_retries - 1:
-                logger.warning(f"database connection failure (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.warning(
+                    f"database connection failure (attempt {attempt + 1}/{max_retries}): {e}"
+                )
                 await asyncio.sleep(retry_delay)
             else:
-                logger.error(f"failed to reconnect to database after {max_retries} attempts: {e}")
+                logger.error(
+                    f"failed to reconnect to database after {max_retries} attempts: {e}"
+                )
                 raise
         except Exception as e:
             if attempt < max_retries - 1:
-                logger.warning(f"database query failed (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.warning(
+                    f"database query failed (attempt {attempt + 1}/{max_retries}): {e}"
+                )
                 await asyncio.sleep(retry_delay)
             else:
-                logger.error(f"failed to execute query after {max_retries} attempts: {e}")
+                logger.error(
+                    f"failed to execute query after {max_retries} attempts: {e}"
+                )
                 raise
 
     raise RuntimeError(f"failed to execute query after {max_retries} attempts")
@@ -294,12 +304,12 @@ async def update_task(
 
     if task_contributors is not None:
         updates.append(f"task_contributors = ${param_idx}")
-        params.append(json.dumps(task_contributors)) # type: ignore
+        params.append(json.dumps(task_contributors))  # type: ignore
         param_idx += 1
 
     if remote_swarms is not None:
         updates.append(f"remote_swarms = ${param_idx}")
-        params.append(json.dumps(remote_swarms)) # type: ignore
+        params.append(json.dumps(remote_swarms))  # type: ignore
         param_idx += 1
 
     if not updates:
@@ -309,11 +319,11 @@ async def update_task(
 
     query = f"""
     UPDATE tasks
-    SET {', '.join(updates)}
+    SET {", ".join(updates)}
     WHERE task_id = ${param_idx} AND swarm_name = ${param_idx + 1}
           AND caller_role = ${param_idx + 2} AND caller_id = ${param_idx + 3}
     """
-    params.extend([task_id, swarm_name, caller_role, caller_id]) # type: ignore
+    params.extend([task_id, swarm_name, caller_role, caller_id])  # type: ignore
 
     async with pool.acquire() as connection:
         await connection.execute(query, *params)
@@ -352,19 +362,21 @@ async def load_tasks(
             if isinstance(remote_swarms, str):
                 remote_swarms = json.loads(remote_swarms)
 
-            tasks.append({
-                "task_id": row["task_id"],
-                "task_owner": row["task_owner"],
-                "task_contributors": task_contributors,
-                "remote_swarms": remote_swarms,
-                "is_running": row["is_running"],
-                "completed": row["completed"],
-                "start_time": row["start_time"].isoformat() if row["start_time"] else None,
-            })
+            tasks.append(
+                {
+                    "task_id": row["task_id"],
+                    "task_owner": row["task_owner"],
+                    "task_contributors": task_contributors,
+                    "remote_swarms": remote_swarms,
+                    "is_running": row["is_running"],
+                    "completed": row["completed"],
+                    "start_time": row["start_time"].isoformat()
+                    if row["start_time"]
+                    else None,
+                }
+            )
 
-    logger.info(
-        f"loaded {len(tasks)} tasks for {caller_role}:{caller_id}@{swarm_name}"
-    )
+    logger.info(f"loaded {len(tasks)} tasks for {caller_role}:{caller_id}@{swarm_name}")
     return tasks
 
 
@@ -420,13 +432,17 @@ async def load_task_events(
 
     events = []
     async with pool.acquire() as connection:
-        rows = await connection.fetch(query, task_id, swarm_name, caller_role, caller_id)
+        rows = await connection.fetch(
+            query, task_id, swarm_name, caller_role, caller_id
+        )
         for row in rows:
-            events.append({
-                "event": row["event_type"],
-                "data": row["event_data"],
-                "id": row["event_id"],
-            })
+            events.append(
+                {
+                    "event": row["event_type"],
+                    "data": row["event_data"],
+                    "id": row["event_id"],
+                }
+            )
 
     return events
 

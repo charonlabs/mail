@@ -229,10 +229,18 @@ def _register_windows() -> None:
     print("Run these commands in an Administrator PowerShell:")
     print()
     print('  New-Item -Path "HKCU:\\Software\\Classes\\swarm" -Force')
-    print('  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm" -Name "(Default)" -Value "URL:MAIL Swarm Protocol"')
-    print('  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm" -Name "URL Protocol" -Value ""')
-    print('  New-Item -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Force')
-    print(f'  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Name "(Default)" -Value \'"{mail_path}" client "%1"\'')
+    print(
+        '  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm" -Name "(Default)" -Value "URL:MAIL Swarm Protocol"'
+    )
+    print(
+        '  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm" -Name "URL Protocol" -Value ""'
+    )
+    print(
+        '  New-Item -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Force'
+    )
+    print(
+        f'  Set-ItemProperty -Path "HKCU:\\Software\\Classes\\swarm\\shell\\open\\command" -Name "(Default)" -Value \'"{mail_path}" client "%1"\''
+    )
 
 
 def _run_ping(args: argparse.Namespace) -> None:
@@ -255,7 +263,9 @@ def _run_ping(args: argparse.Namespace) -> None:
             response = client.get(f"{url.rstrip('/')}/health")
             response.raise_for_status()
             data = response.json()
-            print(f"✓ {data.get('swarm_name', 'MAIL server')} is {data.get('status', 'up')}")
+            print(
+                f"✓ {data.get('swarm_name', 'MAIL server')} is {data.get('status', 'up')}"
+            )
     except httpx.ConnectError:
         print(f"✗ Cannot connect to {url}")
         sys.exit(1)
@@ -389,7 +399,9 @@ def main() -> None:
     register_parser.set_defaults(func=_register_url_handler)
 
     # command `ping`
-    ping_parser = subparsers.add_parser("ping", help="check if a MAIL server is reachable")
+    ping_parser = subparsers.add_parser(
+        "ping", help="check if a MAIL server is reachable"
+    )
     ping_parser.set_defaults(func=_run_ping)
     ping_parser.add_argument(
         "url",

@@ -36,7 +36,7 @@ def parse_swarm_url(url: str) -> SwarmURL | None:
         return None
 
     parsed = urlparse(url)
-    
+
     # For swarm://connect?server=x, parsed.netloc = "connect", parsed.query = "server=x"
     action = parsed.netloc
 

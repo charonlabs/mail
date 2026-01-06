@@ -601,17 +601,20 @@ async def list_swarms():
 
     endpoints = app.state.swarm_registry.get_public_endpoints()
 
-    swarms = [types.SwarmEndpointCleaned(
-        swarm_name=endpoint["swarm_name"],
-        base_url=endpoint["base_url"],
-        version=endpoint["version"],
-        last_seen=endpoint["last_seen"],
-        is_active=endpoint["is_active"],
-        latency=endpoint["latency"],
-        swarm_description=endpoint["swarm_description"],
-        keywords=endpoint["keywords"],
-        metadata=endpoint["metadata"],
-    ) for endpoint in endpoints.values()]
+    swarms = [
+        types.SwarmEndpointCleaned(
+            swarm_name=endpoint["swarm_name"],
+            base_url=endpoint["base_url"],
+            version=endpoint["version"],
+            last_seen=endpoint["last_seen"],
+            is_active=endpoint["is_active"],
+            latency=endpoint["latency"],
+            swarm_description=endpoint["swarm_description"],
+            keywords=endpoint["keywords"],
+            metadata=endpoint["metadata"],
+        )
+        for endpoint in endpoints.values()
+    ]
 
     return types.GetSwarmsResponse(
         swarms=swarms,

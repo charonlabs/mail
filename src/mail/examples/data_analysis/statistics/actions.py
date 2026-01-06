@@ -15,8 +15,19 @@ from mail import action
 
 # All available metrics
 AVAILABLE_METRICS = [
-    "count", "mean", "median", "mode", "std", "variance",
-    "min", "max", "range", "sum", "percentile_25", "percentile_75", "iqr",
+    "count",
+    "mean",
+    "median",
+    "mode",
+    "std",
+    "variance",
+    "min",
+    "max",
+    "range",
+    "sum",
+    "percentile_25",
+    "percentile_75",
+    "iqr",
 ]
 
 
@@ -24,7 +35,11 @@ def _extract_numeric_values(data: list[Any]) -> list[float]:
     """Extract numeric values from data, filtering out non-numeric items."""
     values = []
     for item in data:
-        if isinstance(item, (int, float)) and not math.isnan(item) and not math.isinf(item):
+        if (
+            isinstance(item, (int, float))
+            and not math.isnan(item)
+            and not math.isinf(item)
+        ):
             values.append(float(item))
     return values
 
@@ -117,11 +132,13 @@ async def calculate_statistics(args: dict[str, Any]) -> str:
     values = _extract_numeric_values(data)
 
     if not values:
-        return json.dumps({
-            "error": "No valid numeric values found in data",
-            "original_count": len(data),
-            "valid_count": 0,
-        })
+        return json.dumps(
+            {
+                "error": "No valid numeric values found in data",
+                "original_count": len(data),
+                "valid_count": 0,
+            }
+        )
 
     # Calculate requested metrics
     results = {
@@ -137,44 +154,49 @@ async def calculate_statistics(args: dict[str, Any]) -> str:
 
     for metric in metrics:
         if metric not in AVAILABLE_METRICS:
-            results["metrics"][metric] = {"error": f"Unknown metric: {metric}"}
+            results["metrics"][metric] = {"error": f"Unknown metric: {metric}"}  # type: ignore
             continue
 
         try:
             if metric == "count":
-                results["metrics"][metric] = len(values)
+                results["metrics"][metric] = len(values)  # type: ignore
             elif metric == "mean":
-                results["metrics"][metric] = round(mean, 4)
+                results["metrics"][metric] = round(mean, 4)  # type: ignore
             elif metric == "median":
-                results["metrics"][metric] = round(_calculate_median(values), 4)
+                results["metrics"][metric] = round(_calculate_median(values), 4)  # type: ignore
             elif metric == "mode":
                 mode = _calculate_mode(values)
-                results["metrics"][metric] = round(mode, 4) if mode is not None else "multimodal"
+                results["metrics"][metric] = (  # type: ignore
+                    round(mode, 4) if mode is not None else "multimodal"
+                )
             elif metric == "std":
-                results["metrics"][metric] = round(_calculate_std(values, mean), 4)
+                results["metrics"][metric] = round(_calculate_std(values, mean), 4)  # type: ignore
             elif metric == "variance":
-                results["metrics"][metric] = round(_calculate_variance(values, mean), 4)
+                results["metrics"][metric] = round(_calculate_variance(values, mean), 4)  # type: ignore
             elif metric == "min":
-                results["metrics"][metric] = round(min(values), 4)
+                results["metrics"][metric] = round(min(values), 4)  # type: ignore
             elif metric == "max":
-                results["metrics"][metric] = round(max(values), 4)
+                results["metrics"][metric] = round(max(values), 4)  # type: ignore
             elif metric == "range":
-                results["metrics"][metric] = round(max(values) - min(values), 4)
+                results["metrics"][metric] = round(max(values) - min(values), 4)  # type: ignore
             elif metric == "sum":
-                results["metrics"][metric] = round(sum(values), 4)
+                results["metrics"][metric] = round(sum(values), 4)  # type: ignore
             elif metric == "percentile_25":
-                results["metrics"][metric] = round(_calculate_percentile(values, 25), 4)
+                results["metrics"][metric] = round(_calculate_percentile(values, 25), 4)  # type: ignore
             elif metric == "percentile_75":
-                results["metrics"][metric] = round(_calculate_percentile(values, 75), 4)
+                results["metrics"][metric] = round(_calculate_percentile(values, 75), 4)  # type: ignore
             elif metric == "iqr":
                 q1 = _calculate_percentile(values, 25)
                 q3 = _calculate_percentile(values, 75)
-                results["metrics"][metric] = round(q3 - q1, 4)
+                results["metrics"][metric] = round(q3 - q1, 4)  # type: ignore
         except Exception as e:
-            results["metrics"][metric] = {"error": str(e)}
+            results["metrics"][metric] = {"error": str(e)}  # type: ignore
 
     # Add interpretation
-    results["interpretation"] = _generate_interpretation(results["metrics"], len(values))
+    results["interpretation"] = _generate_interpretation(
+        results["metrics"],
+        len(values),  # type: ignore
+    )
 
     return json.dumps(results)
 
@@ -191,16 +213,24 @@ def _generate_interpretation(metrics: dict[str, Any], n: int) -> str:
         if isinstance(mean, (int, float)) and isinstance(median, (int, float)):
             if abs(mean - median) / max(abs(mean), 0.001) > 0.1:
                 if mean > median:
-                    parts.append("Data is right-skewed (mean > median), indicating some high outliers.")
+                    parts.append(
+                        "Data is right-skewed (mean > median), indicating some high outliers."
+                    )
                 else:
-                    parts.append("Data is left-skewed (mean < median), indicating some low outliers.")
+                    parts.append(
+                        "Data is left-skewed (mean < median), indicating some low outliers."
+                    )
             else:
                 parts.append("Data appears roughly symmetric (mean ≈ median).")
 
     if "std" in metrics and "mean" in metrics:
         std = metrics["std"]
         mean = metrics["mean"]
-        if isinstance(std, (int, float)) and isinstance(mean, (int, float)) and mean != 0:
+        if (
+            isinstance(std, (int, float))
+            and isinstance(mean, (int, float))
+            and mean != 0
+        ):
             cv = abs(std / mean)
             if cv > 1:
                 parts.append("High variability in the data (CV > 100%).")
@@ -256,31 +286,37 @@ async def run_correlation(args: dict[str, Any]) -> str:
     n = len(x_values)
 
     if n < 3:
-        return json.dumps({
-            "error": "Need at least 3 paired data points for correlation",
-            "data_points": n,
-        })
+        return json.dumps(
+            {
+                "error": "Need at least 3 paired data points for correlation",
+                "data_points": n,
+            }
+        )
 
     # Calculate Pearson correlation coefficient
     mean_x = sum(x_values) / n
     mean_y = sum(y_values) / n
 
     # Calculate covariance and standard deviations
-    covariance = sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values)) / n
+    covariance = (
+        sum((x - mean_x) * (y - mean_y) for x, y in zip(x_values, y_values)) / n
+    )
     std_x = math.sqrt(sum((x - mean_x) ** 2 for x in x_values) / n)
     std_y = math.sqrt(sum((y - mean_y) ** 2 for y in y_values) / n)
 
     if std_x == 0 or std_y == 0:
-        return json.dumps({
-            "error": "Cannot calculate correlation when one variable has zero variance",
-            "std_x": std_x,
-            "std_y": std_y,
-        })
+        return json.dumps(
+            {
+                "error": "Cannot calculate correlation when one variable has zero variance",
+                "std_x": std_x,
+                "std_y": std_y,
+            }
+        )
 
     r = covariance / (std_x * std_y)
 
     # Calculate R-squared
-    r_squared = r ** 2
+    r_squared = r**2
 
     # Determine strength and direction
     if abs(r) >= 0.8:
@@ -301,8 +337,8 @@ async def run_correlation(args: dict[str, Any]) -> str:
         "strength": strength,
         "direction": direction,
         "interpretation": f"There is a {strength} {direction} correlation (r={r:.3f}). "
-                         f"The R² value of {r_squared:.3f} means that approximately "
-                         f"{r_squared * 100:.1f}% of the variance in Y can be explained by X.",
+        f"The R² value of {r_squared:.3f} means that approximately "
+        f"{r_squared * 100:.1f}% of the variance in Y can be explained by X.",
         "x_stats": {
             "mean": round(mean_x, 4),
             "std": round(std_x, 4),

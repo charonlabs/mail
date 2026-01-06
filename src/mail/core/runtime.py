@@ -3238,6 +3238,7 @@ The final response message is: '{finish_body}'""",
             event_data = sse.data
             if event_data is not None and not isinstance(event_data, str):
                 import json
+
                 event_data = json.dumps(event_data)
 
             await create_task_event(

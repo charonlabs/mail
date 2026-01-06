@@ -140,7 +140,9 @@ async def format_report(args: dict[str, Any]) -> str:
     # Title and metadata
     report_parts.append(f"# {title}")
     report_parts.append("")
-    report_parts.append(f"_Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}_")
+    report_parts.append(
+        f"_Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}_"
+    )
     report_parts.append("")
     report_parts.append("---")
     report_parts.append("")
@@ -174,10 +176,12 @@ async def format_report(args: dict[str, Any]) -> str:
 
     report_text = "\n".join(report_parts)
 
-    return json.dumps({
-        "success": True,
-        "title": title,
-        "section_count": len(sections),
-        "character_count": len(report_text),
-        "report": report_text,
-    })
+    return json.dumps(
+        {
+            "success": True,
+            "title": title,
+            "section_count": len(sections),
+            "character_count": len(report_text),
+            "report": report_text,
+        }
+    )

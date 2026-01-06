@@ -453,7 +453,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 message_chunks.append(output.content[0].text)  # type: ignore
             elif output.type in ("web_search_call", "code_interpreter_call"):
                 builtin_tool_calls.append(
-                    output.model_dump() if hasattr(output, "model_dump") else dict(output)
+                    output.model_dump()
+                    if hasattr(output, "model_dump")
+                    else dict(output)
                 )
 
         agent_tool_calls: list[AgentToolCall] = []

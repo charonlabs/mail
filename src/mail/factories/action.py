@@ -209,7 +209,11 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         Execute a LiteLLM-based action agent function.
         """
         # Use default_tool_choice if set, otherwise use the passed tool_choice
-        effective_tool_choice = self.default_tool_choice if self.default_tool_choice is not None else tool_choice
+        effective_tool_choice = (
+            self.default_tool_choice
+            if self.default_tool_choice is not None
+            else tool_choice
+        )
         return self.action_agent_fn(
             messages=messages,
             tool_choice=effective_tool_choice,
