@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
 import readline
@@ -603,7 +604,7 @@ class MAILClientCLI:
         self._history_file = Path.home() / ".mail_history"
         try:
             readline.read_history_file(self._history_file)
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             pass
         readline.set_history_length(1000)
 
@@ -1406,28 +1407,40 @@ class MAILClientCLI:
         if isinstance(event, str):
             return event
 
+        event_type = event.get("event")
         data = event.get("data")
         if data is None:
             return "unknown"
-        if isinstance(data, str):
-            if data == "":
+        payload: Any = data
+        if isinstance(payload, str):
+            if payload == "":
                 return "unknown"
 
-            # this witchcraft swaps the quotes in the string so that ujson.loads can parse it
-            data = data.replace('"', "::tmp::")
-            data = data.replace("'", '"')
-            data = data.replace("::tmp::", "'")
-
-            # replace any None values with "unknown"
-            data = data.replace("None", '"unknown"')
-
             try:
-                data = ujson.loads(data)
+                payload = ujson.loads(payload)
             except (ujson.JSONDecodeError, ValueError):
-                return "\t[malformed event data]"
+                # Fallback for single-quoted dict strings emitted by some runtimes.
+                payload = payload.replace('"', "::tmp::")
+                payload = payload.replace("'", '"')
+                payload = payload.replace("::tmp::", "'")
+                payload = payload.replace("None", '"unknown"')
+                try:
+                    payload = ujson.loads(payload)
+                except (ujson.JSONDecodeError, ValueError):
+                    if event_type == "task_complete":
+                        timestamp = datetime.datetime.now(datetime.UTC).isoformat()
+                        return f"\t{timestamp} - {payload}"
+                    return payload
 
-        timestamp = data.get("timestamp", "unknown")
-        description = data.get("description", "unknown (possible ping)")
+        if not isinstance(payload, dict):
+            return "unknown"
+
+        timestamp = payload.get("timestamp", "unknown")
+        description = payload.get("description")
+        if not description:
+            description = payload.get("response")
+        if not description:
+            description = "unknown (possible ping)"
 
         return f"\t{timestamp} - {description}"
 

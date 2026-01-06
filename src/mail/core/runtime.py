@@ -5,14 +5,19 @@ import asyncio
 import copy
 import datetime
 import logging
+import traceback
 import uuid
 from asyncio import PriorityQueue, Task
 from collections import defaultdict
 from collections.abc import AsyncGenerator
 from typing import Any, Literal
 
+import langsmith as ls
+import rich
+import tiktoken
 import ujson
 from langmem import create_memory_store_manager
+from litellm import aresponses
 from sse_starlette import ServerSentEvent
 
 from mail.db.utils import (
@@ -27,6 +32,7 @@ from mail.db.utils import (
     update_task,
 )
 from mail.net import InterswarmRouter, SwarmRegistry
+from mail.utils.context import get_model_ctx_len
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
 from mail.utils.store import get_langmem_store
 from mail.utils.string_builder import build_mail_help_string
@@ -44,6 +50,7 @@ from .message import (
     MAILBroadcast,
     MAILInterswarmMessage,
     MAILMessage,
+    MAILRequest,
     MAILResponse,
     build_interswarm_mail_xml,
     build_mail_xml,
@@ -55,6 +62,7 @@ from .tasks import MAILTask
 from .tools import (
     AgentToolCall,
     convert_call_to_mail_message,
+    convert_manual_step_call_to_mail_message,
 )
 
 logger = logging.getLogger("mail.runtime")
@@ -120,6 +128,11 @@ class MAILRuntime:
             )
         self.breakpoint_tools = breakpoint_tools
         self._is_continuous = False
+        self._is_manual = False
+        # Message buffer for manual mode
+        self.manual_message_buffer: dict[str, list[MAILMessage]] = defaultdict(list)
+        self.manual_return_events: dict[str, asyncio.Event] = defaultdict(asyncio.Event)
+        self.manual_return_messages: dict[str, MAILMessage | None] = defaultdict(None)
         self.exclude_tools = exclude_tools
         self.response_messages: dict[str, MAILMessage] = {}
         self.last_breakpoint_caller: dict[str, str] = {}
@@ -660,16 +673,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self,
         max_steps: int | None = None,
         action_override: ActionOverrideFunction | None = None,
+        mode: Literal["continuous", "manual"] = "continuous",
     ) -> None:
         """
         Run the MAIL system continuously, handling multiple requests.
         This method runs indefinitely until shutdown is requested.
         """
-        logger.info(
-            f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'..."
-        )
         self._is_continuous = True
+        self._is_manual = mode == "manual"
         steps = 0
+        if self._is_manual:
+            logger.info(
+                f"{self._log_prelude()} starting manual MAIL operation for user '{self.user_id}'..."
+            )
+        else:
+            logger.info(
+                f"{self._log_prelude()} starting continuous MAIL operation for user '{self.user_id}'..."
+            )
         while not self.shutdown_event.is_set():
             try:
                 logger.debug(
@@ -939,7 +959,26 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         )
                         continue
 
-            # Future completed; emit a final task_complete event with the response body
+            # Future completed; drain any remaining events before emitting final response
+            if self.new_events:
+                events_to_emit = self.new_events
+                self.new_events = []
+                self._events_available.clear()
+                for ev in events_to_emit:
+                    try:
+                        self.mail_tasks[task_id].add_event(ev)
+                    except Exception:
+                        pass
+                    try:
+                        if (
+                            isinstance(ev.data, dict)
+                            and ev.data.get("task_id") == task_id
+                        ):
+                            yield ev
+                    except Exception:
+                        continue
+
+            # Emit the final task_complete event with the response body
             try:
                 response = future.result()
                 yield ServerSentEvent(
@@ -1768,7 +1807,20 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             if not recipient_swarm or recipient_swarm == self.swarm_name:
                 sender_agent = message["message"]["sender"]
                 if recipient_agent in self.agents:
-                    self._send_message(recipient_agent, message, action_override)
+                    if (
+                        not self._is_manual
+                        or message["message"]["sender"]["address_type"] == "system"
+                    ):
+                        self._send_message(recipient_agent, message, action_override)
+                    else:
+                        key = AGENT_HISTORY_KEY.format(
+                            task_id=message["message"]["task_id"],
+                            agent_name=recipient_agent,
+                        )
+                        self.manual_message_buffer[key].append(message)
+                        logger.info(
+                            f"{self._log_prelude()} added message to manual message buffer for agent '{recipient_agent}'"
+                        )
                 else:
                     logger.warning(
                         f"{self._log_prelude()} unknown local agent: '{recipient_agent}'"
@@ -1836,11 +1888,115 @@ Your directly reachable agents can be found in the tool definitions for `send_re
 
         return None
 
+    async def _manual_step(
+        self,
+        task_id: str,
+        target: str,
+        response_targets: list[str] | None = None,
+        response_type: Literal["broadcast", "response", "request"] = "broadcast",
+        payload: str | None = None,
+        dynamic_ctx_ratio: float = 0.0,
+        _llm: str | None = None,
+        _system: str | None = None,
+    ) -> MAILMessage:
+        """
+        Manually step a target agent and return the response message.
+        """
+        if not response_type == "broadcast" and response_targets is None:
+            raise ValueError(
+                "response_targets must be provided for non-broadcast response types"
+            )
+        response_targets = response_targets or ["all"]
+        while not self.message_queue.empty():
+            await asyncio.sleep(0.1)
+        if target not in self.agents:
+            logger.warning(f"{self._log_prelude()} unknown agent: '{target}'")
+            raise ValueError(f"unknown agent target: '{target}'")
+        if response_targets is not None:
+            for response_target in response_targets:
+                if (
+                    response_target not in self.agents
+                    and not response_target == MAIL_ALL_LOCAL_AGENTS["address"]
+                ):
+                    logger.warning(
+                        f"{self._log_prelude()} unknown agent: '{response_target}'"
+                    )
+                    raise ValueError(
+                        f"unknown agent response target: '{response_target}'"
+                    )
+        buffer_key = AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=target)
+        self.manual_return_events[buffer_key].clear()
+        self.manual_return_messages[buffer_key] = None
+        buffer = self.manual_message_buffer.get(buffer_key, [])
+        body = ""
+        for message in buffer:
+            public_message = False
+            private_group = False
+            if "recipients" in message["message"]:
+                if (
+                    message["message"]["recipients"][0]["address"]  # type: ignore
+                    == MAIL_ALL_LOCAL_AGENTS["address"]
+                ):
+                    body += "<public_message>\n"
+                    public_message = True
+                else:
+                    body += "<private_message>\n"
+                    private_group = True
+            else:
+                body += "<private_message>\n"
+            body += f"<from>{message['message']['sender']['address']}</from>\n"
+            if private_group:
+                to = [
+                    address["address"]
+                    for address in message["message"]["recipients"]  # type: ignore
+                ]
+                body += f"<to>{', '.join(to)}</to>\n"
+            body += f"{message['message']['body']}\n"
+            if public_message:
+                body += "</public_message>\n\n\n"
+            else:
+                body += "</private_message>\n\n\n"
+
+        body += payload or ""
+        body = body.rstrip()
+
+        message = MAILMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+            message=MAILRequest(
+                task_id=task_id,
+                request_id=str(uuid.uuid4()),
+                sender=create_system_address("system"),
+                recipient=create_agent_address(target),
+                subject="::manual_step::",
+                body=body,
+                sender_swarm=None,
+                recipient_swarm=None,
+                routing_info={
+                    "manual_response_type": response_type,
+                    "manual_response_targets": response_targets,
+                },
+            ),
+            msg_type="buffered",
+        )
+        self.manual_message_buffer[buffer_key].clear()
+
+        self._send_message(target, message, None, dynamic_ctx_ratio, _llm, _system)
+        await self.manual_return_events[buffer_key].wait()
+        if self.manual_return_messages[buffer_key] is None:
+            raise RuntimeError(
+                f"no return message for agent '{target}' for task '{task_id}'"
+            )
+        return self.manual_return_messages[buffer_key]  # type: ignore
+
     def _send_message(
         self,
         recipient: str,
         message: MAILMessage,
         action_override: ActionOverrideFunction | None = None,
+        dynamic_ctx_ratio: float = 0.0,
+        _llm: str | None = None,
+        _system: str | None = None,
     ) -> None:
         """
         Send a message to a recipient.
@@ -1868,7 +2024,10 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             try:
                 # prepare the message for agent input
                 task_id = message["message"]["task_id"]
-                tool_choice: str | dict[str, str] = "required"
+                tool_choice: str | dict[str, str] = (
+                    "required" if not self._is_manual else "auto"
+                )
+                routing_info = message["message"].get("routing_info", {})
 
                 # get agent history for this task
                 agent_history_key = AGENT_HISTORY_KEY.format(
@@ -1879,14 +2038,29 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 if (
                     message["message"]["sender"]["address_type"] == "system"
                     and message["message"]["subject"] == "::maximum_steps_reached::"
+                    and not self._is_manual
                 ):
                     tool_choice = {"type": "function", "name": "task_complete"}
 
                 if not message["message"]["subject"].startswith(
                     "::action_complete_broadcast::"
                 ):
-                    incoming_message = build_mail_xml(message)
-                    history.append(incoming_message)
+                    if not message["msg_type"] == "buffered":
+                        incoming_message = build_mail_xml(message)
+                        history.append(incoming_message)
+                    else:
+                        history.append(
+                            {"role": "user", "content": message["message"]["body"]}
+                        )
+
+                if dynamic_ctx_ratio > 0.0 and _llm is not None:
+                    history = await self._compress_context(
+                        self.agents[recipient],
+                        _llm,
+                        _system,
+                        dynamic_ctx_ratio,
+                        history,
+                    )
 
                 # agent function is called here
                 agent_fn = self.agents[recipient].function
@@ -1941,8 +2115,32 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     ]
 
                 # handle tool calls
+                has_action_completed = False
+                action_errors: list[tuple[str, Exception]] = []
                 for call in tool_calls:
                     match call.tool_name:
+                        case "text_output":
+                            logger.info(
+                                f"{self._log_prelude()} agent '{recipient}' sent raw text output with content: '{call.tool_args['content']}'"
+                            )
+                            call.tool_args["target"] = message["message"]["sender"][
+                                "address"
+                            ]
+                            assert routing_info is not None
+                            res_type = routing_info.get(
+                                "manual_response_type", "broadcast"
+                            )
+                            res_targets = routing_info.get(
+                                "manual_response_targets", ["all"]
+                            )
+                            outgoing_message = convert_manual_step_call_to_mail_message(
+                                call, recipient, task_id, res_targets, res_type
+                            )
+                            self.manual_return_messages[agent_history_key] = (
+                                outgoing_message
+                            )
+                            await self.submit(outgoing_message)
+                            self.manual_return_events[agent_history_key].set()
                         case "acknowledge_broadcast":
                             try:
                                 # Only store if this was a broadcast; otherwise treat as no-op
@@ -2235,6 +2433,41 @@ This should never happen; consider informing the MAIL developers of this issue i
 
                             continue
 
+                        case "web_search_call":
+                            # Built-in OpenAI tool - already executed, just emit trace event
+                            logger.info(
+                                f"{self._log_prelude()} agent '{recipient}' used web_search: query='{call.tool_args.get('query', '')}'"
+                            )
+                            self._submit_event(
+                                "builtin_tool_call",
+                                task_id,
+                                f"agent {recipient} used web_search with query: {call.tool_args.get('query', '')}",
+                                extra_data={
+                                    "tool_type": "web_search_call",
+                                    "tool_args": call.tool_args,
+                                },
+                            )
+                            # No execution needed - OpenAI already ran this
+                            continue
+
+                        case "code_interpreter_call":
+                            # Built-in OpenAI tool - already executed, just emit trace event
+                            code_preview = (call.tool_args.get("code", "") or "")[:100]
+                            logger.info(
+                                f"{self._log_prelude()} agent '{recipient}' used code_interpreter: code='{code_preview}...'"
+                            )
+                            self._submit_event(
+                                "builtin_tool_call",
+                                task_id,
+                                f"agent {recipient} used code_interpreter",
+                                extra_data={
+                                    "tool_type": "code_interpreter_call",
+                                    "tool_args": call.tool_args,
+                                },
+                            )
+                            # No execution needed - OpenAI already ran this
+                            continue
+
                         case _:
                             action_name = call.tool_name
                             action_caller = self.agents.get(recipient)
@@ -2255,13 +2488,12 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"agent {recipient} not found",
                                 )
-                                await self.submit(
-                                    self._system_broadcast(
-                                        task_id=task_id,
-                                        subject="::tool_call_error::",
-                                        body=f"""An agent called `{call.tool_name}` but the agent was not found.
-This should never happen; consider informing the MAIL developers of this issue if you see it.""",
-                                        task_complete=True,
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(f"""An agent called `{call.tool_name}` but the agent was not found.
+    This should never happen; consider informing the MAIL developers of this issue if you see it."""),
                                     )
                                 )
                                 continue
@@ -2283,11 +2515,14 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action {action_name} not found",
                                 )
-                                self._system_response(
-                                    task_id=task_id,
-                                    recipient=create_agent_address(recipient),
-                                    subject="::action_error::",
-                                    body=f"""The action '{action_name}' cannot be found in this swarm.""",
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(
+                                            f"""The action '{action_name}' cannot be found in this swarm."""
+                                        ),
+                                    )
                                 )
                                 continue
 
@@ -2307,12 +2542,13 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"agent {action_caller} cannot access action {action_name}",
                                 )
-                                await self.submit(
-                                    self._system_response(
-                                        task_id=task_id,
-                                        recipient=create_agent_address(recipient),
-                                        subject="::action_error::",
-                                        body=f"The action '{action_name}' is not available.",
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(
+                                            f"""The action '{action_name}' is not available."""
+                                        ),
                                     )
                                 )
                                 continue
@@ -2345,14 +2581,7 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action complete (caller = {recipient}):\n{result_message.get('content')}",
                                 )
-                                await self.submit(
-                                    self._system_broadcast(
-                                        task_id=task_id,
-                                        subject="::action_complete_broadcast::",
-                                        body="",
-                                        recipients=[create_agent_address(recipient)],
-                                    )
-                                )
+                                has_action_completed = True
                                 continue
                             except Exception as e:
                                 logger.error(
@@ -2370,25 +2599,46 @@ This should never happen; consider informing the MAIL developers of this issue i
                                     task_id,
                                     f"action error (caller = {recipient}, tool = {call.tool_name}):\n{e}",
                                 )
-                                await self.submit(
-                                    self._system_broadcast(
-                                        task_id=task_id,
-                                        subject="::action_error::",
-                                        body=f"""An error occurred while executing the action tool `{call.tool_name}`.
+                                has_action_completed = True
+                                action_errors.append(
+                                    (
+                                        call.tool_name,
+                                        Exception(f"""An error occurred while executing the action tool `{call.tool_name}`.
 Specifically, the MAIL runtime encountered the following error: {e}.
 It is possible that the action tool `{call.tool_name}` is not implemented properly.
-Use this information to decide how to complete your task.""",
-                                        task_complete=True,
-                                        recipients=[create_agent_address(recipient)],
+Use this information to decide how to complete your task."""),
                                     )
                                 )
                                 continue
+
+                if len(action_errors) > 0:
+                    error_msg = "\n".join(
+                        [f"Error: {error[0]}\n{error[1]}" for error in action_errors]
+                    )
+                    await self.submit(
+                        self._system_response(
+                            task_id=task_id,
+                            recipient=create_agent_address(recipient),
+                            subject="::action_error::",
+                            body=error_msg,
+                        )
+                    )
+                elif has_action_completed:
+                    await self.submit(
+                        self._system_broadcast(
+                            task_id=task_id,
+                            subject="::action_complete::",
+                            body="Action completed successfully",
+                            recipients=[create_agent_address(recipient)],
+                        )
+                    )
 
                 self.agent_histories.setdefault(agent_history_key, [])
             except Exception as e:
                 logger.error(
                     f"{self._log_prelude()} error scheduling message for agent '{recipient}': {e}"
                 )
+                traceback.print_exc()
                 self._tool_call_response(
                     task_id=task_id,
                     caller=recipient,
@@ -2530,6 +2780,153 @@ The final response message is: '{finish_body}'""",
 
         return normalised
 
+    async def _compress_context(
+        self,
+        agent: AgentCore,
+        llm: str,
+        system: str | None,
+        ratio: float,
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Compress the context of a list of messages based on the dynamic context ratio.
+
+        When context exceeds (ratio * model_context_length) tokens, older messages
+        (excluding the system prompt and recent messages) are summarized into a
+        single compressed context block.
+        """
+        if llm.startswith("openai/gpt-5") or llm.startswith("openai/o3"):
+            tokenizer = tiktoken.get_encoding("o200k_base")
+        else:
+            tokenizer = tiktoken.get_encoding("cl100k_base")
+        try:
+            ctx_len = get_model_ctx_len(llm)
+        except Exception:
+            logger.warning("failed to get context length for agent")
+            logger.error(traceback.format_exc())
+            return messages
+
+        def get_content_from_messages(msgs: list[dict[str, Any]]) -> str:
+            """Extract text content from messages, handling both dict and object formats."""
+            full_content = ""
+            for item in msgs:
+                # Handle both dict-style and object-style messages
+                if isinstance(item, dict):
+                    content = item.get("content")
+                else:
+                    content = getattr(item, "content", None)
+
+                if content is None:
+                    continue
+
+                if isinstance(content, str):
+                    full_content += content + "\n\n"
+                elif hasattr(content, "text"):
+                    full_content += content.text + "\n\n"
+                elif isinstance(content, list):
+                    # Handle list of content blocks (e.g., OpenAI responses format)
+                    for block in content:
+                        if isinstance(block, dict) and "text" in block:
+                            full_content += block["text"] + "\n\n"
+                        elif hasattr(block, "text"):
+                            full_content += block.text + "\n\n"
+            return full_content
+
+        if system is None:
+            system = ""
+        full_content = get_content_from_messages(messages)
+        full_content = system + full_content
+        tokens = tokenizer.encode(full_content)
+        threshold = int(ctx_len * ratio)
+        rich.print(
+            f"Context: [{len(tokens)}/{ctx_len}] ({(len(tokens) / ctx_len) * 100:.2f}%)"
+        )
+
+        if len(tokens) > threshold:
+            # Find a good cutoff point, keeping at least 4 recent messages
+            rev_messages = messages[::-1]
+            stop_idx = -1
+            min_recent_to_keep = 4
+
+            for idx, item in enumerate(rev_messages[min_recent_to_keep:]):
+                # Check if this is a "boundary" message we can split at
+                is_boundary = False
+                if isinstance(item, dict):
+                    role = item.get("role")
+                    msg_type = item.get("type")
+                    is_boundary = (
+                        role in ("user", "assistant") or msg_type == "function_call"
+                    )
+                else:
+                    is_boundary = hasattr(item, "role") or (
+                        hasattr(item, "type") and item.type == "function_call"
+                    )
+
+                if is_boundary:
+                    # Account for the slice offset when calculating original index
+                    stop_idx = len(rev_messages) - (idx + min_recent_to_keep) - 1
+                    break
+
+            if stop_idx > 1:  # Ensure we have messages to compact (after system prompt)
+                is_first_msg_sys = messages[0].get("role") == "system"
+                msgs_to_compact = (
+                    messages[1:stop_idx] if is_first_msg_sys else messages[0:stop_idx]
+                )
+                if not msgs_to_compact:
+                    return messages
+
+                compacted_content = get_content_from_messages(msgs_to_compact)
+                if not compacted_content.strip():
+                    return messages
+
+                # Keep system prompt (messages[0]) and recent messages (messages[stop_idx:])
+                if is_first_msg_sys:
+                    messages = [messages[0]] + messages[stop_idx:]
+                else:
+                    messages = messages[stop_idx:]
+
+                with ls.trace(
+                    name="compress_context",
+                    run_type="llm",
+                    inputs={
+                        "messages": messages,
+                        "compacted_content": compacted_content,
+                    },
+                ) as rt:
+                    res = await aresponses(
+                        input="Compress the following messages of LLM context into a single, concise summary:\n"
+                        + compacted_content,
+                        instructions="Your goal is to compress given LLM context in a manner that is most likely to be useful to the LLM. Your summary will be inserted into the LLM's context in place of the original messages, so it should be concise while retaining important information.",
+                        model="openai/gpt-5.1",
+                        reasoning={"effort": "none"},
+                    )
+                    rt.end(outputs={"output": res})
+
+                # Extract the summary and insert after system prompt
+                for output in res.output:
+                    summary_text = None
+                    if isinstance(output, dict):
+                        if output.get("type") == "message":
+                            content_list = output.get("content", [])
+                            if content_list and isinstance(content_list[0], dict):
+                                summary_text = content_list[0].get("text", "")
+                    elif hasattr(output, "type") and output.type == "message":
+                        if hasattr(output, "content") and output.content:
+                            summary_text = output.content[0].text
+
+                    if summary_text:
+                        # Insert after system prompt (position 1), not before it
+                        messages.insert(
+                            1 if is_first_msg_sys else 0,
+                            {
+                                "role": "user",
+                                "content": f"[COMPRESSED CONTEXT FROM EARLIER IN CONVERSATION]\n\n{summary_text}",
+                            },
+                        )
+                        break  # Only insert one summary
+
+        return messages
+
     async def _handle_task_complete_call(
         self,
         task_id: str,
@@ -2552,6 +2949,19 @@ The final response message is: '{finish_body}'""",
             logger.warning(
                 f"{self._log_prelude()} agent '{caller}' called 'task_complete' for already completed task '{task_id}'"
             )
+            self._tool_call_response(
+                task_id=task_id,
+                caller=caller,
+                tool_call=call,
+                status="success",
+                details="task already completed",
+            )
+            self._submit_event(
+                "task_complete_call_duplicate",
+                task_id,
+                f"agent {caller} called task_complete on already completed task",
+            )
+            return
 
         logger.info(
             f"{self._log_prelude()} task '{task_id}' completed by agent '{caller}'"
@@ -2590,6 +3000,8 @@ The final response message is: '{finish_body}'""",
         self.response_messages[task_id] = response_message
 
         # Emit a synthetic new_message event so streaming clients receive the final content.
+        # This must happen BEFORE resolving the pending request, otherwise the streaming
+        # loop will exit before this event is emitted.
         self._submit_event(
             "new_message",
             task_id,
@@ -2599,6 +3011,15 @@ The final response message is: '{finish_body}'""",
 
         await self._notify_remote_task_complete(task_id, finish_message, caller)
         await self.submit(response_message)
+
+        # Resolve pending request if one exists - do this LAST so streaming clients
+        # have a chance to receive the new_message event before the stream closes
+        if task_id in self.pending_requests:
+            logger.info(
+                f"{self._log_prelude()} task '{task_id}' completed, resolving pending request"
+            )
+            future = self.pending_requests.pop(task_id)
+            future.set_result(response_message)
 
     def _system_broadcast(
         self,

@@ -30,12 +30,11 @@ from mail.core import (
 )
 from mail.core.actions import ActionCore
 from mail.core.agents import AgentCore
-from mail.core.message import MAILInterswarmMessage
+from mail.core.message import MAILBroadcast, MAILInterswarmMessage
 from mail.core.tasks import MAILTask
 from mail.core.tools import MAIL_TOOL_NAMES
 from mail.factories.base import MAILAgentFunction
 from mail.net import SwarmRegistry
-from mail.net.router import StreamHandler
 from mail.swarms_json import (
     SwarmsJSONAction,
     SwarmsJSONAgent,
@@ -376,6 +375,119 @@ class MAILAgentTemplate:
                 raise ValueError(f"invalid agent name: {name}")
 
 
+def _json_schema_to_python_type(
+    schema: dict[str, Any],
+    model_name_prefix: str = "Nested",
+    _depth: int = 0,
+) -> Any:
+    """
+    Recursively convert a JSON schema type definition to a Python type annotation.
+    """
+    schema_type = schema.get("type")
+
+    if schema_type == "string":
+        return str
+    elif schema_type == "integer":
+        return int
+    elif schema_type == "number":
+        return float
+    elif schema_type == "boolean":
+        return bool
+    elif schema_type == "null":
+        return type(None)
+    elif schema_type == "array":
+        items_schema = schema.get("items", {})
+        if not items_schema:
+            return list[Any]
+        item_type = _json_schema_to_python_type(
+            items_schema,
+            f"{model_name_prefix}Item",
+            _depth + 1,
+        )
+        return list[item_type]  # type: ignore[valid-type]
+    elif schema_type == "object":
+        properties = schema.get("properties")
+        if properties:
+            # Create a nested Pydantic model for structured objects
+            return _json_schema_to_pydantic_model(
+                f"{model_name_prefix}_{_depth}",
+                schema,
+            )
+        else:
+            # Generic dict - check additionalProperties for value type
+            additional = schema.get("additionalProperties", {})
+            if isinstance(additional, dict) and additional:
+                value_type = _json_schema_to_python_type(
+                    additional,
+                    f"{model_name_prefix}Value",
+                    _depth + 1,
+                )
+                return dict[str, value_type]  # type: ignore[valid-type]
+            else:
+                return dict[str, Any]
+    elif schema_type is None:
+        # Handle anyOf, oneOf, allOf
+        any_of = schema.get("anyOf") or schema.get("oneOf")
+        if any_of:
+            types = [
+                _json_schema_to_python_type(sub_schema, model_name_prefix, _depth + 1)
+                for sub_schema in any_of
+            ]
+            if len(types) == 1:
+                return types[0]
+            # Create Union type using | operator
+            result = types[0]
+            for t in types[1:]:
+                result = result | t
+            return result
+        all_of = schema.get("allOf")
+        if all_of and len(all_of) == 1:
+            return _json_schema_to_python_type(all_of[0], model_name_prefix, _depth + 1)
+        return Any
+    else:
+        raise ValueError(f"unsupported JSON schema type: {schema_type}")
+
+
+def _json_schema_to_pydantic_model(
+    model_name: str,
+    schema: dict[str, Any],
+) -> type[BaseModel]:
+    """
+    Convert a JSON schema object definition to a Pydantic model.
+    """
+    properties = schema.get("properties", {})
+    required = set(schema.get("required", []))
+
+    field_definitions: dict[str, tuple[Any, Any]] = {}
+
+    for field_name, field_schema in properties.items():
+        python_type = _json_schema_to_python_type(
+            field_schema,
+            f"{model_name}_{field_name}",
+        )
+
+        description = field_schema.get("description")
+        default_value = field_schema.get("default", ...)
+
+        is_required = field_name in required
+
+        if not is_required and default_value is ...:
+            # Optional field with no default - make it Optional with None default
+            python_type = python_type | None
+            default_value = None
+
+        if description:
+            field_info = Field(default=default_value, description=description)
+        elif default_value is not ...:
+            field_info = Field(default=default_value)
+        else:
+            field_info = Field()
+
+        field_definitions[field_name] = (python_type, field_info)
+
+    return create_model(model_name, **field_definitions)  # type: ignore[call-overload]
+
+
 class MAILAction:
     """
     Action class exposed via the MAIL API.
@@ -500,39 +612,7 @@ class MAILAction:
         Convert the MAILAction to a Pydantic model.
         """
         if for_tools:
-            parameters = self.parameters["properties"]
-            assert isinstance(parameters, dict)
-
-            fields = {key: Field(**parameters[key]) for key in parameters}
-            for key in parameters:
-                match parameters[key]["type"]:
-                    case "string":
-                        fields[key].annotation = str
-                    case "integer" | "number":
-                        fields[key].annotation = int
-                    case "boolean":
-                        fields[key].annotation = bool
-                    case "array":
-                        match parameters[key]["items"]["type"]:
-                            case "string":
-                                fields[key].annotation = list[str]
-                            case "integer" | "number":
-                                fields[key].annotation = list[int]
-                            case "boolean":
-                                fields[key].annotation = list[bool]
-                    case _:
-                        raise ValueError(f"unsupported type: {parameters[key]['type']}")
-                fields[key].json_schema_extra = None
-
-            built_model = create_model(
-                "MAILActionBaseModelForTools",
-                **{
-                    field_name: field.rebuild_annotation()
-                    for field_name, field in fields.items()
-                },
-            )
-
-            return built_model
+            return _json_schema_to_pydantic_model(self.name, self.parameters)
         else:
 
             class MAILActionBaseModel(BaseModel):
@@ -952,6 +1032,23 @@ class MAILSwarm:
                     ),
                     msg_type="request",
                 )
+            case "broadcast":
+                return MAILMessage(
+                    id=str(uuid.uuid4()),
+                    timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+                    message=MAILBroadcast(
+                        task_id=task_id or str(uuid.uuid4()),
+                        broadcast_id=str(uuid.uuid4()),
+                        sender=sender,
+                        recipients=[create_agent_address(target) for target in targets],
+                        subject=subject,
+                        body=body,
+                        sender_swarm=None,
+                        recipient_swarms=None,
+                        routing_info={},
+                    ),
+                    msg_type="broadcast",
+                )
             case _:
                 raise NotImplementedError(
                     f"type '{type}' not implemented for this method"
@@ -1021,11 +1118,44 @@ class MAILSwarm:
         self,
         max_steps: int | None = None,
         action_override: ActionOverrideFunction | None = None,
+        mode: Literal["continuous", "manual"] = "continuous",
     ) -> None:
         """
         Run the MAILSwarm in continuous mode.
         """
-        await self._runtime.run_continuous(max_steps, action_override)
+        await self._runtime.run_continuous(max_steps, action_override, mode)
+
+    async def manual_step(
+        self,
+        task_id: str,
+        target: str,
+        response_targets: list[str] | None = None,
+        response_type: Literal["broadcast", "response", "request"] = "broadcast",
+        payload: str | None = None,
+        dynamic_ctx_ratio: float = 0.0,
+        _llm: str | None = None,
+        _system: str | None = None,
+    ) -> MAILMessage:
+        """
+        Manually step a target agent.
+        """
+        return await self._runtime._manual_step(
+            task_id=task_id,
+            target=target,
+            response_targets=response_targets,
+            response_type=response_type,
+            payload=payload,
+            dynamic_ctx_ratio=dynamic_ctx_ratio,
+            _llm=_llm,
+            _system=_system,
+        )
+
+    async def await_queue_empty(self) -> None:
+        """
+        Await for the message queue to be empty.
+        """
+        while not self._runtime.message_queue.empty():
+            await asyncio.sleep(0.1)
 
     async def submit_message(
         self,
@@ -1048,6 +1178,16 @@ class MAILSwarm:
             )
         else:
             return response, []
+
+    async def submit_message_nowait(
+        self,
+        message: MAILMessage,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Submit a fully-formed MAILMessage to the swarm and do not wait for the response.
+        """
+        await self._runtime.submit(message)
 
     async def submit_message_stream(
         self,

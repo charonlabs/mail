@@ -1054,7 +1054,7 @@ async def responses(request: Request):
     instructions = data.get("instructions")
     previous_response_id = data.get("previous_response_id")
     tool_choice = data.get("tool_choice") or "auto"
-    parallel_tool_calls = data.get("parallel_tool_calls") or True
+    parallel_tool_calls = data.get("parallel_tool_calls", True)
     kwargs = data.get("kwargs") or {}
 
     # get the caller's user ID from the API key

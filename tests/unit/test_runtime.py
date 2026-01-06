@@ -190,7 +190,7 @@ async def test_submit_and_stream_handles_timeout_and_events(
     ping_event = await agen.__anext__()
     assert ping_event.event == "ping"
 
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
     runtime._submit_event("task_update", task_id, "intermediate status")
 
     update_event = await agen.__anext__()
@@ -438,7 +438,7 @@ async def test_send_interswarm_message_forward_delegates_to_router() -> None:
     runtime.interswarm_router = router  # type: ignore[assignment]
 
     task_id = "task-remote"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
 
     outbound = _make_request(
         task_id,
@@ -479,7 +479,7 @@ async def test_send_interswarm_message_back_delegates_to_router() -> None:
     runtime.interswarm_router = router  # type: ignore[assignment]
 
     task_id = "task-remote"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
     task_state = runtime.mail_tasks[task_id]
     task_state.task_contributors.append("agent:remote@swarm-beta")
 
@@ -526,7 +526,7 @@ async def test_task_complete_idempotent_stashes_queue() -> None:
     )
 
     task_id = "task-complete"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
 
     follow_up = _make_broadcast(task_id, subject="Follow-up")
     await runtime.submit(follow_up)
@@ -587,7 +587,7 @@ async def test_task_complete_resolves_pending_future() -> None:
     )
 
     task_id = "task-future"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
 
     pending: asyncio.Future[MAILMessage] = asyncio.Future()
     runtime.pending_requests[task_id] = pending
@@ -635,7 +635,7 @@ async def test_interswarm_message_preserves_user_pending_future() -> None:
     )
 
     task_id = "task-user"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
     pending: asyncio.Future[MAILMessage] = asyncio.Future()
     runtime.pending_requests[task_id] = pending
 
@@ -695,7 +695,7 @@ async def test_task_complete_notifies_remote_swarms(
     monkeypatch.setattr(MAILRuntime, "_notify_remote_task_complete", fake_notify)
 
     task_id = "task-remote-complete"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
     runtime.mail_tasks[task_id].add_remote_swarm("swarm-beta")
 
     call = AgentToolCall(
@@ -731,7 +731,7 @@ async def test_notify_remote_task_complete_sends_message() -> None:
     runtime._send_interswarm_message = MethodType(fake_send, runtime)  # type: ignore[assignment]
 
     task_id = "task-notify"
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
     runtime.mail_tasks[task_id].add_remote_swarm("swarm-beta")
 
     await runtime._notify_remote_task_complete(task_id, "Done", "supervisor")
@@ -852,7 +852,7 @@ async def test_help_tool_emits_broadcast_and_event() -> None:
     assert help_events, "expected help_called event to be emitted"
     event_data = help_events[-1].data
     assert isinstance(event_data, dict)
-    assert event_data["description"].endswith("called 'help'")
+    assert event_data["description"].endswith("called help")
 
     while not runtime.message_queue.empty():
         runtime.message_queue.get_nowait()
@@ -888,7 +888,8 @@ def test_system_broadcast_requires_recipients_for_non_completion() -> None:
     assert len(recipients) == 1 and recipients[0]["address"] == "all"
 
 
-def test_submit_event_tracks_events_by_task() -> None:
+@pytest.mark.asyncio
+async def test_submit_event_tracks_events_by_task() -> None:
     """
     Events should be stored and filtered per task id.
     """
@@ -901,8 +902,8 @@ def test_submit_event_tracks_events_by_task() -> None:
         entrypoint="supervisor",
     )
 
-    runtime._ensure_task_exists("task-a")
-    runtime._ensure_task_exists("task-b")
+    await runtime._ensure_task_exists("task-a")
+    await runtime._ensure_task_exists("task-b")
 
     runtime._submit_event("update", "task-a", "first")
     runtime._submit_event("update", "task-b", "second")
@@ -955,7 +956,7 @@ async def test_run_task_breakpoint_resume_updates_history_and_resumes() -> None:
         swarm_name="example",
         entrypoint="supervisor",
     )
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
 
     action_override_called_with: dict[str, object] = {}
     expected_result = runtime._system_broadcast(
@@ -1061,7 +1062,17 @@ async def test_submit_and_wait_breakpoint_resume_updates_history_and_resolves() 
         swarm_name="example",
         entrypoint="supervisor",
     )
-    runtime._ensure_task_exists(task_id)
+    await runtime._ensure_task_exists(task_id)
+
+    # Set up breakpoint state required for resume_from="breakpoint_tool_call"
+    mock_tool_call = AgentToolCall(
+        tool_name="breakpoint_action",
+        tool_args={},
+        tool_call_id="bp-call-1",
+        completion={"role": "assistant", "content": "breakpoint"},
+    )
+    runtime.last_breakpoint_tool_calls[task_id] = [mock_tool_call]
+    runtime.last_breakpoint_caller[task_id] = tool_caller
 
     completion_message = runtime._system_broadcast(
         task_id=task_id,
