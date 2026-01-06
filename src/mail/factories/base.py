@@ -402,7 +402,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 "tool_choice": tool_choice,
             },
         ) as rt:
-            include: list[str] = []
+            include: list[str] = ["code_interpreter_call.outputs"]
             reasoning: dict[str, Any] = {}
             if litellm.supports_reasoning(self.llm):
                 include.append("reasoning.encrypted_content")
@@ -436,6 +436,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     await asyncio.sleep(retries)
 
         tool_calls: list[OutputFunctionToolCall] = []
+        builtin_tool_calls: list[dict[str, Any]] = []
         message_chunks: list[str] = []
 
         for output in res.output:
@@ -444,16 +445,22 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     tool_calls.append(output)  # type: ignore
                 elif output["type"] == "message":
                     message_chunks.append(output["content"][0]["text"])
+                elif output["type"] in ("web_search_call", "code_interpreter_call"):
+                    builtin_tool_calls.append(output)
             elif output.type == "function_call":
                 tool_calls.append(output)  # type: ignore
             elif output.type == "message":
                 message_chunks.append(output.content[0].text)  # type: ignore
+            elif output.type in ("web_search_call", "code_interpreter_call"):
+                builtin_tool_calls.append(
+                    output.model_dump() if hasattr(output, "model_dump") else dict(output)
+                )
 
         agent_tool_calls: list[AgentToolCall] = []
         res_dict = res.model_dump()
         outputs = res_dict["output"]
 
-        if len(tool_calls) > 0:
+        if len(tool_calls) > 0 or len(builtin_tool_calls) > 0:
             # Build assistant.tool_calls and AgentToolCall objects with consistent ids
             for tc in tool_calls:
                 assert tc is not None
@@ -479,6 +486,38 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         responses=outputs,
                     )
                 )
+
+            # Process built-in tool calls (web_search, code_interpreter)
+            # These are already executed by OpenAI, so we just capture them for tracing
+            for btc in builtin_tool_calls:
+                btc_type = btc.get("type", "unknown_builtin")
+                btc_id = btc.get("id", "")
+
+                if btc_type == "web_search_call":
+                    action = btc.get("action", {})
+                    tool_args = {
+                        "query": action.get("query", ""),
+                        "search_type": action.get("type", ""),
+                        "status": btc.get("status", ""),
+                    }
+                elif btc_type == "code_interpreter_call":
+                    tool_args = {
+                        "code": btc.get("code", ""),
+                        "outputs": btc.get("outputs"),
+                        "status": btc.get("status", ""),
+                    }
+                else:
+                    tool_args = btc
+
+                agent_tool_calls.append(
+                    AgentToolCall(
+                        tool_name=btc_type,
+                        tool_args=tool_args,
+                        tool_call_id=btc_id,
+                        responses=outputs,
+                    )
+                )
+
             return "", agent_tool_calls
         else:
             assert len(message_chunks) > 0

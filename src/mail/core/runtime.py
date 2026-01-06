@@ -2433,6 +2433,41 @@ This should never happen; consider informing the MAIL developers of this issue i
 
                             continue
 
+                        case "web_search_call":
+                            # Built-in OpenAI tool - already executed, just emit trace event
+                            logger.info(
+                                f"{self._log_prelude()} agent '{recipient}' used web_search: query='{call.tool_args.get('query', '')}'"
+                            )
+                            self._submit_event(
+                                "builtin_tool_call",
+                                task_id,
+                                f"agent {recipient} used web_search with query: {call.tool_args.get('query', '')}",
+                                extra_data={
+                                    "tool_type": "web_search_call",
+                                    "tool_args": call.tool_args,
+                                },
+                            )
+                            # No execution needed - OpenAI already ran this
+                            continue
+
+                        case "code_interpreter_call":
+                            # Built-in OpenAI tool - already executed, just emit trace event
+                            code_preview = (call.tool_args.get("code", "") or "")[:100]
+                            logger.info(
+                                f"{self._log_prelude()} agent '{recipient}' used code_interpreter: code='{code_preview}...'"
+                            )
+                            self._submit_event(
+                                "builtin_tool_call",
+                                task_id,
+                                f"agent {recipient} used code_interpreter",
+                                extra_data={
+                                    "tool_type": "code_interpreter_call",
+                                    "tool_args": call.tool_args,
+                                },
+                            )
+                            # No execution needed - OpenAI already ran this
+                            continue
+
                         case _:
                             action_name = call.tool_name
                             action_caller = self.agents.get(recipient)
