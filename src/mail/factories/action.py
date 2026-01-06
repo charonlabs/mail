@@ -158,6 +158,7 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         memory: bool = True,
         use_proxy: bool = True,
         _debug_include_mail_tools: bool = True,
+        default_tool_choice: str | dict[str, str] | None = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -178,6 +179,7 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         self.memory = memory
         self.use_proxy = use_proxy
         self._debug_include_mail_tools = _debug_include_mail_tools
+        self.default_tool_choice = default_tool_choice
         self.action_agent_fn = LiteLLMAgentFunction(
             llm=self.llm,
             comm_targets=self.comm_targets,
@@ -206,7 +208,9 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         """
         Execute a LiteLLM-based action agent function.
         """
+        # Use default_tool_choice if set, otherwise use the passed tool_choice
+        effective_tool_choice = self.default_tool_choice if self.default_tool_choice is not None else tool_choice
         return self.action_agent_fn(
             messages=messages,
-            tool_choice=tool_choice,
+            tool_choice=effective_tool_choice,
         )
