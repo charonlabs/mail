@@ -573,7 +573,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     rich.print("\n\n")
 
                 case "response.output_item.added":
-                    if event.item["type"] == "message":
+                    item_type = (
+                        event.item.get("type")
+                        if isinstance(event.item, dict)
+                        else getattr(event.item, "type", None)
+                    )
+                    if item_type == "message":
                         rich.print(
                             f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
                         )
