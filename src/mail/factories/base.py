@@ -457,14 +457,22 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             # Build assistant.tool_calls and AgentToolCall objects with consistent ids
             for tc in tool_calls:
                 assert tc is not None
-                assert tc.call_id is not None
-                assert tc.name is not None
-                assert tc.arguments is not None
-                call_id = tc.call_id
+                # Handle both dict and object formats
+                if isinstance(tc, dict):
+                    call_id = tc["call_id"]
+                    name = tc["name"]
+                    arguments = tc["arguments"]
+                else:
+                    call_id = tc.call_id
+                    name = tc.name
+                    arguments = tc.arguments
+                assert call_id is not None
+                assert name is not None
+                assert arguments is not None
                 agent_tool_calls.append(
                     AgentToolCall(
-                        tool_name=tc.name,
-                        tool_args=ujson.loads(tc.arguments),
+                        tool_name=name,
+                        tool_args=ujson.loads(arguments),
                         tool_call_id=call_id,
                         # Store the assistant message (with tool_calls) as the completion
                         # so the runtime can append a valid chat message to history.
