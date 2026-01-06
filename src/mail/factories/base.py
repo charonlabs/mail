@@ -8,6 +8,7 @@ from abc import abstractmethod
 from collections.abc import Awaitable
 from typing import Any, Literal
 
+import anthropic
 import langsmith as ls
 import litellm
 import rich
@@ -253,6 +254,10 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         return messages, agent_tools
 
+    def _has_web_search_tools(self, tools: list[dict[str, Any]]) -> bool:
+        """Check if any tools are Anthropic web_search built-in tools."""
+        return any(t.get("type", "").startswith("web_search") for t in tools)
+
     async def _run_completions(
         self,
         messages: list[dict[str, Any]],
@@ -265,6 +270,22 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         messages, agent_tools = await self._preprocess(
             messages, "completions", exclude_tools=self.exclude_tools
         )
+
+        # Check if web_search tools are present - use native Anthropic SDK
+        if self._has_web_search_tools(agent_tools):
+            if "anthropic" not in self.llm.lower():
+                raise ValueError(
+                    f"web_search tools require Anthropic models with completions API, got: {self.llm}"
+                )
+            if self.stream_tokens:
+                return await self._stream_completions_anthropic_native(
+                    messages, agent_tools, tool_choice
+                )
+            else:
+                return await self._run_completions_anthropic_native(
+                    messages, agent_tools, tool_choice
+                )
+
         retries = 5
 
         with ls.trace(
@@ -330,6 +351,359 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             )
 
         return msg.content, tool_calls
+
+    async def _run_completions_anthropic_native(
+        self,
+        messages: list[dict[str, Any]],
+        agent_tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> AgentOutput:
+        """
+        Execute a native Anthropic API call with web_search built-in tools.
+        This preserves the full response structure including server_tool_use blocks.
+        """
+        client = anthropic.AsyncAnthropic()
+
+        # Strip provider prefix from model name
+        model = self.llm
+        for prefix in ("anthropic/", "litellm_proxy/anthropic/", "litellm_proxy/"):
+            if model.startswith(prefix):
+                model = model[len(prefix) :]
+                break
+
+        # Extract system message - Anthropic expects it as a top-level parameter
+        system_content = None
+        filtered_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_content = msg.get("content", "")
+            else:
+                filtered_messages.append(msg)
+
+        # Build request params
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": filtered_messages,
+            "tools": agent_tools,
+            "max_tokens": self.max_tokens or 4096,
+        }
+
+        if system_content:
+            request_params["system"] = system_content
+
+        # Add thinking/extended thinking if enabled
+        if self.thinking.get("type") == "enabled":
+            request_params["thinking"] = self.thinking
+
+        # Handle tool_choice
+        if tool_choice == "required":
+            request_params["tool_choice"] = {"type": "any"}
+        elif tool_choice == "auto":
+            request_params["tool_choice"] = {"type": "auto"}
+        elif isinstance(tool_choice, dict):
+            request_params["tool_choice"] = tool_choice
+
+        response = await client.messages.create(**request_params)
+
+        # Parse response content blocks
+        tool_calls: list[AgentToolCall] = []
+        text_chunks: list[str] = []
+        thinking_chunks: list[str] = []
+        all_citations: list[dict[str, Any]] = []
+        web_search_results: dict[str, list[dict[str, Any]]] = {}  # tool_use_id -> results
+
+        response_dict = response.model_dump()
+
+        for block in response.content:
+            block_type = block.type
+
+            if block_type == "thinking":
+                # Capture extended thinking/reasoning content
+                thinking_chunks.append(getattr(block, "thinking", ""))
+
+            elif block_type == "server_tool_use":
+                # Capture the web search query
+                tool_calls.append(
+                    AgentToolCall(
+                        tool_name="web_search_call",
+                        tool_args={
+                            "query": block.input.get("query", ""),
+                            "status": "completed",
+                        },
+                        tool_call_id=block.id,
+                        completion=response_dict,
+                    )
+                )
+
+            elif block_type == "web_search_tool_result":
+                # Extract search results and associate with tool call
+                results = []
+                for result in block.content:
+                    if hasattr(result, "url"):
+                        results.append(
+                            {
+                                "url": result.url,
+                                "title": getattr(result, "title", ""),
+                                "page_age": getattr(result, "page_age", None),
+                            }
+                        )
+                web_search_results[block.tool_use_id] = results
+
+            elif block_type == "text":
+                text_chunks.append(block.text)
+                # Extract citations if present
+                if hasattr(block, "citations") and block.citations:
+                    for citation in block.citations:
+                        all_citations.append(
+                            {
+                                "url": getattr(citation, "url", ""),
+                                "title": getattr(citation, "title", ""),
+                                "cited_text": getattr(citation, "cited_text", ""),
+                            }
+                        )
+
+            elif block_type == "tool_use":
+                # Handle regular tool calls (non-server-side)
+                tool_calls.append(
+                    AgentToolCall(
+                        tool_name=block.name,
+                        tool_args=block.input,
+                        tool_call_id=block.id,
+                        completion=response_dict,
+                    )
+                )
+
+        # Update tool calls with their results
+        for tc in tool_calls:
+            if tc.tool_name == "web_search_call" and tc.tool_call_id in web_search_results:
+                tc.tool_args["results"] = web_search_results[tc.tool_call_id]
+
+        # Add citations to the response if present
+        if all_citations:
+            for tc in tool_calls:
+                if tc.tool_name == "web_search_call":
+                    tc.tool_args["citations"] = all_citations
+                    break
+
+        # Add thinking/reasoning content if present
+        thinking_content = "".join(thinking_chunks)
+        if thinking_content:
+            # Add to the first tool call (usually web_search_call or text_output)
+            if tool_calls:
+                tool_calls[0].tool_args["reasoning"] = thinking_content
+
+        content = "".join(text_chunks)
+
+        # If no tool calls, add text_output
+        if len(tool_calls) == 0:
+            tool_args: dict[str, Any] = {"content": content}
+            if thinking_content:
+                tool_args["reasoning"] = thinking_content
+            tool_calls.append(
+                AgentToolCall(
+                    tool_name="text_output",
+                    tool_args=tool_args,
+                    tool_call_id="",
+                    completion=response_dict,
+                )
+            )
+
+        return content, tool_calls
+
+    async def _stream_completions_anthropic_native(
+        self,
+        messages: list[dict[str, Any]],
+        agent_tools: list[dict[str, Any]],
+        tool_choice: str | dict[str, str] = "required",
+    ) -> AgentOutput:
+        """
+        Stream a native Anthropic API call with web_search built-in tools.
+        """
+        client = anthropic.AsyncAnthropic()
+
+        # Strip provider prefix from model name
+        model = self.llm
+        for prefix in ("anthropic/", "litellm_proxy/anthropic/", "litellm_proxy/"):
+            if model.startswith(prefix):
+                model = model[len(prefix) :]
+                break
+
+        # Extract system message - Anthropic expects it as a top-level parameter
+        system_content = None
+        filtered_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_content = msg.get("content", "")
+            else:
+                filtered_messages.append(msg)
+
+        # Build request params
+        request_params: dict[str, Any] = {
+            "model": model,
+            "messages": filtered_messages,
+            "tools": agent_tools,
+            "max_tokens": self.max_tokens or 4096,
+        }
+
+        if system_content:
+            request_params["system"] = system_content
+
+        # Add thinking/extended thinking if enabled
+        if self.thinking.get("type") == "enabled":
+            request_params["thinking"] = self.thinking
+
+        # Handle tool_choice
+        if tool_choice == "required":
+            request_params["tool_choice"] = {"type": "any"}
+        elif tool_choice == "auto":
+            request_params["tool_choice"] = {"type": "auto"}
+        elif isinstance(tool_choice, dict):
+            request_params["tool_choice"] = tool_choice
+
+        is_response = False
+        is_searching = False
+        is_reasoning = False
+
+        async with client.messages.stream(**request_params) as stream:
+            async for event in stream:
+                event_type = event.type
+
+                if event_type == "content_block_start":
+                    block = event.content_block
+                    block_type = block.type
+
+                    if block_type == "thinking":
+                        if not is_reasoning:
+                            rich.print(
+                                f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                            )
+                            is_reasoning = True
+
+                    elif block_type == "server_tool_use":
+                        if not is_searching:
+                            rich.print(
+                                f"\n\n[bold yellow]{'=' * 21} WEB SEARCH {'=' * 21}[/bold yellow]\n\n"
+                            )
+                            is_searching = True
+
+                    elif block_type == "text":
+                        if not is_response:
+                            rich.print(
+                                f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                            )
+                            is_response = True
+
+                elif event_type == "content_block_delta":
+                    delta = event.delta
+                    delta_type = delta.type
+
+                    if delta_type == "thinking_delta":
+                        rich.print(delta.thinking, end="", flush=True)
+                    elif delta_type == "text_delta":
+                        rich.print(delta.text, end="", flush=True)
+
+            # Get the final message with full content
+            final_message = await stream.get_final_message()
+
+        response_dict = final_message.model_dump()
+
+        # Process the final message to get complete data
+        tool_calls: list[AgentToolCall] = []
+        text_chunks: list[str] = []
+        thinking_chunks: list[str] = []
+        all_citations: list[dict[str, Any]] = []
+        web_search_results: dict[str, list[dict[str, Any]]] = {}
+
+        for block in final_message.content:
+            block_type = block.type
+
+            if block_type == "thinking":
+                # Capture extended thinking/reasoning content
+                thinking_chunks.append(getattr(block, "thinking", ""))
+
+            elif block_type == "server_tool_use":
+                tool_calls.append(
+                    AgentToolCall(
+                        tool_name="web_search_call",
+                        tool_args={
+                            "query": block.input.get("query", ""),
+                            "status": "completed",
+                        },
+                        tool_call_id=block.id,
+                        completion=response_dict,
+                    )
+                )
+
+            elif block_type == "web_search_tool_result":
+                results = []
+                for result in block.content:
+                    if hasattr(result, "url"):
+                        results.append(
+                            {
+                                "url": result.url,
+                                "title": getattr(result, "title", ""),
+                                "page_age": getattr(result, "page_age", None),
+                            }
+                        )
+                web_search_results[block.tool_use_id] = results
+
+            elif block_type == "text":
+                text_chunks.append(block.text)
+                if hasattr(block, "citations") and block.citations:
+                    for citation in block.citations:
+                        all_citations.append(
+                            {
+                                "url": getattr(citation, "url", ""),
+                                "title": getattr(citation, "title", ""),
+                                "cited_text": getattr(citation, "cited_text", ""),
+                            }
+                        )
+
+            elif block_type == "tool_use":
+                tool_calls.append(
+                    AgentToolCall(
+                        tool_name=block.name,
+                        tool_args=block.input,
+                        tool_call_id=block.id,
+                        completion=response_dict,
+                    )
+                )
+
+        # Update tool calls with their results
+        for tc in tool_calls:
+            if tc.tool_name == "web_search_call" and tc.tool_call_id in web_search_results:
+                tc.tool_args["results"] = web_search_results[tc.tool_call_id]
+
+        # Add citations to the response if present
+        if all_citations:
+            for tc in tool_calls:
+                if tc.tool_name == "web_search_call":
+                    tc.tool_args["citations"] = all_citations
+                    break
+
+        # Add thinking/reasoning content if present
+        thinking_content = "".join(thinking_chunks)
+        if thinking_content:
+            if tool_calls:
+                tool_calls[0].tool_args["reasoning"] = thinking_content
+
+        content = "".join(text_chunks)
+
+        # If no tool calls, add text_output
+        if len(tool_calls) == 0:
+            tool_args: dict[str, Any] = {"content": content}
+            if thinking_content:
+                tool_args["reasoning"] = thinking_content
+            tool_calls.append(
+                AgentToolCall(
+                    tool_name="text_output",
+                    tool_args=tool_args,
+                    tool_call_id="",
+                    completion=response_dict,
+                )
+            )
+
+        return content, tool_calls
 
     async def _stream_completions(
         self,
