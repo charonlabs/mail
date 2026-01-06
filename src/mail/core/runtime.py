@@ -138,6 +138,11 @@ class MAILRuntime:
         self.last_breakpoint_caller: dict[str, str] = {}
         self.last_breakpoint_tool_calls: dict[str, list[AgentToolCall]] = {}
         self.this_owner = f"{self.user_role}:{self.user_id}@{self.swarm_name}"
+        # Track outstanding requests per task per agent for await_message
+        # Structure: task_id -> sender_agent_name -> count of outstanding requests
+        self.outstanding_requests: dict[str, dict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
 
     def _log_prelude(self) -> str:
         """
@@ -2250,34 +2255,41 @@ Use this information to decide how to complete your task.""",
                             )
                             # No further action
                         case "await_message":
-                            # only works if the message queue is not empty
-                            if self.message_queue.empty():
+                            # Allow await if there are outstanding requests OR messages in queue
+                            outstanding = self.outstanding_requests[task_id][recipient]
+                            queue_empty = self.message_queue.empty()
+                            if queue_empty and outstanding == 0:
                                 logger.warning(
-                                    f"{self._log_prelude()} agent '{recipient}' called 'await_message' but the message queue is empty"
+                                    f"{self._log_prelude()} agent '{recipient}' called 'await_message' "
+                                    f"but has no outstanding requests and message queue is empty"
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
                                     tool_call=call,
                                     status="error",
-                                    details="message queue is empty",
+                                    details="no outstanding requests and message queue is empty",
                                 )
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"agent {recipient} called await_message but the message queue is empty",
+                                    f"agent {recipient} called await_message but has no outstanding requests",
                                 )
                                 await self.submit(
                                     self._system_response(
                                         task_id=task_id,
                                         recipient=create_agent_address(recipient),
                                         subject="::tool_call_error::",
-                                        body="""The tool call `await_message` was attempted but the message queue is empty.
-In order to prevent frozen tasks, the `await_message` tool will only work if the message queue is not empty.
-Consider sending a message to another agent to keep the task alive.""",
+                                        body="""The tool call `await_message` was attempted but you have no outstanding requests and the message queue is empty.
+In order to prevent frozen tasks, `await_message` only works if you have sent requests that haven't been responded to yet, or if there are messages waiting in the queue.
+Consider sending a request to another agent before calling `await_message`.""",
                                     )
                                 )
                                 return
+                            logger.debug(
+                                f"{self._log_prelude()} agent '{recipient}' awaiting "
+                                f"(outstanding={outstanding}, queue_empty={queue_empty})"
+                            )
                             wait_reason = call.tool_args.get("reason")
                             logger.info(
                                 f"{self._log_prelude()} agent '{recipient}' called 'await_message'{f': {wait_reason}' if wait_reason else ''}",
@@ -2323,6 +2335,23 @@ Consider sending a message to another agent to keep the task alive.""",
                                     task_id, message, outgoing_message, call
                                 )
                                 await self.submit(outgoing_message)
+                                # Track outstanding requests for await_message
+                                if call.tool_name == "send_request":
+                                    # Sender is waiting for a response
+                                    self.outstanding_requests[task_id][recipient] += 1
+                                    logger.debug(
+                                        f"{self._log_prelude()} agent '{recipient}' sent request, "
+                                        f"outstanding={self.outstanding_requests[task_id][recipient]}"
+                                    )
+                                elif call.tool_name == "send_response":
+                                    # Response received, decrement target's outstanding count
+                                    target = call.tool_args.get("target", "")
+                                    if self.outstanding_requests[task_id][target] > 0:
+                                        self.outstanding_requests[task_id][target] -= 1
+                                        logger.debug(
+                                            f"{self._log_prelude()} agent '{recipient}' sent response to '{target}', "
+                                            f"target outstanding={self.outstanding_requests[task_id][target]}"
+                                        )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -2989,6 +3018,10 @@ The final response message is: '{finish_body}'""",
 
         await task_state.queue_stash(self.message_queue)
         task_state.mark_complete()
+
+        # Clean up outstanding requests tracking for this task
+        if task_id in self.outstanding_requests:
+            del self.outstanding_requests[task_id]
 
         # Persist agent histories to the database if enabled
         await self._persist_agent_histories_to_db(task_id)
