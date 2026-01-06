@@ -258,6 +258,53 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         """Check if any tools are Anthropic web_search built-in tools."""
         return any(t.get("type", "").startswith("web_search") for t in tools)
 
+    def _convert_tools_to_anthropic_format(
+        self, tools: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Convert tools from OpenAI/LiteLLM completions format to native Anthropic format.
+
+        OpenAI format:
+            {"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}
+
+        Anthropic format:
+            {"name": ..., "description": ..., "input_schema": ...}
+
+        Server tools (like web_search) are passed through as-is.
+        """
+        anthropic_tools: list[dict[str, Any]] = []
+
+        for tool in tools:
+            tool_type = tool.get("type", "")
+
+            # Server tools (web_search, etc.) - pass through as-is
+            if tool_type.startswith("web_search"):
+                anthropic_tools.append(tool)
+                continue
+
+            # OpenAI/LiteLLM completions format - convert to Anthropic format
+            if tool_type == "function" and "function" in tool:
+                func = tool["function"]
+                anthropic_tools.append(
+                    {
+                        "name": func.get("name", ""),
+                        "description": func.get("description", ""),
+                        "input_schema": func.get("parameters", {}),
+                    }
+                )
+                continue
+
+            # Already in Anthropic format (has input_schema) - pass through
+            if "input_schema" in tool:
+                anthropic_tools.append(tool)
+                continue
+
+            # Unknown format - try to pass through and let Anthropic API handle it
+            logger.warning(f"Unknown tool format, passing through as-is: {tool}")
+            anthropic_tools.append(tool)
+
+        return anthropic_tools
+
     async def _run_completions(
         self,
         messages: list[dict[str, Any]],
@@ -380,11 +427,14 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             else:
                 filtered_messages.append(msg)
 
+        # Convert tools to Anthropic format
+        anthropic_tools = self._convert_tools_to_anthropic_format(agent_tools)
+
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
             "messages": filtered_messages,
-            "tools": agent_tools,
+            "tools": anthropic_tools,
             "max_tokens": self.max_tokens or 4096,
         }
 
@@ -537,11 +587,14 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             else:
                 filtered_messages.append(msg)
 
+        # Convert tools to Anthropic format
+        anthropic_tools = self._convert_tools_to_anthropic_format(agent_tools)
+
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
             "messages": filtered_messages,
-            "tools": agent_tools,
+            "tools": anthropic_tools,
             "max_tokens": self.max_tokens or 4096,
         }
 
