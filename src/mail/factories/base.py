@@ -305,6 +305,124 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         return anthropic_tools
 
+    def _convert_messages_to_anthropic_format(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """
+        Convert messages from OpenAI/LiteLLM format to native Anthropic format.
+
+        Key transformations:
+        1. Tool results: {"role": "tool", "content": ..., "tool_call_id": ...}
+           → {"role": "user", "content": [{"type": "tool_result", "tool_use_id": ..., "content": ...}]}
+
+        2. Assistant with tool_calls: {"role": "assistant", "tool_calls": [...]}
+           → {"role": "assistant", "content": [{"type": "tool_use", ...}]}
+
+        3. Multiple consecutive tool results are grouped into a single user message
+        """
+        anthropic_messages: list[dict[str, Any]] = []
+        pending_tool_results: list[dict[str, Any]] = []
+
+        def flush_tool_results() -> None:
+            """Flush pending tool results into a single user message."""
+            if pending_tool_results:
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": pending_tool_results.copy(),
+                })
+                pending_tool_results.clear()
+
+        for msg in messages:
+            role = msg.get("role", "")
+
+            # Handle tool result messages (OpenAI format)
+            if role == "tool":
+                tool_result = {
+                    "type": "tool_result",
+                    "tool_use_id": msg.get("tool_call_id", ""),
+                    "content": msg.get("content", ""),
+                }
+                # Add is_error if present
+                if msg.get("is_error"):
+                    tool_result["is_error"] = True
+                pending_tool_results.append(tool_result)
+                continue
+
+            # Flush any pending tool results before processing other messages
+            flush_tool_results()
+
+            # Handle assistant messages with tool_calls (OpenAI format)
+            if role == "assistant":
+                tool_calls = msg.get("tool_calls", [])
+                content = msg.get("content", "")
+
+                if tool_calls:
+                    # Convert to Anthropic format with tool_use content blocks
+                    content_blocks: list[dict[str, Any]] = []
+
+                    # Add text content if present
+                    if content:
+                        content_blocks.append({
+                            "type": "text",
+                            "text": content,
+                        })
+
+                    # Add tool_use blocks
+                    for tc in tool_calls:
+                        func = tc.get("function", {})
+                        # Parse arguments if it's a JSON string
+                        args = func.get("arguments", {})
+                        if isinstance(args, str):
+                            try:
+                                import json
+                                args = json.loads(args)
+                            except json.JSONDecodeError:
+                                args = {"raw": args}
+
+                        content_blocks.append({
+                            "type": "tool_use",
+                            "id": tc.get("id", ""),
+                            "name": func.get("name", ""),
+                            "input": args,
+                        })
+
+                    anthropic_messages.append({
+                        "role": "assistant",
+                        "content": content_blocks,
+                    })
+                else:
+                    # No tool calls - pass through with content normalization
+                    if isinstance(content, str):
+                        anthropic_messages.append({
+                            "role": "assistant",
+                            "content": [{"type": "text", "text": content}] if content else [],
+                        })
+                    else:
+                        # Already structured content
+                        anthropic_messages.append(msg)
+                continue
+
+            # Handle user messages
+            if role == "user":
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    anthropic_messages.append({
+                        "role": "user",
+                        "content": [{"type": "text", "text": content}],
+                    })
+                else:
+                    # Already structured content (could have images, etc.)
+                    anthropic_messages.append(msg)
+                continue
+
+            # Pass through other messages (shouldn't happen often)
+            anthropic_messages.append(msg)
+
+        # Flush any remaining tool results
+        flush_tool_results()
+
+        return anthropic_messages
+
     async def _run_completions(
         self,
         messages: list[dict[str, Any]],
@@ -427,13 +545,17 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             else:
                 filtered_messages.append(msg)
 
+        # Convert messages from OpenAI/LiteLLM format to Anthropic format
+        # This handles tool results (role: "tool") and tool_calls in assistant messages
+        anthropic_messages = self._convert_messages_to_anthropic_format(filtered_messages)
+
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic_format(agent_tools)
 
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": filtered_messages,
+            "messages": anthropic_messages,
             "tools": anthropic_tools,
             "max_tokens": self.max_tokens or 4096,
         }
@@ -633,13 +755,17 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             else:
                 filtered_messages.append(msg)
 
+        # Convert messages from OpenAI/LiteLLM format to Anthropic format
+        # This handles tool results (role: "tool") and tool_calls in assistant messages
+        anthropic_messages = self._convert_messages_to_anthropic_format(filtered_messages)
+
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic_format(agent_tools)
 
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": filtered_messages,
+            "messages": anthropic_messages,
             "tools": anthropic_tools,
             "max_tokens": self.max_tokens or 4096,
         }
