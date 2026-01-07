@@ -1904,7 +1904,14 @@ class MAILSwarmTemplate:
             if open_browser:
                 url = f"http://localhost:{ui_port}"
                 # Detect WSL2 and use Windows browser
-                if "microsoft" in os.uname().release.lower():
+                # os.uname() doesn't exist on native Windows, so guard with try/except
+                is_wsl = False
+                try:
+                    is_wsl = "microsoft" in os.uname().release.lower()
+                except AttributeError:
+                    pass  # Native Windows - os.uname() doesn't exist
+
+                if is_wsl:
                     # WSL2: use cmd.exe to open Windows default browser
                     subprocess.Popen(
                         ["cmd.exe", "/c", "start", "", url],
