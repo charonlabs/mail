@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import mail.net.server_utils as server_utils
 import mail.utils as utils
-from mail.config.server import ServerConfig
+from mail.config.server import ServerConfig, SettingsConfig, SwarmConfig
 from mail.core.message import (
     MAIL_MESSAGE_TYPES,
     MAILAddress,
@@ -47,6 +47,11 @@ from .api import MAILSwarm, MAILSwarmTemplate
 _server_config: ServerConfig = ServerConfig()
 init_logger()
 logger = logging.getLogger("mail.server")
+
+# Template injection for programmatic server startup (single-process only)
+# Used by run_server_with_template() and MAILSwarmTemplate.start_server()
+_TEMPLATE_OVERRIDE: MAILSwarmTemplate | None = None
+_CONFIG_OVERRIDE: ServerConfig | None = None
 
 
 def _log_prelude(app: FastAPI) -> str:
@@ -72,15 +77,29 @@ async def _server_startup(app: FastAPI) -> None:
     """
     Server startup logic, run before the `yield` in the lifespan context manager.
     """
+    global _TEMPLATE_OVERRIDE, _CONFIG_OVERRIDE
     logger.info("MAIL server starting up...")
 
-    cfg = _server_config
+    # Use injected template/config if provided, else use module-level config
+    # IMPORTANT: When _TEMPLATE_OVERRIDE is set, we MUST use _CONFIG_OVERRIDE
+    # to ensure debug=True (required for /ui/message endpoint)
+    if _TEMPLATE_OVERRIDE is not None:
+        ps = _TEMPLATE_OVERRIDE
+        cfg = _CONFIG_OVERRIDE if _CONFIG_OVERRIDE is not None else _server_config
+        logger.info(f"Using injected template: {ps.name} (debug={cfg.debug})")
+    else:
+        cfg = _server_config
+        ps = server_utils.get_default_persistent_swarm(cfg)
+
+    # IMPORTANT: All code below must use the local `cfg` variable, NOT _server_config.
+    # This ensures injected config (with debug=True) is used throughout.
+    # DO NOT add `cfg = _server_config` anywhere below this point.
 
     # set defaults
     app.state.debug = cfg.debug
 
     # swarm stuff
-    app.state.persistent_swarm = server_utils.get_default_persistent_swarm(cfg)
+    app.state.persistent_swarm = ps
     app.state.admin_mail_instances = server_utils.init_mail_instances_dict()
     app.state.admin_mail_tasks = server_utils.init_mail_tasks_dict()
     app.state.user_mail_instances = server_utils.init_mail_instances_dict()
@@ -1303,6 +1322,57 @@ def run_server(
     os.environ.setdefault("BASE_URL", server_utils.compute_external_base_url(cfg))
 
     uvicorn.run(app, host=cfg.host, port=cfg.port, reload=cfg.reload)
+
+
+def run_server_with_template(
+    template: MAILSwarmTemplate,
+    port: int = 8000,
+    host: str = "0.0.0.0",
+    task_message_limit: int | None = None,
+) -> None:
+    """Run MAIL server with a pre-configured swarm template.
+
+    This function is for programmatic use only. It runs in single-process
+    mode (no reload, no workers) to support template injection.
+
+    Args:
+        template: The swarm template to use
+        port: Server port
+        host: Server host
+        task_message_limit: Max messages per task (None for unlimited)
+    """
+    global _TEMPLATE_OVERRIDE, _CONFIG_OVERRIDE
+
+    cfg = ServerConfig(
+        port=port,
+        host=host,
+        debug=True,  # Required for /ui/message endpoint
+        reload=False,  # Must be False for template injection
+        swarm=SwarmConfig(
+            name=template.name,
+            source="<injected>",
+            registry_file="",
+        ),
+        settings=SettingsConfig(
+            # Use large sentinel for "unlimited" - avoids changing type throughout codebase
+            task_message_limit=task_message_limit if task_message_limit is not None else 999999,
+        ),
+    )
+
+    # Set overrides BEFORE calling run_server
+    _TEMPLATE_OVERRIDE = template
+    _CONFIG_OVERRIDE = cfg
+
+    try:
+        # Use run_server() to ensure _server_config and env vars are set properly
+        # IMPORTANT: reload=False in cfg enforces single-process mode.
+        # Template injection via globals does NOT work with reload or workers.
+        assert cfg.reload is False, "reload must be False for template injection"
+        run_server(cfg)
+    finally:
+        # Clear globals even if server errors
+        _TEMPLATE_OVERRIDE = None
+        _CONFIG_OVERRIDE = None
 
 
 if __name__ == "__main__":

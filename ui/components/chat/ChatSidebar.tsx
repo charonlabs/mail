@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useSSE } from '@/hooks/useSSE';
-import { Send, Square, Loader2, Zap, Terminal } from 'lucide-react';
+import { Send, Square, Loader2, Zap, Terminal, Play, Settings } from 'lucide-react';
 
 export function ChatSidebar() {
   const [input, setInput] = useState('');
@@ -16,6 +16,8 @@ export function ChatSidebar() {
     connectionStatus,
     currentTaskId,
     entrypoint,
+    isEvalMode,
+    evalConfig,
   } = useAppStore();
 
   const { sendMessage, cancelStream } = useSSE();
@@ -167,56 +169,127 @@ export function ChatSidebar() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-sidebar-border">
-        <div className="relative">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Send a message..."
-            disabled={isProcessing}
-            rows={1}
-            className="
-              w-full px-4 py-3 pr-12
-              bg-card border border-border
-              rounded text-sm text-foreground font-mono
-              placeholder:text-muted-foreground
-              focus:outline-none focus:border-primary
-              disabled:opacity-50
-              resize-none
-              transition-colors
-            "
-          />
+      {/* Input - Regular mode */}
+      {!isEvalMode && (
+        <form onSubmit={handleSubmit} className="p-4 border-t border-sidebar-border">
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Send a message..."
+              disabled={isProcessing}
+              rows={1}
+              className="
+                w-full px-4 py-3 pr-12
+                bg-card border border-border
+                rounded text-sm text-foreground font-mono
+                placeholder:text-muted-foreground
+                focus:outline-none focus:border-primary
+                disabled:opacity-50
+                resize-none
+                transition-colors
+              "
+            />
 
+            <button
+              type={isProcessing ? 'button' : 'submit'}
+              onClick={isProcessing ? cancelStream : undefined}
+              className="
+                absolute right-2 top-1/2 -translate-y-1/2
+                w-8 h-8 rounded
+                flex items-center justify-center
+                bg-primary text-primary-foreground
+                hover:bg-copper-light
+                disabled:opacity-50
+                transition-colors
+              "
+              disabled={!input.trim() && !isProcessing}
+            >
+              {isProcessing ? (
+                <Square className="w-4 h-4" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+
+          <div className="mt-2 text-[10px] text-muted-foreground">
+            Press <kbd className="px-1 py-0.5 bg-secondary rounded text-primary">Enter</kbd> to send,{' '}
+            <kbd className="px-1 py-0.5 bg-secondary rounded text-primary">Shift+Enter</kbd> for new line
+          </div>
+        </form>
+      )}
+
+      {/* Input - Eval mode */}
+      {isEvalMode && (
+        <div className="p-4 border-t border-sidebar-border">
+          {/* Eval config summary */}
+          <div className="mb-3 p-3 bg-card/50 border border-border rounded text-xs font-mono">
+            <div className="flex items-center gap-2 mb-2 text-muted-foreground">
+              <Settings className="w-3 h-3" />
+              <span className="uppercase tracking-wider">Evaluation Config</span>
+            </div>
+            <div className="space-y-1 text-foreground">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Set:</span>
+                <span className="text-primary">{evalConfig.evalSet}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Question:</span>
+                <span className="text-primary">#{evalConfig.qIdx}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Model:</span>
+                <span className="text-primary truncate max-w-[150px]" title={evalConfig.modelId}>
+                  {evalConfig.modelId.split('/').pop()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Reflection:</span>
+                <span className={evalConfig.runReflection ? 'text-primary' : 'text-muted-foreground'}>
+                  {evalConfig.runReflection ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Run evaluation button */}
           <button
-            type={isProcessing ? 'button' : 'submit'}
-            onClick={isProcessing ? cancelStream : undefined}
-            className="
-              absolute right-2 top-1/2 -translate-y-1/2
-              w-8 h-8 rounded
-              flex items-center justify-center
-              bg-primary text-primary-foreground
-              hover:bg-copper-light
-              disabled:opacity-50
-              transition-colors
-            "
-            disabled={!input.trim() && !isProcessing}
+            onClick={isProcessing ? cancelStream : () => sendMessage('')}
+            disabled={connectionStatus !== 'connected'}
+            className={`
+              w-full py-3 rounded
+              flex items-center justify-center gap-2
+              font-medium text-sm
+              transition-all
+              ${isProcessing
+                ? 'bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30'
+                : 'bg-primary text-primary-foreground hover:bg-copper-light'
+              }
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
           >
             {isProcessing ? (
-              <Square className="w-4 h-4" />
+              <>
+                <Square className="w-4 h-4" />
+                <span>ABORT EVALUATION</span>
+              </>
             ) : (
-              <Send className="w-4 h-4" />
+              <>
+                <Play className="w-4 h-4" />
+                <span>RUN EVALUATION</span>
+              </>
             )}
           </button>
-        </div>
 
-        <div className="mt-2 text-[10px] text-muted-foreground">
-          Press <kbd className="px-1 py-0.5 bg-secondary rounded text-primary">Enter</kbd> to send,{' '}
-          <kbd className="px-1 py-0.5 bg-secondary rounded text-primary">Shift+Enter</kbd> for new line
+          <div className="mt-2 text-[10px] text-muted-foreground text-center">
+            Runs the configured question through the swarm with judging
+            {evalConfig.runReflection && ' and reflection'}
+          </div>
         </div>
-      </form>
+      )}
     </div>
   );
 }

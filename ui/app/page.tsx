@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useAppStore, type EvalConfig } from '@/lib/store';
 import { getClient } from '@/lib/api';
@@ -8,6 +8,11 @@ import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { AgentGraph } from '@/components/graph/AgentGraph';
 import { AgentDetailPanel } from '@/components/panels/AgentDetailPanel';
 import { EventsPanel } from '@/components/panels/EventsPanel';
+import { EvalModeHeader } from '@/components/ui/EvalModeHeader';
+import { BreachSequence } from '@/components/effects/BreachSequence';
+import { MatrixRain } from '@/components/effects/MatrixRain';
+import { ScreenFlicker } from '@/components/effects/ScreenFlicker';
+import { useKonamiCode } from '@/hooks/useKonamiCode';
 import { Loader2, AlertCircle, RefreshCw, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 
 function ConnectionOverlay() {
@@ -365,12 +370,33 @@ function SettingsButton() {
 }
 
 export default function Home() {
-  const { connectionStatus } = useAppStore();
+  const { connectionStatus, isEvalMode } = useAppStore();
   const [mounted, setMounted] = useState(false);
+  const [showBreachSequence, setShowBreachSequence] = useState(false);
+  const [breachComplete, setBreachComplete] = useState(false);
+  const [connectionStartTime, setConnectionStartTime] = useState<number | null>(null);
+  const { activated: superBreachMode } = useKonamiCode();
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Track when we connect in eval mode to start the breach sequence
+  useEffect(() => {
+    if (connectionStatus === 'connected' && isEvalMode && !breachComplete) {
+      setShowBreachSequence(true);
+      setConnectionStartTime(Date.now());
+    } else if (connectionStatus !== 'connected') {
+      setBreachComplete(false);
+      setShowBreachSequence(false);
+      setConnectionStartTime(null);
+    }
+  }, [connectionStatus, isEvalMode, breachComplete]);
+
+  const handleBreachComplete = useCallback(() => {
+    setShowBreachSequence(false);
+    setBreachComplete(true);
   }, []);
 
   if (!mounted) {
@@ -381,26 +407,57 @@ export default function Home() {
     );
   }
 
+  // Determine if we should apply eval-mode styling
+  const isInEvalMode = isEvalMode && connectionStatus === 'connected' && breachComplete;
+
+  // Build class names
+  const mainClasses = [
+    'h-screen w-screen flex flex-col overflow-hidden',
+    isInEvalMode ? 'eval-mode' : '',
+    superBreachMode && isInEvalMode ? 'super-breach-mode' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <main className="h-screen w-screen flex overflow-hidden">
-      {/* Chat Sidebar */}
-      <ChatSidebar />
+    <main className={mainClasses}>
+      {/* BREACH SEQUENCE - The dramatic intro */}
+      {showBreachSequence && (
+        <BreachSequence onComplete={handleBreachComplete} />
+      )}
 
-      {/* Main Graph Area */}
-      <div className="flex-1 relative">
-        <ReactFlowProvider>
-          <AgentGraph />
-        </ReactFlowProvider>
+      {/* EVAL MODE HEADER - The living status bar */}
+      {isInEvalMode && connectionStartTime && (
+        <EvalModeHeader connectionStartTime={connectionStartTime} superBreachMode={superBreachMode} />
+      )}
 
-        {/* Settings button */}
-        {connectionStatus === 'connected' && <SettingsButton />}
+      {/* Main content area */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* MATRIX RAIN - Subtle background effect */}
+        {isInEvalMode && (
+          <MatrixRain />
+        )}
 
-        {/* Agent Detail Panel */}
-        <AgentDetailPanel />
+        {/* SCREEN FLICKER - Event-triggered effects */}
+        <ScreenFlicker />
+
+        {/* Chat Sidebar */}
+        <ChatSidebar />
+
+        {/* Main Graph Area */}
+        <div className="flex-1 relative">
+          <ReactFlowProvider>
+            <AgentGraph />
+          </ReactFlowProvider>
+
+          {/* Settings button */}
+          {connectionStatus === 'connected' && <SettingsButton />}
+
+          {/* Agent Detail Panel */}
+          <AgentDetailPanel />
+        </div>
+
+        {/* Events Panel */}
+        <EventsPanel />
       </div>
-
-      {/* Events Panel */}
-      <EventsPanel />
 
       {/* Connection Overlay */}
       <ConnectionOverlay />

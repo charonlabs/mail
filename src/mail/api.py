@@ -1785,3 +1785,161 @@ class MAILSwarmTemplate:
             if swarm["name"] == swarm_name:
                 return MAILSwarmTemplate.from_swarms_json(swarm, task_message_limit)
         raise ValueError(f"swarm '{swarm_name}' not found in {json_filepath}")
+
+    def start_server(
+        self,
+        port: int = 8000,
+        host: str = "0.0.0.0",
+        launch_ui: bool = True,
+        ui_port: int = 3000,
+        ui_path: str | None = None,
+        open_browser: bool = True,
+        server_url: str | None = None,
+    ) -> None:
+        """Start a MAIL server with this swarm template.
+
+        Blocks until Ctrl+C. Runs in single-process mode only.
+        Debug mode is always enabled for /ui/message endpoint.
+
+        Args:
+            port: Server port (default 8000)
+            host: Server host (default 0.0.0.0)
+            launch_ui: Start Next.js UI dev server (default True)
+            ui_port: UI dev server port (default 3000)
+            ui_path: Path to UI directory (auto-detected if None)
+            open_browser: Open browser to UI URL on startup (default True)
+            server_url: URL the UI uses to connect to server (default: http://localhost:{port})
+
+        Raises:
+            ValueError: If template validation fails
+            FileNotFoundError: If UI directory not found or node_modules missing
+            RuntimeError: If UI process fails to start
+            OSError: If port is already in use
+        """
+        import os
+        import socket
+        import subprocess
+        import time
+        import webbrowser
+
+        from mail.server import run_server_with_template
+
+        # Validate template first (already validated in __init__, but re-check)
+        self._validate()
+
+        # Resolve UI path
+        if ui_path is None:
+            package_dir = os.path.dirname(os.path.abspath(__file__))
+            ui_path = os.path.normpath(os.path.join(package_dir, "..", "..", "ui"))
+
+        # Compute server URL for UI to connect to
+        # Smart default: localhost for wildcard bindings, else use the actual host
+        if server_url is None:
+            # Wildcard addresses (IPv4 0.0.0.0, IPv6 ::) and localhost variants -> localhost
+            if host in ("0.0.0.0", "127.0.0.1", "localhost", "::", "::1"):
+                server_url = f"http://localhost:{port}"
+            else:
+                server_url = f"http://{host}:{port}"
+
+        ui_proc = None
+
+        if launch_ui:
+            # Validate UI directory exists
+            if not os.path.isdir(ui_path):
+                raise FileNotFoundError(
+                    f"UI directory not found at {ui_path}. "
+                    f"Set ui_path parameter or use launch_ui=False."
+                )
+
+            # Check node_modules exists
+            node_modules = os.path.join(ui_path, "node_modules")
+            if not os.path.isdir(node_modules):
+                raise FileNotFoundError(
+                    f"node_modules not found in {ui_path}. "
+                    f"Run 'pnpm install' in the UI directory first."
+                )
+
+            # Check if UI port is available before launching
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(("localhost", ui_port)) == 0:
+                    raise OSError(f"UI port {ui_port} is already in use. Try a different ui_port.")
+
+            # Print startup banner
+            print(f"\n{'='*60}")
+            print(f"  MAIL Swarm Viewer")
+            print(f"  Swarm: {self.name}")
+            print(f"  Agents: {', '.join(self.agent_names)}")
+            print(f"{'='*60}")
+            print(f"  Server: http://{host}:{port}")
+            print(f"  UI:     http://localhost:{ui_port}")
+            print(f"{'='*60}")
+            print(f"  Press Ctrl+C to stop\n")
+
+            # Set up environment for UI to connect to server
+            ui_env = os.environ.copy()
+            ui_env["NEXT_PUBLIC_MAIL_SERVER_URL"] = server_url
+
+            # Start UI dev server in background
+            # Note: stdout/stderr suppressed for cleaner output. If UI fails to start,
+            # the error message directs users to run pnpm dev manually.
+            ui_proc = subprocess.Popen(
+                ["pnpm", "dev", "--port", str(ui_port)],
+                cwd=ui_path,
+                env=ui_env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            # Poll to verify UI process started successfully
+            time.sleep(2)
+            if ui_proc.poll() is not None:
+                # Process exited - UI failed to start
+                raise RuntimeError(
+                    f"UI dev server failed to start (exit code {ui_proc.returncode}).\n"
+                    f"To see the actual error, run manually:\n"
+                    f"  cd {ui_path} && pnpm dev --port {ui_port}"
+                )
+
+            # Open browser (with WSL2 support)
+            if open_browser:
+                url = f"http://localhost:{ui_port}"
+                # Detect WSL2 and use Windows browser
+                if "microsoft" in os.uname().release.lower():
+                    # WSL2: use cmd.exe to open Windows default browser
+                    subprocess.Popen(
+                        ["cmd.exe", "/c", "start", "", url],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                else:
+                    webbrowser.open(url)
+        else:
+            # Server-only banner
+            print(f"\n{'='*60}")
+            print(f"  MAIL Server")
+            print(f"  Swarm: {self.name}")
+            print(f"  Agents: {', '.join(self.agent_names)}")
+            print(f"{'='*60}")
+            print(f"  Server: http://{host}:{port}")
+            print(f"{'='*60}")
+            print(f"  Press Ctrl+C to stop\n")
+
+        try:
+            run_server_with_template(
+                template=self,
+                port=port,
+                host=host,
+                task_message_limit=None,
+            )
+        except OSError as e:
+            if "Address already in use" in str(e) or getattr(e, 'errno', None) == 98:
+                raise OSError(f"Port {port} is already in use. Try a different port.") from e
+            raise
+        finally:
+            # Graceful shutdown of UI process
+            if ui_proc is not None:
+                ui_proc.terminate()
+                try:
+                    ui_proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    ui_proc.kill()

@@ -2,7 +2,7 @@
 
 import { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { Scale, Sparkles } from 'lucide-react';
+import { Scale, Sparkles, Eye } from 'lucide-react';
 import type { AgentNodeData } from '@/types/mail';
 
 interface AgentNodeProps {
@@ -10,7 +10,7 @@ interface AgentNodeProps {
   selected?: boolean;
 }
 
-// Colors for virtual node types
+// Colors for virtual node types (normal mode)
 const VIRTUAL_COLORS = {
   judge: {
     border: '#e67e22',
@@ -26,10 +26,28 @@ const VIRTUAL_COLORS = {
   },
 };
 
-function AgentNodeComponent({ data, selected }: AgentNodeProps) {
-  const { name, isEntrypoint, canComplete, isInterswarm, isActive, eventCount, isVirtual, virtualType } = data;
+// Eval mode colors - more dramatic
+const EVAL_VIRTUAL_COLORS = {
+  judge: {
+    border: '#ffaa00',  // Amber for The Arbiter
+    bg: 'rgba(255, 170, 0, 0.08)',
+    glow: 'rgba(255, 170, 0, 0.5)',
+    text: '#ffaa00',
+  },
+  reflector: {
+    border: '#00ffff',  // Cyan for The Oracle
+    bg: 'rgba(0, 255, 255, 0.06)',
+    glow: 'rgba(0, 255, 255, 0.5)',
+    text: '#00ffff',
+  },
+};
 
-  const virtualColor = virtualType ? VIRTUAL_COLORS[virtualType] : null;
+function AgentNodeComponent({ data, selected }: AgentNodeProps) {
+  const { name, isEntrypoint, canComplete, isInterswarm, isActive, eventCount, isVirtual, virtualType, isEvalMode } = data;
+
+  // Use eval mode colors when in eval mode
+  const colorPalette = isEvalMode ? EVAL_VIRTUAL_COLORS : VIRTUAL_COLORS;
+  const virtualColor = virtualType ? colorPalette[virtualType] : null;
 
   // Virtual node specific styles
   const virtualStyles = isVirtual && virtualColor ? {
@@ -37,8 +55,26 @@ function AgentNodeComponent({ data, selected }: AgentNodeProps) {
     backgroundColor: virtualColor.bg,
     borderStyle: 'dashed' as const,
     borderWidth: '2px',
-    boxShadow: isActive ? `0 0 20px ${virtualColor.glow}` : undefined,
+    boxShadow: isActive
+      ? `0 0 20px ${virtualColor.glow}, 0 0 40px ${virtualColor.glow}40`
+      : undefined,
   } : {};
+
+  // Determine badge text - more dramatic in eval mode
+  const getBadgeText = () => {
+    if (!isVirtual || !virtualType) return null;
+    if (isEvalMode) {
+      return virtualType === 'judge' ? 'THE ARBITER' : 'THE ORACLE';
+    }
+    return virtualType === 'judge' ? 'Evaluator' : 'GEPA';
+  };
+
+  // Display name - can be more dramatic in eval mode
+  const getDisplayName = () => {
+    if (isEvalMode && virtualType === 'judge') return 'JUDGE';
+    if (isEvalMode && virtualType === 'reflector') return 'REFLECTOR';
+    return name;
+  };
 
   return (
     <div
@@ -48,11 +84,38 @@ function AgentNodeComponent({ data, selected }: AgentNodeProps) {
         rounded transition-all duration-300
         ${!isVirtual && isActive ? 'forge-glow border-primary' : ''}
         ${selected ? 'border-gold shadow-[0_0_15px_rgba(207,181,59,0.3)]' : ''}
+        ${isEvalMode && isVirtual && virtualType === 'judge' && isActive ? 'judge-active' : ''}
+        ${isEvalMode && isVirtual && virtualType === 'reflector' && isActive ? 'reflector-active' : ''}
         hover:border-primary/40 hover:bg-secondary
         cursor-pointer
       `}
       style={virtualStyles}
     >
+      {/* Pulsing rings for Judge when active in eval mode */}
+      {isEvalMode && virtualType === 'judge' && isActive && (
+        <>
+          <div
+            className="absolute inset-0 rounded animate-ping opacity-20"
+            style={{ borderWidth: '2px', borderStyle: 'solid', borderColor: virtualColor?.border }}
+          />
+          <div
+            className="absolute -inset-2 rounded animate-pulse opacity-10"
+            style={{ borderWidth: '1px', borderStyle: 'dashed', borderColor: virtualColor?.border }}
+          />
+        </>
+      )}
+
+      {/* Breathing effect for Reflector when active in eval mode */}
+      {isEvalMode && virtualType === 'reflector' && isActive && (
+        <div
+          className="absolute inset-0 rounded pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse at center, ${virtualColor?.glow}30 0%, transparent 70%)`,
+            animation: 'reflector-breathe 2s ease-in-out infinite',
+          }}
+        />
+      )}
+
       {/* Connection handles */}
       <Handle
         type="target"
@@ -83,27 +146,27 @@ function AgentNodeComponent({ data, selected }: AgentNodeProps) {
 
       {/* Agent name with icon for virtual nodes */}
       <div
-        className="font-mono text-sm font-semibold mb-2 tracking-wide flex items-center gap-2"
+        className={`font-mono text-sm font-semibold mb-2 tracking-wide flex items-center gap-2 ${isEvalMode && isVirtual ? 'glitch-text' : ''}`}
         style={{ color: virtualColor?.text || 'var(--foreground)' }}
       >
         {virtualType === 'judge' && <Scale className="w-4 h-4" />}
-        {virtualType === 'reflector' && <Sparkles className="w-4 h-4" />}
-        {name}
+        {virtualType === 'reflector' && (isEvalMode ? <Eye className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />)}
+        {getDisplayName()}
       </div>
 
       {/* Badges */}
       <div className="flex flex-wrap gap-1">
         {isVirtual && virtualType && (
           <span
-            className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wider"
+            className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase tracking-wider ${isEvalMode ? 'border' : ''}`}
             style={{
               backgroundColor: `${virtualColor?.border}20`,
-              borderColor: `${virtualColor?.border}40`,
-              borderWidth: '1px',
+              borderColor: `${virtualColor?.border}60`,
               color: virtualColor?.text,
+              textShadow: isEvalMode ? `0 0 5px ${virtualColor?.border}` : undefined,
             }}
           >
-            {virtualType === 'judge' ? 'Evaluator' : 'GEPA'}
+            {getBadgeText()}
           </span>
         )}
         {isEntrypoint && (
@@ -129,7 +192,8 @@ function AgentNodeComponent({ data, selected }: AgentNodeProps) {
           className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
           style={virtualColor ? {
             backgroundColor: virtualColor.border,
-            color: '#fff',
+            color: '#000',
+            boxShadow: isEvalMode ? `0 0 10px ${virtualColor.border}` : undefined,
           } : {
             backgroundColor: 'var(--primary)',
             color: 'var(--primary-foreground)',
@@ -139,12 +203,14 @@ function AgentNodeComponent({ data, selected }: AgentNodeProps) {
         </div>
       )}
 
-      {/* Metallic edge highlight (only for non-virtual nodes) */}
+      {/* Metallic/Matrix edge highlight (non-virtual nodes) */}
       {!isVirtual && (
         <div
           className="absolute inset-0 rounded pointer-events-none"
           style={{
-            background: 'linear-gradient(135deg, rgba(205,127,50,0.1) 0%, transparent 50%, rgba(207,181,59,0.05) 100%)',
+            background: isEvalMode
+              ? 'linear-gradient(135deg, rgba(0,255,65,0.1) 0%, transparent 50%, rgba(0,255,255,0.05) 100%)'
+              : 'linear-gradient(135deg, rgba(205,127,50,0.1) 0%, transparent 50%, rgba(207,181,59,0.05) 100%)',
           }}
         />
       )}

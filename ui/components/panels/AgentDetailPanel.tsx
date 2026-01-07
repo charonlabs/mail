@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect } from 'react';
-import { X, Cpu, Wrench, MessageSquare, ArrowRight } from 'lucide-react';
+import { X, Cpu, Wrench, MessageSquare, ArrowRight, Scale, Sparkles, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useAppStore, useAgentTrace } from '@/lib/store';
 import type { MAILEvent } from '@/types/mail';
 
@@ -134,6 +134,192 @@ function ToolCallCard({ event }: { event: MAILEvent }) {
   );
 }
 
+// Component for displaying judge events
+function JudgeEventCard({ event }: { event: MAILEvent }) {
+  const isStart = event.event === 'judge_start';
+  const extraData = event.extra_data as {
+    passed?: boolean;
+    score?: number;
+    threshold?: number;
+    feedback?: string;
+    judge_output?: {
+      score?: { total?: number; max_total?: number; rationale?: string };
+      choice?: { selected?: string; selected_value?: number; rationale?: string };
+    };
+  } | undefined;
+
+  const passed = extraData?.passed;
+  const score = extraData?.score;
+  const threshold = extraData?.threshold;
+  const feedback = extraData?.feedback;
+  const judgeOutput = extraData?.judge_output;
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-2">
+        <Scale className="w-4 h-4 text-amber-500" />
+        <span className="text-xs text-amber-500 font-medium uppercase tracking-wider">
+          {isStart ? 'Judging Started' : 'Judgment Complete'}
+        </span>
+        <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+          {new Date(event.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+
+      <div className={`border rounded-lg overflow-hidden ${
+        isStart
+          ? 'border-amber-500/30 bg-amber-500/5'
+          : passed
+            ? 'border-green-500/30 bg-green-500/5'
+            : 'border-red-500/30 bg-red-500/5'
+      }`}>
+        {isStart ? (
+          <div className="p-3 text-sm text-muted-foreground">
+            Evaluating response...
+          </div>
+        ) : (
+          <div className="p-3 space-y-3">
+            {/* Verdict */}
+            <div className="flex items-center gap-2">
+              {passed ? (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              ) : (
+                <XCircle className="w-5 h-5 text-red-500" />
+              )}
+              <span className={`font-bold ${passed ? 'text-green-500' : 'text-red-500'}`}>
+                {passed ? 'PASSED' : 'FAILED'}
+              </span>
+              {score !== undefined && threshold !== undefined && (
+                <span className="text-sm text-muted-foreground ml-2">
+                  Score: {score.toFixed(2)} / {threshold.toFixed(2)} threshold
+                </span>
+              )}
+            </div>
+
+            {/* Score details */}
+            {judgeOutput?.score && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Score: </span>
+                <span className="text-foreground">
+                  {judgeOutput.score.total}/{judgeOutput.score.max_total}
+                </span>
+                {judgeOutput.score.rationale && (
+                  <p className="mt-1 text-muted-foreground italic">
+                    {judgeOutput.score.rationale}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Feedback */}
+            {feedback && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Feedback: </span>
+                <p className="mt-1 text-foreground">{feedback}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Component for displaying reflection events
+function ReflectionEventCard({ event }: { event: MAILEvent }) {
+  const isStart = event.event === 'reflection_start';
+  const isError = event.event === 'reflection_error';
+  const extraData = event.extra_data as {
+    agent?: string;
+    num_failure_analyses?: number;
+    num_changes?: number;
+    failure_analyses?: Array<{ example_index?: number; root_cause?: string; explanation?: string }>;
+    proposed_changes?: string[];
+    new_prompt_preview?: string;
+    error?: string;
+  } | undefined;
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center gap-2 mb-2">
+        <Sparkles className={`w-4 h-4 ${isError ? 'text-red-500' : 'text-cyan-500'}`} />
+        <span className={`text-xs font-medium uppercase tracking-wider ${
+          isError ? 'text-red-500' : 'text-cyan-500'
+        }`}>
+          {isStart ? 'Reflection Started' : isError ? 'Reflection Error' : 'Reflection Complete'}
+        </span>
+        {extraData?.agent && (
+          <>
+            <span className="text-muted-foreground">for</span>
+            <span className="text-sm font-medium text-foreground">{extraData.agent}</span>
+          </>
+        )}
+        <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+          {new Date(event.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+
+      <div className={`border rounded-lg overflow-hidden ${
+        isError
+          ? 'border-red-500/30 bg-red-500/5'
+          : 'border-cyan-500/30 bg-cyan-500/5'
+      }`}>
+        {isStart ? (
+          <div className="p-3 text-sm text-muted-foreground">
+            Analyzing failures and generating prompt improvements...
+          </div>
+        ) : isError ? (
+          <div className="p-3 flex items-center gap-2 text-red-500">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="text-sm">{extraData?.error || 'Reflection failed'}</span>
+          </div>
+        ) : (
+          <div className="p-3 space-y-3">
+            {/* Summary */}
+            <div className="flex items-center gap-4 text-sm">
+              {extraData?.num_failure_analyses !== undefined && (
+                <span className="text-muted-foreground">
+                  Analyzed: <span className="text-foreground">{extraData.num_failure_analyses} failures</span>
+                </span>
+              )}
+              {extraData?.num_changes !== undefined && (
+                <span className="text-muted-foreground">
+                  Changes: <span className="text-foreground">{extraData.num_changes} proposed</span>
+                </span>
+              )}
+            </div>
+
+            {/* Proposed changes */}
+            {extraData?.proposed_changes && extraData.proposed_changes.length > 0 && (
+              <div className="text-sm">
+                <span className="text-muted-foreground font-medium">Proposed Changes:</span>
+                <ul className="mt-1 space-y-1">
+                  {extraData.proposed_changes.map((change, i) => (
+                    <li key={i} className="text-foreground pl-3 border-l-2 border-cyan-500/30">
+                      {change}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* New prompt preview */}
+            {extraData?.new_prompt_preview && (
+              <div className="text-sm">
+                <span className="text-muted-foreground font-medium">New Prompt Preview:</span>
+                <pre className="mt-1 p-2 bg-background/50 rounded text-xs text-foreground whitespace-pre-wrap font-mono max-h-40 overflow-y-auto">
+                  {extraData.new_prompt_preview.slice(0, 500)}
+                  {extraData.new_prompt_preview.length > 500 && '...'}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Render the appropriate card based on event type
 function TraceEventCard({ event, agentName }: { event: MAILEvent; agentName: string }) {
   if (event.event === 'new_message') {
@@ -141,6 +327,12 @@ function TraceEventCard({ event, agentName }: { event: MAILEvent; agentName: str
   }
   if (event.event === 'tool_call' || event.event === 'builtin_tool_call') {
     return <ToolCallCard event={event} />;
+  }
+  if (event.event === 'judge_start' || event.event === 'judge_complete') {
+    return <JudgeEventCard event={event} />;
+  }
+  if (event.event === 'reflection_start' || event.event === 'reflection_complete' || event.event === 'reflection_error') {
+    return <ReflectionEventCard event={event} />;
   }
   return null;
 }

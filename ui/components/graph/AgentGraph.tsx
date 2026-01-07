@@ -165,13 +165,35 @@ export function AgentGraph() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // Calculate event counts per agent
+  // Calculate event counts per agent (includes both caller and recipient events)
   const eventCounts = useMemo(() => {
     const counts = new Map<string, number>();
     events.forEach((event) => {
+      // Count events where agent is the caller
       const caller = event.extra_data?.caller;
       if (caller && typeof caller === 'string') {
         counts.set(caller, (counts.get(caller) || 0) + 1);
+      }
+
+      // Also count events where agent is a recipient (for messages)
+      if (event.event === 'new_message' && event.extra_data?.full_message) {
+        const msg = event.extra_data.full_message as {
+          message?: {
+            recipient?: { address?: string };
+            recipients?: Array<{ address?: string }>;
+          };
+        };
+        const recipient = msg.message?.recipient?.address;
+        const recipients = msg.message?.recipients?.map(r => r.address) || [];
+
+        if (recipient && recipient !== caller) {
+          counts.set(recipient, (counts.get(recipient) || 0) + 1);
+        }
+        recipients.forEach(r => {
+          if (r && r !== caller) {
+            counts.set(r, (counts.get(r) || 0) + 1);
+          }
+        });
       }
     });
     return counts;
@@ -258,6 +280,7 @@ export function AgentGraph() {
         eventCount: eventCounts.get(agent.name) || 0,
         isVirtual: agent.isVirtual,
         virtualType,
+        isEvalMode,
       };
 
       return {

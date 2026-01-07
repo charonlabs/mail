@@ -12,10 +12,12 @@ export function useSSE() {
     serverUrl,
     addEvent,
     addMessage,
+    replaceUserMessageForTask,
     setCurrentTaskId,
     setIsProcessing,
     currentTaskId,
     entrypoint,
+    isEvalMode,
   } = useAppStore();
 
   const sendMessage = useCallback(
@@ -89,6 +91,32 @@ export function useSSE() {
             });
             // Keep task ID for retry
             break;
+          } else if (event === 'eval_config') {
+            const eventData = data as {
+              task_id?: string;
+              timestamp?: string;
+              extra_data?: { question?: string };
+            };
+            const question = eventData.extra_data?.question;
+            if (isEvalMode && question) {
+              const taskIdForMsg = eventData.task_id || taskId;
+              const { messages } = useAppStore.getState();
+              const hasUserMessage = messages.some(
+                (message) => message.role === 'user' && message.task_id === taskIdForMsg
+              );
+
+              if (hasUserMessage) {
+                replaceUserMessageForTask(taskIdForMsg, question, eventData.timestamp);
+              } else {
+                addMessage({
+                  id: uuidv4(),
+                  role: 'user',
+                  content: question,
+                  timestamp: eventData.timestamp || new Date().toISOString(),
+                  task_id: taskIdForMsg,
+                });
+              }
+            }
           } else if (event !== 'ping') {
             // Add to events stream
             const eventData = data as Partial<MAILEvent>;
@@ -124,8 +152,10 @@ export function useSSE() {
       entrypoint,
       addEvent,
       addMessage,
+      replaceUserMessageForTask,
       setCurrentTaskId,
       setIsProcessing,
+      isEvalMode,
     ]
   );
 

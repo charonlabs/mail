@@ -643,11 +643,28 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         response = await client.messages.create(**request_params)
 
-        # Build assistant message from content blocks for multi-turn conversations
+        # Handle pause_turn - model paused mid-generation (often during long thinking)
+        # We need to continue generation by sending the partial response back
+        all_content_blocks = list(response.content)
+        while response.stop_reason == "pause_turn":
+            logger.debug(
+                f"Received pause_turn, continuing generation (accumulated {len(all_content_blocks)} blocks)"
+            )
+            # Add partial response to messages so model can continue
+            anthropic_messages.append({
+                "role": "assistant",
+                "content": [block.model_dump() for block in response.content],
+            })
+            request_params["messages"] = anthropic_messages
+            response = await client.messages.create(**request_params)
+            # Accumulate content blocks from continuation
+            all_content_blocks.extend(response.content)
+
+        # Build assistant message from all accumulated content blocks
         # This preserves thinking blocks, tool_use, text, etc. in Anthropic format
         assistant_message: dict[str, Any] = {
             "role": "assistant",
-            "content": [block.model_dump() for block in response.content],
+            "content": [block.model_dump() for block in all_content_blocks],
         }
 
         # Parse response content blocks with interleaved thinking support
@@ -662,7 +679,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         pending_reasoning: list[str] = []
         pending_preamble: list[str] = []
 
-        for block in response.content:
+        for block in all_content_blocks:
             block_type = block.type
 
             if block_type == "thinking":
@@ -869,61 +886,85 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         is_searching = False
         is_reasoning = False
 
-        async with client.messages.stream(**request_params) as stream:
-            async for event in stream:
-                event_type = event.type
+        # Accumulate all content blocks across potential pause_turn continuations
+        all_content_blocks: list[Any] = []
+        final_message = None
 
-                if event_type == "content_block_start":
-                    block = event.content_block
-                    block_type = block.type
+        while True:
+            async with client.messages.stream(**request_params) as stream:
+                async for event in stream:
+                    event_type = event.type
 
-                    if block_type == "thinking":
-                        if not is_reasoning:
-                            rich.print(
-                                f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
-                            )
-                            is_reasoning = True
+                    if event_type == "content_block_start":
+                        block = event.content_block
+                        block_type = block.type
 
-                    elif block_type == "redacted_thinking":
-                        # Redacted thinking blocks contain encrypted content
-                        if not is_reasoning:
-                            rich.print(
-                                f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
-                            )
-                            is_reasoning = True
-                        rich.print("[redacted thinking]", flush=True)
+                        if block_type == "thinking":
+                            if not is_reasoning:
+                                rich.print(
+                                    f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                                )
+                                is_reasoning = True
 
-                    elif block_type == "server_tool_use":
-                        if not is_searching:
-                            rich.print(
-                                f"\n\n[bold yellow]{'=' * 21} WEB SEARCH {'=' * 21}[/bold yellow]\n\n"
-                            )
-                            is_searching = True
+                        elif block_type == "redacted_thinking":
+                            # Redacted thinking blocks contain encrypted content
+                            if not is_reasoning:
+                                rich.print(
+                                    f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                                )
+                                is_reasoning = True
+                            rich.print("[redacted thinking]", flush=True)
 
-                    elif block_type == "text":
-                        if not is_response:
-                            rich.print(
-                                f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
-                            )
-                            is_response = True
+                        elif block_type == "server_tool_use":
+                            if not is_searching:
+                                rich.print(
+                                    f"\n\n[bold yellow]{'=' * 21} WEB SEARCH {'=' * 21}[/bold yellow]\n\n"
+                                )
+                                is_searching = True
 
-                elif event_type == "content_block_delta":
-                    delta = event.delta
-                    delta_type = delta.type
+                        elif block_type == "text":
+                            if not is_response:
+                                rich.print(
+                                    f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                                )
+                                is_response = True
 
-                    if delta_type == "thinking_delta":
-                        print(delta.thinking, end="", flush=True)
-                    elif delta_type == "text_delta":
-                        print(delta.text, end="", flush=True)
+                    elif event_type == "content_block_delta":
+                        delta = event.delta
+                        delta_type = delta.type
 
-            # Get the final message with full content
-            final_message = await stream.get_final_message()
+                        if delta_type == "thinking_delta":
+                            print(delta.thinking, end="", flush=True)
+                        elif delta_type == "text_delta":
+                            print(delta.text, end="", flush=True)
 
-        # Build assistant message from content blocks for multi-turn conversations
+                # Get the final message with full content
+                final_message = await stream.get_final_message()
+
+            # Accumulate content blocks from this stream
+            all_content_blocks.extend(final_message.content)
+
+            # Check if we need to continue (pause_turn means model paused mid-generation)
+            if final_message.stop_reason == "pause_turn":
+                logger.debug(
+                    f"Received pause_turn in stream, continuing generation (accumulated {len(all_content_blocks)} blocks)"
+                )
+                # Add partial response to messages so model can continue
+                anthropic_messages.append({
+                    "role": "assistant",
+                    "content": [block.model_dump() for block in final_message.content],
+                })
+                request_params["messages"] = anthropic_messages
+                # Continue the loop to start a new stream
+            else:
+                # Generation complete (end_turn, tool_use, etc.)
+                break
+
+        # Build assistant message from all accumulated content blocks
         # This preserves thinking blocks, tool_use, text, etc. in Anthropic format
         assistant_message: dict[str, Any] = {
             "role": "assistant",
-            "content": [block.model_dump() for block in final_message.content],
+            "content": [block.model_dump() for block in all_content_blocks],
         }
 
         # Process the final message to get complete data with interleaved thinking
@@ -936,7 +977,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         pending_reasoning: list[str] = []
         pending_preamble: list[str] = []
 
-        for block in final_message.content:
+        for block in all_content_blocks:
             block_type = block.type
 
             if block_type == "thinking":

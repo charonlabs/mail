@@ -109,6 +109,7 @@ export interface AgentNodeData {
   eventCount: number;
   isVirtual?: boolean;  // True for virtual nodes like Judge/Reflector
   virtualType?: 'judge' | 'reflector';  // Type of virtual node
+  isEvalMode?: boolean;  // True when in eval mode (for special effects)
   [key: string]: unknown; // Index signature for React Flow compatibility
 }
 
