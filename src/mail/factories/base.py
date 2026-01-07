@@ -56,6 +56,7 @@ def base_agent_factory(
     use_proxy: bool = True,
     stream_tokens: bool = False,
     _debug_include_mail_tools: bool = True,
+    default_tool_choice: str | dict[str, str] | None = None,
 ) -> AgentFunction:
     warnings.warn(
         "`mail.factories.base:base_agent_factory` is deprecated and will be removed in a future version. "
@@ -83,6 +84,7 @@ def base_agent_factory(
         use_proxy=use_proxy,
         stream_tokens=stream_tokens,
         _debug_include_mail_tools=_debug_include_mail_tools,
+        default_tool_choice=default_tool_choice,
     )
 
     async def run(
@@ -165,6 +167,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         use_proxy: bool = True,
         stream_tokens: bool = False,
         _debug_include_mail_tools: bool = True,
+        default_tool_choice: str | dict[str, str] | None = None,
     ) -> None:
         self.extra_headers: dict[str, str] = {}
         if use_proxy:
@@ -215,6 +218,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         self.use_proxy = use_proxy
         self.stream_tokens = stream_tokens
         self._debug_include_mail_tools = _debug_include_mail_tools
+        self.default_tool_choice = default_tool_choice
 
     def __call__(
         self,
@@ -224,10 +228,16 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         """
         Execute the MAIL-compatible agent function using the LiteLLM API.
         """
+        # Use default_tool_choice if set, otherwise use the passed tool_choice
+        effective_tool_choice = (
+            self.default_tool_choice
+            if self.default_tool_choice is not None
+            else tool_choice
+        )
         if self.tool_format == "completions":
-            return self._run_completions(messages, tool_choice)
+            return self._run_completions(messages, effective_tool_choice)
         else:
-            return self._run_responses(messages, tool_choice)
+            return self._run_responses(messages, effective_tool_choice)
 
     async def _preprocess(
         self,
