@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+import uuid
 import warnings
 from abc import abstractmethod
 from collections.abc import Awaitable
@@ -549,7 +550,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 AgentToolCall(
                     tool_name="text_output",
                     tool_args={"content": msg.content},
-                    tool_call_id="",
+                    tool_call_id=str(uuid.uuid4()),
                     completion=assistant_dict,
                 )
             )
@@ -649,42 +650,39 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             "content": [block.model_dump() for block in response.content],
         }
 
-        # Parse response content blocks
+        # Parse response content blocks with interleaved thinking support
         tool_calls: list[AgentToolCall] = []
         text_chunks: list[str] = []
-        thinking_blocks: list[
-            dict[str, Any]
-        ] = []  # Full blocks with signature for multi-turn
         all_citations: list[dict[str, Any]] = []
         web_search_results: dict[
             str, list[dict[str, Any]]
         ] = {}  # tool_use_id -> results
 
+        # Track pending reasoning/preamble for interleaved association
+        pending_reasoning: list[str] = []
+        pending_preamble: list[str] = []
+
         for block in response.content:
             block_type = block.type
 
             if block_type == "thinking":
-                # Capture full thinking block (including signature) for multi-turn support
-                thinking_blocks.append(
-                    {
-                        "type": "thinking",
-                        "thinking": getattr(block, "thinking", ""),
-                        "signature": getattr(block, "signature", ""),
-                    }
-                )
+                # Capture thinking text for next tool call
+                thinking_text = getattr(block, "thinking", "")
+                if thinking_text:
+                    pending_reasoning.append(thinking_text)
 
             elif block_type == "redacted_thinking":
-                # Capture redacted thinking blocks - these contain encrypted content
-                # that must be passed back unmodified for multi-turn conversations
-                thinking_blocks.append(
-                    {
-                        "type": "redacted_thinking",
-                        "data": getattr(block, "data", ""),
-                    }
-                )
+                # Use placeholder for redacted thinking
+                pending_reasoning.append("[redacted thinking]")
 
             elif block_type == "server_tool_use":
-                # Capture the web search query
+                # Capture reasoning/preamble for this tool call
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
                 tool_calls.append(
                     AgentToolCall(
                         tool_name="web_search_call",
@@ -694,8 +692,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         },
                         tool_call_id=block.id,
                         completion=assistant_message,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
                     )
                 )
+                pending_reasoning = []
+                pending_preamble = []
 
             elif block_type == "web_search_tool_result":
                 # Extract search results and associate with tool call
@@ -712,7 +714,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 web_search_results[block.tool_use_id] = results
 
             elif block_type == "text":
+                # Text blocks contribute to preamble (don't reset pending_reasoning)
                 text_chunks.append(block.text)
+                pending_preamble.append(block.text)
                 # Extract citations if present
                 if hasattr(block, "citations") and block.citations:
                     for citation in block.citations:
@@ -726,14 +730,24 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             elif block_type == "tool_use":
                 # Handle regular tool calls (non-server-side)
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
                 tool_calls.append(
                     AgentToolCall(
                         tool_name=block.name,
                         tool_args=block.input,
                         tool_call_id=block.id,
                         completion=assistant_message,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
                     )
                 )
+                pending_reasoning = []
+                pending_preamble = []
 
         # Update tool calls with their results
         for tc in tool_calls:
@@ -750,38 +764,19 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     tc.tool_args["citations"] = all_citations
                     break
 
-        # Add thinking/reasoning content if present
-        # Extract text content from thinking blocks (for display), excluding redacted blocks
-        thinking_content = "".join(
-            b.get("thinking", "")
-            for b in thinking_blocks
-            if b.get("type") == "thinking"
-        )
-        if thinking_content or thinking_blocks:
-            # Add to the first tool call (usually web_search_call or text_output)
-            if tool_calls:
-                if thinking_content:
-                    tool_calls[0].tool_args["reasoning"] = thinking_content
-                # Store full thinking blocks for multi-turn conversations with tool use
-                # These must be passed back unmodified to maintain reasoning continuity
-                if thinking_blocks:
-                    tool_calls[0].tool_args["thinking_blocks"] = thinking_blocks
-
         content = "".join(text_chunks)
 
-        # If no tool calls, add text_output
+        # If no tool calls, add text_output with any remaining reasoning
         if len(tool_calls) == 0:
-            tool_args: dict[str, Any] = {"content": content}
-            if thinking_content:
-                tool_args["reasoning"] = thinking_content
-            if thinking_blocks:
-                tool_args["thinking_blocks"] = thinking_blocks
+            call_reasoning = pending_reasoning.copy() if pending_reasoning else None
             tool_calls.append(
                 AgentToolCall(
                     tool_name="text_output",
-                    tool_args=tool_args,
-                    tool_call_id="",
+                    tool_args={"content": content},
+                    tool_call_id=str(uuid.uuid4()),
                     completion=assistant_message,
+                    reasoning=call_reasoning,
+                    preamble=None,  # No preamble for text-only
                 )
             )
 
@@ -931,39 +926,37 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             "content": [block.model_dump() for block in final_message.content],
         }
 
-        # Process the final message to get complete data
+        # Process the final message to get complete data with interleaved thinking
         tool_calls: list[AgentToolCall] = []
         text_chunks: list[str] = []
-        thinking_blocks: list[
-            dict[str, Any]
-        ] = []  # Full blocks with signature for multi-turn
         all_citations: list[dict[str, Any]] = []
         web_search_results: dict[str, list[dict[str, Any]]] = {}
+
+        # Track pending reasoning/preamble for interleaved association
+        pending_reasoning: list[str] = []
+        pending_preamble: list[str] = []
 
         for block in final_message.content:
             block_type = block.type
 
             if block_type == "thinking":
-                # Capture full thinking block (including signature) for multi-turn support
-                thinking_blocks.append(
-                    {
-                        "type": "thinking",
-                        "thinking": getattr(block, "thinking", ""),
-                        "signature": getattr(block, "signature", ""),
-                    }
-                )
+                # Capture thinking text for next tool call
+                thinking_text = getattr(block, "thinking", "")
+                if thinking_text:
+                    pending_reasoning.append(thinking_text)
 
             elif block_type == "redacted_thinking":
-                # Capture redacted thinking blocks - these contain encrypted content
-                # that must be passed back unmodified for multi-turn conversations
-                thinking_blocks.append(
-                    {
-                        "type": "redacted_thinking",
-                        "data": getattr(block, "data", ""),
-                    }
-                )
+                # Use placeholder for redacted thinking
+                pending_reasoning.append("[redacted thinking]")
 
             elif block_type == "server_tool_use":
+                # Capture reasoning/preamble for this tool call
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
                 tool_calls.append(
                     AgentToolCall(
                         tool_name="web_search_call",
@@ -973,8 +966,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         },
                         tool_call_id=block.id,
                         completion=assistant_message,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
                     )
                 )
+                pending_reasoning = []
+                pending_preamble = []
 
             elif block_type == "web_search_tool_result":
                 results = []
@@ -990,7 +987,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 web_search_results[block.tool_use_id] = results
 
             elif block_type == "text":
+                # Text blocks contribute to preamble (don't reset pending_reasoning)
                 text_chunks.append(block.text)
+                pending_preamble.append(block.text)
                 if hasattr(block, "citations") and block.citations:
                     for citation in block.citations:
                         all_citations.append(
@@ -1002,14 +1001,25 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         )
 
             elif block_type == "tool_use":
+                # Handle regular tool calls (non-server-side)
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
                 tool_calls.append(
                     AgentToolCall(
                         tool_name=block.name,
                         tool_args=block.input,
                         tool_call_id=block.id,
                         completion=assistant_message,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
                     )
                 )
+                pending_reasoning = []
+                pending_preamble = []
 
         # Update tool calls with their results
         for tc in tool_calls:
@@ -1026,38 +1036,19 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     tc.tool_args["citations"] = all_citations
                     break
 
-        # Add thinking/reasoning content if present
-        # Extract text content from thinking blocks (for display), excluding redacted blocks
-        thinking_content = "".join(
-            b.get("thinking", "")
-            for b in thinking_blocks
-            if b.get("type") == "thinking"
-        )
-        if thinking_content or thinking_blocks:
-            # Add to the first tool call (usually web_search_call or text_output)
-            if tool_calls:
-                if thinking_content:
-                    tool_calls[0].tool_args["reasoning"] = thinking_content
-                # Store full thinking blocks for multi-turn conversations with tool use
-                # These must be passed back unmodified to maintain reasoning continuity
-                if thinking_blocks:
-                    tool_calls[0].tool_args["thinking_blocks"] = thinking_blocks
-
         content = "".join(text_chunks)
 
-        # If no tool calls, add text_output
+        # If no tool calls, add text_output with any remaining reasoning
         if len(tool_calls) == 0:
-            tool_args: dict[str, Any] = {"content": content}
-            if thinking_content:
-                tool_args["reasoning"] = thinking_content
-            if thinking_blocks:
-                tool_args["thinking_blocks"] = thinking_blocks
+            call_reasoning = pending_reasoning.copy() if pending_reasoning else None
             tool_calls.append(
                 AgentToolCall(
                     tool_name="text_output",
-                    tool_args=tool_args,
-                    tool_call_id="",
+                    tool_args={"content": content},
+                    tool_call_id=str(uuid.uuid4()),
                     completion=assistant_message,
+                    reasoning=call_reasoning,
+                    preamble=None,  # No preamble for text-only
                 )
             )
 
@@ -1142,11 +1133,18 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     "effort": self.reasoning_effort or "medium",
                     "summary": "auto",
                 }
+            # Track streaming reasoning data (None for non-streaming)
+            tool_reasoning_map: dict[int, list[str]] | None = None
+            streaming_pending_reasoning: list[str] | None = None
+
             while retries > 0:
                 try:
                     if self.stream_tokens:
-                        res = await self._stream_responses(
-                            messages, include, reasoning, agent_tools, tool_choice
+                        # Streaming returns 3-tuple with reasoning tracking
+                        res, tool_reasoning_map, streaming_pending_reasoning = (
+                            await self._stream_responses(
+                                messages, include, reasoning, agent_tools, tool_choice
+                            )
                         )
                     else:
                         res = await aresponses(
@@ -1167,104 +1165,223 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     logger.warning(f"Retrying {retries} more times")
                     await asyncio.sleep(retries)
 
-        tool_calls: list[OutputFunctionToolCall] = []
-        builtin_tool_calls: list[dict[str, Any]] = []
-        message_chunks: list[str] = []
-
-        for output in res.output:
-            if isinstance(output, dict):
-                if output["type"] == "function_call":
-                    tool_calls.append(output)  # type: ignore
-                elif output["type"] == "message":
-                    message_chunks.append(output["content"][0]["text"])
-                elif output["type"] in ("web_search_call", "code_interpreter_call"):
-                    builtin_tool_calls.append(output)
-            elif output.type == "function_call":
-                tool_calls.append(output)  # type: ignore
-            elif output.type == "message":
-                message_chunks.append(output.content[0].text)  # type: ignore
-            elif output.type in ("web_search_call", "code_interpreter_call"):
-                builtin_tool_calls.append(
-                    output.model_dump()
-                    if hasattr(output, "model_dump")
-                    else dict(output)
-                )
-
+        # Single-pass collection preserving original order with reasoning attachment
         agent_tool_calls: list[AgentToolCall] = []
         res_dict = res.model_dump()
         outputs = res_dict["output"]
 
-        if len(tool_calls) > 0 or len(builtin_tool_calls) > 0:
-            # Build assistant.tool_calls and AgentToolCall objects with consistent ids
-            for tc in tool_calls:
-                assert tc is not None
+        # Track pending reasoning/preamble for interleaved association
+        pending_reasoning: list[str] = []
+        pending_preamble: list[str] = []
+        first_message_text: str | None = None
+
+        # Helper to get output type (dict or object)
+        def get_output_type(output: Any) -> str | None:
+            if isinstance(output, dict):
+                return output.get("type")
+            return getattr(output, "type", None)
+
+        for i, output in enumerate(res.output):
+            output_type = get_output_type(output)
+
+            if output_type == "reasoning":
+                # Hold reasoning blocks for next tool call
                 # Handle both dict and object formats
-                if isinstance(tc, dict):
-                    call_id = tc["call_id"]
-                    name = tc["name"]
-                    arguments = tc["arguments"]
+                summary = (
+                    output.get("summary")
+                    if isinstance(output, dict)
+                    else getattr(output, "summary", None)
+                )
+                if summary:
+                    for s in summary:
+                        text = (
+                            s.get("text")
+                            if isinstance(s, dict)
+                            else getattr(s, "text", None)
+                        )
+                        if text:
+                            pending_reasoning.append(text)
+
+            elif output_type == "message":
+                # Message content - collect for preamble AND text_output fallback
+                content = (
+                    output.get("content")
+                    if isinstance(output, dict)
+                    else getattr(output, "content", None)
+                )
+                if content:
+                    for part in content:
+                        text = (
+                            part.get("text")
+                            if isinstance(part, dict)
+                            else getattr(part, "text", None)
+                        )
+                        if text:
+                            pending_preamble.append(text)
+                            if first_message_text is None:
+                                first_message_text = text
+
+            elif output_type == "function_call":
+                # Get reasoning - from inline extraction OR from streaming map
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
+
+                # For streaming: fill reasoning from map if inline extraction empty
+                if tool_reasoning_map and i in tool_reasoning_map:
+                    map_reasoning = tool_reasoning_map[i]
+                    if not call_reasoning and map_reasoning:
+                        call_reasoning = map_reasoning
+
+                # Handle both dict and object formats
+                if isinstance(output, dict):
+                    call_id = output["call_id"]
+                    name = output["name"]
+                    arguments = output["arguments"]
                 else:
-                    call_id = tc.call_id
-                    name = tc.name
-                    arguments = tc.arguments
-                assert call_id is not None
-                assert name is not None
-                assert arguments is not None
+                    call_id = output.call_id
+                    name = output.name
+                    arguments = output.arguments
+
                 agent_tool_calls.append(
                     AgentToolCall(
                         tool_name=name,
                         tool_args=ujson.loads(arguments),
                         tool_call_id=call_id,
-                        # Store the assistant message (with tool_calls) as the completion
-                        # so the runtime can append a valid chat message to history.
                         responses=outputs,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
                     )
                 )
+                pending_reasoning = []
+                pending_preamble = []
 
-            # Process built-in tool calls (web_search, code_interpreter)
-            # These are already executed by OpenAI, so we just capture them for tracing
-            for btc in builtin_tool_calls:
-                btc_type = btc.get("type", "unknown_builtin")
-                btc_id = btc.get("id", "")
+            elif output_type == "web_search_call":
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
+                if tool_reasoning_map and i in tool_reasoning_map:
+                    map_reasoning = tool_reasoning_map[i]
+                    if not call_reasoning and map_reasoning:
+                        call_reasoning = map_reasoning
 
-                if btc_type == "web_search_call":
-                    action = btc.get("action", {})
-                    tool_args = {
-                        "query": action.get("query", ""),
-                        "search_type": action.get("type", ""),
-                        "status": btc.get("status", ""),
-                    }
-                elif btc_type == "code_interpreter_call":
-                    tool_args = {
-                        "code": btc.get("code", ""),
-                        "outputs": btc.get("outputs"),
-                        "status": btc.get("status", ""),
-                    }
+                # Handle both dict and object - get fields safely
+                btc_id = (
+                    output.get("id")
+                    if isinstance(output, dict)
+                    else getattr(output, "id", "")
+                )
+                btc_status = (
+                    output.get("status")
+                    if isinstance(output, dict)
+                    else getattr(output, "status", "completed")
+                )
+                action = (
+                    output.get("action", {})
+                    if isinstance(output, dict)
+                    else getattr(output, "action", {})
+                )
+                if isinstance(action, dict):
+                    query = action.get("query", "")
+                    search_type = action.get("type", "")
                 else:
-                    tool_args = btc
+                    query = getattr(action, "query", "")
+                    search_type = getattr(action, "type", "")
 
                 agent_tool_calls.append(
                     AgentToolCall(
-                        tool_name=btc_type,
-                        tool_args=tool_args,
+                        tool_name="web_search_call",
+                        tool_args={
+                            "query": query,
+                            "search_type": search_type,
+                            "status": btc_status,
+                        },
                         tool_call_id=btc_id,
                         responses=outputs,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
                     )
                 )
+                pending_reasoning = []
+                pending_preamble = []
 
-            return "", agent_tool_calls
-        else:
-            assert len(message_chunks) > 0
+            elif output_type == "code_interpreter_call":
+                call_reasoning = (
+                    pending_reasoning.copy() if pending_reasoning else None
+                )
+                call_preamble = (
+                    "\n".join(pending_preamble) if pending_preamble else None
+                )
+                if tool_reasoning_map and i in tool_reasoning_map:
+                    map_reasoning = tool_reasoning_map[i]
+                    if not call_reasoning and map_reasoning:
+                        call_reasoning = map_reasoning
+
+                # Handle both dict and object
+                btc_id = (
+                    output.get("id")
+                    if isinstance(output, dict)
+                    else getattr(output, "id", "")
+                )
+                btc_status = (
+                    output.get("status")
+                    if isinstance(output, dict)
+                    else getattr(output, "status", "completed")
+                )
+                btc_code = (
+                    output.get("code")
+                    if isinstance(output, dict)
+                    else getattr(output, "code", "")
+                )
+                btc_outputs = (
+                    output.get("outputs")
+                    if isinstance(output, dict)
+                    else getattr(output, "outputs", [])
+                )
+
+                agent_tool_calls.append(
+                    AgentToolCall(
+                        tool_name="code_interpreter_call",
+                        tool_args={
+                            "code": btc_code,
+                            "outputs": btc_outputs,
+                            "status": btc_status,
+                        },
+                        tool_call_id=btc_id,
+                        responses=outputs,
+                        reasoning=call_reasoning,
+                        preamble=call_preamble,
+                    )
+                )
+                pending_reasoning = []
+                pending_preamble = []
+
+        # If no tool calls, create text_output with message content
+        if not agent_tool_calls and first_message_text:
+            # For text-only: use inline pending_reasoning, OR streaming fallback
+            call_reasoning = pending_reasoning.copy() if pending_reasoning else None
+            if not call_reasoning and streaming_pending_reasoning:
+                call_reasoning = streaming_pending_reasoning
+
             agent_tool_calls.append(
                 AgentToolCall(
                     tool_name="text_output",
-                    tool_args={"content": message_chunks[0]},
-                    tool_call_id="",
+                    tool_args={"content": first_message_text},
+                    tool_call_id=str(uuid.uuid4()),
                     responses=outputs,
+                    reasoning=call_reasoning,
+                    preamble=None,  # No preamble for text-only
                 )
             )
+            return first_message_text, agent_tool_calls
 
-            return message_chunks[0], agent_tool_calls
+        return "", agent_tool_calls
 
     async def _stream_responses(
         self,
@@ -1273,9 +1390,15 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         reasoning: dict[str, Any],
         tools: list[dict[str, Any]],
         tool_choice: str | dict[str, str] = "required",
-    ) -> ResponsesAPIResponse:
+    ) -> tuple[ResponsesAPIResponse, dict[int, list[str]], list[str]]:
         """
         Stream a LiteLLM responses-style call to the terminal.
+
+        Returns:
+            A 3-tuple of (response, tool_reasoning_map, pending_reasoning):
+            - response: The final ResponsesAPIResponse
+            - tool_reasoning_map: Dict mapping output_index to list of reasoning blocks
+            - pending_reasoning: Any reasoning that wasn't associated with a tool (for text-only)
         """
         litellm.drop_params = True
         stream = await aresponses(
@@ -1292,6 +1415,11 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         final_response = None
 
+        # Track interleaved reasoning per tool
+        pending_reasoning_parts: list[str] = []  # Completed reasoning blocks
+        current_reasoning_text: list[str] = []  # Delta accumulator for current block
+        tool_reasoning_map: dict[int, list[str]] = {}  # output_index -> reasoning_blocks
+
         async for event in stream:
             match event.type:
                 case "response.created":
@@ -1299,19 +1427,45 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
                     )
                 case "response.reasoning_summary_text.delta":
-                    # Stream reasoning text
+                    # Stream reasoning text and accumulate for mapping
                     rich.print(event.delta, end="", flush=True)
+                    current_reasoning_text.append(event.delta)
 
-                case "response.reasoning_summary_text.done":
-                    # Reasoning part complete
+                case "response.reasoning_summary_part.done":
+                    # Reasoning part complete - finalize the block
                     rich.print("\n\n")
+                    if current_reasoning_text:
+                        pending_reasoning_parts.append("".join(current_reasoning_text))
+                        current_reasoning_text = []
 
                 case "response.output_item.added":
+                    # Handle both dict and object formats
                     item_type = (
                         event.item.get("type")
                         if isinstance(event.item, dict)
                         else getattr(event.item, "type", None)
                     )
+
+                    # When a tool output starts, capture pending reasoning for it
+                    if item_type in (
+                        "function_call",
+                        "web_search_call",
+                        "code_interpreter_call",
+                    ):
+                        # Finalize any in-progress reasoning block
+                        if current_reasoning_text:
+                            pending_reasoning_parts.append(
+                                "".join(current_reasoning_text)
+                            )
+                            current_reasoning_text = []
+                        # Store reasoning for this tool's output_index
+                        tool_reasoning_map[event.output_index] = (
+                            pending_reasoning_parts.copy()
+                            if pending_reasoning_parts
+                            else []
+                        )
+                        pending_reasoning_parts = []
+
                     if item_type == "message":
                         rich.print(
                             f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
@@ -1321,8 +1475,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     rich.print(event.delta, end="", flush=True)
 
                 case "response.completed":
+                    # Defensive: flush any remaining reasoning text
+                    if current_reasoning_text:
+                        pending_reasoning_parts.append("".join(current_reasoning_text))
+                        current_reasoning_text = []
                     final_response = event.response
 
         assert final_response is not None
         assert isinstance(final_response, ResponsesAPIResponse)
-        return final_response
+        return final_response, tool_reasoning_map, pending_reasoning_parts

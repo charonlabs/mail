@@ -923,12 +923,12 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 except TimeoutError:
                     # Heartbeat to keep the connection alive
                     yield ServerSentEvent(
-                        data={
+                        data=ujson.dumps({
                             "timestamp": datetime.datetime.now(
                                 datetime.UTC
                             ).isoformat(),
                             "task_id": task_id,
-                        },
+                        }),
                         event="ping",
                     )
                     continue
@@ -950,10 +950,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         )
                         pass
                     try:
-                        if (
-                            isinstance(ev.data, dict)
-                            and ev.data.get("task_id") == task_id
-                        ):  # type: ignore
+                        # ev.data is now a JSON string, parse to check task_id
+                        ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data
+                        if isinstance(ev_data, dict) and ev_data.get("task_id") == task_id:
                             yield ev
                     except Exception as e:
                         # Be tolerant to malformed event data
@@ -973,10 +972,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     except Exception:
                         pass
                     try:
-                        if (
-                            isinstance(ev.data, dict)
-                            and ev.data.get("task_id") == task_id
-                        ):
+                        # ev.data is now a JSON string, parse to check task_id
+                        ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data
+                        if isinstance(ev_data, dict) and ev_data.get("task_id") == task_id:
                             yield ev
                     except Exception:
                         continue
@@ -985,11 +983,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             try:
                 response = future.result()
                 yield ServerSentEvent(
-                    data={
+                    data=ujson.dumps({
                         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": response["message"]["body"],
-                    },
+                    }),
                     event="task_complete",
                 )
             except Exception as e:
@@ -998,11 +996,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
                 )
                 yield ServerSentEvent(
-                    data={
+                    data=ujson.dumps({
                         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": f"{e}",
-                    },
+                    }),
                     event="task_error",
                 )
 
@@ -1012,11 +1010,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: timeout for task '{task_id}'"
             )
             yield ServerSentEvent(
-                data={
+                data=ujson.dumps({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "task_id": task_id,
                     "response": "timeout",
-                },
+                }),
                 event="task_error",
             )
 
@@ -1026,11 +1024,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
             )
             yield ServerSentEvent(
-                data={
+                data=ujson.dumps({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "task_id": task_id,
                     "response": f"{e}",
-                },
+                }),
                 event="task_error",
             )
 
@@ -2074,6 +2072,18 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     history.append(tool_calls[0].completion)
                 else:
                     history.extend(tool_calls[0].responses)
+
+                # Emit tool_call events for all calls (before any mutations)
+                # Track last call with reasoning for reasoning_ref
+                last_reasoning_call_id: str | None = None
+                for call in tool_calls:
+                    if call.reasoning:
+                        self._emit_tool_call_event(task_id, recipient, call)
+                        last_reasoning_call_id = call.tool_call_id
+                    else:
+                        self._emit_tool_call_event(
+                            task_id, recipient, call, reasoning_ref=last_reasoning_call_id
+                        )
 
                 breakpoint_calls = [
                     call
@@ -3215,6 +3225,47 @@ The final response message is: '{finish_body}'""",
                     f"{self._log_prelude()} failed to persist history for agent '{agent_name}' (task '{task_id}'): {e}"
                 )
 
+    def _emit_tool_call_event(
+        self,
+        task_id: str,
+        caller: str,
+        call: AgentToolCall,
+        reasoning_ref: str | None = None,
+    ) -> None:
+        """
+        Emit a tool_call event for a tool call.
+
+        Reasoning and preamble come from the AgentToolCall object fields (populated by factory).
+        If the call has no reasoning but reasoning_ref is provided, include that instead.
+        """
+        extra_data: dict[str, Any] = {
+            "tool_name": call.tool_name,
+            "tool_args": call.tool_args,
+            "tool_call_id": call.tool_call_id,
+        }
+
+        # Use reasoning from call object (populated by factory)
+        # Filter empty/whitespace blocks and join with double newlines
+        if call.reasoning:
+            filtered = [r for r in call.reasoning if r and r.strip()]
+            if filtered:
+                extra_data["reasoning"] = "\n\n".join(filtered)
+            elif reasoning_ref:
+                # Had reasoning list but all blocks were empty/whitespace
+                extra_data["reasoning_ref"] = reasoning_ref
+        elif reasoning_ref:
+            extra_data["reasoning_ref"] = reasoning_ref
+
+        if call.preamble:
+            extra_data["preamble"] = call.preamble
+
+        self._submit_event(
+            "tool_call",
+            task_id,
+            f"agent {caller} called {call.tool_name}",
+            extra_data=extra_data,
+        )
+
     def _submit_event(
         self,
         event: str,
@@ -3237,13 +3288,14 @@ The final response message is: '{finish_body}'""",
         if extra_data is None:
             extra_data = {}
 
+        # Pre-serialize to JSON to ensure proper formatting (sse_starlette may use str() instead)
         sse = ServerSentEvent(
-            data={
+            data=ujson.dumps({
                 "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                 "description": description,
                 "task_id": task_id,
                 "extra_data": extra_data,
-            },
+            }),
             event=event,
         )
         self.new_events.append(sse)

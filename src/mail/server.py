@@ -20,6 +20,7 @@ from typing import Any, Literal
 import uvicorn
 from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 import mail.net.server_utils as server_utils
 import mail.utils as utils
@@ -252,6 +253,15 @@ async def _server_shutdown(app: FastAPI) -> None:
 
 app = FastAPI(lifespan=lifespan)
 
+# Add CORS middleware for UI dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 async def get_or_create_mail_instance(
     role: Literal["admin", "swarm", "user"],
@@ -306,8 +316,9 @@ async def get_or_create_mail_instance(
             )
             mail_instances[id] = mail_instance
 
-            # Start interswarm messaging
-            await mail_instance.start_interswarm()
+            # Start interswarm messaging (only if enabled)
+            if mail_instance.enable_interswarm:
+                await mail_instance.start_interswarm()
 
             # Load existing agent histories and tasks from the database
             await mail_instance.load_agent_histories_from_db()
@@ -584,6 +595,132 @@ async def message(request: Request):
     except Exception as e:
         logger.error(
             f"{_log_prelude(app)} error processing message for {caller_role} '{caller_id}' with error: {e}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"error processing message: {e.with_traceback(None)}",
+        )
+
+
+@app.get("/ui/agents")
+async def get_ui_agents():
+    """
+    Return agent topology for UI visualization.
+    Returns agent names, comm_targets, and role flags.
+    """
+    if not app.state.persistent_swarm:
+        raise HTTPException(status_code=503, detail="no swarm loaded")
+
+    agents = []
+    for agent in app.state.persistent_swarm.agents:
+        agents.append({
+            "name": agent.name,
+            "comm_targets": agent.comm_targets,
+            "enable_entrypoint": agent.enable_entrypoint,
+            "can_complete_tasks": agent.can_complete_tasks,
+            "enable_interswarm": agent.enable_interswarm,
+        })
+
+    return {
+        "agents": agents,
+        "entrypoint": app.state.default_entrypoint_agent,
+    }
+
+
+@app.post("/ui/message", dependencies=[Depends(utils.require_debug)])
+async def ui_message(request: Request):
+    """
+    Development-only endpoint for UI to send messages without auth.
+    Only available when debug=true in server config.
+    """
+    # Use a default dev user
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    # parse request
+    try:
+        data = await request.json()
+        body = data.get("body") or ""
+        subject = data.get("subject") or "New Message"
+        msg_type = data.get("msg_type") or "request"
+        entrypoint = data.get("entrypoint")
+        task_id = data.get("task_id")
+        stream = data.get("stream", True)
+        resume_from = data.get("resume_from")  # "user_response" for follow-ups
+
+        if isinstance(entrypoint, str) and entrypoint.strip():
+            recipient_agent = entrypoint.strip()
+        else:
+            recipient_agent = app.state.default_entrypoint_agent
+
+        if msg_type not in MAIL_MESSAGE_TYPES:
+            raise HTTPException(
+                status_code=400, detail=f"invalid message type: {msg_type}"
+            )
+
+        logger.info(
+            f"{_log_prelude(app)} [UI-DEV] received message: '{subject}'"
+        )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"{_log_prelude(app)} error parsing request: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
+        )
+
+    if not body:
+        raise HTTPException(status_code=400, detail="no message provided")
+
+    try:
+        assert app.state.persistent_swarm is not None
+
+        # Get or create a dev user MAIL instance
+        api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+
+        if not isinstance(task_id, str) or not task_id:
+            task_id = str(uuid.uuid4())
+        _register_task_binding(app, task_id, caller_role, caller_id, api_key)
+
+        if stream:
+            logger.info(
+                f"{_log_prelude(app)} [UI-DEV] submitting streamed message (resume_from={resume_from})"
+            )
+            return await api_swarm.post_message_stream(
+                subject=subject,
+                body=body,
+                msg_type=msg_type,  # type: ignore
+                entrypoint=recipient_agent,
+                task_id=task_id,
+                resume_from=resume_from,
+            )
+        else:
+            logger.info(
+                f"{_log_prelude(app)} [UI-DEV] submitting message and waiting"
+            )
+            result = await api_swarm.post_message(
+                subject=subject,
+                body=body,
+                msg_type=msg_type,  # type: ignore
+                entrypoint=recipient_agent,
+                show_events=True,
+                task_id=task_id,
+                resume_from=resume_from,
+            )
+            if isinstance(result, tuple) and len(result) == 2:
+                response, events = result
+            else:
+                response, events = result, []  # type: ignore[misc]
+
+            return types.PostMessageResponse(
+                response=response["message"]["body"],
+                events=events,
+            )
+
+    except Exception as e:
+        logger.error(
+            f"{_log_prelude(app)} [UI-DEV] error processing message: {e}"
         )
         raise HTTPException(
             status_code=500,

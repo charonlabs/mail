@@ -1,0 +1,328 @@
+/* Fonts - must be first */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: 'Syne', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-copper: var(--copper);
+  --color-copper-light: var(--copper-light);
+  --color-copper-dark: var(--copper-dark);
+  --color-bronze: var(--bronze);
+  --color-gold: var(--gold);
+  --color-forge: var(--forge);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* Forged Metal Palette */
+  --radius: 0.25rem;
+
+  /* Core metallics */
+  --copper: #cd7f32;
+  --copper-light: #daa06d;
+  --copper-dark: #8b4513;
+  --bronze: #b87333;
+  --gold: #cfb53b;
+  --forge: #ff6b35;
+
+  /* Edge colors for React Flow */
+  --edge-active: #cd7f32;
+  --edge-inactive: rgba(205, 127, 50, 0.3);
+  --grid-color: rgba(205, 127, 50, 0.05);
+
+  /* Backgrounds - oxidized metal */
+  --background: #0a0908;
+  --foreground: #e8e4dc;
+
+  /* Cards - slightly lighter anvil */
+  --card: #12110f;
+  --card-foreground: #e8e4dc;
+
+  /* Popovers */
+  --popover: #0f0e0c;
+  --popover-foreground: #e8e4dc;
+
+  /* Primary - copper */
+  --primary: #cd7f32;
+  --primary-foreground: #0a0908;
+
+  /* Secondary - dark bronze */
+  --secondary: #1a1816;
+  --secondary-foreground: #b8a898;
+
+  /* Muted - oxidized */
+  --muted: #1e1c1a;
+  --muted-foreground: #6b6560;
+
+  /* Accent - warm gold */
+  --accent: #2a2520;
+  --accent-foreground: #cfb53b;
+
+  /* Destructive */
+  --destructive: #8b0000;
+
+  /* Borders - subtle metallic */
+  --border: rgba(205, 127, 50, 0.15);
+  --input: rgba(205, 127, 50, 0.1);
+  --ring: #cd7f32;
+
+  /* Chart colors - warm spectrum */
+  --chart-1: #cd7f32;
+  --chart-2: #cfb53b;
+  --chart-3: #b87333;
+  --chart-4: #daa06d;
+  --chart-5: #ff6b35;
+
+  /* Sidebar */
+  --sidebar: #0d0c0a;
+  --sidebar-foreground: #e8e4dc;
+  --sidebar-primary: #cd7f32;
+  --sidebar-primary-foreground: #0a0908;
+  --sidebar-accent: #1a1816;
+  --sidebar-accent-foreground: #cfb53b;
+  --sidebar-border: rgba(205, 127, 50, 0.1);
+  --sidebar-ring: #cd7f32;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-mono;
+    background-image:
+      radial-gradient(ellipse at 50% 0%, rgba(205, 127, 50, 0.03) 0%, transparent 50%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-blend-mode: overlay;
+  }
+
+  ::selection {
+    background: rgba(205, 127, 50, 0.3);
+    color: #e8e4dc;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0908;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(205, 127, 50, 0.3);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(205, 127, 50, 0.5);
+  }
+}
+
+/* Metallic border effect */
+.metallic-border {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(135deg, rgba(205, 127, 50, 0.4), rgba(207, 181, 59, 0.1), rgba(205, 127, 50, 0.4)) border-box;
+}
+
+/* Copper glow animation for active states */
+@keyframes copper-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(205, 127, 50, 0.3),
+      0 0 20px rgba(205, 127, 50, 0.2),
+      0 0 30px rgba(205, 127, 50, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 15px rgba(205, 127, 50, 0.5),
+      0 0 30px rgba(205, 127, 50, 0.3),
+      0 0 45px rgba(205, 127, 50, 0.2);
+  }
+}
+
+.copper-glow {
+  animation: copper-pulse 2s ease-in-out infinite;
+}
+
+/* Forge glow - more intense for active processing */
+@keyframes forge-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px rgba(255, 107, 53, 0.4),
+      0 0 20px rgba(255, 107, 53, 0.2),
+      0 0 40px rgba(205, 127, 50, 0.1),
+      inset 0 0 10px rgba(255, 107, 53, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 20px rgba(255, 107, 53, 0.6),
+      0 0 40px rgba(255, 107, 53, 0.3),
+      0 0 60px rgba(205, 127, 50, 0.2),
+      inset 0 0 15px rgba(255, 107, 53, 0.15);
+  }
+}
+
+.forge-glow {
+  animation: forge-pulse 1.5s ease-in-out infinite;
+}
+
+/* Panel slide animations */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+.slide-in-up {
+  animation: slide-in-up 0.3s ease-out forwards;
+}
+
+/* React Flow customizations */
+.react-flow__background {
+  background-color: #0a0908 !important;
+}
+
+.react-flow__controls {
+  background: #12110f !important;
+  border: 1px solid rgba(205, 127, 50, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+.react-flow__controls-button {
+  background: #12110f !important;
+  border-color: rgba(205, 127, 50, 0.1) !important;
+  fill: #cd7f32 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #1a1816 !important;
+}
+
+.react-flow__edge-path {
+  stroke: rgba(205, 127, 50, 0.4) !important;
+  stroke-width: 2 !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #cd7f32 !important;
+}
+
+/* Grid pattern overlay */
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(205, 127, 50, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(205, 127, 50, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Text effects */
+.text-metallic {
+  background: linear-gradient(135deg, #cd7f32, #cfb53b, #cd7f32);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Badge styles */
+.badge-entrypoint {
+  background: linear-gradient(135deg, rgba(207, 181, 59, 0.2), rgba(205, 127, 50, 0.1));
+  border: 1px solid rgba(207, 181, 59, 0.3);
+  color: #cfb53b;
+}
+
+.badge-completer {
+  background: linear-gradient(135deg, rgba(205, 127, 50, 0.2), rgba(184, 115, 51, 0.1));
+  border: 1px solid rgba(205, 127, 50, 0.3);
+  color: #cd7f32;
+}
+
+/* Event type colors */
+.event-new_message { --event-color: #cfb53b; }
+.event-tool_call { --event-color: #cd7f32; }
+.event-task_complete { --event-color: #50c878; }
+.event-task_error { --event-color: #dc143c; }
+.event-agent_error { --event-color: #ff6b35; }
+.event-action_call { --event-color: #b87333; }
+.event-action_complete { --event-color: #daa06d; }
+
+/* Resizer handle */
+.resize-handle {
+  position: absolute;
+  width: 4px;
+  height: 100%;
+  left: 0;
+  top: 0;
+  cursor: ew-resize;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: linear-gradient(180deg, transparent, rgba(205, 127, 50, 0.5), transparent);
+}

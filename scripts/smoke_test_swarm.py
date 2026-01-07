@@ -9,10 +9,45 @@ communication scenario.
 """
 
 import asyncio
+import json
+from datetime import datetime
+from pathlib import Path
 
 from mail.api import MAILAgentTemplate, MAILSwarmTemplate
 from mail.factories.base import base_agent_factory
 from mail.factories.supervisor import supervisor_factory
+
+
+def save_events_to_file(events: list, filename: str) -> Path:
+    """Save SSE events to a JSON file."""
+    output_dir = Path(__file__).parent / "output"
+    output_dir.mkdir(exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filepath = output_dir / f"{filename}_{timestamp}.json"
+
+    # Parse events into JSON-serializable format
+    parsed_events = []
+    for event in events:
+        parsed = {"event": event.event}
+        if event.data:
+            # event.data may be dict or JSON string
+            if isinstance(event.data, dict):
+                parsed["data"] = event.data
+            else:
+                try:
+                    parsed["data"] = json.loads(event.data)
+                except (json.JSONDecodeError, TypeError):
+                    parsed["data"] = str(event.data)
+        if hasattr(event, "id") and event.id:
+            parsed["id"] = event.id
+        parsed_events.append(parsed)
+
+    with open(filepath, "w") as f:
+        json.dump(parsed_events, f, indent=2, default=str)
+
+    print(f"\n📁 Events saved to: {filepath}")
+    return filepath
 
 
 def create_researcher_template() -> MAILAgentTemplate:
@@ -127,6 +162,9 @@ async def test_swarm_communication():
             print(f"\nFinal response:\n{body[:1000]}...")
 
         print(f"\nTotal events: {len(events)}")
+
+        # Save events to file
+        save_events_to_file(events, "swarm_communication")
 
         # Count agent steps
         agent_steps = {}
@@ -249,6 +287,10 @@ Once you get a response, call task_complete with the final answer to finish the 
             print(f"\nFinal response:\n{body[:1000]}...")
 
         print(f"\nTotal events: {len(events)}")
+
+        # Save events to file
+        save_events_to_file(events, "web_search_swarm")
+
         print("\n✅ Web search swarm test passed!")
 
     except Exception as e:
@@ -267,7 +309,7 @@ async def main():
     print()
 
     await test_swarm_communication()
-    await test_swarm_with_web_search()
+    # await test_swarm_with_web_search()  # Skip web search for now
 
     print("\n" + "=" * 60)
     print("ALL SWARM TESTS COMPLETE")

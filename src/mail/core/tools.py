@@ -80,6 +80,8 @@ class AgentToolCall(BaseModel):
         tool_call_id: The ID of the tool call.
         completion: The full completion of the tool call, if using completions api.
         responses: The full responses list of the tool call, if using responses api.
+        reasoning: List of reasoning/thinking text blocks preceding this tool call.
+        preamble: Text/message content that appeared before this tool call.
     """
 
     tool_name: str
@@ -87,6 +89,8 @@ class AgentToolCall(BaseModel):
     tool_call_id: str
     completion: dict[str, Any] = Field(default_factory=dict)
     responses: list[dict[str, Any]] = Field(default_factory=list)
+    reasoning: list[str] | None = None
+    preamble: str | None = None
 
     @model_validator(mode="after")
     def check_completion_or_responses(self):
