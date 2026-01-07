@@ -45,6 +45,7 @@ def supervisor_factory(
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
+    stream_tokens: bool = False,
 ) -> AgentFunction:
     """
     Create a `supervisor` agent function.
@@ -73,6 +74,7 @@ def supervisor_factory(
         use_proxy=use_proxy,
         tool_format=tool_format,
         exclude_tools=exclude_tools,
+        stream_tokens=stream_tokens,
     )
 
     async def run(

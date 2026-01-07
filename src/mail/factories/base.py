@@ -907,9 +907,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     delta_type = delta.type
 
                     if delta_type == "thinking_delta":
-                        rich.print(delta.thinking, end="", flush=True)
+                        print(delta.thinking, end="", flush=True)
                     elif delta_type == "text_delta":
-                        rich.print(delta.text, end="", flush=True)
+                        print(delta.text, end="", flush=True)
 
             # Get the final message with full content
             final_message = await stream.get_final_message()
