@@ -442,23 +442,47 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             request_params["system"] = system_content
 
         # Add thinking/extended thinking if enabled
-        if self.thinking.get("type") == "enabled":
+        thinking_enabled = self.thinking.get("type") == "enabled"
+        if thinking_enabled:
             request_params["thinking"] = self.thinking
+            # Enable interleaved thinking for Claude 4 models via beta header
+            # This allows Claude to think between tool calls for more sophisticated reasoning
+            request_params["extra_headers"] = {
+                "anthropic-beta": "interleaved-thinking-2025-05-14"
+            }
 
         # Handle tool_choice
+        # IMPORTANT: When thinking is enabled, only "auto" and "none" are supported.
+        # Using "any" or forced tool use will cause an error.
         if tool_choice == "required":
-            request_params["tool_choice"] = {"type": "any"}
+            if thinking_enabled:
+                # Fall back to "auto" when thinking is enabled - "any" is incompatible
+                logger.warning(
+                    "tool_choice='required' is incompatible with extended thinking. "
+                    "Falling back to tool_choice='auto'."
+                )
+                request_params["tool_choice"] = {"type": "auto"}
+            else:
+                request_params["tool_choice"] = {"type": "any"}
         elif tool_choice == "auto":
             request_params["tool_choice"] = {"type": "auto"}
         elif isinstance(tool_choice, dict):
-            request_params["tool_choice"] = tool_choice
+            # Validate dict tool_choice when thinking is enabled
+            if thinking_enabled and tool_choice.get("type") in ("any", "tool"):
+                logger.warning(
+                    f"tool_choice={tool_choice} is incompatible with extended thinking. "
+                    "Falling back to tool_choice='auto'."
+                )
+                request_params["tool_choice"] = {"type": "auto"}
+            else:
+                request_params["tool_choice"] = tool_choice
 
         response = await client.messages.create(**request_params)
 
         # Parse response content blocks
         tool_calls: list[AgentToolCall] = []
         text_chunks: list[str] = []
-        thinking_chunks: list[str] = []
+        thinking_blocks: list[dict[str, Any]] = []  # Full blocks with signature for multi-turn
         all_citations: list[dict[str, Any]] = []
         web_search_results: dict[str, list[dict[str, Any]]] = {}  # tool_use_id -> results
 
@@ -468,8 +492,20 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             block_type = block.type
 
             if block_type == "thinking":
-                # Capture extended thinking/reasoning content
-                thinking_chunks.append(getattr(block, "thinking", ""))
+                # Capture full thinking block (including signature) for multi-turn support
+                thinking_blocks.append({
+                    "type": "thinking",
+                    "thinking": getattr(block, "thinking", ""),
+                    "signature": getattr(block, "signature", ""),
+                })
+
+            elif block_type == "redacted_thinking":
+                # Capture redacted thinking blocks - these contain encrypted content
+                # that must be passed back unmodified for multi-turn conversations
+                thinking_blocks.append({
+                    "type": "redacted_thinking",
+                    "data": getattr(block, "data", ""),
+                })
 
             elif block_type == "server_tool_use":
                 # Capture the web search query
@@ -536,11 +572,19 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     break
 
         # Add thinking/reasoning content if present
-        thinking_content = "".join(thinking_chunks)
-        if thinking_content:
+        # Extract text content from thinking blocks (for display), excluding redacted blocks
+        thinking_content = "".join(
+            b.get("thinking", "") for b in thinking_blocks if b.get("type") == "thinking"
+        )
+        if thinking_content or thinking_blocks:
             # Add to the first tool call (usually web_search_call or text_output)
             if tool_calls:
-                tool_calls[0].tool_args["reasoning"] = thinking_content
+                if thinking_content:
+                    tool_calls[0].tool_args["reasoning"] = thinking_content
+                # Store full thinking blocks for multi-turn conversations with tool use
+                # These must be passed back unmodified to maintain reasoning continuity
+                if thinking_blocks:
+                    tool_calls[0].tool_args["thinking_blocks"] = thinking_blocks
 
         content = "".join(text_chunks)
 
@@ -549,6 +593,8 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             tool_args: dict[str, Any] = {"content": content}
             if thinking_content:
                 tool_args["reasoning"] = thinking_content
+            if thinking_blocks:
+                tool_args["thinking_blocks"] = thinking_blocks
             tool_calls.append(
                 AgentToolCall(
                     tool_name="text_output",
@@ -602,16 +648,40 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             request_params["system"] = system_content
 
         # Add thinking/extended thinking if enabled
-        if self.thinking.get("type") == "enabled":
+        thinking_enabled = self.thinking.get("type") == "enabled"
+        if thinking_enabled:
             request_params["thinking"] = self.thinking
+            # Enable interleaved thinking for Claude 4 models via beta header
+            # This allows Claude to think between tool calls for more sophisticated reasoning
+            request_params["extra_headers"] = {
+                "anthropic-beta": "interleaved-thinking-2025-05-14"
+            }
 
         # Handle tool_choice
+        # IMPORTANT: When thinking is enabled, only "auto" and "none" are supported.
+        # Using "any" or forced tool use will cause an error.
         if tool_choice == "required":
-            request_params["tool_choice"] = {"type": "any"}
+            if thinking_enabled:
+                # Fall back to "auto" when thinking is enabled - "any" is incompatible
+                logger.warning(
+                    "tool_choice='required' is incompatible with extended thinking. "
+                    "Falling back to tool_choice='auto'."
+                )
+                request_params["tool_choice"] = {"type": "auto"}
+            else:
+                request_params["tool_choice"] = {"type": "any"}
         elif tool_choice == "auto":
             request_params["tool_choice"] = {"type": "auto"}
         elif isinstance(tool_choice, dict):
-            request_params["tool_choice"] = tool_choice
+            # Validate dict tool_choice when thinking is enabled
+            if thinking_enabled and tool_choice.get("type") in ("any", "tool"):
+                logger.warning(
+                    f"tool_choice={tool_choice} is incompatible with extended thinking. "
+                    "Falling back to tool_choice='auto'."
+                )
+                request_params["tool_choice"] = {"type": "auto"}
+            else:
+                request_params["tool_choice"] = tool_choice
 
         is_response = False
         is_searching = False
@@ -631,6 +701,15 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                                 f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
                             )
                             is_reasoning = True
+
+                    elif block_type == "redacted_thinking":
+                        # Redacted thinking blocks contain encrypted content
+                        if not is_reasoning:
+                            rich.print(
+                                f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                            )
+                            is_reasoning = True
+                        rich.print("[redacted thinking]", flush=True)
 
                     elif block_type == "server_tool_use":
                         if not is_searching:
@@ -663,7 +742,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Process the final message to get complete data
         tool_calls: list[AgentToolCall] = []
         text_chunks: list[str] = []
-        thinking_chunks: list[str] = []
+        thinking_blocks: list[dict[str, Any]] = []  # Full blocks with signature for multi-turn
         all_citations: list[dict[str, Any]] = []
         web_search_results: dict[str, list[dict[str, Any]]] = {}
 
@@ -671,8 +750,20 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             block_type = block.type
 
             if block_type == "thinking":
-                # Capture extended thinking/reasoning content
-                thinking_chunks.append(getattr(block, "thinking", ""))
+                # Capture full thinking block (including signature) for multi-turn support
+                thinking_blocks.append({
+                    "type": "thinking",
+                    "thinking": getattr(block, "thinking", ""),
+                    "signature": getattr(block, "signature", ""),
+                })
+
+            elif block_type == "redacted_thinking":
+                # Capture redacted thinking blocks - these contain encrypted content
+                # that must be passed back unmodified for multi-turn conversations
+                thinking_blocks.append({
+                    "type": "redacted_thinking",
+                    "data": getattr(block, "data", ""),
+                })
 
             elif block_type == "server_tool_use":
                 tool_calls.append(
@@ -735,10 +826,19 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     break
 
         # Add thinking/reasoning content if present
-        thinking_content = "".join(thinking_chunks)
-        if thinking_content:
+        # Extract text content from thinking blocks (for display), excluding redacted blocks
+        thinking_content = "".join(
+            b.get("thinking", "") for b in thinking_blocks if b.get("type") == "thinking"
+        )
+        if thinking_content or thinking_blocks:
+            # Add to the first tool call (usually web_search_call or text_output)
             if tool_calls:
-                tool_calls[0].tool_args["reasoning"] = thinking_content
+                if thinking_content:
+                    tool_calls[0].tool_args["reasoning"] = thinking_content
+                # Store full thinking blocks for multi-turn conversations with tool use
+                # These must be passed back unmodified to maintain reasoning continuity
+                if thinking_blocks:
+                    tool_calls[0].tool_args["thinking_blocks"] = thinking_blocks
 
         content = "".join(text_chunks)
 
@@ -747,6 +847,8 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             tool_args: dict[str, Any] = {"content": content}
             if thinking_content:
                 tool_args["reasoning"] = thinking_content
+            if thinking_blocks:
+                tool_args["thinking_blocks"] = thinking_blocks
             tool_calls.append(
                 AgentToolCall(
                     tool_name="text_output",

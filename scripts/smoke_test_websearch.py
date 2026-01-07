@@ -5,6 +5,11 @@
 Smoke test for web_search support in LiteLLMAgentFunction
 
 Tests the new native Anthropic SDK path for web_search built-in tools.
+Includes tests for:
+- Tool format conversion (MAIL tools + web_search)
+- Extended thinking with interleaved thinking
+- Thinking blocks with signature capture
+- tool_choice compatibility with thinking
 """
 
 import asyncio
@@ -13,13 +18,12 @@ import json
 from mail.factories.base import LiteLLMAgentFunction
 
 
-async def test_litellm_agent_function_websearch():
+async def test_websearch_basic():
     """Test LiteLLMAgentFunction with web_search tool (non-streaming)"""
     print("=" * 60)
-    print("TESTING LiteLLMAgentFunction with web_search (non-streaming)")
+    print("TEST 1: web_search basic (non-streaming)")
     print("=" * 60)
 
-    # Web search tool in Anthropic format
     tools = [
         {
             "type": "web_search_20250305",
@@ -35,7 +39,7 @@ async def test_litellm_agent_function_websearch():
         llm="anthropic/claude-haiku-4-5-20251001",
         system="You are a helpful assistant.",
         tool_format="completions",
-        use_proxy=False,  # Bypass LiteLLM proxy, use ANTHROPIC_API_KEY
+        use_proxy=False,
         stream_tokens=False,
         _debug_include_mail_tools=False,
     )
@@ -65,8 +69,6 @@ async def test_litellm_agent_function_websearch():
                     print(f"  first result: {results[0]}")
                 citations = tc.tool_args.get("citations", [])
                 print(f"  citations count: {len(citations)}")
-                if citations:
-                    print(f"  first citation: {citations[0]}")
 
         print("\n✅ Test passed!")
 
@@ -76,10 +78,62 @@ async def test_litellm_agent_function_websearch():
         traceback.print_exc()
 
 
-async def test_litellm_agent_function_websearch_streaming():
-    """Test LiteLLMAgentFunction with web_search tool (streaming)"""
+async def test_websearch_with_mail_tools():
+    """Test web_search alongside MAIL tools (tool format conversion)"""
     print("\n" + "=" * 60)
-    print("TESTING LiteLLMAgentFunction with web_search (streaming)")
+    print("TEST 2: web_search + MAIL tools (tool format conversion)")
+    print("=" * 60)
+
+    # Web search tool in Anthropic format
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 3,
+        }
+    ]
+
+    # Enable MAIL tools by setting comm_targets
+    agent = LiteLLMAgentFunction(
+        name="test_agent",
+        comm_targets=["supervisor", "researcher"],  # This will add MAIL tools
+        tools=tools,
+        llm="anthropic/claude-haiku-4-5-20251001",
+        system="You are a helpful assistant in a multi-agent system.",
+        tool_format="completions",
+        use_proxy=False,
+        stream_tokens=False,
+        _debug_include_mail_tools=True,  # Include MAIL tools
+    )
+
+    messages = [
+        {"role": "user", "content": "Search the web for current AI news."}
+    ]
+
+    try:
+        content, tool_calls = await agent(messages, tool_choice="auto")
+
+        print("\n--- CONTENT ---")
+        print(content[:300] + "..." if len(content) > 300 else content)
+
+        print("\n--- TOOL CALLS ---")
+        for i, tc in enumerate(tool_calls):
+            print(f"\nTool Call {i}:")
+            print(f"  tool_name: {tc.tool_name}")
+            print(f"  tool_args keys: {list(tc.tool_args.keys())}")
+
+        print("\n✅ Test passed! (MAIL tools + web_search coexist)")
+
+    except Exception as e:
+        print(f"\n❌ ERROR: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def test_websearch_streaming():
+    """Test web_search with streaming"""
+    print("\n" + "=" * 60)
+    print("TEST 3: web_search streaming")
     print("=" * 60)
 
     tools = [
@@ -98,31 +152,28 @@ async def test_litellm_agent_function_websearch_streaming():
         system="You are a helpful assistant.",
         tool_format="completions",
         use_proxy=False,
-        stream_tokens=True,  # Enable streaming
+        stream_tokens=True,
         _debug_include_mail_tools=False,
     )
 
     messages = [
-        {"role": "user", "content": "What is the current weather in San Francisco? Search the web for it."}
+        {"role": "user", "content": "What is the current weather in San Francisco? Search the web."}
     ]
 
     try:
         content, tool_calls = await agent(messages, tool_choice="auto")
 
         print("\n\n--- CONTENT ---")
-        print(content[:500] + "..." if len(content) > 500 else content)
+        print(content[:300] + "..." if len(content) > 300 else content)
 
         print("\n--- TOOL CALLS ---")
         for i, tc in enumerate(tool_calls):
             print(f"\nTool Call {i}:")
             print(f"  tool_name: {tc.tool_name}")
-            print(f"  tool_call_id: {tc.tool_call_id}")
             if tc.tool_name == "web_search_call":
                 print(f"  query: {tc.tool_args.get('query', 'N/A')}")
                 results = tc.tool_args.get("results", [])
                 print(f"  results count: {len(results)}")
-                citations = tc.tool_args.get("citations", [])
-                print(f"  citations count: {len(citations)}")
 
         print("\n✅ Test passed!")
 
@@ -132,10 +183,10 @@ async def test_litellm_agent_function_websearch_streaming():
         traceback.print_exc()
 
 
-async def test_litellm_agent_function_websearch_with_reasoning():
-    """Test LiteLLMAgentFunction with web_search tool AND extended thinking"""
+async def test_extended_thinking_with_interleaved():
+    """Test extended thinking with interleaved thinking beta"""
     print("\n" + "=" * 60)
-    print("TESTING LiteLLMAgentFunction with web_search + reasoning")
+    print("TEST 4: Extended thinking + interleaved thinking")
     print("=" * 60)
 
     tools = [
@@ -146,47 +197,59 @@ async def test_litellm_agent_function_websearch_with_reasoning():
         }
     ]
 
-    # Use claude-sonnet-4 which supports extended thinking
     agent = LiteLLMAgentFunction(
         name="test_agent",
         comm_targets=[],
         tools=tools,
-        llm="anthropic/claude-sonnet-4-20250514",  # Sonnet supports thinking
-        system="You are a helpful assistant. Think carefully before answering.",
+        llm="anthropic/claude-sonnet-4-20250514",
+        system="You are a helpful assistant. Think step by step.",
         tool_format="completions",
         use_proxy=False,
-        stream_tokens=True,  # Stream to see reasoning
+        stream_tokens=True,
         reasoning_effort="low",  # Enable extended thinking
         _debug_include_mail_tools=False,
     )
 
     messages = [
-        {"role": "user", "content": "What is the current weather in San Francisco? Search the web and give me a brief summary."}
+        {"role": "user", "content": "Search for the latest news about AI safety and summarize it briefly."}
     ]
 
     try:
         content, tool_calls = await agent(messages, tool_choice="auto")
 
         print("\n\n--- CONTENT ---")
-        print(content[:500] + "..." if len(content) > 500 else content)
+        print(content[:400] + "..." if len(content) > 400 else content)
 
         print("\n--- TOOL CALLS ---")
         for i, tc in enumerate(tool_calls):
             print(f"\nTool Call {i}:")
             print(f"  tool_name: {tc.tool_name}")
             print(f"  tool_args keys: {list(tc.tool_args.keys())}")
-            if tc.tool_name == "web_search_call":
-                print(f"  query: {tc.tool_args.get('query', 'N/A')}")
-                results = tc.tool_args.get("results", [])
-                print(f"  results count: {len(results)}")
-                citations = tc.tool_args.get("citations", [])
-                print(f"  citations count: {len(citations)}")
-                reasoning = tc.tool_args.get("reasoning", "")
-                if reasoning:
-                    print(f"  reasoning length: {len(reasoning)} chars")
-                    print(f"  reasoning preview: {reasoning[:200]}...")
-                else:
-                    print("  reasoning: NOT CAPTURED")
+
+            # Check for thinking blocks
+            thinking_blocks = tc.tool_args.get("thinking_blocks", [])
+            if thinking_blocks:
+                print(f"  thinking_blocks count: {len(thinking_blocks)}")
+                for j, tb in enumerate(thinking_blocks):
+                    tb_type = tb.get("type", "unknown")
+                    print(f"    block {j}: type={tb_type}")
+                    if tb_type == "thinking":
+                        has_signature = bool(tb.get("signature"))
+                        thinking_preview = tb.get("thinking", "")[:100]
+                        print(f"      has_signature: {has_signature}")
+                        print(f"      thinking preview: {thinking_preview}...")
+                    elif tb_type == "redacted_thinking":
+                        print(f"      data length: {len(tb.get('data', ''))}")
+            else:
+                print("  thinking_blocks: NONE")
+
+            # Check for reasoning text
+            reasoning = tc.tool_args.get("reasoning", "")
+            if reasoning:
+                print(f"  reasoning length: {len(reasoning)} chars")
+                print(f"  reasoning preview: {reasoning[:150]}...")
+            else:
+                print("  reasoning: NONE")
 
         print("\n✅ Test passed!")
 
@@ -196,92 +259,162 @@ async def test_litellm_agent_function_websearch_with_reasoning():
         traceback.print_exc()
 
 
-async def test_completions_native_anthropic():
-    """Test directly with anthropic SDK to see native response format"""
+async def test_tool_choice_required_with_thinking():
+    """Test that tool_choice='required' falls back to 'auto' with thinking enabled"""
     print("\n" + "=" * 60)
-    print("TESTING NATIVE ANTHROPIC SDK (for reference)")
+    print("TEST 5: tool_choice='required' with thinking (should fallback to auto)")
     print("=" * 60)
 
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 3,
+        }
+    ]
+
+    agent = LiteLLMAgentFunction(
+        name="test_agent",
+        comm_targets=[],
+        tools=tools,
+        llm="anthropic/claude-haiku-4-5-20251001",
+        system="You are a helpful assistant.",
+        tool_format="completions",
+        use_proxy=False,
+        stream_tokens=False,
+        reasoning_effort="low",  # Enable thinking
+        _debug_include_mail_tools=False,
+    )
+
+    messages = [
+        {"role": "user", "content": "Search for today's date."}
+    ]
+
     try:
-        import anthropic
-        client = anthropic.Anthropic()
+        # This should NOT error - should fall back to "auto"
+        content, tool_calls = await agent(messages, tool_choice="required")
 
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=2048,
-            messages=[
-                {"role": "user", "content": "What is the current weather in San Francisco? Search the web for it."}
-            ],
-            tools=[{
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": 3
-            }]
-        )
+        print("\n--- CONTENT ---")
+        print(content[:300] + "..." if len(content) > 300 else content)
 
-        print("\n--- RESPONSE SUMMARY ---")
-        print(f"ID: {response.id}")
-        print(f"Model: {response.model}")
-        print(f"Stop reason: {response.stop_reason}")
-        print(f"Usage: {response.usage}")
-        print(f"Content blocks count: {len(response.content)}")
+        print("\n--- TOOL CALLS ---")
+        for i, tc in enumerate(tool_calls):
+            print(f"\nTool Call {i}:")
+            print(f"  tool_name: {tc.tool_name}")
 
-        print("\n--- CONTENT BLOCK TYPES ---")
-        for i, block in enumerate(response.content):
-            block_dict = block.model_dump()
-            block_type = block_dict.get('type', 'unknown')
-            print(f"\nBlock {i}: type={block_type}")
+            # Check thinking blocks are captured
+            thinking_blocks = tc.tool_args.get("thinking_blocks", [])
+            print(f"  thinking_blocks count: {len(thinking_blocks)}")
 
-            if block_type == 'server_tool_use':
-                print(f"  name: {block_dict.get('name')}")
-                print(f"  id: {block_dict.get('id')}")
-                print(f"  input: {block_dict.get('input')}")
-            elif block_type == 'web_search_tool_result':
-                print(f"  tool_use_id: {block_dict.get('tool_use_id')}")
-                content = block_dict.get('content', [])
-                print(f"  results count: {len(content)}")
-                if content:
-                    print(f"  first result: url={content[0].get('url')}, title={content[0].get('title')}")
-            elif block_type == 'text':
-                text = block_dict.get('text', '')
-                citations = block_dict.get('citations')
-                print(f"  text length: {len(text)}")
-                print(f"  has citations: {citations is not None}")
-                if citations:
-                    print(f"  citations count: {len(citations)}")
+        print("\n✅ Test passed! (tool_choice fallback worked)")
 
-        print("\n--- FULL RESPONSE (truncated) ---")
-        full_dump = response.model_dump()
-        # Truncate encrypted content to reduce output
-        for block in full_dump.get('content', []):
-            if isinstance(block, dict):
-                if block.get('type') == 'web_search_tool_result':
-                    for result in block.get('content', []):
-                        if 'encrypted_content' in result:
-                            result['encrypted_content'] = result['encrypted_content'][:50] + '...'
-        print(json.dumps(full_dump, indent=2, default=str)[:5000])
-        if len(json.dumps(full_dump)) > 5000:
-            print("\n... [truncated]")
-
-    except ImportError:
-        print("anthropic SDK not installed, skipping native test")
     except Exception as e:
-        print(f"ERROR: {type(e).__name__}: {e}")
+        print(f"\n❌ ERROR: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def test_thinking_blocks_structure():
+    """Test that thinking blocks have correct structure (type, thinking, signature)"""
+    print("\n" + "=" * 60)
+    print("TEST 6: Thinking blocks structure validation")
+    print("=" * 60)
+
+    tools = [
+        {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 2,
+        }
+    ]
+
+    agent = LiteLLMAgentFunction(
+        name="test_agent",
+        comm_targets=[],
+        tools=tools,
+        llm="anthropic/claude-haiku-4-5-20251001",
+        system="You are a helpful assistant.",
+        tool_format="completions",
+        use_proxy=False,
+        stream_tokens=False,
+        reasoning_effort="low",
+        _debug_include_mail_tools=False,
+    )
+
+    messages = [
+        {"role": "user", "content": "What day is it today? Search if needed."}
+    ]
+
+    try:
+        content, tool_calls = await agent(messages, tool_choice="auto")
+
+        print("\n--- Validating thinking block structure ---")
+
+        all_valid = True
+        for tc in tool_calls:
+            thinking_blocks = tc.tool_args.get("thinking_blocks", [])
+
+            for i, tb in enumerate(thinking_blocks):
+                print(f"\nBlock {i}:")
+
+                # Check type field
+                block_type = tb.get("type")
+                print(f"  type: {block_type}")
+                if block_type not in ("thinking", "redacted_thinking"):
+                    print(f"  ❌ Invalid type!")
+                    all_valid = False
+
+                if block_type == "thinking":
+                    # Check thinking field
+                    thinking = tb.get("thinking")
+                    if thinking:
+                        print(f"  thinking: {len(thinking)} chars")
+                    else:
+                        print(f"  ❌ Missing thinking field!")
+                        all_valid = False
+
+                    # Check signature field
+                    signature = tb.get("signature")
+                    if signature:
+                        print(f"  signature: {len(signature)} chars (present)")
+                    else:
+                        print(f"  ⚠️ Missing signature (may be ok for some models)")
+
+                elif block_type == "redacted_thinking":
+                    # Check data field
+                    data = tb.get("data")
+                    if data:
+                        print(f"  data: {len(data)} chars (encrypted)")
+                    else:
+                        print(f"  ❌ Missing data field!")
+                        all_valid = False
+
+        if all_valid:
+            print("\n✅ All thinking blocks have valid structure!")
+        else:
+            print("\n⚠️ Some blocks had issues")
+
+    except Exception as e:
+        print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
 
 
 async def main():
-    print("Smoke Test: web_search support in LiteLLMAgentFunction")
+    print("=" * 60)
+    print("Smoke Tests: Native Anthropic SDK with web_search")
+    print("=" * 60)
     print()
 
-    # Test the new LiteLLMAgentFunction implementation
-    await test_litellm_agent_function_websearch()
-    await test_litellm_agent_function_websearch_streaming()
-    await test_litellm_agent_function_websearch_with_reasoning()
+    await test_websearch_basic()
+    await test_websearch_with_mail_tools()
+    await test_websearch_streaming()
+    await test_extended_thinking_with_interleaved()
+    await test_tool_choice_required_with_thinking()
+    await test_thinking_blocks_structure()
 
     print("\n" + "=" * 60)
-    print("ALL TESTS DONE")
+    print("ALL TESTS COMPLETE")
     print("=" * 60)
 
 
