@@ -13,6 +13,7 @@ import langsmith as ls
 import litellm
 import rich
 import ujson
+from langsmith.wrappers import wrap_anthropic
 from litellm import (
     OutputFunctionToolCall,
     ResponsesAPIResponse,
@@ -326,10 +327,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         def flush_tool_results() -> None:
             """Flush pending tool results into a single user message."""
             if pending_tool_results:
-                anthropic_messages.append({
-                    "role": "user",
-                    "content": pending_tool_results.copy(),
-                })
+                anthropic_messages.append(
+                    {
+                        "role": "user",
+                        "content": pending_tool_results.copy(),
+                    }
+                )
                 pending_tool_results.clear()
 
         for msg in messages:
@@ -351,21 +354,37 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             # Flush any pending tool results before processing other messages
             flush_tool_results()
 
-            # Handle assistant messages with tool_calls (OpenAI format)
+            # Handle assistant messages
             if role == "assistant":
+                content = msg.get("content")
                 tool_calls = msg.get("tool_calls", [])
-                content = msg.get("content", "")
 
+                # Check if already in Anthropic format (content is list of typed blocks)
+                # This preserves thinking blocks, tool_use blocks, etc. from previous turns
+                if (
+                    isinstance(content, list)
+                    and content
+                    and isinstance(content[0], dict)
+                    and "type" in content[0]
+                ):
+                    # Already Anthropic format - pass through directly
+                    anthropic_messages.append(msg)
+                    continue
+
+                # Convert from OpenAI format
+                content = content or ""
                 if tool_calls:
                     # Convert to Anthropic format with tool_use content blocks
                     content_blocks: list[dict[str, Any]] = []
 
                     # Add text content if present
                     if content:
-                        content_blocks.append({
-                            "type": "text",
-                            "text": content,
-                        })
+                        content_blocks.append(
+                            {
+                                "type": "text",
+                                "text": content,
+                            }
+                        )
 
                     # Add tool_use blocks
                     for tc in tool_calls:
@@ -375,28 +394,37 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         if isinstance(args, str):
                             try:
                                 import json
+
                                 args = json.loads(args)
                             except json.JSONDecodeError:
                                 args = {"raw": args}
 
-                        content_blocks.append({
-                            "type": "tool_use",
-                            "id": tc.get("id", ""),
-                            "name": func.get("name", ""),
-                            "input": args,
-                        })
+                        content_blocks.append(
+                            {
+                                "type": "tool_use",
+                                "id": tc.get("id", ""),
+                                "name": func.get("name", ""),
+                                "input": args,
+                            }
+                        )
 
-                    anthropic_messages.append({
-                        "role": "assistant",
-                        "content": content_blocks,
-                    })
+                    anthropic_messages.append(
+                        {
+                            "role": "assistant",
+                            "content": content_blocks,
+                        }
+                    )
                 else:
                     # No tool calls - pass through with content normalization
                     if isinstance(content, str):
-                        anthropic_messages.append({
-                            "role": "assistant",
-                            "content": [{"type": "text", "text": content}] if content else [],
-                        })
+                        anthropic_messages.append(
+                            {
+                                "role": "assistant",
+                                "content": [{"type": "text", "text": content}]
+                                if content
+                                else [],
+                            }
+                        )
                     else:
                         # Already structured content
                         anthropic_messages.append(msg)
@@ -406,10 +434,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             if role == "user":
                 content = msg.get("content", "")
                 if isinstance(content, str):
-                    anthropic_messages.append({
-                        "role": "user",
-                        "content": [{"type": "text", "text": content}],
-                    })
+                    anthropic_messages.append(
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": content}],
+                        }
+                    )
                 else:
                     # Already structured content (could have images, etc.)
                     anthropic_messages.append(msg)
@@ -436,12 +466,11 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             messages, "completions", exclude_tools=self.exclude_tools
         )
 
-        # Check if web_search tools are present - use native Anthropic SDK
-        if self._has_web_search_tools(agent_tools):
-            if "anthropic" not in self.llm.lower():
-                raise ValueError(
-                    f"web_search tools require Anthropic models with completions API, got: {self.llm}"
-                )
+        # Route all Anthropic models through native SDK for better support of:
+        # - Extended thinking / interleaved thinking
+        # - Server-side tools (web_search, code_interpreter)
+        # - Full response structure preservation
+        if "anthropic" in self.llm.lower():
             if self.stream_tokens:
                 return await self._stream_completions_anthropic_native(
                     messages, agent_tools, tool_choice
@@ -527,7 +556,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         Execute a native Anthropic API call with web_search built-in tools.
         This preserves the full response structure including server_tool_use blocks.
         """
-        client = anthropic.AsyncAnthropic()
+        client = wrap_anthropic(anthropic.AsyncAnthropic())
 
         # Strip provider prefix from model name
         model = self.llm
@@ -547,7 +576,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         # Convert messages from OpenAI/LiteLLM format to Anthropic format
         # This handles tool results (role: "tool") and tool_calls in assistant messages
-        anthropic_messages = self._convert_messages_to_anthropic_format(filtered_messages)
+        anthropic_messages = self._convert_messages_to_anthropic_format(
+            filtered_messages
+        )
 
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic_format(agent_tools)
@@ -601,33 +632,46 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         response = await client.messages.create(**request_params)
 
+        # Build assistant message from content blocks for multi-turn conversations
+        # This preserves thinking blocks, tool_use, text, etc. in Anthropic format
+        assistant_message: dict[str, Any] = {
+            "role": "assistant",
+            "content": [block.model_dump() for block in response.content],
+        }
+
         # Parse response content blocks
         tool_calls: list[AgentToolCall] = []
         text_chunks: list[str] = []
-        thinking_blocks: list[dict[str, Any]] = []  # Full blocks with signature for multi-turn
+        thinking_blocks: list[
+            dict[str, Any]
+        ] = []  # Full blocks with signature for multi-turn
         all_citations: list[dict[str, Any]] = []
-        web_search_results: dict[str, list[dict[str, Any]]] = {}  # tool_use_id -> results
-
-        response_dict = response.model_dump()
+        web_search_results: dict[
+            str, list[dict[str, Any]]
+        ] = {}  # tool_use_id -> results
 
         for block in response.content:
             block_type = block.type
 
             if block_type == "thinking":
                 # Capture full thinking block (including signature) for multi-turn support
-                thinking_blocks.append({
-                    "type": "thinking",
-                    "thinking": getattr(block, "thinking", ""),
-                    "signature": getattr(block, "signature", ""),
-                })
+                thinking_blocks.append(
+                    {
+                        "type": "thinking",
+                        "thinking": getattr(block, "thinking", ""),
+                        "signature": getattr(block, "signature", ""),
+                    }
+                )
 
             elif block_type == "redacted_thinking":
                 # Capture redacted thinking blocks - these contain encrypted content
                 # that must be passed back unmodified for multi-turn conversations
-                thinking_blocks.append({
-                    "type": "redacted_thinking",
-                    "data": getattr(block, "data", ""),
-                })
+                thinking_blocks.append(
+                    {
+                        "type": "redacted_thinking",
+                        "data": getattr(block, "data", ""),
+                    }
+                )
 
             elif block_type == "server_tool_use":
                 # Capture the web search query
@@ -639,7 +683,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                             "status": "completed",
                         },
                         tool_call_id=block.id,
-                        completion=response_dict,
+                        completion=assistant_message,
                     )
                 )
 
@@ -677,13 +721,16 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         tool_name=block.name,
                         tool_args=block.input,
                         tool_call_id=block.id,
-                        completion=response_dict,
+                        completion=assistant_message,
                     )
                 )
 
         # Update tool calls with their results
         for tc in tool_calls:
-            if tc.tool_name == "web_search_call" and tc.tool_call_id in web_search_results:
+            if (
+                tc.tool_name == "web_search_call"
+                and tc.tool_call_id in web_search_results
+            ):
                 tc.tool_args["results"] = web_search_results[tc.tool_call_id]
 
         # Add citations to the response if present
@@ -696,7 +743,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Add thinking/reasoning content if present
         # Extract text content from thinking blocks (for display), excluding redacted blocks
         thinking_content = "".join(
-            b.get("thinking", "") for b in thinking_blocks if b.get("type") == "thinking"
+            b.get("thinking", "")
+            for b in thinking_blocks
+            if b.get("type") == "thinking"
         )
         if thinking_content or thinking_blocks:
             # Add to the first tool call (usually web_search_call or text_output)
@@ -722,7 +771,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     tool_name="text_output",
                     tool_args=tool_args,
                     tool_call_id="",
-                    completion=response_dict,
+                    completion=assistant_message,
                 )
             )
 
@@ -737,7 +786,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         """
         Stream a native Anthropic API call with web_search built-in tools.
         """
-        client = anthropic.AsyncAnthropic()
+        client = wrap_anthropic(anthropic.AsyncAnthropic())
 
         # Strip provider prefix from model name
         model = self.llm
@@ -757,7 +806,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         # Convert messages from OpenAI/LiteLLM format to Anthropic format
         # This handles tool results (role: "tool") and tool_calls in assistant messages
-        anthropic_messages = self._convert_messages_to_anthropic_format(filtered_messages)
+        anthropic_messages = self._convert_messages_to_anthropic_format(
+            filtered_messages
+        )
 
         # Convert tools to Anthropic format
         anthropic_tools = self._convert_tools_to_anthropic_format(agent_tools)
@@ -863,12 +914,19 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             # Get the final message with full content
             final_message = await stream.get_final_message()
 
-        response_dict = final_message.model_dump()
+        # Build assistant message from content blocks for multi-turn conversations
+        # This preserves thinking blocks, tool_use, text, etc. in Anthropic format
+        assistant_message: dict[str, Any] = {
+            "role": "assistant",
+            "content": [block.model_dump() for block in final_message.content],
+        }
 
         # Process the final message to get complete data
         tool_calls: list[AgentToolCall] = []
         text_chunks: list[str] = []
-        thinking_blocks: list[dict[str, Any]] = []  # Full blocks with signature for multi-turn
+        thinking_blocks: list[
+            dict[str, Any]
+        ] = []  # Full blocks with signature for multi-turn
         all_citations: list[dict[str, Any]] = []
         web_search_results: dict[str, list[dict[str, Any]]] = {}
 
@@ -877,19 +935,23 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             if block_type == "thinking":
                 # Capture full thinking block (including signature) for multi-turn support
-                thinking_blocks.append({
-                    "type": "thinking",
-                    "thinking": getattr(block, "thinking", ""),
-                    "signature": getattr(block, "signature", ""),
-                })
+                thinking_blocks.append(
+                    {
+                        "type": "thinking",
+                        "thinking": getattr(block, "thinking", ""),
+                        "signature": getattr(block, "signature", ""),
+                    }
+                )
 
             elif block_type == "redacted_thinking":
                 # Capture redacted thinking blocks - these contain encrypted content
                 # that must be passed back unmodified for multi-turn conversations
-                thinking_blocks.append({
-                    "type": "redacted_thinking",
-                    "data": getattr(block, "data", ""),
-                })
+                thinking_blocks.append(
+                    {
+                        "type": "redacted_thinking",
+                        "data": getattr(block, "data", ""),
+                    }
+                )
 
             elif block_type == "server_tool_use":
                 tool_calls.append(
@@ -900,7 +962,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                             "status": "completed",
                         },
                         tool_call_id=block.id,
-                        completion=response_dict,
+                        completion=assistant_message,
                     )
                 )
 
@@ -935,13 +997,16 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         tool_name=block.name,
                         tool_args=block.input,
                         tool_call_id=block.id,
-                        completion=response_dict,
+                        completion=assistant_message,
                     )
                 )
 
         # Update tool calls with their results
         for tc in tool_calls:
-            if tc.tool_name == "web_search_call" and tc.tool_call_id in web_search_results:
+            if (
+                tc.tool_name == "web_search_call"
+                and tc.tool_call_id in web_search_results
+            ):
                 tc.tool_args["results"] = web_search_results[tc.tool_call_id]
 
         # Add citations to the response if present
@@ -954,7 +1019,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Add thinking/reasoning content if present
         # Extract text content from thinking blocks (for display), excluding redacted blocks
         thinking_content = "".join(
-            b.get("thinking", "") for b in thinking_blocks if b.get("type") == "thinking"
+            b.get("thinking", "")
+            for b in thinking_blocks
+            if b.get("type") == "thinking"
         )
         if thinking_content or thinking_blocks:
             # Add to the first tool call (usually web_search_call or text_output)
@@ -980,7 +1047,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     tool_name="text_output",
                     tool_args=tool_args,
                     tool_call_id="",
-                    completion=response_dict,
+                    completion=assistant_message,
                 )
             )
 
@@ -1108,7 +1175,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 message_chunks.append(output.content[0].text)  # type: ignore
             elif output.type in ("web_search_call", "code_interpreter_call"):
                 builtin_tool_calls.append(
-                    output.model_dump() if hasattr(output, "model_dump") else dict(output)
+                    output.model_dump()
+                    if hasattr(output, "model_dump")
+                    else dict(output)
                 )
 
         agent_tool_calls: list[AgentToolCall] = []
