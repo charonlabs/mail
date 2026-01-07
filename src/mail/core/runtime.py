@@ -16,7 +16,6 @@ import langsmith as ls
 import rich
 import tiktoken
 import ujson
-from langmem import create_memory_store_manager
 from litellm import aresponses
 from sse_starlette import ServerSentEvent
 
@@ -34,7 +33,6 @@ from mail.db.utils import (
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.context import get_model_ctx_len
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
-from mail.utils.store import get_langmem_store
 from mail.utils.string_builder import build_mail_help_string
 
 from .actions import (
@@ -2150,36 +2148,36 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                             try:
                                 # Only store if this was a broadcast; otherwise treat as no-op
                                 if message["msg_type"] == "broadcast":
-                                    note = call.tool_args.get("note")
-                                    async with get_langmem_store() as store:
-                                        manager = create_memory_store_manager(
-                                            "anthropic:claude-sonnet-4-20250514",
-                                            query_model="anthropic:claude-sonnet-4-20250514",
-                                            query_limit=10,
-                                            namespace=(f"{recipient}_memory",),
-                                            store=store,
-                                        )
-                                        assistant_content = (
-                                            f"<acknowledged broadcast/>\n{note}".strip()
-                                            if note
-                                            else "<acknowledged broadcast/>"
-                                        )
-                                        await manager.ainvoke(
-                                            {
-                                                "messages": [
-                                                    {
-                                                        "role": "user",
-                                                        "content": incoming_message[
-                                                            "content"
-                                                        ],
-                                                    },
-                                                    {
-                                                        "role": "assistant",
-                                                        "content": assistant_content,
-                                                    },
-                                                ]
-                                            }
-                                        )
+                                    # note = call.tool_args.get("note")
+                                    # async with get_langmem_store() as store:
+                                    #     manager = create_memory_store_manager(
+                                    #         "anthropic:claude-sonnet-4-20250514",
+                                    #         query_model="anthropic:claude-sonnet-4-20250514",
+                                    #         query_limit=10,
+                                    #         namespace=(f"{recipient}_memory",),
+                                    #         store=store,
+                                    #     )
+                                    #     assistant_content = (
+                                    #         f"<acknowledged broadcast/>\n{note}".strip()
+                                    #         if note
+                                    #         else "<acknowledged broadcast/>"
+                                    #     )
+                                    #     await manager.ainvoke(
+                                    #         {
+                                    #             "messages": [
+                                    #                 {
+                                    #                     "role": "user",
+                                    #                     "content": incoming_message[
+                                    #                         "content"
+                                    #                     ],
+                                    #                 },
+                                    #                 {
+                                    #                     "role": "assistant",
+                                    #                     "content": assistant_content,
+                                    #                 },
+                                    #             ]
+                                    #         }
+                                    #     )
                                     self._tool_call_response(
                                         task_id=task_id,
                                         caller=recipient,
@@ -3271,6 +3269,7 @@ The final response message is: '{finish_body}'""",
             event_data = sse.data
             if event_data is not None and not isinstance(event_data, str):
                 import json
+
                 event_data = json.dumps(event_data)
 
             await create_task_event(
