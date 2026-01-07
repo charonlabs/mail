@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -11,6 +11,7 @@ import {
   type Edge,
   ConnectionMode,
   MarkerType,
+  Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -56,7 +57,7 @@ function calculateLayout(
   // Simple circular layout as starting point
   const centerX = width / 2;
   const centerY = height / 2;
-  const radius = Math.min(width, height) * 0.35;
+  const radius = Math.min(width, height) * 0.5;
 
   agents.forEach((agent, i) => {
     const angle = (2 * Math.PI * i) / nodeCount - Math.PI / 2;
@@ -68,7 +69,7 @@ function calculateLayout(
 
   // Apply simple force simulation for better distribution
   const iterations = 50;
-  const repulsion = 10000;
+  const repulsion = 20000;
   const attraction = 0.01;
 
   for (let iter = 0; iter < iterations; iter++) {
@@ -164,6 +165,7 @@ export function AgentGraph() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   // Calculate event counts per agent (includes both caller and recipient events)
   const eventCounts = useMemo(() => {
@@ -252,7 +254,7 @@ export function AgentGraph() {
 
     // Calculate positions for real agents only
     const realAgents = agents.filter(a => !a.isVirtual);
-    const positions = calculateLayout(realAgents, 800, 600);
+    const positions = calculateLayout(realAgents, 1000, 750);
 
     // Position virtual agents at the bottom
     if (isEvalMode) {
@@ -267,8 +269,12 @@ export function AgentGraph() {
     }
 
     // Create nodes
+    const prevPositions = nodePositionsRef.current;
+    const resolvedPositions = new Map<string, { x: number; y: number }>();
+
     const newNodes: Node[] = allAgents.map((agent) => {
-      const pos = positions.get(agent.name) || { x: 0, y: 0 };
+      const pos = prevPositions.get(agent.name) || positions.get(agent.name) || { x: 0, y: 0 };
+      resolvedPositions.set(agent.name, pos);
       const virtualType = agent.name === 'Judge' ? 'judge' : agent.name === 'Reflector' ? 'reflector' : undefined;
 
       const nodeData: AgentNodeData = {
@@ -292,36 +298,105 @@ export function AgentGraph() {
       };
     });
 
-    // Create edges from comm_targets (only for real agents)
+    setNodes(newNodes);
+    nodePositionsRef.current = resolvedPositions;
+
+  }, [agents, allAgents, entrypoint, agentsWithUnseenActivity, selectedAgent, eventCounts, isEvalMode, setNodes, setEdges]);
+
+  // Keep node positions in sync for edge routing + new node placement.
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    nodePositionsRef.current = new Map(nodes.map((node) => [node.id, node.position]));
+  }, [nodes]);
+
+  // Recompute edges when nodes move so anchors stay on the nearest side.
+  useEffect(() => {
+    if (agents.length === 0 || nodes.length === 0) {
+      setEdges([]);
+      return;
+    }
+
+    const positions = new Map(nodes.map((node) => [node.id, node.position]));
+    const realAgents = agents.filter((agent) => !agent.isVirtual);
+    const realAgentNames = new Set(realAgents.map((agent) => agent.name));
+    const realAgentMap = new Map(realAgents.map((agent) => [agent.name, agent]));
+    const seenPairs = new Set<string>();
+    const positionKey = (pos: Position) => {
+      switch (pos) {
+        case Position.Left:
+          return 'left';
+        case Position.Right:
+          return 'right';
+        case Position.Top:
+          return 'top';
+        case Position.Bottom:
+          return 'bottom';
+        default:
+          return 'left';
+      }
+    };
+
     const newEdges: Edge[] = [];
     realAgents.forEach((agent) => {
       agent.comm_targets.forEach((target) => {
-        // Only create edge if target exists
-        if (realAgents.some((a) => a.name === target)) {
-          newEdges.push({
-            id: `${agent.name}-${target}`,
-            source: agent.name,
-            target: target,
-            type: 'default',
-            animated: agentsWithUnseenActivity.has(agent.name),
-            style: {
-              stroke: agentsWithUnseenActivity.has(agent.name) ? 'var(--edge-active)' : 'var(--edge-inactive)',
-              strokeWidth: agentsWithUnseenActivity.has(agent.name) ? 2 : 1,
-            },
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: agentsWithUnseenActivity.has(agent.name) ? 'var(--edge-active)' : 'var(--edge-inactive)',
-              width: 15,
-              height: 15,
-            },
-          });
+        if (!realAgentNames.has(target)) return;
+
+        const pairKey = agent.name < target ? `${agent.name}::${target}` : `${target}::${agent.name}`;
+        if (seenPairs.has(pairKey)) return;
+        seenPairs.add(pairKey);
+
+        const targetAgent = realAgentMap.get(target);
+        const isBidirectional = Boolean(targetAgent?.comm_targets.includes(agent.name));
+        const isActive =
+          agentsWithUnseenActivity.has(agent.name) || agentsWithUnseenActivity.has(target);
+        const sourcePos = positions.get(agent.name);
+        const targetPos = positions.get(target);
+        if (!sourcePos || !targetPos) return;
+
+        const dx = targetPos.x - sourcePos.x;
+        const dy = targetPos.y - sourcePos.y;
+        let sourcePosition = Position.Right;
+        let targetPosition = Position.Left;
+
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          sourcePosition = dx >= 0 ? Position.Right : Position.Left;
+          targetPosition = dx >= 0 ? Position.Left : Position.Right;
+        } else {
+          sourcePosition = dy >= 0 ? Position.Bottom : Position.Top;
+          targetPosition = dy >= 0 ? Position.Top : Position.Bottom;
         }
+
+        const edge: Edge = {
+          id: pairKey,
+          source: agent.name,
+          target: target,
+          type: 'default',
+          sourcePosition,
+          targetPosition,
+          sourceHandle: `source-${positionKey(sourcePosition)}`,
+          targetHandle: `target-${positionKey(targetPosition)}`,
+          animated: isActive,
+          style: {
+            stroke: isActive ? 'var(--edge-active)' : 'var(--edge-inactive)',
+            strokeWidth: isActive ? 2 : 1,
+          },
+        };
+
+        if (!isBidirectional) {
+          edge.markerEnd = {
+            type: MarkerType.ArrowClosed,
+            color: isActive ? 'var(--edge-active)' : 'var(--edge-inactive)',
+            width: 15,
+            height: 15,
+          };
+        }
+
+        newEdges.push(edge);
       });
     });
 
-    setNodes(newNodes);
     setEdges(newEdges);
-  }, [agents, allAgents, entrypoint, agentsWithUnseenActivity, selectedAgent, eventCounts, isEvalMode, setNodes, setEdges]);
+  }, [agents, nodes, agentsWithUnseenActivity, setEdges]);
 
   // Handle node click
   const onNodeClick = useCallback(
@@ -351,6 +426,7 @@ export function AgentGraph() {
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.3}
         maxZoom={2}
+        deleteKeyCode={null}
         proOptions={{ hideAttribution: true }}
       >
         <Background

@@ -120,14 +120,52 @@ function AgentNodeComponent({ data, selected }: AgentNodeProps) {
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-2 !h-2 !bg-primary !border-background !border-2"
+        id="target-left"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
         style={isVirtual && virtualColor ? { backgroundColor: virtualColor.border } : undefined}
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-2 !h-2 !bg-primary !border-background !border-2"
+        id="source-right"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
         style={isVirtual && virtualColor ? { backgroundColor: virtualColor.border } : undefined}
+      />
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="source-bottom"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
+      />
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="target-right"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="source-left"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
+      />
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="source-top"
+        className="!w-2 !h-2 !bg-primary !border-background !border-2 opacity-0"
       />
 
       {/* Activity indicator */}
