@@ -218,8 +218,5 @@ logs/
 registries/
 test-swarm-registry.json
 
-# Dev
-AGENTS.md
-
 # mac specific files
 **.DS_Store
