@@ -317,6 +317,38 @@ await swarm.post_message(
 )
 ```
 
+### Parsing Breakpoint Tool Call Arguments
+
+When a breakpoint tool is called, the response has this structure:
+
+```python
+response["message"]["subject"] == "::breakpoint_tool_call::"
+response["message"]["body"] == '[{"role":"assistant","content":[{"id":"toolu_...","input":{...}}]}]'
+```
+
+To extract the tool arguments:
+
+```python
+import json
+
+def parse_breakpoint_args(response: dict) -> dict | None:
+    message = response.get("message", {})
+    if message.get("subject") != "::breakpoint_tool_call::":
+        return None
+    body = message.get("body", "")
+    if not body:
+        return None
+    data = json.loads(body)
+    # Structure: [{role: "assistant", content: [{id, input, ...}]}]
+    for block in data[0].get("content", []):
+        if "input" in block:
+            return block["input"]
+    return None
+```
+
+This pattern is useful for structured output: define a breakpoint tool, have the agent call it,
+then extract the typed arguments instead of parsing freeform text.
+
 ## Common Patterns and Gotchas
 
 1. `tool_format` should be a top-level template field. If it appears inside `agent_params`, it is ignored with a warning.

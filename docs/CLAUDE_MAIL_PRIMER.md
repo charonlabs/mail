@@ -394,6 +394,52 @@ response, events = await swarm.post_message_and_run(
 )
 ```
 
+### Parsing Breakpoint Tool Call Arguments
+
+When a breakpoint tool is called, the response structure looks like this:
+
+```python
+response = {
+    "message": {
+        "subject": "::breakpoint_tool_call::",  # Indicates breakpoint was hit
+        "body": "[{\"role\":\"assistant\",\"content\":[{\"id\":\"toolu_...\",\"input\":{...}}]}]"
+    }
+}
+```
+
+To extract the tool call arguments:
+
+```python
+import json
+
+def parse_breakpoint_tool_call(response: dict) -> dict | None:
+    """Extract tool call arguments from a breakpoint response."""
+    message = response.get("message", {})
+    subject = message.get("subject", "")
+    body = message.get("body", "")
+
+    # Check if this is a breakpoint response
+    if subject != "::breakpoint_tool_call::" or not body:
+        return None
+
+    # Parse the body JSON
+    body_data = json.loads(body)
+
+    # Structure: [{role: "assistant", content: [{id, input, ...}]}]
+    if isinstance(body_data, list) and len(body_data) > 0:
+        assistant_msg = body_data[0]
+        content = assistant_msg.get("content", [])
+
+        # Find the tool_use content block
+        for block in content:
+            if isinstance(block, dict) and "input" in block:
+                return block["input"]  # This is your tool arguments dict
+
+    return None
+```
+
+This pattern is useful for **structured output** scenarios where you want the LLM to call a tool with specific parameters rather than outputting freeform text.
+
 ## Common Patterns and Gotchas
 
 ### 1. `tool_format` Location
