@@ -1,4 +1,4 @@
-# MAIL_PRIMER — Using MAIL as a Library
+# AGENTS_MAIL_PRIMER — Using MAIL as a Library
 
 Audience: developers integrating MAIL into their own codebases (not hacking MAIL internals).
 Focus: programmatic use of Actions, Agents, Swarms, and Templates.
