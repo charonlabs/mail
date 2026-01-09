@@ -1835,8 +1835,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 seen.add(addr)
                 deduped.append(addr)
 
-        # Prevent agents from broadcasting to themselves
-        recipients = [addr for addr in deduped if addr != sender_address]
+        # Prevent agents from broadcasting to themselves (but allow system messages
+        # to agents even if the swarm name matches the agent name)
+        sender_type = message["message"]["sender"]["address_type"]
+        if sender_type == "system":
+            recipients = deduped
+        else:
+            recipients = [addr for addr in deduped if addr != sender_address]
 
         for recipient in recipients:
             # Parse recipient address to get local agent name
