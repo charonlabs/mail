@@ -1,4 +1,4 @@
-import type { AgentsResponse, MessageResponse } from '@/types/mail';
+import type { AgentsResponse, MessageResponse, TaskSummary, TaskWithEvents } from '@/types/mail';
 import type { EvalConfig } from '@/lib/store';
 
 export class MAILClient {
@@ -47,6 +47,22 @@ export class MAILClient {
       throw new Error(`Failed to fetch server info: ${response.statusText}`);
     }
 
+    return response.json();
+  }
+
+  async getTasks(): Promise<TaskSummary[]> {
+    const response = await fetch(`${this.baseUrl}/ui/tasks`, {
+      headers: this.headers,
+    });
+    if (!response.ok) throw new Error('Failed to fetch tasks');
+    return response.json();
+  }
+
+  async getTask(taskId: string): Promise<TaskWithEvents> {
+    const response = await fetch(`${this.baseUrl}/ui/task/${taskId}`, {
+      headers: this.headers,
+    });
+    if (!response.ok) throw new Error('Failed to fetch task');
     return response.json();
   }
 

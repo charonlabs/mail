@@ -981,14 +981,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 # Yield only events related to this task, but keep history of all
                 for ev in events_to_emit:
                     try:
-                        self.mail_tasks[task_id].add_event(ev)
-                    except Exception as e:
-                        # Never let history tracking break streaming
-                        logger.error(
-                            f"{self._log_prelude()} `submit_and_stream`: failed to add event to task '{task_id}': {e}"
-                        )
-                        pass
-                    try:
                         # ev.data is now a JSON string, parse to check task_id
                         ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data
                         if isinstance(ev_data, dict) and ev_data.get("task_id") == task_id:
@@ -1006,10 +998,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 self.new_events = []
                 self._events_available.clear()
                 for ev in events_to_emit:
-                    try:
-                        self.mail_tasks[task_id].add_event(ev)
-                    except Exception:
-                        pass
                     try:
                         # ev.data is now a JSON string, parse to check task_id
                         ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data

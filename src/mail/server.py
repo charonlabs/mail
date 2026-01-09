@@ -17,6 +17,7 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
+import ujson
 import uvicorn
 from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -753,8 +754,6 @@ async def ui_dump_events():
     Dump all events from all tasks to a JSONL file for debugging.
     Returns the events and writes to events_dump.jsonl.
     """
-    import ujson
-
     caller_id = "ui-dev-user"
     caller_role = "user"
     api_key = "dev-token"
@@ -791,6 +790,92 @@ async def ui_dump_events():
         "message": f"Dumped {len(all_events)} events to events_dump.jsonl",
         "event_count": len(all_events),
         "events": all_events,
+    }
+
+
+@app.get("/ui/task-summary/{task_id}", dependencies=[Depends(utils.require_debug)])
+async def ui_get_task_summary(task_id: str):
+    """
+    Get an AI-generated summary title for a task.
+    TODO: Implement Haiku summary generation.
+    """
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    task = api_swarm.get_task_by_id(task_id)
+
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    # Stub - will generate summary with Haiku in future
+    return {"task_id": task_id, "summary": None}
+
+
+@app.get("/ui/tasks", dependencies=[Depends(utils.require_debug)])
+async def ui_get_tasks():
+    """Get all tasks for the UI (debug mode only)."""
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    tasks = api_swarm.get_all_tasks()
+
+    result = []
+    for task in tasks.values():
+        result.append({
+            "task_id": task.task_id,
+            "task_owner": task.task_owner,
+            "is_running": task.is_running,
+            "completed": task.completed,
+            "start_time": task.start_time.isoformat(),
+            "event_count": len(task.events),
+        })
+
+    # Sort by start_time descending (newest first)
+    result.sort(key=lambda t: t["start_time"], reverse=True)
+    return result
+
+
+@app.get("/ui/task/{task_id}", dependencies=[Depends(utils.require_debug)])
+async def ui_get_task(task_id: str):
+    """Get a specific task with events for the UI (debug mode only)."""
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    task = api_swarm.get_task_by_id(task_id)
+
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    # Serialize events - data is already a JSON string from runtime
+    events = []
+    for e in task.events:
+        event_data = e.data
+        # Parse if string (it should be), keep as-is if already dict
+        if isinstance(event_data, str):
+            try:
+                event_data = ujson.loads(event_data)
+            except Exception:
+                pass  # Keep as string if parse fails
+
+        events.append({
+            "event": e.event,
+            "data": event_data,  # Now a proper dict
+            "id": e.id,
+        })
+
+    return {
+        "task_id": task.task_id,
+        "task_owner": task.task_owner,
+        "is_running": task.is_running,
+        "completed": task.completed,
+        "start_time": task.start_time.isoformat(),
+        "events": events,
     }
 
 

@@ -6,6 +6,8 @@ import type {
   ConnectionStatus,
   EventFilters,
   EventType,
+  TaskSummary,
+  TaskWithEvents,
 } from '@/types/mail';
 
 interface AppState {
@@ -41,6 +43,14 @@ interface AppState {
   replaceUserMessageForTask: (taskId: string, content: string, timestamp?: string) => void;
   setCurrentTaskId: (taskId: string | null) => void;
   setIsProcessing: (processing: boolean) => void;
+
+  // Task History
+  taskHistory: TaskSummary[];
+  sidebarTab: 'chat' | 'history';
+  setTaskHistory: (tasks: TaskSummary[]) => void;
+  setSidebarTab: (tab: 'chat' | 'history') => void;
+  loadTaskIntoChat: (task: TaskWithEvents) => void;
+  clearCurrentTask: () => void;
 
   // Panels
   isDetailPanelOpen: boolean;
@@ -228,6 +238,118 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
   setCurrentTaskId: (taskId) => set({ currentTaskId: taskId }),
   setIsProcessing: (processing) => set({ isProcessing: processing }),
+
+  // Task History
+  taskHistory: [],
+  sidebarTab: 'chat',
+  setTaskHistory: (tasks) => set({ taskHistory: tasks }),
+  setSidebarTab: (tab) => set({ sidebarTab: tab }),
+  loadTaskIntoChat: (task) =>
+    set((state) => {
+      const chatMessages: ChatMessage[] = [];
+      const uiEvents: MAILEvent[] = [];
+      const seenMessageIds = new Set<string>(); // Chat message dedupe
+      const seenEventKeys = new Set<string>(); // Events panel dedupe
+
+      for (const rawEvent of task.events) {
+        // Safely parse data with fallback
+        let data: Record<string, unknown>;
+        let parseFailed = false;
+        try {
+          data =
+            typeof rawEvent.data === 'string'
+              ? JSON.parse(rawEvent.data)
+              : (rawEvent.data as Record<string, unknown>);
+          if (!data || typeof data !== 'object') throw new Error('Invalid data');
+        } catch {
+          // Fallback for unparseable events - still show in events panel
+          parseFailed = true;
+          data = {
+            timestamp: new Date().toISOString(),
+            description: `[Parse error] ${rawEvent.event}`,
+            task_id: task.task_id,
+            extra_data: { raw: rawEvent.data },
+          };
+        }
+
+        const extraData = data.extra_data as Record<string, unknown> | undefined;
+
+        // Dedupe events by id (if present)
+        const eventId = rawEvent.id || crypto.randomUUID();
+        if (rawEvent.id && seenEventKeys.has(rawEvent.id)) continue;
+        if (rawEvent.id) seenEventKeys.add(rawEvent.id);
+
+        // Build MAILEvent for events panel
+        const mailEvent: MAILEvent = {
+          id: eventId,
+          event: rawEvent.event as EventType,
+          timestamp: data.timestamp as string,
+          description: data.description as string,
+          task_id: data.task_id as string,
+          extra_data: extraData,
+        };
+        uiEvents.push(mailEvent);
+
+        // Skip chat extraction if parse failed
+        if (parseFailed) continue;
+
+        // Extract chat messages from new_message events only
+        if (rawEvent.event === 'new_message' && extraData?.full_message) {
+          const fullMsg = extraData.full_message as Record<string, unknown>;
+          const msgId = fullMsg.id as string;
+
+          // Skip duplicate messages
+          if (msgId && seenMessageIds.has(msgId)) continue;
+          if (msgId) seenMessageIds.add(msgId);
+
+          const message = fullMsg.message as Record<string, unknown>;
+          const sender = message?.sender as Record<string, unknown>;
+          const msgType = fullMsg.msg_type as string;
+
+          // User message: sender.address_type === "user"
+          if (sender?.address_type === 'user') {
+            chatMessages.push({
+              id: crypto.randomUUID(),
+              role: 'user',
+              content: message.body as string,
+              timestamp: data.timestamp as string,
+              task_id: task.task_id,
+            });
+          }
+
+          // Assistant response: msg_type === "broadcast_complete"
+          if (msgType === 'broadcast_complete') {
+            chatMessages.push({
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: message.body as string,
+              timestamp: data.timestamp as string,
+              task_id: task.task_id,
+            });
+          }
+        }
+      }
+
+      return {
+        messages: chatMessages,
+        events: uiEvents,
+        currentTaskId: task.task_id,
+        sidebarTab: 'chat' as const,
+        isProcessing: false, // Cancel any active stream
+        // Reset derived state - will rebuild as user interacts
+        activeAgents: new Set<string>(),
+        agentLastViewed: {},
+      };
+    }),
+  clearCurrentTask: () =>
+    set({
+      messages: [],
+      events: [],
+      currentTaskId: null,
+      isProcessing: false,
+      activeAgents: new Set<string>(),
+      agentLastViewed: {},
+    }),
 
   // Panels
   isDetailPanelOpen: false,

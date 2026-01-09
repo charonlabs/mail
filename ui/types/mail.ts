@@ -124,6 +124,30 @@ export interface EventFilters {
 }
 
 // Event type metadata for filtering UI
+// Task history types
+export interface TaskSummary {
+  task_id: string;
+  task_owner: string;
+  is_running: boolean;
+  completed: boolean;
+  start_time: string;
+  event_count: number;
+  // summary: string | null;  // Future: Haiku-generated summary via /ui/task-summary
+}
+
+export interface TaskWithEvents extends Omit<TaskSummary, 'event_count'> {
+  events: Array<{
+    event: string;
+    data: {
+      timestamp: string;
+      description: string;
+      task_id: string;
+      extra_data?: Record<string, unknown>;
+    } | string;  // string if parse failed
+    id: string | null;
+  }>;
+}
+
 export const EVENT_TYPE_META: Record<EventType, { label: string; color: string }> = {
   new_message: { label: 'Message', color: '#cfb53b' },
   tool_call: { label: 'Tool', color: '#cd7f32' },
