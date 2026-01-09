@@ -2103,7 +2103,24 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     self.last_breakpoint_tool_calls[task_id] = breakpoint_calls
                     bp_dumps: list[dict[str, Any]] = []
                     if breakpoint_calls[0].completion:
-                        bp_dumps.append(breakpoint_calls[0].completion)
+                        # Extract only tool_use blocks from content, filtering out
+                        # thinking blocks that appear when extended thinking is enabled
+                        completion = breakpoint_calls[0].completion
+                        content = completion.get("content", [])
+                        tool_use_blocks = [
+                            block
+                            for block in content
+                            if isinstance(block, dict)
+                            and block.get("type") == "tool_use"
+                            and block.get("name") in self.breakpoint_tools
+                        ]
+                        if tool_use_blocks:
+                            bp_dumps.append(
+                                {
+                                    "role": completion.get("role", "assistant"),
+                                    "content": tool_use_blocks,
+                                }
+                            )
                     else:
                         resps = breakpoint_calls[0].responses
                         for resp in resps:
