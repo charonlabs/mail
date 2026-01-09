@@ -6,9 +6,11 @@ import { useSSE } from '@/hooks/useSSE';
 import { Send, Square, Loader2, Zap, Terminal, Play, Settings, Download, MessageSquare, History, Plus } from 'lucide-react';
 import { getClient } from '@/lib/api';
 import { TaskHistoryContent } from './TaskHistoryContent';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function ChatSidebar() {
   const [input, setInput] = useState('');
+  const [copiedTaskId, setCopiedTaskId] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -83,6 +85,7 @@ export function ChatSidebar() {
   };
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div className="w-[320px] h-full flex flex-col bg-sidebar border-r border-sidebar-border">
       {/* Header */}
       <div className="p-4 border-b border-sidebar-border">
@@ -115,43 +118,68 @@ export function ChatSidebar() {
 
             {/* Active task indicator */}
             {currentTaskId && (
-              <div className="mt-2 text-xs text-muted-foreground font-mono truncate">
-                Task: {currentTaskId.slice(0, 8)}...
+              <div className="mt-2 text-xs text-muted-foreground font-mono flex items-center gap-1.5">
+                <span>Task:</span>
+                <Tooltip open={copiedTaskId ? true : undefined}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentTaskId);
+                        setCopiedTaskId(true);
+                        setTimeout(() => setCopiedTaskId(false), 1500);
+                      }}
+                      className="hover:text-primary transition-colors"
+                    >
+                      {currentTaskId.slice(0, 16)}...
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {copiedTaskId ? 'Copied!' : 'Click to copy task ID'}
+                  </TooltipContent>
+                </Tooltip>
               </div>
             )}
 
             {/* Debug: Dump events button */}
             {connectionStatus === 'connected' && (
-              <button
-                onClick={handleDumpEvents}
-                className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                title="Dump all events to JSONL file"
-              >
-                <Download className="w-3 h-3" />
-                <span>Dump Events</span>
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleDumpEvents}
+                    className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>Dump Events</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Dump all events to JSONL file</TooltipContent>
+              </Tooltip>
             )}
           </div>
 
           {/* New Task button */}
           {connectionStatus === 'connected' && (
-            <button
-              onClick={() => {
-                cancelStream(); // Cancel any in-flight SSE stream first
-                startNewTask();
-              }}
-              className="
-                flex items-center gap-1.5 px-2.5 py-1.5
-                text-xs font-medium
-                bg-primary/10 hover:bg-primary/20
-                text-primary border border-primary/30
-                rounded transition-colors
-              "
-              title="Start a new task"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>New</span>
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => {
+                    cancelStream(); // Cancel any in-flight SSE stream first
+                    startNewTask();
+                  }}
+                  className="
+                    flex items-center gap-1.5 pl-1.5 pr-3.5 py-1.5
+                    text-xs font-medium
+                    bg-primary/10 hover:bg-primary/20
+                    text-primary border border-primary/30
+                    rounded transition-colors
+                  "
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Start a new task</TooltipContent>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -384,5 +412,6 @@ export function ChatSidebar() {
         </>
       )}
     </div>
+    </TooltipProvider>
   );
 }

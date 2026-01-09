@@ -794,10 +794,11 @@ async def ui_dump_events():
 
 
 @app.get("/ui/task-summary/{task_id}", dependencies=[Depends(utils.require_debug)])
-async def ui_get_task_summary(task_id: str):
+async def ui_get_task_summary(task_id: str, force_regen: bool = False):
     """
     Get an AI-generated summary title for a task.
     Generates using Haiku on first request, then returns cached title.
+    Pass force_regen=true to regenerate the title.
     """
     from mail.summarizer import summarize_task
 
@@ -811,8 +812,8 @@ async def ui_get_task_summary(task_id: str):
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
-    # Return cached title if already generated
-    if task.title is not None:
+    # Return cached title if already generated (unless force_regen)
+    if task.title is not None and not force_regen:
         return {"task_id": task_id, "title": task.title}
 
     # Extract chat messages from task events

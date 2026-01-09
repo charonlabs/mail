@@ -66,8 +66,11 @@ export class MAILClient {
     return response.json();
   }
 
-  async getTaskSummary(taskId: string): Promise<{ task_id: string; title: string | null }> {
-    const response = await fetch(`${this.baseUrl}/ui/task-summary/${taskId}`, {
+  async getTaskSummary(taskId: string, forceRegen?: boolean): Promise<{ task_id: string; title: string | null }> {
+    const url = forceRegen
+      ? `${this.baseUrl}/ui/task-summary/${taskId}?force_regen=true`
+      : `${this.baseUrl}/ui/task-summary/${taskId}`;
+    const response = await fetch(url, {
       headers: this.headers,
     });
     if (!response.ok) throw new Error('Failed to fetch task summary');

@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useTaskHistory } from '@/hooks/useTaskHistory';
 import { getClient } from '@/lib/api';
-import { RefreshCw, Loader2 } from 'lucide-react';
+import { RefreshCw, Loader2, MoreHorizontal, RefreshCcw } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { TaskSummary } from '@/types/mail';
 
 function formatTimeAgo(dateString: string): string {
@@ -28,26 +34,28 @@ function TaskListItem({
   onClick,
   isLoading,
   isFetchingSummary,
+  onRegenTitle,
 }: {
   task: TaskSummary;
   onClick: () => void;
   isLoading: boolean;
   isFetchingSummary: boolean;
+  onRegenTitle: () => void;
 }) {
   const timeAgo = formatTimeAgo(task.start_time);
 
   // Only allow clicking completed tasks (Phase 1)
   // Running tasks will be handled in Phase 2 with "Attach" feature
   const isClickable = task.completed && !isLoading;
+  const showMenu = task.completed && !isLoading && !isFetchingSummary && task.title;
 
   return (
-    <button
-      onClick={isClickable ? onClick : undefined}
-      disabled={!isClickable}
+    <div
       className={`
-        w-full p-3 text-left border-b border-border/30 transition-colors
+        w-full p-3 text-left border-b border-border/30 transition-colors relative
         ${isClickable ? 'hover:bg-muted/50 cursor-pointer' : 'opacity-60 cursor-not-allowed'}
       `}
+      onClick={isClickable ? onClick : undefined}
       title={
         !task.completed
           ? 'Attach to running tasks coming in Phase 2'
@@ -72,15 +80,37 @@ function TaskListItem({
           {task.completed ? 'Done' : task.is_running ? 'Running' : 'Paused'}
         </span>
         <span className="text-xs text-muted-foreground">{timeAgo}</span>
-        {(isLoading || isFetchingSummary) && (
+
+        {/* Loading spinner OR menu button */}
+        {(isLoading || isFetchingSummary) ? (
           <Loader2 className="w-3 h-3 animate-spin text-primary ml-auto" />
-        )}
+        ) : showMenu ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              onClick={(e) => e.stopPropagation()}
+              className="ml-auto p-1 hover:bg-muted rounded transition-colors"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRegenTitle();
+                }}
+              >
+                <RefreshCcw className="w-3.5 h-3.5" />
+                Regen title
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
       <p className="text-sm truncate text-foreground">
         {task.title || `Task ${task.task_id.slice(0, 8)}...`}
       </p>
       <p className="text-xs text-muted-foreground">{task.event_count} events</p>
-    </button>
+    </div>
   );
 }
 
@@ -156,6 +186,33 @@ export function TaskHistoryContent() {
     }
   };
 
+  const handleRegenTitle = async (taskId: string) => {
+    // Clear the cached title on the backend first
+    const client = getClient(serverUrl);
+
+    // Mark as fetching
+    setFetchingSummaries(prev => new Set(prev).add(taskId));
+
+    // Clear local title to force re-fetch
+    updateTaskTitle(taskId, '');
+
+    try {
+      // Call with force_regen param (we'll add this to the API)
+      const result = await client.getTaskSummary(taskId, true);
+      if (result.title) {
+        updateTaskTitle(taskId, result.title);
+      }
+    } catch (error) {
+      console.error(`[TaskHistory] Failed to regen title for ${taskId}:`, error);
+    } finally {
+      setFetchingSummaries(prev => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-2 border-b border-border/50">
@@ -180,6 +237,7 @@ export function TaskHistoryContent() {
               onClick={() => handleLoadTask(task.task_id)}
               isLoading={loadingTaskId === task.task_id}
               isFetchingSummary={fetchingSummaries.has(task.task_id)}
+              onRegenTitle={() => handleRegenTitle(task.task_id)}
             />
           ))
         )}

@@ -371,8 +371,6 @@ export function AgentGraph() {
           source: agent.name,
           target: target,
           type: 'default',
-          sourcePosition,
-          targetPosition,
           sourceHandle: `source-${positionKey(sourcePosition)}`,
           targetHandle: `target-${positionKey(targetPosition)}`,
           animated: isActive,
