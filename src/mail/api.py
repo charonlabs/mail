@@ -199,9 +199,19 @@ class MAILAgentTemplate:
         combined_exclude = sorted(
             set(self.exclude_tools + (additional_exclude_tools or []))
         )
+
+        # Remove tool_format from agent_params if present - top-level is authoritative
+        agent_params = dict(self.agent_params)
+        if "tool_format" in agent_params:
+            logger.warning(
+                f"agent '{self.name}' has tool_format in agent_params; "
+                f"ignoring in favor of top-level tool_format='{self.tool_format}'"
+            )
+            agent_params.pop("tool_format")
+
         full_params = {
             **self._top_level_params(combined_exclude),
-            **self.agent_params,
+            **agent_params,
             **instance_params,
         }
         full_params["exclude_tools"] = combined_exclude

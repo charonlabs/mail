@@ -175,6 +175,7 @@ worker = MAILAgentTemplate(
 Notes:
 - `tool_format` should be set at the template level. It is passed to the factory and used for action tool specs.
 - OpenAI models generally use `tool_format="responses"`, Anthropic models use `"completions"`.
+- If `tool_format` appears inside `agent_params`, it is ignored and a warning is logged; top-level wins.
 - `comm_targets` must include valid agent names (or `agent@swarm` if interswarm is enabled).
 - A swarm must have at least one `enable_entrypoint=True` and one `can_complete_tasks=True`.
 
@@ -318,7 +319,7 @@ await swarm.post_message(
 
 ## Common Patterns and Gotchas
 
-1. `tool_format` must be a top-level template field (not inside `agent_params`).
+1. `tool_format` should be a top-level template field. If it appears inside `agent_params`, it is ignored with a warning.
 2. Solo agent swarms need both `enable_entrypoint=True` and `can_complete_tasks=True`.
 3. Actions must return a string (serialize dicts yourself).
 4. Use `functools.partial` to bind state into `MAILAction.from_pydantic_model`.

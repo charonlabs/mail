@@ -185,7 +185,7 @@ MAILAgentTemplate(
 )
 ```
 
-**Critical:** `tool_format` is a top-level template field, NOT inside `agent_params`. OpenAI models use `"responses"`, Anthropic models use `"completions"`.
+**Note:** `tool_format` should be a top-level template field. OpenAI models use `"responses"`, Anthropic models use `"completions"`.
 
 ### Multi-Agent Example
 
@@ -398,21 +398,17 @@ response, events = await swarm.post_message_and_run(
 
 ### 1. `tool_format` Location
 
-**Wrong:**
-```python
-agent_params={
-    "tool_format": "completions",  # WRONG - inside agent_params
-}
-```
+`tool_format` should be a top-level field on the agent template, not inside `agent_params`:
 
-**Correct:**
 ```python
 MAILAgentTemplate(
     ...
-    tool_format="completions",  # CORRECT - top-level field
-    agent_params={...},
+    tool_format="completions",  # Top-level field (preferred)
+    agent_params={...},         # Don't put tool_format here
 )
 ```
+
+If `tool_format` is found inside `agent_params`, a deprecation warning is logged and the top-level value takes precedence.
 
 ### 2. Solo Agent Swarm
 

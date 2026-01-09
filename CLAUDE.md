@@ -240,7 +240,7 @@ The file contains a **JSON array** of swarm definitions. Required fields: `name`
 - `actions` - List of action names this agent can use (optional, default `[]`)
 - `enable_entrypoint` - Can receive initial user message (optional, default `false`)
 - `can_complete_tasks` - Can call task_complete (optional, default `false`)
-- `tool_format` - "completions" or "responses" (optional, default `"responses"`) - **top-level agent field, not in agent_params**
+- `tool_format` - "completions" or "responses" (optional, default `"responses"`) - top-level agent field
 - `agent_params` - Passed to factory (llm, system prompt, etc.)
 
 ## Factories (`factories/`)
@@ -267,7 +267,7 @@ The file contains a **JSON array** of swarm definitions. Required fields: `name`
 - `thinking_budget` - Token budget for extended thinking
 - `stream_tokens` - Stream output to terminal
 
-Note: `tool_format` is a **top-level agent field**, not inside agent_params.
+Note: `tool_format` should be a top-level agent field. If placed in agent_params, a deprecation warning is logged.
 
 ## Server API (`server.py`)
 
@@ -481,7 +481,7 @@ For models with extended thinking (Claude with `thinking_budget`):
 
 2. **`await_message` behavior**: Blocks the agent until another message arrives. The `outstanding_requests` dict tracks pending requests per agent but doesn't prevent task completion.
 
-3. **`tool_format` location**: Must be a **top-level agent field**, NOT inside `agent_params`. Getting this wrong causes tool parsing failures.
+3. **`tool_format` location**: Should be a **top-level agent field**. If placed inside `agent_params`, a deprecation warning is logged and the top-level value takes precedence.
 
 4. **`actions` is required**: In swarms.json, even if empty, the `actions: []` field must be present.
 
