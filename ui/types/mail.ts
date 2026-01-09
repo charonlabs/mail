@@ -132,7 +132,7 @@ export interface TaskSummary {
   completed: boolean;
   start_time: string;
   event_count: number;
-  // summary: string | null;  // Future: Haiku-generated summary via /ui/task-summary
+  title: string | null;
 }
 
 export interface TaskWithEvents extends Omit<TaskSummary, 'event_count'> {

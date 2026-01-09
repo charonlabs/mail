@@ -797,8 +797,10 @@ async def ui_dump_events():
 async def ui_get_task_summary(task_id: str):
     """
     Get an AI-generated summary title for a task.
-    TODO: Implement Haiku summary generation.
+    Generates using Haiku on first request, then returns cached title.
     """
+    from mail.summarizer import summarize_task
+
     caller_id = "ui-dev-user"
     caller_role = "user"
     api_key = "dev-token"
@@ -809,8 +811,61 @@ async def ui_get_task_summary(task_id: str):
     if task is None:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
 
-    # Stub - will generate summary with Haiku in future
-    return {"task_id": task_id, "summary": None}
+    # Return cached title if already generated
+    if task.title is not None:
+        return {"task_id": task_id, "title": task.title}
+
+    # Extract chat messages from task events
+    chat_messages: list[dict] = []
+    for event in task.events:
+        if event.event != "new_message":
+            continue
+
+        # Parse event data
+        event_data = event.data
+        if isinstance(event_data, str):
+            try:
+                event_data = ujson.loads(event_data)
+            except Exception:
+                continue
+
+        # Skip if not a dict (could be None, list, etc.)
+        if not isinstance(event_data, dict):
+            continue
+
+        extra_data = event_data.get("extra_data", {})
+        full_message = extra_data.get("full_message", {})
+        message = full_message.get("message", {})
+        sender = message.get("sender", {})
+        msg_type = full_message.get("msg_type")
+
+        # User message: sender.address_type == "user"
+        if sender.get("address_type") == "user":
+            chat_messages.append({
+                "role": "user",
+                "content": message.get("body", ""),
+            })
+
+        # Assistant response: msg_type == "broadcast_complete"
+        if msg_type == "broadcast_complete":
+            chat_messages.append({
+                "role": "assistant",
+                "content": message.get("body", ""),
+            })
+
+    if not chat_messages:
+        task.title = "<no messages>"
+        return {"task_id": task_id, "title": task.title}
+
+    # Generate title using summarizer (creates fresh swarm per request)
+    try:
+        title = await summarize_task(chat_messages)
+        task.title = title if title else "<title failed>"
+        return {"task_id": task_id, "title": task.title}
+    except Exception as e:
+        logger.warning(f"Failed to generate title for task {task_id}: {e}")
+        task.title = "<title failed>"
+        return {"task_id": task_id, "title": task.title}
 
 
 @app.get("/ui/tasks", dependencies=[Depends(utils.require_debug)])
@@ -832,6 +887,7 @@ async def ui_get_tasks():
             "completed": task.completed,
             "start_time": task.start_time.isoformat(),
             "event_count": len(task.events),
+            "title": task.title,
         })
 
     # Sort by start_time descending (newest first)
@@ -875,6 +931,7 @@ async def ui_get_task(task_id: str):
         "is_running": task.is_running,
         "completed": task.completed,
         "start_time": task.start_time.isoformat(),
+        "title": task.title,
         "events": events,
     }
 

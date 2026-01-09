@@ -63,12 +63,14 @@ ui/
 │   │   ├── AgentGraph.tsx   # React Flow container
 │   │   └── AgentNode.tsx    # Custom agent node component
 │   ├── chat/
-│   │   └── ChatSidebar.tsx  # Chat input and history
+│   │   ├── ChatSidebar.tsx  # Chat input and history (tabbed)
+│   │   └── TaskHistoryContent.tsx  # Task history tab
 │   └── panels/
 │       ├── AgentDetailPanel.tsx
 │       └── EventsPanel.tsx
 ├── hooks/
-│   └── useSSE.ts       # SSE connection and message handling
+│   ├── useSSE.ts           # SSE connection and message handling
+│   └── useTaskHistory.ts   # Task loading hook
 ├── lib/
 │   ├── api.ts          # MAILClient - API interactions
 │   └── store.ts        # Zustand store for app state
@@ -91,36 +93,6 @@ ui/
 5. **Events are parsed** and dispatched:
    - `task_complete` / `task_error` -> Add message to chat
    - Other events -> Add to events store
-
-### SSE Event Format
-
-**IMPORTANT**: The server currently sends Python dict format, not JSON:
-
-```python
-# Server sends (Python repr format):
-{'timestamp': '...', 'description': '...', 'extra_data': {'tool_name': '...'}}
-
-# Should be JSON:
-{"timestamp": "...", "description": "...", "extra_data": {"tool_name": "..."}}
-```
-
-This causes parsing issues because:
-1. Python uses single quotes for dict keys/strings
-2. Python may use double quotes for strings containing apostrophes (e.g., `"I'm"`)
-3. Simple quote conversion breaks when both quote types are mixed
-
-**Current workaround** in `lib/api.ts`:
-```typescript
-const jsonData = eventData
-  .replace(/\\'/g, '\u0000SQUOTE\u0000')  // Temp placeholder for escaped quotes
-  .replace(/'/g, '"')                      // Convert single to double quotes
-  .replace(/\u0000SQUOTE\u0000/g, "'")    // Restore escaped quotes
-  .replace(/None/g, 'null')
-  .replace(/True/g, 'true')
-  .replace(/False/g, 'false');
-```
-
-**The proper fix**: Server should use `json.dumps()` instead of `str()` when serializing SSE data. The issue is in `sse_starlette`'s `ServerSentEvent` handling or in how the MAIL server constructs events.
 
 ### Event Types
 
@@ -212,6 +184,10 @@ messages: ChatMessage[]
 currentTaskId: string | null  // Preserved for follow-up messages
 isProcessing: boolean
 
+// Task History
+taskHistory: TaskSummary[]
+sidebarTab: 'chat' | 'history'
+
 // Panels
 isDetailPanelOpen: boolean
 isEventsPanelOpen: boolean
@@ -242,38 +218,43 @@ This starts:
 
 1. **CORS errors**: Server has CORS middleware for localhost:3000
 2. **Auth errors**: Use `/ui/message` endpoint (bypasses auth in debug mode)
-3. **SSE parsing fails**: ~~Server outputs Python dict format, not JSON~~ FIXED - see Recent Fixes section
-4. **Events not attributed to agents**: Store extracts agent name from description via regex `^agent (\w+)`
-5. **Follow-up messages fail**: Must pass `resume_from: 'user_response'` with same task_id
+3. **Events not attributed to agents**: Store extracts agent name from description via regex `^agent (\w+)`
+4. **Follow-up messages fail**: Must pass `resume_from: 'user_response'` with same task_id
+
+## Task History
+
+The chat sidebar has two tabs: **Chat** and **History**.
+
+### History Tab Features
+
+- Lists all tasks from the server via `GET /ui/tasks`
+- Shows task status badges (Done/Running/Paused)
+- Displays AI-generated titles (via Haiku) or fallback `Task {id}...`
+- Click a completed task to load it into chat
+
+### Title Generation
+
+Titles are generated on-demand via `GET /ui/task-summary/{task_id}`:
+
+1. Frontend fetches task list, fires parallel summary requests for tasks with `title === null`
+2. Backend extracts user/assistant messages from task events
+3. Calls `summarize_task()` which creates a fresh Haiku swarm per request
+4. Returns title (cached on task) or failure slug (`<title failed>`, `<no messages>`)
+
+**Key files:**
+- `src/mail/summarizer.py` - TaskSummarizer using breakpoint pattern
+- `ui/components/chat/TaskHistoryContent.tsx` - History tab UI
+- `ui/hooks/useTaskHistory.ts` - Task loading hook
+
+### Loading Historical Tasks
+
+`loadTaskIntoChat()` in the store:
+- Extracts chat messages from `new_message` events (user sender or `broadcast_complete`)
+- Deduplicates by message ID
+- Sets `currentTaskId` for follow-up messages
+- Cancels any active SSE stream via shared abort controller
 
 ## Recent Fixes (January 2026)
-
-### SSE JSON Serialization Fix
-
-**Problem**: `sse_starlette`'s `ServerSentEvent` was using Python's `str()` instead of `json.dumps()` to serialize dict data, resulting in Python dict format with single quotes that couldn't be parsed as JSON.
-
-**Solution**: Pre-serialize all SSE event data using `ujson.dumps()` before passing to `ServerSentEvent`:
-
-```python
-# In src/mail/core/runtime.py - _submit_event method
-sse = ServerSentEvent(
-    data=ujson.dumps({  # <-- Pre-serialize to JSON
-        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-        "description": description,
-        "task_id": task_id,
-        "extra_data": extra_data,
-    }),
-    event=event,
-)
-```
-
-**Also fixed**: The `submit_and_stream` method was checking `isinstance(ev.data, dict)` to filter events by task_id, but since `ev.data` is now a JSON string, this check always failed. Fixed by parsing the JSON first:
-
-```python
-ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data
-if isinstance(ev_data, dict) and ev_data.get("task_id") == task_id:
-    yield ev
-```
 
 ### Agent Detail Panel Redesign
 

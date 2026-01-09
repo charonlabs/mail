@@ -145,24 +145,15 @@ class TaskSummarizer:
         try:
             body_data = json.loads(body)
 
-            if isinstance(body_data, list) and len(body_data) > 0:
-                first_item = body_data[0]
-
-                # Format 1: Direct tool call array
-                # [{"arguments": "{\"title\":\"...\"}", "name": "submit_title", ...}]
-                if "arguments" in first_item and first_item.get("name") == "submit_title":
-                    args = first_item["arguments"]
-                    if isinstance(args, str):
-                        args = json.loads(args)
-                    return args.get("title")
-
-                # Format 2: Anthropic nested format
-                # [{role: assistant, content: [{type: tool_use, input: {...}}]}]
-                if "role" in first_item and "content" in first_item:
-                    content = first_item.get("content", [])
-                    for block in content:
-                        if isinstance(block, dict) and "input" in block:
-                            return block["input"].get("title")
+            # Tool calls are standardized to OpenAI/LiteLLM format:
+            # [{"arguments": "{\"title\":\"...\"}", "name": "submit_title", "id": "..."}]
+            if isinstance(body_data, list):
+                for call in body_data:
+                    if call.get("name") == "submit_title":
+                        args = call.get("arguments", "{}")
+                        if isinstance(args, str):
+                            args = json.loads(args)
+                        return args.get("title")
 
             return None
         except (json.JSONDecodeError, KeyError, TypeError):
@@ -222,28 +213,21 @@ class TaskSummarizer:
             self._swarm = None
 
 
-# Singleton instance for reuse
-_summarizer: TaskSummarizer | None = None
-
-
-async def get_summarizer() -> TaskSummarizer:
-    """Get or create the singleton summarizer instance."""
-    global _summarizer
-    if _summarizer is None:
-        _summarizer = TaskSummarizer()
-    return _summarizer
-
-
 async def summarize_task(messages: list[dict], max_messages: int = 10) -> str | None:
     """
-    Convenience function to summarize a task.
+    Generate a title for a conversation.
+
+    Creates a fresh swarm per request to avoid concurrency issues.
 
     Args:
         messages: List of message dicts with 'role' and 'content' keys
         max_messages: Maximum recent messages to include
 
     Returns:
-        A short title, or None if generation failed
+        A short title string, or None if generation failed
     """
-    summarizer = await get_summarizer()
-    return await summarizer.summarize(messages, max_messages)
+    summarizer = TaskSummarizer()
+    try:
+        return await summarizer.summarize(messages, max_messages)
+    finally:
+        await summarizer.shutdown()

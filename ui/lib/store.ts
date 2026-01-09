@@ -51,6 +51,7 @@ interface AppState {
   setSidebarTab: (tab: 'chat' | 'history') => void;
   loadTaskIntoChat: (task: TaskWithEvents) => void;
   clearCurrentTask: () => void;
+  updateTaskTitle: (taskId: string, title: string) => void;
 
   // Panels
   isDetailPanelOpen: boolean;
@@ -350,6 +351,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeAgents: new Set<string>(),
       agentLastViewed: {},
     }),
+  updateTaskTitle: (taskId, title) =>
+    set((state) => ({
+      taskHistory: state.taskHistory.map((task) =>
+        task.task_id === taskId ? { ...task, title } : task
+      ),
+    })),
 
   // Panels
   isDetailPanelOpen: false,

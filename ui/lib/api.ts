@@ -66,6 +66,14 @@ export class MAILClient {
     return response.json();
   }
 
+  async getTaskSummary(taskId: string): Promise<{ task_id: string; title: string | null }> {
+    const response = await fetch(`${this.baseUrl}/ui/task-summary/${taskId}`, {
+      headers: this.headers,
+    });
+    if (!response.ok) throw new Error('Failed to fetch task summary');
+    return response.json();
+  }
+
   async postEvalConfig(config: EvalConfig): Promise<void> {
     const response = await fetch(`${this.baseUrl}/ui/config`, {
       method: 'POST',

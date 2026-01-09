@@ -3,11 +3,9 @@
 import { useCallback, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getClient } from '@/lib/api';
+import { startActiveStream, cancelActiveStream, isActiveController } from '@/lib/sseControl';
 import type { MAILEvent } from '@/types/mail';
 import { v4 as uuidv4 } from 'uuid';
-
-// Shared abort controller so any component can cancel the active stream
-let sharedAbortController: AbortController | null = null;
 
 export function useSSE() {
   const {
@@ -43,11 +41,7 @@ export function useSSE() {
       setIsProcessing(true);
       // Don't change connection status - we're already connected
 
-      // Abort any existing stream
-      if (sharedAbortController) {
-        sharedAbortController.abort();
-      }
-      sharedAbortController = new AbortController();
+      const controller = startActiveStream();
 
       try {
         let responseContent = '';
@@ -57,7 +51,7 @@ export function useSSE() {
           entrypoint: entrypoint || undefined,
           resumeFrom: isResuming ? 'user_response' : null,
         })) {
-          if (sharedAbortController?.signal.aborted) break;
+          if (controller.signal.aborted) break;
 
           // Handle different event types
           console.log('[SSE] Event received:', event, 'Data:', JSON.stringify(data, null, 2));
@@ -145,7 +139,9 @@ export function useSSE() {
           });
         }
       } finally {
-        setIsProcessing(false);
+        if (isActiveController(controller)) {
+          cancelActiveStream();
+        }
       }
     },
     [
@@ -162,19 +158,13 @@ export function useSSE() {
   );
 
   const cancelStream = useCallback(() => {
-    if (sharedAbortController) {
-      sharedAbortController.abort();
-      sharedAbortController = null;
-    }
-    setIsProcessing(false);
-  }, [setIsProcessing]);
+    cancelActiveStream();
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (sharedAbortController) {
-        sharedAbortController.abort();
-      }
+      cancelActiveStream();
     };
   }, []);
 

@@ -402,38 +402,36 @@ When a breakpoint tool is called, the response structure looks like this:
 response = {
     "message": {
         "subject": "::breakpoint_tool_call::",  # Indicates breakpoint was hit
-        "body": "[{\"role\":\"assistant\",\"content\":[{\"id\":\"toolu_...\",\"input\":{...}}]}]"
+        "body": "[{\"arguments\": \"{\\\"field\\\": \\\"value\\\"}\", \"name\": \"tool_name\", \"id\": \"call_...\"}]"
     }
 }
 ```
 
-To extract the tool call arguments:
+Tool calls are standardized to OpenAI/LiteLLM format (arguments as JSON string). To extract:
 
 ```python
 import json
 
-def parse_breakpoint_tool_call(response: dict) -> dict | None:
+def parse_breakpoint_tool_call(response: dict, tool_name: str) -> dict | None:
     """Extract tool call arguments from a breakpoint response."""
     message = response.get("message", {})
     subject = message.get("subject", "")
     body = message.get("body", "")
 
-    # Check if this is a breakpoint response
     if subject != "::breakpoint_tool_call::" or not body:
         return None
 
-    # Parse the body JSON
     body_data = json.loads(body)
 
-    # Structure: [{role: "assistant", content: [{id, input, ...}]}]
+    # Structure: [{"arguments": "{...}", "name": "tool_name", "id": "..."}]
     if isinstance(body_data, list) and len(body_data) > 0:
-        assistant_msg = body_data[0]
-        content = assistant_msg.get("content", [])
-
-        # Find the tool_use content block
-        for block in content:
-            if isinstance(block, dict) and "input" in block:
-                return block["input"]  # This is your tool arguments dict
+        for call in body_data:
+            if call.get("name") == tool_name:
+                args = call.get("arguments", "{}")
+                # Arguments is a JSON string, parse it
+                if isinstance(args, str):
+                    return json.loads(args)
+                return args
 
     return None
 ```

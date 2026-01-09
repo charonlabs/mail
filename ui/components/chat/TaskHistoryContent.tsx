@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useTaskHistory } from '@/hooks/useTaskHistory';
 import { getClient } from '@/lib/api';
@@ -27,10 +27,12 @@ function TaskListItem({
   task,
   onClick,
   isLoading,
+  isFetchingSummary,
 }: {
   task: TaskSummary;
   onClick: () => void;
   isLoading: boolean;
+  isFetchingSummary: boolean;
 }) {
   const timeAgo = formatTimeAgo(task.start_time);
 
@@ -70,19 +72,56 @@ function TaskListItem({
           {task.completed ? 'Done' : task.is_running ? 'Running' : 'Paused'}
         </span>
         <span className="text-xs text-muted-foreground">{timeAgo}</span>
-        {isLoading && <Loader2 className="w-3 h-3 animate-spin text-primary ml-auto" />}
+        {(isLoading || isFetchingSummary) && (
+          <Loader2 className="w-3 h-3 animate-spin text-primary ml-auto" />
+        )}
       </div>
-      <p className="text-sm truncate text-foreground">Task {task.task_id.slice(0, 8)}...</p>
+      <p className="text-sm truncate text-foreground">
+        {task.title || `Task ${task.task_id.slice(0, 8)}...`}
+      </p>
       <p className="text-xs text-muted-foreground">{task.event_count} events</p>
     </button>
   );
 }
 
 export function TaskHistoryContent() {
-  const { taskHistory, setTaskHistory, serverUrl } = useAppStore();
+  const { taskHistory, setTaskHistory, updateTaskTitle, serverUrl } = useAppStore();
   const { loadTask } = useTaskHistory();
   const [loading, setLoading] = useState(false);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
+  const [fetchingSummaries, setFetchingSummaries] = useState<Set<string>>(new Set());
+
+  const fetchSummariesForTasks = useCallback(async (tasks: TaskSummary[]) => {
+    const client = getClient(serverUrl);
+
+    // Find completed tasks that need summaries (null title)
+    const tasksNeedingSummary = tasks.filter((t) => t.completed && t.title === null);
+    if (tasksNeedingSummary.length === 0) return;
+
+    // Track which tasks are being fetched
+    setFetchingSummaries(new Set(tasksNeedingSummary.map(t => t.task_id)));
+
+    // Fire all requests in parallel
+    const summaryPromises = tasksNeedingSummary.map(async (task) => {
+      try {
+        const result = await client.getTaskSummary(task.task_id);
+        if (result.title) {
+          updateTaskTitle(task.task_id, result.title);
+        }
+      } catch (error) {
+        console.error(`[TaskHistory] Failed to fetch summary for ${task.task_id}:`, error);
+      } finally {
+        setFetchingSummaries(prev => {
+          const next = new Set(prev);
+          next.delete(task.task_id);
+          return next;
+        });
+      }
+    });
+
+    // Wait for all to complete (but don't block UI - updates happen as they come in)
+    await Promise.allSettled(summaryPromises);
+  }, [serverUrl, updateTaskTitle]);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -90,6 +129,8 @@ export function TaskHistoryContent() {
       const client = getClient(serverUrl);
       const tasks = await client.getTasks();
       setTaskHistory(tasks);
+      // Fetch summaries in parallel after loading tasks
+      fetchSummariesForTasks(tasks);
     } catch (error) {
       console.error('[TaskHistory] Failed to fetch tasks:', error);
     } finally {
@@ -138,6 +179,7 @@ export function TaskHistoryContent() {
               task={task}
               onClick={() => handleLoadTask(task.task_id)}
               isLoading={loadingTaskId === task.task_id}
+              isFetchingSummary={fetchingSummaries.has(task.task_id)}
             />
           ))
         )}

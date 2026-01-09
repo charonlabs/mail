@@ -323,15 +323,15 @@ When a breakpoint tool is called, the response has this structure:
 
 ```python
 response["message"]["subject"] == "::breakpoint_tool_call::"
-response["message"]["body"] == '[{"role":"assistant","content":[{"id":"toolu_...","input":{...}}]}]'
+response["message"]["body"] == '[{"arguments": "{...}", "name": "tool_name", "id": "call_..."}]'
 ```
 
-To extract the tool arguments:
+Tool calls are standardized to OpenAI/LiteLLM format. To extract:
 
 ```python
 import json
 
-def parse_breakpoint_args(response: dict) -> dict | None:
+def parse_breakpoint_args(response: dict, tool_name: str) -> dict | None:
     message = response.get("message", {})
     if message.get("subject") != "::breakpoint_tool_call::":
         return None
@@ -339,10 +339,11 @@ def parse_breakpoint_args(response: dict) -> dict | None:
     if not body:
         return None
     data = json.loads(body)
-    # Structure: [{role: "assistant", content: [{id, input, ...}]}]
-    for block in data[0].get("content", []):
-        if "input" in block:
-            return block["input"]
+    # Structure: [{"arguments": "{...}", "name": "tool_name", "id": "..."}]
+    for call in data:
+        if call.get("name") == tool_name:
+            args = call.get("arguments", "{}")
+            return json.loads(args) if isinstance(args, str) else args
     return None
 ```
 

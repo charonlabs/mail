@@ -33,6 +33,8 @@ class MAILTask:
         self.task_message_queue: list[QueueItem] = []
         self.remote_swarms: set[str] = set()
         self.completed = False
+        # Title for UI task history (generated once via Haiku)
+        self.title: str | None = None
 
     def add_event(self, event: ServerSentEvent) -> None:
         """
@@ -248,6 +250,7 @@ class MAILTask:
             "is_running": self.is_running,
             "completed": self.completed,
             "start_time": self.start_time.isoformat(),
+            "title": self.title,
         }
 
     @classmethod
@@ -272,6 +275,9 @@ class MAILTask:
                 task.start_time = datetime.datetime.fromisoformat(start_time)
             elif isinstance(start_time, datetime.datetime):
                 task.start_time = start_time
+
+        # Restore title
+        task.title = data.get("title")
 
         return task
 
