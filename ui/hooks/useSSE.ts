@@ -1,13 +1,15 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getClient } from '@/lib/api';
 import type { MAILEvent } from '@/types/mail';
 import { v4 as uuidv4 } from 'uuid';
 
+// Shared abort controller so any component can cancel the active stream
+let sharedAbortController: AbortController | null = null;
+
 export function useSSE() {
-  const abortControllerRef = useRef<AbortController | null>(null);
   const {
     serverUrl,
     addEvent,
@@ -42,10 +44,10 @@ export function useSSE() {
       // Don't change connection status - we're already connected
 
       // Abort any existing stream
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      if (sharedAbortController) {
+        sharedAbortController.abort();
       }
-      abortControllerRef.current = new AbortController();
+      sharedAbortController = new AbortController();
 
       try {
         let responseContent = '';
@@ -55,7 +57,7 @@ export function useSSE() {
           entrypoint: entrypoint || undefined,
           resumeFrom: isResuming ? 'user_response' : null,
         })) {
-          if (abortControllerRef.current?.signal.aborted) break;
+          if (sharedAbortController?.signal.aborted) break;
 
           // Handle different event types
           console.log('[SSE] Event received:', event, 'Data:', JSON.stringify(data, null, 2));
@@ -160,9 +162,9 @@ export function useSSE() {
   );
 
   const cancelStream = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    if (sharedAbortController) {
+      sharedAbortController.abort();
+      sharedAbortController = null;
     }
     setIsProcessing(false);
   }, [setIsProcessing]);
@@ -170,8 +172,8 @@ export function useSSE() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      if (sharedAbortController) {
+        sharedAbortController.abort();
       }
     };
   }, []);
