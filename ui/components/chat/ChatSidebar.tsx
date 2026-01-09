@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useSSE } from '@/hooks/useSSE';
-import { Send, Square, Loader2, Zap, Terminal, Play, Settings, Download, MessageSquare, History } from 'lucide-react';
+import { Send, Square, Loader2, Zap, Terminal, Play, Settings, Download, MessageSquare, History, Plus } from 'lucide-react';
 import { getClient } from '@/lib/api';
 import { TaskHistoryContent } from './TaskHistoryContent';
 
@@ -23,6 +23,7 @@ export function ChatSidebar() {
     serverUrl,
     sidebarTab,
     setSidebarTab,
+    startNewTask,
   } = useAppStore();
 
   const { sendMessage, cancelStream } = useSSE();
@@ -100,33 +101,59 @@ export function ChatSidebar() {
           </div>
         </div>
 
-        {/* Target indicator */}
-        {entrypoint && (
-          <div className="flex items-center gap-2 text-xs">
-            <Zap className="w-3 h-3 text-gold" />
-            <span className="text-muted-foreground">Target:</span>
-            <span className="text-gold font-medium">{entrypoint}</span>
-          </div>
-        )}
+        {/* Target/Task/Dump Events and New Task button row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            {/* Target indicator */}
+            {entrypoint && (
+              <div className="flex items-center gap-2 text-xs">
+                <Zap className="w-3 h-3 text-gold" />
+                <span className="text-muted-foreground">Target:</span>
+                <span className="text-gold font-medium">{entrypoint}</span>
+              </div>
+            )}
 
-        {/* Active task indicator */}
-        {currentTaskId && (
-          <div className="mt-2 text-xs text-muted-foreground font-mono truncate">
-            Task: {currentTaskId.slice(0, 8)}...
-          </div>
-        )}
+            {/* Active task indicator */}
+            {currentTaskId && (
+              <div className="mt-2 text-xs text-muted-foreground font-mono truncate">
+                Task: {currentTaskId.slice(0, 8)}...
+              </div>
+            )}
 
-        {/* Debug: Dump events button */}
-        {connectionStatus === 'connected' && (
-          <button
-            onClick={handleDumpEvents}
-            className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-            title="Dump all events to JSONL file"
-          >
-            <Download className="w-3 h-3" />
-            <span>Dump Events</span>
-          </button>
-        )}
+            {/* Debug: Dump events button */}
+            {connectionStatus === 'connected' && (
+              <button
+                onClick={handleDumpEvents}
+                className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                title="Dump all events to JSONL file"
+              >
+                <Download className="w-3 h-3" />
+                <span>Dump Events</span>
+              </button>
+            )}
+          </div>
+
+          {/* New Task button */}
+          {connectionStatus === 'connected' && (
+            <button
+              onClick={() => {
+                cancelStream(); // Cancel any in-flight SSE stream first
+                startNewTask();
+              }}
+              className="
+                flex items-center gap-1.5 px-2.5 py-1.5
+                text-xs font-medium
+                bg-primary/10 hover:bg-primary/20
+                text-primary border border-primary/30
+                rounded transition-colors
+              "
+              title="Start a new task"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab Navigation */}

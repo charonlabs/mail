@@ -51,6 +51,7 @@ interface AppState {
   setSidebarTab: (tab: 'chat' | 'history') => void;
   loadTaskIntoChat: (task: TaskWithEvents) => void;
   clearCurrentTask: () => void;
+  startNewTask: () => void;
   updateTaskTitle: (taskId: string, title: string) => void;
 
   // Panels
@@ -350,6 +351,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       isProcessing: false,
       activeAgents: new Set<string>(),
       agentLastViewed: {},
+    }),
+  startNewTask: () =>
+    set({
+      messages: [],
+      events: [],
+      currentTaskId: null,
+      isProcessing: false,
+      activeAgents: new Set<string>(),
+      agentLastViewed: {},
+      sidebarTab: 'chat',
     }),
   updateTaskTitle: (taskId, title) =>
     set((state) => ({
