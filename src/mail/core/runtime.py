@@ -447,10 +447,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Run the MAIL system for a specific task until the task is complete or shutdown is requested.
         """
+        logger.debug(
+            f"{self._log_prelude()} _run_loop_for_task: starting for task_id={task_id}, "
+            f"queue size={self.message_queue.qsize()}"
+        )
         steps = 0
         while True:
             try:
                 # Wait for either a message or shutdown signal
+                logger.debug(
+                    f"{self._log_prelude()} _run_loop_for_task: waiting for message, "
+                    f"queue size={self.message_queue.qsize()}"
+                )
                 get_message_task = asyncio.create_task(self.message_queue.get())
                 shutdown_task = asyncio.create_task(self.shutdown_event.wait())
 
@@ -481,6 +489,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 message_tuple = get_message_task.result()
                 # message_tuple structure: (priority, seq, message)
                 message = message_tuple[2]
+                logger.debug(
+                    f"{self._log_prelude()} _run_loop_for_task: got message from queue, "
+                    f"priority={message_tuple[0]}, seq={message_tuple[1]}, "
+                    f"remaining queue size={self.message_queue.qsize()}"
+                )
                 logger.info(
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}': '{message['message']['subject']}'"
                 )
@@ -564,6 +577,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Resume a task from a breakpoint tool call.
         """
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"task_id={task_id}, caller={breakpoint_tool_caller}, "
+            f"result_type={type(breakpoint_tool_call_result).__name__}"
+        )
         if (
             not isinstance(breakpoint_tool_call_result, str)
             and not isinstance(breakpoint_tool_call_result, list)
@@ -592,6 +610,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"queue loaded, queue size={self.message_queue.qsize()}"
+        )
         result_msgs: list[dict[str, Any]] = []
         if isinstance(breakpoint_tool_call_result, str):
             payload = ujson.loads(breakpoint_tool_call_result)
@@ -649,11 +671,19 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
 
         # append the breakpoint tool call result to the agent history
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"appending {len(result_msgs)} result message(s) to history"
+        )
         self.agent_histories[
             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
         ].extend(result_msgs)
 
         # send action complete broadcast to tool caller
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"submitting ::action_complete_broadcast:: to {breakpoint_tool_caller}"
+        )
         await self.submit(
             self._system_broadcast(
                 task_id=task_id,
@@ -664,12 +694,20 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         )
 
         # resume the task
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"entering _run_loop_for_task, queue size={self.message_queue.qsize()}"
+        )
         self.mail_tasks[task_id].is_running = True
         try:
             result = await self._run_loop_for_task(task_id, action_override)
         finally:
             self.mail_tasks[task_id].is_running = False
 
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"_run_loop_for_task completed"
+        )
         return result
 
     async def run_continuous(
