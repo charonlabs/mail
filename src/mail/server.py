@@ -747,6 +747,53 @@ async def ui_message(request: Request):
         )
 
 
+@app.get("/ui/dump-events", dependencies=[Depends(utils.require_debug)])
+async def ui_dump_events():
+    """
+    Dump all events from all tasks to a JSONL file for debugging.
+    Returns the events and writes to events_dump.jsonl.
+    """
+    import ujson
+
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    tasks = api_swarm.get_all_tasks()
+
+    all_events = []
+    for task_id, task in tasks.items():
+        for event in task.events:
+            event_data = event.data
+            # Parse if string
+            if isinstance(event_data, str):
+                try:
+                    event_data = ujson.loads(event_data)
+                except Exception:
+                    pass
+
+            all_events.append({
+                "task_id": task_id,
+                "event_type": event.event,
+                "event_id": event.id,
+                "data": event_data,
+            })
+
+    # Write to file
+    with open("events_dump.jsonl", "w") as f:
+        for event in all_events:
+            f.write(ujson.dumps(event) + "\n")
+
+    logger.info(f"{_log_prelude(app)} [UI-DEV] dumped {len(all_events)} events to events_dump.jsonl")
+
+    return {
+        "message": f"Dumped {len(all_events)} events to events_dump.jsonl",
+        "event_count": len(all_events),
+        "events": all_events,
+    }
+
+
 @app.get("/swarms")
 async def list_swarms():
     """

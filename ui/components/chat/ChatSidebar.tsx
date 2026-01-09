@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { useSSE } from '@/hooks/useSSE';
-import { Send, Square, Loader2, Zap, Terminal, Play, Settings } from 'lucide-react';
+import { Send, Square, Loader2, Zap, Terminal, Play, Settings, Download } from 'lucide-react';
+import { getClient } from '@/lib/api';
 
 export function ChatSidebar() {
   const [input, setInput] = useState('');
@@ -18,6 +19,7 @@ export function ChatSidebar() {
     entrypoint,
     isEvalMode,
     evalConfig,
+    serverUrl,
   } = useAppStore();
 
   const { sendMessage, cancelStream } = useSSE();
@@ -64,6 +66,18 @@ export function ChatSidebar() {
     }
   };
 
+  const handleDumpEvents = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/ui/dump-events`);
+      const data = await response.json();
+      console.log('[DEBUG] Events dumped:', data);
+      alert(`Dumped ${data.event_count} events to events_dump.jsonl`);
+    } catch (error) {
+      console.error('[DEBUG] Failed to dump events:', error);
+      alert('Failed to dump events - check console');
+    }
+  };
+
   return (
     <div className="w-[320px] h-full flex flex-col bg-sidebar border-r border-sidebar-border">
       {/* Header */}
@@ -97,6 +111,18 @@ export function ChatSidebar() {
           <div className="mt-2 text-xs text-muted-foreground font-mono truncate">
             Task: {currentTaskId.slice(0, 8)}...
           </div>
+        )}
+
+        {/* Debug: Dump events button */}
+        {connectionStatus === 'connected' && (
+          <button
+            onClick={handleDumpEvents}
+            className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+            title="Dump all events to JSONL file"
+          >
+            <Download className="w-3 h-3" />
+            <span>Dump Events</span>
+          </button>
         )}
       </div>
 
