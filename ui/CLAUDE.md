@@ -448,3 +448,139 @@ Key theme variables in `globals.css`:
 --edge-inactive: 0 0% 25%
 --grid-color: 0 0% 15%
 ```
+
+---
+
+## AI Elements Component Library
+
+We have installed **AI Elements** - a component library from Vercel built on shadcn/ui for AI-native applications.
+
+**Docs**: https://ai-sdk.dev/elements/components/{component-name}
+
+**Location**: `components/ai-elements/`
+
+### Integration Approach
+
+**Important**: We are NOT using the AI SDK's data layer (`useChat`, custom providers, etc.). The AI SDK is designed around a single-agent request-response model that doesn't fit MAIL's multi-agent async message-passing architecture.
+
+Instead, we adapt the AI Elements components to work with our existing SSE stream and Zustand store:
+- Keep our `useSSE` hook and event-driven data flow
+- Use AI Elements as presentational components only
+- Map MAIL event shapes to component props (e.g., map `tool_call` events to `<Tool>` component props)
+- The components are mostly self-contained - their AI SDK coupling is primarily through simple types like `role: "user" | "assistant"` that are easy to provide directly
+
+### Installed Components
+
+#### Chat & Messaging
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Conversation** | `conversation.tsx` | Auto-scrolling message container with scroll-to-bottom button. Uses `use-stick-to-bottom` library. |
+| **Message** | `message.tsx` | Full message suite: `Message`, `MessageContent`, `MessageActions`, `MessageResponse` (streaming markdown via Streamdown), `MessageBranch` (for conversation branching), `MessageAttachment`. |
+| **Suggestion** | `suggestion.tsx` | Horizontal scrollable row of clickable suggestion chips. |
+| **PromptInput** | `prompt-input.tsx` | Rich input with file attachments, model selection, submit button. |
+
+#### AI Reasoning & Thinking
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Reasoning** | `reasoning.tsx` | Collapsible "Thought for X seconds" panel with auto-close after streaming. Perfect for extended thinking. |
+| **ChainOfThought** | `chain-of-thought.tsx` | Vertical timeline of reasoning steps with icons, descriptions, search results. |
+| **Shimmer** | `shimmer.tsx` | Animated text shimmer effect for loading states. Uses Framer Motion. |
+
+#### Tool & Action Display
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Tool** | `tool.tsx` | Collapsible tool invocation display with status badges (Pending/Running/Completed/Error), input params, and output. |
+| **Confirmation** | `confirmation.tsx` | Alert-based approval workflow for tool execution. Shows pending/accepted/rejected states. |
+| **CodeBlock** | `code-block.tsx` | Syntax-highlighted code with Shiki, copy button, line numbers. Light/dark theme support. |
+
+#### Planning & Tasks
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Plan** | `plan.tsx` | Collapsible card for AI-generated execution plans. Shimmer animation during streaming. |
+| **Task** | `task.tsx` | Collapsible task sections with file badges for showing search/file operations. |
+| **Queue** | `queue.tsx` | Message lists and collapsible task queues. |
+| **Checkpoint** | `checkpoint.tsx` | Marks conversation history points for restoration. |
+
+#### Citations & Sources
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **InlineCitation** | `inline-citation.tsx` | Hoverable citation with carousel of sources. Shows URL, title, description, quote. |
+| **Sources** | `sources.tsx` | Grid/list of source citations for a response. |
+
+#### Content & Artifacts
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Artifact** | `artifact.tsx` | Container for generated content (code, docs) with action buttons (run, copy, download). |
+| **WebPreview** | `web-preview.tsx` | Live preview of generated HTML/React components. |
+| **Image** | `image.tsx` | Display AI-generated images. |
+
+#### Canvas / Workflow (React Flow wrappers)
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Canvas** | `canvas.tsx` | React Flow wrapper for interactive workflows. |
+| **Node** | `node.tsx` | Composable node component with Card styling. |
+| **Edge** | `edge.tsx` | Customizable animated edge components. |
+| **Connection** | `connection.tsx` | Animated bezier connection lines. |
+| **Controls** | `controls.tsx` | Zoom and fit-view controls. |
+| **Panel** | `panel.tsx` | Positioned UI panels. |
+| **Toolbar** | `toolbar.tsx` | Flexible toolbar for node actions. |
+
+#### Utilities
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **ModelSelector** | `model-selector.tsx` | Searchable command palette for AI model selection. |
+| **OpenInChat** | `open-in-chat.tsx` | Dropdown to open queries in ChatGPT, Claude, T3, etc. |
+| **Loader** | `loader.tsx` | Spinning loader with multiple variants. |
+| **Context** | `context.tsx` | Context window usage and token consumption display. |
+
+### Key Dependencies
+
+These were installed with AI Elements:
+- `shiki` - Syntax highlighting
+- `motion` (Framer Motion) - Animations for Shimmer
+- `streamdown` - Streaming markdown renderer
+- `use-stick-to-bottom` - Auto-scroll behavior
+- `@radix-ui/react-use-controllable-state` - Controlled component state
+
+### Integration Opportunities
+
+**High-value integrations for MAIL UI:**
+
+1. **Reasoning** → Agent Detail Panel for extended thinking display
+2. **Tool** → Replace current tool call cards with structured status/input/output
+3. **CodeBlock** → Better JSON syntax highlighting for tool args
+4. **Conversation** → Auto-scroll behavior for chat
+5. **Message** → Streaming markdown with `MessageResponse`
+6. **Suggestion** → Follow-up prompt suggestions after responses
+7. **Plan** → Display agent execution plans
+8. **Confirmation** → Breakpoint tool approval UI
+
+### Usage Example
+
+```tsx
+import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
+import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool';
+
+// Extended thinking display
+<Reasoning isStreaming={isStreaming} duration={thinkingDuration}>
+  <ReasoningTrigger />
+  <ReasoningContent>{reasoningText}</ReasoningContent>
+</Reasoning>
+
+// Tool call display
+<Tool>
+  <ToolHeader title="get_weather" type="tool-invocation" state="output-available" />
+  <ToolContent>
+    <ToolInput input={{ city: "Tokyo" }} />
+    <ToolOutput output={{ temp: 22, conditions: "sunny" }} errorText={null} />
+  </ToolContent>
+</Tool>
+```

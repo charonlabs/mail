@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { useTaskHistory } from '@/hooks/useTaskHistory';
 import { getClient } from '@/lib/api';
 import { RefreshCw, Loader2, MoreHorizontal, RefreshCcw } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -106,9 +107,13 @@ function TaskListItem({
           </DropdownMenu>
         ) : null}
       </div>
-      <p className="text-sm truncate text-foreground">
-        {task.title || `Task ${task.task_id.slice(0, 8)}...`}
-      </p>
+      {isFetchingSummary && !task.title ? (
+        <Skeleton className="h-4 w-3/4" />
+      ) : (
+        <p className="text-sm truncate text-foreground">
+          {task.title || `Task ${task.task_id.slice(0, 8)}...`}
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">{task.event_count} events</p>
     </div>
   );
