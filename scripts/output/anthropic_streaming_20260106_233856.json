@@ -1,0 +1,195 @@
+[
+  {
+    "event": "new_message",
+    "data": {
+      "timestamp": "2026-01-07T04:38:52.218003+00:00",
+      "description": "sending message:\n\n<incoming_message>\n<timestamp>2026-01-07T04:38:52.217872+00:00</timestamp>\n<from type=\"user\">test_user</from>\n<to>\n['<address type=\"agent\">Supervisor</address>']\n</to>\n<subject>Math Question</subject>\n<body>What is 2 + 2?</body>\n</incoming_message>\n",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "full_message": {
+          "id": "0ab66a71-7de2-4058-b860-a5cbf3e77f38",
+          "timestamp": "2026-01-07T04:38:52.217872+00:00",
+          "message": {
+            "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+            "request_id": "9eb27a0f-6717-4db8-b818-9c881ba240b0",
+            "sender": {
+              "address_type": "user",
+              "address": "test_user"
+            },
+            "recipient": {
+              "address_type": "agent",
+              "address": "Supervisor"
+            },
+            "subject": "Math Question",
+            "body": "What is 2 + 2?",
+            "sender_swarm": "AnthropicStreamingTest",
+            "recipient_swarm": "AnthropicStreamingTest",
+            "routing_info": {}
+          },
+          "msg_type": "request"
+        }
+      }
+    }
+  },
+  {
+    "event": "tool_call",
+    "data": {
+      "timestamp": "2026-01-07T04:38:53.515176+00:00",
+      "description": "agent Supervisor called send_request",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "tool_name": "send_request",
+        "tool_args": {
+          "target": "Worker",
+          "subject": "Math Question",
+          "body": "What is 2 + 2?"
+        },
+        "tool_call_id": "toolu_01QQ3xozaehb1Ex19xizArhu",
+        "reasoning": "The user is asking a simple math question: \"What is 2 + 2?\"\n\nAs a supervisor, I should delegate this task to the Worker agent. I'll send a request to the Worker to answer this math question."
+      }
+    }
+  },
+  {
+    "event": "new_message",
+    "data": {
+      "timestamp": "2026-01-07T04:38:53.515312+00:00",
+      "description": "sending message:\n\n<incoming_message>\n<timestamp>2026-01-07T04:38:53.515215+00:00</timestamp>\n<from type=\"agent\">Supervisor</from>\n<to>\n['<address type=\"agent\">Worker</address>']\n</to>\n<subject>Math Question</subject>\n<body>What is 2 + 2?</body>\n</incoming_message>\n",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "full_message": {
+          "id": "888f8ef1-9991-4a2c-aad1-cc86535b00c7",
+          "timestamp": "2026-01-07T04:38:53.515215+00:00",
+          "message": {
+            "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+            "request_id": "9701764d-3c71-42b8-ab3f-2223e75c4982",
+            "sender": {
+              "address_type": "agent",
+              "address": "Supervisor"
+            },
+            "recipient": {
+              "address_type": "agent",
+              "address": "Worker"
+            },
+            "subject": "Math Question",
+            "body": "What is 2 + 2?",
+            "sender_swarm": null,
+            "recipient_swarm": null,
+            "routing_info": {}
+          },
+          "msg_type": "request"
+        }
+      }
+    }
+  },
+  {
+    "event": "tool_call",
+    "data": {
+      "timestamp": "2026-01-07T04:38:55.152251+00:00",
+      "description": "agent Worker called send_response",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "tool_name": "send_response",
+        "tool_args": {
+          "target": "Supervisor",
+          "subject": "Math Question",
+          "body": "2 + 2 = 4"
+        },
+        "tool_call_id": "toolu_01GYd2Z2AD3GEeznLcXqcKis",
+        "reasoning": "The user is asking me to answer a simple math question: \"What is 2 + 2?\"\n\nThis is a straightforward request from the Supervisor. The answer is 4.\n\nI should respond to the Supervisor using the send_response function with the answer."
+      }
+    }
+  },
+  {
+    "event": "new_message",
+    "data": {
+      "timestamp": "2026-01-07T04:38:55.152376+00:00",
+      "description": "sending message:\n\n<incoming_message>\n<timestamp>2026-01-07T04:38:55.152284+00:00</timestamp>\n<from type=\"agent\">Worker</from>\n<to>\n['<address type=\"agent\">Supervisor</address>']\n</to>\n<subject>Math Question</subject>\n<body>2 + 2 = 4</body>\n</incoming_message>\n",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "full_message": {
+          "id": "b6d3f065-76e7-4b19-9cb5-c80d0455fc1b",
+          "timestamp": "2026-01-07T04:38:55.152284+00:00",
+          "message": {
+            "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+            "request_id": "d58f7424-03c6-4492-8925-ba934ad1d7ca",
+            "sender": {
+              "address_type": "agent",
+              "address": "Worker"
+            },
+            "recipient": {
+              "address_type": "agent",
+              "address": "Supervisor"
+            },
+            "subject": "Math Question",
+            "body": "2 + 2 = 4",
+            "sender_swarm": null,
+            "recipient_swarm": null,
+            "routing_info": {}
+          },
+          "msg_type": "response"
+        }
+      }
+    }
+  },
+  {
+    "event": "tool_call",
+    "data": {
+      "timestamp": "2026-01-07T04:38:56.730246+00:00",
+      "description": "agent Supervisor called task_complete",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "tool_name": "task_complete",
+        "tool_args": {
+          "finish_message": "2 + 2 = 4"
+        },
+        "tool_call_id": "toolu_01U9KG88ho54JzhNMxMTosio",
+        "reasoning": "The Worker has responded with the answer to the math question. The user asked \"What is 2 + 2?\" and the Worker correctly answered \"2 + 2 = 4\". \n\nNow I need to complete the task and provide the final answer to the user. I should call task_complete with the result."
+      }
+    }
+  },
+  {
+    "event": "task_complete_call",
+    "data": {
+      "timestamp": "2026-01-07T04:38:56.730302+00:00",
+      "description": "agent Supervisor called task_complete, full response to follow",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {}
+    }
+  },
+  {
+    "event": "new_message",
+    "data": {
+      "timestamp": "2026-01-07T04:38:56.730321+00:00",
+      "description": "task_complete response from Supervisor:\n\n<incoming_message>\n<timestamp>2026-01-07T04:38:56.730287+00:00</timestamp>\n<from type=\"agent\">Supervisor</from>\n<to>\n['<address type=\"agent\">all</address>']\n</to>\n<subject>::task_complete::</subject>\n<body>2 + 2 = 4</body>\n</incoming_message>\n",
+      "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+      "extra_data": {
+        "full_message": {
+          "id": "3f4d9ebb-c987-47a1-9a5c-ed28710fdba6",
+          "timestamp": "2026-01-07T04:38:56.730287+00:00",
+          "message": {
+            "task_id": "b6e74a6d-deaf-400c-916a-01606a922aad",
+            "broadcast_id": "3bb64882-43e8-46d1-820e-90f1d247aef0",
+            "sender": {
+              "address_type": "agent",
+              "address": "Supervisor"
+            },
+            "recipients": [
+              {
+                "address_type": "agent",
+                "address": "all"
+              }
+            ],
+            "subject": "::task_complete::",
+            "body": "2 + 2 = 4",
+            "sender_swarm": "AnthropicStreamingTest",
+            "recipient_swarms": [
+              "AnthropicStreamingTest"
+            ],
+            "routing_info": {}
+          },
+          "msg_type": "broadcast_complete"
+        }
+      }
+    }
+  }
+]

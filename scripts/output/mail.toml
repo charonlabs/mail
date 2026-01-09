@@ -1,0 +1,17 @@
+
+[server]
+port = 8000
+host = "0.0.0.0"
+reload = false
+debug = true
+
+[server.swarm]
+name = "UIDevSwarm"
+source = "/home/rheaton64/code/mail/scripts/output/ui_dev_swarm.json"
+registry_file = "registries/ui-dev.json"
+description = "Development swarm for UI testing"
+keywords = ["dev", "ui", "test"]
+public = false
+
+[server.settings]
+task_message_limit = 30

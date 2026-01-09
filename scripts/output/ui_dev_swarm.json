@@ -1,0 +1,52 @@
+[
+  {
+    "name": "UIDevSwarm",
+    "version": "1.0.0",
+    "description": "Development swarm for UI testing",
+    "agents": [
+      {
+        "name": "Supervisor",
+        "factory": "mail.factories.supervisor:supervisor_factory",
+        "comm_targets": [
+          "Researcher"
+        ],
+        "actions": [],
+        "agent_params": {
+          "llm": "anthropic/claude-haiku-4-5-20251001",
+          "system": "You are a supervisor agent. When you receive a task from the user,\ndelegate it to the Researcher agent by sending them a request.\n\nOnce you receive the Researcher's response, use task_complete to finish the task and provide the answer to the user.\n\nSteps:\n1. Send a request to Researcher with the user's question\n2. Wait for their response\n3. Call task_complete with the final answer - this is REQUIRED to end the task",
+          "use_proxy": false,
+          "reasoning_effort": "low",
+          "stream_tokens": true
+        },
+        "tool_format": "completions",
+        "enable_entrypoint": true,
+        "enable_interswarm": false,
+        "can_complete_tasks": true
+      },
+      {
+        "name": "Researcher",
+        "factory": "mail.factories.base:base_agent_factory",
+        "comm_targets": [
+          "Supervisor"
+        ],
+        "actions": [],
+        "agent_params": {
+          "llm": "anthropic/claude-haiku-4-5-20251001",
+          "system": "You are a research assistant. When you receive a request from the Supervisor,\nprovide a helpful, detailed response based on your knowledge.\n\nKeep responses concise but informative. Always respond to the Supervisor when asked.",
+          "use_proxy": false,
+          "_debug_include_mail_tools": true,
+          "reasoning_effort": "low",
+          "stream_tokens": true
+        },
+        "tool_format": "completions",
+        "enable_entrypoint": false,
+        "enable_interswarm": false,
+        "can_complete_tasks": false
+      }
+    ],
+    "actions": [],
+    "entrypoint": "Supervisor",
+    "enable_interswarm": false,
+    "breakpoint_tools": []
+  }
+]

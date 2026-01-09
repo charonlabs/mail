@@ -481,7 +481,8 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # - Extended thinking / interleaved thinking
         # - Server-side tools (web_search, code_interpreter)
         # - Full response structure preservation
-        if "anthropic" in self.llm.lower():
+        llm_lower = self.llm.lower()
+        if "anthropic" in llm_lower or "claude" in llm_lower:
             if self.stream_tokens:
                 return await self._stream_completions_anthropic_native(
                     messages, agent_tools, tool_choice
