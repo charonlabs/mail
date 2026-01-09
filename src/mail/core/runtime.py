@@ -61,6 +61,7 @@ from .tools import (
     AgentToolCall,
     convert_call_to_mail_message,
     convert_manual_step_call_to_mail_message,
+    normalize_breakpoint_tool_call,
 )
 
 logger = logging.getLogger("mail.runtime")
@@ -2145,33 +2146,31 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     self.last_breakpoint_caller[task_id] = recipient
                     self.last_breakpoint_tool_calls[task_id] = breakpoint_calls
                     bp_dumps: list[dict[str, Any]] = []
-                    if breakpoint_calls[0].completion:
-                        # Extract only tool_use blocks from content, filtering out
-                        # thinking blocks that appear when extended thinking is enabled
-                        completion = breakpoint_calls[0].completion
-                        content = completion.get("content", [])
-                        tool_use_blocks = [
-                            block
-                            for block in content
-                            if isinstance(block, dict)
-                            and block.get("type") == "tool_use"
-                            and block.get("name") in self.breakpoint_tools
-                        ]
-                        if tool_use_blocks:
-                            bp_dumps.append(
-                                {
-                                    "role": completion.get("role", "assistant"),
-                                    "content": tool_use_blocks,
-                                }
-                            )
-                    else:
-                        resps = breakpoint_calls[0].responses
-                        for resp in resps:
-                            if (
-                                resp["type"] == "function_call"
-                                and resp["name"] in self.breakpoint_tools
-                            ):
-                                bp_dumps.append(resp)
+                    for call in breakpoint_calls:
+                        raw_block: dict[str, Any] | None = None
+                        if call.completion:
+                            completion = call.completion
+                            content = completion.get("content", [])
+                            for block in content:
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "tool_use"
+                                    and block.get("id") == call.tool_call_id
+                                ):
+                                    raw_block = block
+                                    break
+                        else:
+                            for resp in call.responses:
+                                if (
+                                    isinstance(resp, dict)
+                                    and resp.get("type") == "function_call"
+                                    and resp.get("call_id") == call.tool_call_id
+                                ):
+                                    raw_block = resp
+                                    break
+                        bp_dumps.append(
+                            normalize_breakpoint_tool_call(call, raw_block)
+                        )
                     await self.submit(
                         self._system_broadcast(
                             task_id=task_id,

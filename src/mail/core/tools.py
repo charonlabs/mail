@@ -6,6 +6,7 @@ import logging
 from typing import Any, Literal, Optional, cast
 from uuid import uuid4
 
+import ujson
 from openai import pydantic_function_tool
 from openai.resources.responses.responses import _make_tools
 from pydantic import BaseModel, Field, model_validator
@@ -213,6 +214,52 @@ def convert_call_to_mail_message(
             )
         case _:
             raise ValueError(f"Unknown tool name: {call.tool_name}")
+
+
+def normalize_breakpoint_tool_call(
+    call: AgentToolCall, raw: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """
+    Normalize a breakpoint tool call to Responses-style function_call shape.
+    """
+    call_id: str | None = None
+    name: str | None = None
+    arguments: Any = None
+    status: str = "completed"
+    fc_id: str | None = None
+
+    if isinstance(raw, dict):
+        raw_type = raw.get("type")
+        if raw_type == "function_call":
+            call_id = raw.get("call_id")
+            name = raw.get("name")
+            arguments = raw.get("arguments")
+            status = raw.get("status") or status
+            fc_id = raw.get("id")
+        elif raw_type == "tool_use":
+            call_id = raw.get("id")
+            name = raw.get("name")
+            arguments = raw.get("input")
+
+    if name is None:
+        name = call.tool_name
+    if not call_id:
+        call_id = call.tool_call_id
+    if arguments is None:
+        arguments = call.tool_args
+    if not isinstance(arguments, str):
+        arguments = ujson.dumps(arguments)
+    if not fc_id:
+        fc_id = f"fc_{call_id}"
+
+    return {
+        "arguments": arguments,
+        "call_id": call_id,
+        "name": name,
+        "type": "function_call",
+        "id": fc_id,
+        "status": status,
+    }
 
 
 def convert_manual_step_call_to_mail_message(
