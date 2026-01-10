@@ -16,7 +16,6 @@ import rich
 import ujson
 from langsmith.wrappers import wrap_anthropic
 from litellm import (
-    OutputFunctionToolCall,
     ResponsesAPIResponse,
     acompletion,
     aresponses,
@@ -600,7 +599,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             "model": model,
             "messages": anthropic_messages,
             "tools": anthropic_tools,
-            "max_tokens": self.max_tokens or 4096,
+            "max_tokens": 64000,  # TODO: make this configurable - currently hardcoded to 64k
         }
 
         if system_content:
@@ -652,10 +651,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 f"Received pause_turn, continuing generation (accumulated {len(all_content_blocks)} blocks)"
             )
             # Add partial response to messages so model can continue
-            anthropic_messages.append({
-                "role": "assistant",
-                "content": [block.model_dump() for block in response.content],
-            })
+            anthropic_messages.append(
+                {
+                    "role": "assistant",
+                    "content": [block.model_dump() for block in response.content],
+                }
+            )
             request_params["messages"] = anthropic_messages
             response = await client.messages.create(**request_params)
             # Accumulate content blocks from continuation
@@ -695,9 +696,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             elif block_type == "server_tool_use":
                 # Capture reasoning/preamble for this tool call
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -748,9 +747,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             elif block_type == "tool_use":
                 # Handle regular tool calls (non-server-side)
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -841,7 +838,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             "model": model,
             "messages": anthropic_messages,
             "tools": anthropic_tools,
-            "max_tokens": self.max_tokens or 4096,
+            "max_tokens": 64000,  # TODO: make this configurable - currently hardcoded to 64k
         }
 
         if system_content:
@@ -951,10 +948,14 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     f"Received pause_turn in stream, continuing generation (accumulated {len(all_content_blocks)} blocks)"
                 )
                 # Add partial response to messages so model can continue
-                anthropic_messages.append({
-                    "role": "assistant",
-                    "content": [block.model_dump() for block in final_message.content],
-                })
+                anthropic_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": [
+                            block.model_dump() for block in final_message.content
+                        ],
+                    }
+                )
                 request_params["messages"] = anthropic_messages
                 # Continue the loop to start a new stream
             else:
@@ -993,9 +994,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             elif block_type == "server_tool_use":
                 # Capture reasoning/preamble for this tool call
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -1044,9 +1043,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             elif block_type == "tool_use":
                 # Handle regular tool calls (non-server-side)
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -1183,10 +1180,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 try:
                     if self.stream_tokens:
                         # Streaming returns 3-tuple with reasoning tracking
-                        res, tool_reasoning_map, streaming_pending_reasoning = (
-                            await self._stream_responses(
-                                messages, include, reasoning, agent_tools, tool_choice
-                            )
+                        (
+                            res,
+                            tool_reasoning_map,
+                            streaming_pending_reasoning,
+                        ) = await self._stream_responses(
+                            messages, include, reasoning, agent_tools, tool_choice
                         )
                     else:
                         res = await aresponses(
@@ -1265,9 +1264,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
             elif output_type == "function_call":
                 # Get reasoning - from inline extraction OR from streaming map
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -1302,9 +1299,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 pending_preamble = []
 
             elif output_type == "web_search_call":
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -1354,9 +1349,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                 pending_preamble = []
 
             elif output_type == "code_interpreter_call":
-                call_reasoning = (
-                    pending_reasoning.copy() if pending_reasoning else None
-                )
+                call_reasoning = pending_reasoning.copy() if pending_reasoning else None
                 call_preamble = (
                     "\n".join(pending_preamble) if pending_preamble else None
                 )
@@ -1460,7 +1453,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Track interleaved reasoning per tool
         pending_reasoning_parts: list[str] = []  # Completed reasoning blocks
         current_reasoning_text: list[str] = []  # Delta accumulator for current block
-        tool_reasoning_map: dict[int, list[str]] = {}  # output_index -> reasoning_blocks
+        tool_reasoning_map: dict[
+            int, list[str]
+        ] = {}  # output_index -> reasoning_blocks
 
         async for event in stream:
             match event.type:
