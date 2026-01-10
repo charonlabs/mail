@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useAppStore, type EvalConfig } from '@/lib/store';
 import { getClient } from '@/lib/api';
-import { ChatSidebar } from '@/components/chat/ChatSidebar';
+import { CollapsibleChatSidebar } from '@/components/chat/CollapsibleChatSidebar';
+import { ChatContent } from './chat/ChatContent';
 import { AgentGraph } from '@/components/graph/AgentGraph';
 import { AgentDetailPanel } from '@/components/panels/AgentDetailPanel';
 import { EventsPanel } from '@/components/panels/EventsPanel';
@@ -370,7 +372,7 @@ function SettingsButton() {
 }
 
 export default function Home() {
-  const { connectionStatus, isEvalMode } = useAppStore();
+  const { connectionStatus, isEvalMode, isChatExpanded, setChatExpanded } = useAppStore();
   const [mounted, setMounted] = useState(false);
   const [showBreachSequence, setShowBreachSequence] = useState(false);
   const [breachComplete, setBreachComplete] = useState(false);
@@ -439,24 +441,48 @@ export default function Home() {
         {/* SCREEN FLICKER - Event-triggered effects */}
         <ScreenFlicker />
 
-        {/* Chat Sidebar */}
-        <ChatSidebar />
+        {/* Collapsible Chat Sidebar */}
+        <CollapsibleChatSidebar />
 
-        {/* Main Graph Area */}
+        {/* Main Content Area - Crossfade between graph and chat */}
         <div className="flex-1 relative">
-          <ReactFlowProvider>
-            <AgentGraph />
-          </ReactFlowProvider>
+          <AnimatePresence mode="wait">
+            {isChatExpanded ? (
+              <motion.div
+                key="chat"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0"
+              >
+                <ChatContent onCollapse={() => setChatExpanded(false)} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="graph"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0"
+              >
+                <ReactFlowProvider>
+                  <AgentGraph />
+                </ReactFlowProvider>
 
-          {/* Settings button */}
-          {connectionStatus === 'connected' && <SettingsButton />}
+                {/* Settings button */}
+                {connectionStatus === 'connected' && <SettingsButton />}
 
-          {/* Agent Detail Panel */}
-          <AgentDetailPanel />
+                {/* Agent Detail Panel */}
+                <AgentDetailPanel />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
-        {/* Events Panel */}
-        <EventsPanel />
+        {/* Events Panel - hidden in expanded chat mode */}
+        {!isChatExpanded && <EventsPanel />}
       </div>
 
       {/* Connection Overlay */}

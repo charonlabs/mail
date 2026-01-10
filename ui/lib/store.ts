@@ -69,6 +69,12 @@ interface AppState {
   evalConfig: EvalConfig;
   setEvalMode: (enabled: boolean) => void;
   setEvalConfig: (config: Partial<EvalConfig>) => void;
+
+  // Chat Expansion
+  isChatExpanded: boolean;
+  lastChatCollapseTime: number | null;
+  setChatExpanded: (expanded: boolean) => void;
+  toggleChatExpanded: () => void;
 }
 
 export interface EvalConfig {
@@ -393,6 +399,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   setEvalConfig: (config) =>
     set((state) => ({
       evalConfig: { ...state.evalConfig, ...config },
+    })),
+
+  // Chat Expansion
+  isChatExpanded: false,
+  lastChatCollapseTime: null,
+  setChatExpanded: (expanded) =>
+    set((state) => ({
+      isChatExpanded: expanded,
+      // Track when we collapse (not expand)
+      lastChatCollapseTime: !expanded ? Date.now() : state.lastChatCollapseTime,
+    })),
+  toggleChatExpanded: () =>
+    set((state) => ({
+      isChatExpanded: !state.isChatExpanded,
+      // Track when we collapse (not expand)
+      lastChatCollapseTime: state.isChatExpanded ? Date.now() : state.lastChatCollapseTime,
     })),
 }));
 

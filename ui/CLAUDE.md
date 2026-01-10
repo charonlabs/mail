@@ -6,6 +6,10 @@ This document captures architecture decisions and technical details about the MA
 
 The MAIL Swarm Viewer is a Next.js dashboard for visualizing and interacting with MAIL agent swarms in real-time. It displays agent topology as a graph, streams events via SSE, and provides a chat interface to interact with the supervisor.
 
+## Current Task
+
+Read docs/chat-first-ui.md to get up to speed with what we are currently building.
+
 ## Tech Stack
 
 - **Framework**: Next.js 14+ with App Router, TypeScript
