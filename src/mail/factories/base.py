@@ -482,14 +482,15 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # - Full response structure preservation
         llm_lower = self.llm.lower()
         if "anthropic" in llm_lower or "claude" in llm_lower:
-            if self.stream_tokens:
-                return await self._stream_completions_anthropic_native(
-                    messages, agent_tools, tool_choice
-                )
-            else:
-                return await self._run_completions_anthropic_native(
-                    messages, agent_tools, tool_choice
-                )
+            # if self.stream_tokens:
+            # TODO: anthropic native needs to be streaming
+            return await self._stream_completions_anthropic_native(
+                messages, agent_tools, tool_choice
+            )
+            # else:
+            #     return await self._run_completions_anthropic_native(
+            #         messages, agent_tools, tool_choice
+            #     )
 
         retries = 5
 
