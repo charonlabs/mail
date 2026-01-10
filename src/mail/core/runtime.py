@@ -1408,6 +1408,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 start_time=task_data["start_time"],
                 is_running=task_data["is_running"],
                 completed=task_data["completed"],
+                title=task_data.get("title"),
             )
             logger.debug(
                 f"{self._log_prelude()} persisted task '{task.task_id}' to database"

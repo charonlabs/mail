@@ -793,6 +793,34 @@ async def ui_dump_events():
     }
 
 
+async def _persist_task_title(
+    api_swarm: MAILSwarm,
+    task_id: str,
+    title: str,
+    caller_role: str,
+    caller_id: str,
+) -> None:
+    """
+    Persist task title to database if db persistence is enabled.
+    """
+    if not api_swarm._runtime.enable_db_agent_histories:
+        return
+
+    try:
+        from mail.db.utils import update_task
+
+        await update_task(
+            task_id=task_id,
+            swarm_name=api_swarm._runtime.swarm_name,
+            caller_role=caller_role,  # type: ignore
+            caller_id=caller_id,
+            title=title,
+        )
+        logger.debug(f"persisted title for task '{task_id}' to database")
+    except Exception as e:
+        logger.warning(f"failed to persist title for task '{task_id}' to database: {e}")
+
+
 @app.get("/ui/task-summary/{task_id}", dependencies=[Depends(utils.require_debug)])
 async def ui_get_task_summary(task_id: str, force_regen: bool = False):
     """
@@ -856,16 +884,19 @@ async def ui_get_task_summary(task_id: str, force_regen: bool = False):
 
     if not chat_messages:
         task.title = "<no messages>"
+        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
         return {"task_id": task_id, "title": task.title}
 
     # Generate title using summarizer (creates fresh swarm per request)
     try:
         title = await summarize_task(chat_messages)
         task.title = title if title else "<title failed>"
+        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
         return {"task_id": task_id, "title": task.title}
     except Exception as e:
         logger.warning(f"Failed to generate title for task {task_id}: {e}")
         task.title = "<title failed>"
+        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
         return {"task_id": task_id, "title": task.title}
 
 
