@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { getClient } from '@/lib/api';
 import { startActiveStream, cancelActiveStream, isActiveController } from '@/lib/sseControl';
@@ -159,13 +159,6 @@ export function useSSE() {
 
   const cancelStream = useCallback(() => {
     cancelActiveStream();
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cancelActiveStream();
-    };
   }, []);
 
   return { sendMessage, cancelStream };
