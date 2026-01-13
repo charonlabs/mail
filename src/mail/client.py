@@ -7,6 +7,7 @@ import argparse
 import datetime
 import json
 import logging
+import re
 import readline
 import shlex
 from collections.abc import AsyncIterator
@@ -599,6 +600,7 @@ class MAILClientCLI:
             config=self._config,
         )
         self.parser = self._build_parser()
+        self._prompt_console = console.Console(force_terminal=True)
 
         # Initialize readline history
         self._history_file = Path.home() / ".mail_history"
@@ -1487,6 +1489,23 @@ class MAILClientCLI:
 
         return f"[cyan bold]mail[/cyan bold]::[green bold]{user_role}:{user_id}@{base_url}[/green bold]> "
 
+    @staticmethod
+    def _readline_safe_prompt(prompt: str) -> str:
+        """
+        Wrap ANSI codes so readline ignores them when computing prompt length.
+        """
+        ansi_pattern = re.compile(r"(\x1b\[[0-9;?]*[ -/]*[@-~])")
+        return ansi_pattern.sub(lambda match: f"\001{match.group(1)}\002", prompt)
+
+    def _render_prompt(self, prompt_markup: str) -> str:
+        """
+        Render Rich markup to ANSI and make it safe for readline editing.
+        """
+        with self._prompt_console.capture() as capture:
+            self._prompt_console.print(prompt_markup, end="")
+        rendered = capture.get().rstrip("\n")
+        return self._readline_safe_prompt(rendered)
+
     async def run(
         self,
         attempt_login: bool = True,
@@ -1527,9 +1546,10 @@ class MAILClientCLI:
 
         while True:
             try:
-                raw_command = self.client._console.input(
-                    self._repl_input_string(self.user_role, self.user_id, self.base_url)
+                prompt_markup = self._repl_input_string(
+                    self.user_role, self.user_id, self.base_url
                 )
+                raw_command = input(self._render_prompt(prompt_markup))
             except EOFError:
                 self.client._console.print()
                 break
