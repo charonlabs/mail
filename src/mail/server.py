@@ -655,7 +655,7 @@ async def ui_message(request: Request):
     """
     # Use a default dev user
     caller_id = "ui-dev-user"
-    caller_role = "user"
+    caller_role: Literal["admin", "swarm", "user"] = "user"
     api_key = "dev-token"
 
     # parse request
@@ -831,7 +831,7 @@ async def ui_get_task_summary(task_id: str, force_regen: bool = False):
     from mail.summarizer import summarize_task
 
     caller_id = "ui-dev-user"
-    caller_role = "user"
+    caller_role: Literal["admin", "swarm", "user"] = "user"
     api_key = "dev-token"
 
     api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
@@ -931,7 +931,7 @@ async def ui_get_tasks():
 async def ui_get_task(task_id: str):
     """Get a specific task with events for the UI (debug mode only)."""
     caller_id = "ui-dev-user"
-    caller_role = "user"
+    caller_role: Literal["admin", "swarm", "user"] = "user"
     api_key = "dev-token"
 
     api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)

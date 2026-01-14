@@ -24,7 +24,7 @@ def _extract_numeric_values(data: list[Any]) -> list[float]:
     """Extract numeric values from data, filtering out non-numeric items."""
     values = []
     for item in data:
-        if isinstance(item, (int, float)) and not math.isnan(item) and not math.isinf(item):
+        if isinstance(item, int | float) and not math.isnan(item) and not math.isinf(item):
             values.append(float(item))
     return values
 
@@ -124,7 +124,7 @@ async def calculate_statistics(args: dict[str, Any]) -> str:
         })
 
     # Calculate requested metrics
-    results = {
+    results: dict[str, Any] = {
         "data_points": len(values),
         "original_count": len(data),
         "valid_count": len(values),
@@ -188,7 +188,7 @@ def _generate_interpretation(metrics: dict[str, Any], n: int) -> str:
     if "mean" in metrics and "median" in metrics:
         mean = metrics["mean"]
         median = metrics["median"]
-        if isinstance(mean, (int, float)) and isinstance(median, (int, float)):
+        if isinstance(mean, int | float) and isinstance(median, int | float):
             if abs(mean - median) / max(abs(mean), 0.001) > 0.1:
                 if mean > median:
                     parts.append("Data is right-skewed (mean > median), indicating some high outliers.")
@@ -200,7 +200,7 @@ def _generate_interpretation(metrics: dict[str, Any], n: int) -> str:
     if "std" in metrics and "mean" in metrics:
         std = metrics["std"]
         mean = metrics["mean"]
-        if isinstance(std, (int, float)) and isinstance(mean, (int, float)) and mean != 0:
+        if isinstance(std, int | float) and isinstance(mean, int | float) and mean != 0:
             cv = abs(std / mean)
             if cv > 1:
                 parts.append("High variability in the data (CV > 100%).")

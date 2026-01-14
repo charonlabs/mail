@@ -6,7 +6,7 @@
 import csv
 import io
 import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from random import Random
 from typing import Any
 
@@ -211,10 +211,10 @@ async def parse_csv(args: dict[str, Any]) -> str:
             return json.dumps({"error": "No header row found in CSV"})
 
         data = []
-        errors = []
+        errors: list[str] = []
         for i, row in enumerate(reader):
             # Try to convert numeric values
-            parsed_row = {}
+            parsed_row: dict[str, Any] = {}
             for col, val in row.items():
                 if val is None or val == "":
                     parsed_row[col] = None

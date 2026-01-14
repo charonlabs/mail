@@ -3,8 +3,8 @@
 
 """Verification actions for the Research Assistant swarm."""
 
-import json
 import hashlib
+import json
 from random import Random
 from typing import Any
 
@@ -242,17 +242,17 @@ async def rate_confidence(args: dict[str, Any]) -> str:
         })
 
     # Calculate weighted confidence based on evidence
-    total_weight = 0
-    support_weight = 0
+    total_weight: float = 0.0
+    support_weight: float = 0.0
 
     for item in evidence:
         source_type = item.get("source_type", "unknown")
         reliability = SOURCE_RELIABILITY.get(source_type, SOURCE_RELIABILITY["unknown"])
         supports = item.get("supports", False)
 
-        total_weight += reliability
+        total_weight += float(reliability)
         if supports:
-            support_weight += reliability
+            support_weight += float(reliability)
 
     if total_weight == 0:
         confidence_score = 0.1

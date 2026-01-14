@@ -10,12 +10,14 @@ from collections.abc import Awaitable
 from typing import Any, Literal
 
 import anthropic
+from anthropic.types import ContentBlockDeltaEvent, ContentBlockStartEvent, TextDelta, ThinkingDelta
 import langsmith as ls
 import litellm
 import rich
 import ujson
 from langsmith.wrappers import wrap_anthropic
 from litellm import (
+    ResponseFunctionToolCall,
     ResponsesAPIResponse,
     acompletion,
     aresponses,
@@ -895,6 +897,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     event_type = event.type
 
                     if event_type == "content_block_start":
+                        assert isinstance(event, ContentBlockStartEvent)
                         block = event.content_block
                         block_type = block.type
 
@@ -929,12 +932,15 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                                 is_response = True
 
                     elif event_type == "content_block_delta":
+                        assert isinstance(event, ContentBlockDeltaEvent)
                         delta = event.delta
                         delta_type = delta.type
 
                         if delta_type == "thinking_delta":
+                            assert isinstance(delta, ThinkingDelta)
                             print(delta.thinking, end="", flush=True)
                         elif delta_type == "text_delta":
+                            assert isinstance(delta, TextDelta)
                             print(delta.text, end="", flush=True)
 
                 # Get the final message with full content
@@ -1282,6 +1288,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     name = output["name"]
                     arguments = output["arguments"]
                 else:
+                    assert isinstance(output, ResponseFunctionToolCall)
                     call_id = output.call_id
                     name = output.name
                     arguments = output.arguments
@@ -1340,7 +1347,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                             "search_type": search_type,
                             "status": btc_status,
                         },
-                        tool_call_id=btc_id,
+                        tool_call_id=btc_id or "",
                         responses=outputs,
                         reasoning=call_reasoning,
                         preamble=call_preamble,
@@ -1389,7 +1396,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                             "outputs": btc_outputs,
                             "status": btc_status,
                         },
-                        tool_call_id=btc_id,
+                        tool_call_id=btc_id or "",
                         responses=outputs,
                         reasoning=call_reasoning,
                         preamble=call_preamble,

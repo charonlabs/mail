@@ -11,7 +11,8 @@ import json
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
-from mail import MAILAgentTemplate, MAILSwarmTemplate, MAILAction
+
+from mail import MAILAction, MAILAgentTemplate, MAILSwarmTemplate
 from mail.factories import LiteLLMSupervisorFunction
 
 if TYPE_CHECKING:
@@ -204,7 +205,7 @@ class TaskSummarizer:
             show_events=False,
         )
 
-        return self._parse_title(response)
+        return self._parse_title(response) # type: ignore
 
     async def shutdown(self):
         """Shutdown the swarm."""

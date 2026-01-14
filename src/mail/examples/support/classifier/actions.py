@@ -74,7 +74,7 @@ def _classify_category(text: str) -> tuple[str, float]:
         scores[category] = _count_keyword_matches(text, keywords)
 
     # Find the category with highest score
-    max_category = max(scores, key=scores.get)
+    max_category = max(scores, key=lambda x: scores[x])
     max_score = scores[max_category]
 
     # Calculate confidence based on score differential
@@ -101,7 +101,7 @@ def _classify_priority(text: str) -> tuple[str, float]:
     }
 
     # Find the priority with highest weighted score
-    max_priority = max(weighted_scores, key=weighted_scores.get)
+    max_priority = max(weighted_scores, key=lambda x: weighted_scores[x])
     max_score = weighted_scores[max_priority]
 
     # Default to medium if no clear signal

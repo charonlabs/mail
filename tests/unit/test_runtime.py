@@ -962,8 +962,9 @@ async def test_run_continuous_max_steps_is_per_task() -> None:
         await runtime.submit_and_wait(_send_message(task_b))
 
         events_b = runtime.get_events_by_task_id(task_b)
+        assert not any(event.data is None for event in events_b)
         assert not any(
-            "::maximum_steps_reached::" in event.data.get("description", "")
+            "::maximum_steps_reached::" in event.data["description"] # type: ignore
             for event in events_b
         )
     finally:
