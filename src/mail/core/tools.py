@@ -1097,7 +1097,7 @@ def create_mail_tools(
     targets: list[str],
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
-    exclude_tools: list[str] = [],
+    exclude_tools: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Create MAIL tools. These should be used for all agents.
@@ -1108,6 +1108,7 @@ def create_mail_tools(
         style: The style of the tools to create.
         exclude_tools: The names of MAIL tools that should not be available.
     """
+    exclude_tools = exclude_tools or []
     all_tools = [
         create_request_tool(targets, enable_interswarm, style),
         create_response_tool(targets, enable_interswarm, style),
@@ -1131,7 +1132,7 @@ def create_supervisor_tools(
     targets: list[str],
     can_complete_tasks: bool = True,
     enable_interswarm: bool = False,
-    exclude_tools: list[str] = [],
+    exclude_tools: list[str] | None = None,
     style: Literal["completions", "responses"] = "completions",
     _debug_include_intraswarm: bool = True,
 ) -> list[dict[str, Any]]:
@@ -1145,6 +1146,7 @@ def create_supervisor_tools(
         exclude_tools: The names of MAIL tools that should not be available.
         style: The style of the tools to create.
     """
+    exclude_tools = exclude_tools or []
     tools: list[dict[str, Any]] = []
     if _debug_include_intraswarm:
         tools += [

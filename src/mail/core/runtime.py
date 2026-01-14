@@ -67,6 +67,12 @@ from .tools import (
 logger = logging.getLogger("mail.runtime")
 
 AGENT_HISTORY_KEY = "{task_id}::{agent_name}"
+_UNSET = object()
+
+
+class _SSEPayload(dict):
+    def __str__(self) -> str:
+        return ujson.dumps(self)
 
 
 class MAILRuntime:
@@ -85,8 +91,8 @@ class MAILRuntime:
         entrypoint: str,
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
-        breakpoint_tools: list[str] = [],
-        exclude_tools: list[str] = [],
+        breakpoint_tools: list[str] | None = None,
+        exclude_tools: list[str] | None = None,
         enable_db_agent_histories: bool = False,
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
@@ -110,7 +116,8 @@ class MAILRuntime:
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
         self.user_role = user_role
-        self.new_events: list[ServerSentEvent] = []
+        self._steps_by_task: dict[str, int] = defaultdict(int)
+        self._max_steps_by_task: dict[str, int | None] = {}
         # Event notifier for streaming to avoid busy-waiting
         self._events_available = asyncio.Event()
         # Interswarm messaging support
@@ -125,14 +132,14 @@ class MAILRuntime:
             self.interswarm_router.register_message_handler(
                 "local_message_handler", self._handle_local_message
             )
-        self.breakpoint_tools = breakpoint_tools
+        self.breakpoint_tools = list(breakpoint_tools or [])
         self._is_continuous = False
         self._is_manual = False
         # Message buffer for manual mode
         self.manual_message_buffer: dict[str, list[MAILMessage]] = defaultdict(list)
         self.manual_return_events: dict[str, asyncio.Event] = defaultdict(asyncio.Event)
         self.manual_return_messages: dict[str, MAILMessage | None] = defaultdict(None)
-        self.exclude_tools = exclude_tools
+        self.exclude_tools = list(exclude_tools or [])
         self.response_messages: dict[str, MAILMessage] = {}
         self.last_breakpoint_caller: dict[str, str] = {}
         self.last_breakpoint_tool_calls: dict[str, list[AgentToolCall]] = {}
@@ -148,6 +155,38 @@ class MAILRuntime:
         Build the string that will be prepended to all log messages.
         """
         return f"[[yellow]{self.user_role}[/yellow]:{self.user_id}@[green]{self.swarm_name}[/green]]"
+
+    def _reset_step_counter(self, task_id: str) -> None:
+        """
+        Reset the step counter for a task (used to enforce per-task max_steps).
+        """
+        self._steps_by_task[task_id] = 0
+
+    def _set_task_max_steps(self, task_id: str, max_steps: int | None) -> None:
+        """
+        Record a per-task max_steps override (None disables the limit).
+        """
+        self._max_steps_by_task[task_id] = max_steps
+
+    def _normalize_max_steps(self, max_steps: Any) -> int | None:
+        """
+        Normalize a max_steps override into an int or None.
+        """
+        if max_steps is None:
+            return None
+        if isinstance(max_steps, int):
+            return max_steps
+        try:
+            return int(max_steps)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("max_steps must be an int or null") from exc
+
+    def _clear_task_step_state(self, task_id: str) -> None:
+        """
+        Clear step counters and overrides when a task completes.
+        """
+        self._steps_by_task.pop(task_id, None)
+        self._max_steps_by_task.pop(task_id, None)
 
     async def start_interswarm(self) -> None:
         """
@@ -507,6 +546,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         await self.mail_tasks[task_id_completed].queue_stash(
                             self.message_queue
                         )
+                        self._clear_task_step_state(task_id_completed)
                     # Mark this message as done before breaking
                     self.message_queue.task_done()
                     return message
@@ -723,7 +763,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         self._is_continuous = True
         self._is_manual = mode == "manual"
-        steps = 0
         if self._is_manual:
             logger.info(
                 f"{self._log_prelude()} starting manual MAIL operation for user '{self.user_id}'..."
@@ -784,6 +823,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         await self._ensure_task_exists(task_id)
                         self.mail_tasks[task_id].mark_complete()
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
+                        self._clear_task_step_state(task_id)
                     if isinstance(task_id, str) and task_id in self.pending_requests:
                         # Resolve the pending request
                         logger.info(
@@ -801,8 +841,14 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     not message["message"]["subject"].startswith("::")
                     and not message["message"]["sender"]["address_type"] == "system"
                 ):
-                    steps += 1
-                    if max_steps is not None and steps > max_steps:
+                    self._steps_by_task[task_id] += 1
+                    max_steps_for_task = self._max_steps_by_task.get(
+                        task_id, max_steps
+                    )
+                    if (
+                        max_steps_for_task is not None
+                        and self._steps_by_task[task_id] > max_steps_for_task
+                    ):
                         ev = self.get_events_by_task_id(task_id)
                         serialized_events = []
                         for event in ev:
@@ -869,6 +915,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self.pending_requests[task_id] = future
 
         try:
+            max_steps_override = kwargs.pop("max_steps", _UNSET)
+            if max_steps_override is not _UNSET:
+                self._set_task_max_steps(
+                    task_id, self._normalize_max_steps(max_steps_override)
+                )
             match resume_from:
                 case "user_response":
                     await self._submit_user_response(task_id, message, **kwargs)
@@ -946,6 +997,17 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self.pending_requests[task_id] = future
 
         try:
+            max_steps_override = kwargs.pop("max_steps", _UNSET)
+            if max_steps_override is not _UNSET:
+                self._set_task_max_steps(
+                    task_id, self._normalize_max_steps(max_steps_override)
+                )
+            task_state = self.mail_tasks.get(task_id)
+            if task_state is None and resume_from is None:
+                await self._ensure_task_exists(task_id)
+                task_state = self.mail_tasks.get(task_id)
+            next_event_index = len(task_state.events) if task_state else 0
+
             match resume_from:
                 case "user_response":
                     await self._submit_user_response(task_id, message, **kwargs)
@@ -956,6 +1018,33 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
             # Stream events as they become available, emitting periodic heartbeats
             while not future.done():
+                task_state = self.mail_tasks.get(task_id)
+                task_events = task_state.events if task_state else []
+                if next_event_index < len(task_events):
+                    for ev in task_events[next_event_index:]:
+                        payload = ev.data
+                        if isinstance(payload, str):
+                            try:
+                                payload = ujson.loads(payload)
+                            except ValueError:
+                                payload = ev.data
+                        if isinstance(payload, dict):
+                            payload = _SSEPayload(payload)
+                        yield ServerSentEvent(
+                            event=ev.event,
+                            data=payload,
+                            id=getattr(ev, "id", None),
+                        )
+                    next_event_index = len(task_events)
+                    continue
+
+                # Reset the event flag before waiting to avoid busy loops.
+                self._events_available.clear()
+                task_state = self.mail_tasks.get(task_id)
+                task_events = task_state.events if task_state else []
+                if next_event_index < len(task_events):
+                    continue
+
                 try:
                     # Wait up to 15s for new events; on timeout send a heartbeat
                     await asyncio.wait_for(self._events_available.wait(), timeout=15.0)
@@ -972,45 +1061,30 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     )
                     continue
 
-                # Drain currently queued events
-                events_to_emit = self.new_events
-                self.new_events = []
-                # Reset the event flag (more events may arrive after this)
-                self._events_available.clear()
-
-                # Yield only events related to this task, but keep history of all
-                for ev in events_to_emit:
-                    try:
-                        # ev.data is now a JSON string, parse to check task_id
-                        ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data
-                        if isinstance(ev_data, dict) and ev_data.get("task_id") == task_id:
-                            yield ev
-                    except Exception as e:
-                        # Be tolerant to malformed event data
-                        logger.error(
-                            f"{self._log_prelude()} `submit_and_stream`: failed to yield event for task '{task_id}': {e}"
-                        )
-                        continue
-
             # Future completed; drain any remaining events before emitting final response
-            if self.new_events:
-                events_to_emit = self.new_events
-                self.new_events = []
-                self._events_available.clear()
-                for ev in events_to_emit:
-                    try:
-                        # ev.data is now a JSON string, parse to check task_id
-                        ev_data = ujson.loads(ev.data) if isinstance(ev.data, str) else ev.data
-                        if isinstance(ev_data, dict) and ev_data.get("task_id") == task_id:
-                            yield ev
-                    except Exception:
-                        continue
+            task_state = self.mail_tasks.get(task_id)
+            task_events = task_state.events if task_state else []
+            if next_event_index < len(task_events):
+                for ev in task_events[next_event_index:]:
+                    payload = ev.data
+                    if isinstance(payload, str):
+                        try:
+                            payload = ujson.loads(payload)
+                        except ValueError:
+                            payload = ev.data
+                    if isinstance(payload, dict):
+                        payload = _SSEPayload(payload)
+                    yield ServerSentEvent(
+                        event=ev.event,
+                        data=payload,
+                        id=getattr(ev, "id", None),
+                    )
 
             # Emit the final task_complete event with the response body
             try:
                 response = future.result()
                 yield ServerSentEvent(
-                    data=ujson.dumps({
+                    data=_SSEPayload({
                         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": response["message"]["body"],
@@ -1023,7 +1097,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
                 )
                 yield ServerSentEvent(
-                    data=ujson.dumps({
+                    data=_SSEPayload({
                         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": f"{e}",
@@ -1037,7 +1111,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: timeout for task '{task_id}'"
             )
             yield ServerSentEvent(
-                data=ujson.dumps({
+                data=_SSEPayload({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "task_id": task_id,
                     "response": "timeout",
@@ -1051,7 +1125,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
             )
             yield ServerSentEvent(
-                data=ujson.dumps({
+                data=_SSEPayload({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "task_id": task_id,
                     "response": f"{e}",
@@ -1074,6 +1148,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self._reset_step_counter(task_id)
         self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
@@ -1094,6 +1169,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self._reset_step_counter(task_id)
         self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
@@ -1154,7 +1230,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"last breakpoint tool calls for task '{task_id}' is not set"
             )
         last_breakpoint_tool_calls = self.last_breakpoint_tool_calls[task_id]
-        has_breakpoint_context = bool(self.last_breakpoint_tool_calls)
+        has_breakpoint_context = bool(last_breakpoint_tool_calls)
 
         if isinstance(payload, list) and has_breakpoint_context:
             logger.info(
@@ -2329,7 +2405,7 @@ Use this information to decide how to complete your task.""",
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"agent {recipient} called await_message but has no outstanding requests",
+                                    f"agent {recipient} called await_message but has no outstanding requests and message queue is empty",
                                 )
                                 await self.submit(
                                     self._system_response(
@@ -3074,6 +3150,7 @@ The final response message is: '{finish_body}'""",
 
         await task_state.queue_stash(self.message_queue)
         task_state.mark_complete()
+        self._clear_task_step_state(task_id)
 
         # Clean up outstanding requests tracking for this task
         if task_id in self.outstanding_requests:
@@ -3346,7 +3423,6 @@ The final response message is: '{finish_body}'""",
             }),
             event=event,
         )
-        self.new_events.append(sse)
         self.mail_tasks[task_id].add_event(sse)
         # Signal that new events are available for streaming
         try:
@@ -3433,8 +3509,20 @@ The final response message is: '{finish_body}'""",
         out: list[ServerSentEvent] = []
         for ev in candidates:
             try:
-                if isinstance(ev.data, dict) and ev.data.get("task_id") == task_id:
-                    out.append(ev)
+                payload = ev.data
+                if isinstance(payload, str):
+                    try:
+                        payload = ujson.loads(payload)
+                    except ValueError:
+                        payload = None
+                if isinstance(payload, dict) and payload.get("task_id") == task_id:
+                    out.append(
+                        ServerSentEvent(
+                            event=ev.event,
+                            data=payload,
+                            id=getattr(ev, "id", None),
+                        )
+                    )
             except Exception:
                 continue
         return out

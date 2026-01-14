@@ -142,8 +142,11 @@ def _is_action_complete_broadcast(payload: Any) -> bool:
     """
     Check if the payload is an `action_complete_broadcast` message.
     """
+    if not isinstance(payload, Mapping):
+        return False
     description = payload.get("description")
-    assert isinstance(description, str)
+    if not isinstance(description, str):
+        return False
     if "<subject>::action_complete_broadcast::</subject>" in description:
         return True
     return False

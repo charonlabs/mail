@@ -69,7 +69,7 @@ class MAILAgent:
         enable_interswarm: bool = False,
         can_complete_tasks: bool = False,
         tool_format: Literal["completions", "responses"] = "responses",
-        exclude_tools: list[str] = [],
+        exclude_tools: list[str] | None = None,
     ) -> None:
         self.name = name
         self.factory = factory
@@ -81,7 +81,7 @@ class MAILAgent:
         self.agent_params = agent_params
         self.tool_format = tool_format
         self.can_complete_tasks = can_complete_tasks
-        self.exclude_tools = exclude_tools
+        self.exclude_tools = list(exclude_tools or [])
         self._validate()
 
     def _validate(self) -> None:
@@ -154,7 +154,7 @@ class MAILAgentTemplate:
         enable_interswarm: bool = False,
         can_complete_tasks: bool = False,
         tool_format: Literal["completions", "responses"] = "responses",
-        exclude_tools: list[str] = [],
+        exclude_tools: list[str] | None = None,
     ) -> None:
         self.name = name
         self.factory = factory
@@ -165,7 +165,7 @@ class MAILAgentTemplate:
         self.enable_interswarm = enable_interswarm
         self.tool_format = tool_format
         self.can_complete_tasks = can_complete_tasks
-        self.exclude_tools = exclude_tools
+        self.exclude_tools = list(exclude_tools or [])
         self._validate()
 
     def _validate(self) -> None:

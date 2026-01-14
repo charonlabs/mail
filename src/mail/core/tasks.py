@@ -6,6 +6,7 @@ import heapq
 from asyncio import PriorityQueue
 from typing import Literal, cast
 
+import ujson
 from sse_starlette import ServerSentEvent
 
 from mail.core.message import MAILMessage, create_agent_address
@@ -52,6 +53,13 @@ class MAILTask:
             if sse.event == "new_message":
                 data = sse.data
                 if data is None:
+                    continue
+                if isinstance(data, str):
+                    try:
+                        data = ujson.loads(data)
+                    except ValueError:
+                        continue
+                if not isinstance(data, dict):
                     continue
                 extra_data = data.get("extra_data")
                 if extra_data is None:

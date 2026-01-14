@@ -1549,7 +1549,7 @@ class MAILClientCLI:
                 prompt_markup = self._repl_input_string(
                     self.user_role, self.user_id, self.base_url
                 )
-                raw_command = input(self._render_prompt(prompt_markup))
+                raw_command = self.client._console.input(prompt_markup)
             except EOFError:
                 self.client._console.print()
                 break

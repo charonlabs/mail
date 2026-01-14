@@ -557,7 +557,7 @@ async def message(request: Request):
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
         )
 
-    if not body:
+    if not body and resume_from != "breakpoint_tool_call":
         logger.warning(f"{_log_prelude(app)} no message body provided")
         raise HTTPException(status_code=400, detail="no message provided")
 
@@ -690,7 +690,7 @@ async def ui_message(request: Request):
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
         )
 
-    if not body:
+    if not body and resume_from != "breakpoint_tool_call":
         raise HTTPException(status_code=400, detail="no message provided")
 
     try:

@@ -19,6 +19,7 @@ from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
+    create_user_address,
     format_agent_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
@@ -918,6 +919,56 @@ async def test_submit_event_tracks_events_by_task() -> None:
 
     events_missing = runtime.get_events_by_task_id("missing")
     assert events_missing == []
+
+
+@pytest.mark.asyncio
+async def test_run_continuous_max_steps_is_per_task() -> None:
+    """
+    max_steps should be tracked per task, not globally.
+    """
+    runtime = MAILRuntime(
+        agents={"supervisor": _create_agent_core(comm_targets=[])},
+        actions={},
+        user_id="user-steps",
+        user_role="user",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    def _send_message(task_id: str) -> MAILMessage:
+        return MAILMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+            message=MAILRequest(
+                task_id=task_id,
+                request_id=str(uuid.uuid4()),
+                sender=create_user_address("user-steps"),
+                recipient=create_agent_address("supervisor"),
+                subject="Test",
+                body="Body",
+                sender_swarm=None,
+                recipient_swarm=None,
+                routing_info={},
+            ),
+            msg_type="request",
+        )
+
+    runner = asyncio.create_task(runtime.run_continuous(max_steps=1))
+    try:
+        task_a = "task-a"
+        await runtime.submit_and_wait(_send_message(task_a))
+
+        task_b = "task-b"
+        await runtime.submit_and_wait(_send_message(task_b))
+
+        events_b = runtime.get_events_by_task_id(task_b)
+        assert not any(
+            "::maximum_steps_reached::" in event.data.get("description", "")
+            for event in events_b
+        )
+    finally:
+        await runtime.shutdown()
+        await runner
 
 
 @pytest.mark.asyncio
