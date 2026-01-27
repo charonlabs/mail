@@ -16,7 +16,6 @@ import langsmith as ls
 import rich
 import tiktoken
 import ujson
-from langmem import create_memory_store_manager
 from litellm import aresponses
 from sse_starlette import ServerSentEvent
 
@@ -34,7 +33,6 @@ from mail.db.utils import (
 from mail.net import InterswarmRouter, SwarmRegistry
 from mail.utils.context import get_model_ctx_len
 from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
-from mail.utils.store import get_langmem_store
 from mail.utils.string_builder import build_mail_help_string
 
 from .actions import (
@@ -63,11 +61,18 @@ from .tools import (
     AgentToolCall,
     convert_call_to_mail_message,
     convert_manual_step_call_to_mail_message,
+    normalize_breakpoint_tool_call,
 )
 
 logger = logging.getLogger("mail.runtime")
 
 AGENT_HISTORY_KEY = "{task_id}::{agent_name}"
+_UNSET = object()
+
+
+class _SSEPayload(dict):
+    def __str__(self) -> str:
+        return ujson.dumps(self)
 
 
 class MAILRuntime:
@@ -86,8 +91,8 @@ class MAILRuntime:
         entrypoint: str,
         swarm_registry: SwarmRegistry | None = None,
         enable_interswarm: bool = False,
-        breakpoint_tools: list[str] = [],
-        exclude_tools: list[str] = [],
+        breakpoint_tools: list[str] | None = None,
+        exclude_tools: list[str] | None = None,
         enable_db_agent_histories: bool = False,
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
@@ -111,9 +116,12 @@ class MAILRuntime:
         self.pending_requests: dict[str, asyncio.Future[MAILMessage]] = {}
         self.user_id = user_id
         self.user_role = user_role
-        self.new_events: list[ServerSentEvent] = []
-        # Event notifier for streaming to avoid busy-waiting
-        self._events_available = asyncio.Event()
+        self._steps_by_task: dict[str, int] = defaultdict(int)
+        self._max_steps_by_task: dict[str, int | None] = {}
+        # Per-task event notifier for streaming to avoid busy-waiting
+        self._events_available_by_task: dict[str, asyncio.Event] = defaultdict(
+            asyncio.Event
+        )
         # Interswarm messaging support
         self.swarm_name = swarm_name
         self.enable_interswarm = enable_interswarm
@@ -126,24 +134,61 @@ class MAILRuntime:
             self.interswarm_router.register_message_handler(
                 "local_message_handler", self._handle_local_message
             )
-        self.breakpoint_tools = breakpoint_tools
+        self.breakpoint_tools = list(breakpoint_tools or [])
         self._is_continuous = False
         self._is_manual = False
         # Message buffer for manual mode
         self.manual_message_buffer: dict[str, list[MAILMessage]] = defaultdict(list)
         self.manual_return_events: dict[str, asyncio.Event] = defaultdict(asyncio.Event)
         self.manual_return_messages: dict[str, MAILMessage | None] = defaultdict(None)
-        self.exclude_tools = exclude_tools
+        self.exclude_tools = list(exclude_tools or [])
         self.response_messages: dict[str, MAILMessage] = {}
         self.last_breakpoint_caller: dict[str, str] = {}
         self.last_breakpoint_tool_calls: dict[str, list[AgentToolCall]] = {}
         self.this_owner = f"{self.user_role}:{self.user_id}@{self.swarm_name}"
+        # Track outstanding requests per task per agent for await_message
+        # Structure: task_id -> sender_agent_name -> count of outstanding requests
+        self.outstanding_requests: dict[str, dict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
 
     def _log_prelude(self) -> str:
         """
         Build the string that will be prepended to all log messages.
         """
         return f"[[yellow]{self.user_role}[/yellow]:{self.user_id}@[green]{self.swarm_name}[/green]]"
+
+    def _reset_step_counter(self, task_id: str) -> None:
+        """
+        Reset the step counter for a task (used to enforce per-task max_steps).
+        """
+        self._steps_by_task[task_id] = 0
+
+    def _set_task_max_steps(self, task_id: str, max_steps: int | None) -> None:
+        """
+        Record a per-task max_steps override (None disables the limit).
+        """
+        self._max_steps_by_task[task_id] = max_steps
+
+    def _normalize_max_steps(self, max_steps: Any) -> int | None:
+        """
+        Normalize a max_steps override into an int or None.
+        """
+        if max_steps is None:
+            return None
+        if isinstance(max_steps, int):
+            return max_steps
+        try:
+            return int(max_steps)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("max_steps must be an int or null") from exc
+
+    def _clear_task_step_state(self, task_id: str) -> None:
+        """
+        Clear step counters and overrides when a task completes.
+        """
+        self._steps_by_task.pop(task_id, None)
+        self._max_steps_by_task.pop(task_id, None)
 
     async def start_interswarm(self) -> None:
         """
@@ -444,10 +489,18 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Run the MAIL system for a specific task until the task is complete or shutdown is requested.
         """
+        logger.debug(
+            f"{self._log_prelude()} _run_loop_for_task: starting for task_id={task_id}, "
+            f"queue size={self.message_queue.qsize()}"
+        )
         steps = 0
         while True:
             try:
                 # Wait for either a message or shutdown signal
+                logger.debug(
+                    f"{self._log_prelude()} _run_loop_for_task: waiting for message, "
+                    f"queue size={self.message_queue.qsize()}"
+                )
                 get_message_task = asyncio.create_task(self.message_queue.get())
                 shutdown_task = asyncio.create_task(self.shutdown_event.wait())
 
@@ -478,6 +531,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 message_tuple = get_message_task.result()
                 # message_tuple structure: (priority, seq, message)
                 message = message_tuple[2]
+                logger.debug(
+                    f"{self._log_prelude()} _run_loop_for_task: got message from queue, "
+                    f"priority={message_tuple[0]}, seq={message_tuple[1]}, "
+                    f"remaining queue size={self.message_queue.qsize()}"
+                )
                 logger.info(
                     f"{self._log_prelude()} processing message with task ID '{message['message']['task_id']}': '{message['message']['subject']}'"
                 )
@@ -490,6 +548,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         await self.mail_tasks[task_id_completed].queue_stash(
                             self.message_queue
                         )
+                        self._clear_task_step_state(task_id_completed)
                     # Mark this message as done before breaking
                     self.message_queue.task_done()
                     return message
@@ -561,6 +620,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         Resume a task from a breakpoint tool call.
         """
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"task_id={task_id}, caller={breakpoint_tool_caller}, "
+            f"result_type={type(breakpoint_tool_call_result).__name__}"
+        )
         if (
             not isinstance(breakpoint_tool_call_result, str)
             and not isinstance(breakpoint_tool_call_result, list)
@@ -589,6 +653,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
         self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"queue loaded, queue size={self.message_queue.qsize()}"
+        )
         result_msgs: list[dict[str, Any]] = []
         if isinstance(breakpoint_tool_call_result, str):
             payload = ujson.loads(breakpoint_tool_call_result)
@@ -646,11 +714,19 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
 
         # append the breakpoint tool call result to the agent history
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"appending {len(result_msgs)} result message(s) to history"
+        )
         self.agent_histories[
             AGENT_HISTORY_KEY.format(task_id=task_id, agent_name=breakpoint_tool_caller)
         ].extend(result_msgs)
 
         # send action complete broadcast to tool caller
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"submitting ::action_complete_broadcast:: to {breakpoint_tool_caller}"
+        )
         await self.submit(
             self._system_broadcast(
                 task_id=task_id,
@@ -661,12 +737,20 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         )
 
         # resume the task
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"entering _run_loop_for_task, queue size={self.message_queue.qsize()}"
+        )
         self.mail_tasks[task_id].is_running = True
         try:
             result = await self._run_loop_for_task(task_id, action_override)
         finally:
             self.mail_tasks[task_id].is_running = False
 
+        logger.debug(
+            f"{self._log_prelude()} _resume_task_from_breakpoint_tool_call: "
+            f"_run_loop_for_task completed"
+        )
         return result
 
     async def run_continuous(
@@ -681,7 +765,6 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         """
         self._is_continuous = True
         self._is_manual = mode == "manual"
-        steps = 0
         if self._is_manual:
             logger.info(
                 f"{self._log_prelude()} starting manual MAIL operation for user '{self.user_id}'..."
@@ -742,6 +825,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                         await self._ensure_task_exists(task_id)
                         self.mail_tasks[task_id].mark_complete()
                         await self.mail_tasks[task_id].queue_stash(self.message_queue)
+                        self._clear_task_step_state(task_id)
                     if isinstance(task_id, str) and task_id in self.pending_requests:
                         # Resolve the pending request
                         logger.info(
@@ -759,8 +843,14 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     not message["message"]["subject"].startswith("::")
                     and not message["message"]["sender"]["address_type"] == "system"
                 ):
-                    steps += 1
-                    if max_steps is not None and steps > max_steps:
+                    self._steps_by_task[task_id] += 1
+                    max_steps_for_task = self._max_steps_by_task.get(
+                        task_id, max_steps
+                    )
+                    if (
+                        max_steps_for_task is not None
+                        and self._steps_by_task[task_id] > max_steps_for_task
+                    ):
                         ev = self.get_events_by_task_id(task_id)
                         serialized_events = []
                         for event in ev:
@@ -827,6 +917,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self.pending_requests[task_id] = future
 
         try:
+            max_steps_override = kwargs.pop("max_steps", _UNSET)
+            if max_steps_override is not _UNSET:
+                self._set_task_max_steps(
+                    task_id, self._normalize_max_steps(max_steps_override)
+                )
             match resume_from:
                 case "user_response":
                     await self._submit_user_response(task_id, message, **kwargs)
@@ -904,6 +999,17 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         self.pending_requests[task_id] = future
 
         try:
+            max_steps_override = kwargs.pop("max_steps", _UNSET)
+            if max_steps_override is not _UNSET:
+                self._set_task_max_steps(
+                    task_id, self._normalize_max_steps(max_steps_override)
+                )
+            task_state = self.mail_tasks.get(task_id)
+            if task_state is None and resume_from is None:
+                await self._ensure_task_exists(task_id)
+                task_state = self.mail_tasks.get(task_id)
+            next_event_index = len(task_state.events) if task_state else 0
+
             match resume_from:
                 case "user_response":
                     await self._submit_user_response(task_id, message, **kwargs)
@@ -913,80 +1019,73 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     await self.submit(message)
 
             # Stream events as they become available, emitting periodic heartbeats
+            task_event = self._events_available_by_task[task_id]
             while not future.done():
+                task_state = self.mail_tasks.get(task_id)
+                task_events = task_state.events if task_state else []
+                if next_event_index < len(task_events):
+                    for ev in task_events[next_event_index:]:
+                        payload = ev.data
+                        if isinstance(payload, dict) and not isinstance(
+                            payload, _SSEPayload
+                        ):
+                            payload = _SSEPayload(payload)
+                        yield ServerSentEvent(
+                            event=ev.event,
+                            data=payload,
+                            id=getattr(ev, "id", None),
+                        )
+                    next_event_index = len(task_events)
+                    continue
+
+                # Reset the event flag before waiting to avoid busy loops.
+                task_event.clear()
+                task_state = self.mail_tasks.get(task_id)
+                task_events = task_state.events if task_state else []
+                if next_event_index < len(task_events):
+                    continue
+
                 try:
                     # Wait up to 15s for new events; on timeout send a heartbeat
-                    await asyncio.wait_for(self._events_available.wait(), timeout=15.0)
+                    await asyncio.wait_for(task_event.wait(), timeout=15.0)
                 except TimeoutError:
                     # Heartbeat to keep the connection alive
                     yield ServerSentEvent(
-                        data={
+                        data=ujson.dumps({
                             "timestamp": datetime.datetime.now(
                                 datetime.UTC
                             ).isoformat(),
                             "task_id": task_id,
-                        },
+                        }),
                         event="ping",
                     )
                     continue
 
-                # Drain currently queued events
-                events_to_emit = self.new_events
-                self.new_events = []
-                # Reset the event flag (more events may arrive after this)
-                self._events_available.clear()
-
-                # Yield only events related to this task, but keep history of all
-                for ev in events_to_emit:
-                    try:
-                        self.mail_tasks[task_id].add_event(ev)
-                    except Exception as e:
-                        # Never let history tracking break streaming
-                        logger.error(
-                            f"{self._log_prelude()} `submit_and_stream`: failed to add event to task '{task_id}': {e}"
-                        )
-                        pass
-                    try:
-                        if (
-                            isinstance(ev.data, dict)
-                            and ev.data.get("task_id") == task_id
-                        ):  # type: ignore
-                            yield ev
-                    except Exception as e:
-                        # Be tolerant to malformed event data
-                        logger.error(
-                            f"{self._log_prelude()} `submit_and_stream`: failed to yield event for task '{task_id}': {e}"
-                        )
-                        continue
-
             # Future completed; drain any remaining events before emitting final response
-            if self.new_events:
-                events_to_emit = self.new_events
-                self.new_events = []
-                self._events_available.clear()
-                for ev in events_to_emit:
-                    try:
-                        self.mail_tasks[task_id].add_event(ev)
-                    except Exception:
-                        pass
-                    try:
-                        if (
-                            isinstance(ev.data, dict)
-                            and ev.data.get("task_id") == task_id
-                        ):
-                            yield ev
-                    except Exception:
-                        continue
+            task_state = self.mail_tasks.get(task_id)
+            task_events = task_state.events if task_state else []
+            if next_event_index < len(task_events):
+                for ev in task_events[next_event_index:]:
+                    payload = ev.data
+                    if isinstance(payload, dict) and not isinstance(
+                        payload, _SSEPayload
+                    ):
+                        payload = _SSEPayload(payload)
+                    yield ServerSentEvent(
+                        event=ev.event,
+                        data=payload,
+                        id=getattr(ev, "id", None),
+                    )
 
             # Emit the final task_complete event with the response body
             try:
                 response = future.result()
                 yield ServerSentEvent(
-                    data={
+                    data=_SSEPayload({
                         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": response["message"]["body"],
-                    },
+                    }),
                     event="task_complete",
                 )
             except Exception as e:
@@ -995,11 +1094,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
                 )
                 yield ServerSentEvent(
-                    data={
+                    data=_SSEPayload({
                         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                         "task_id": task_id,
                         "response": f"{e}",
-                    },
+                    }),
                     event="task_error",
                 )
 
@@ -1009,11 +1108,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: timeout for task '{task_id}'"
             )
             yield ServerSentEvent(
-                data={
+                data=_SSEPayload({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "task_id": task_id,
                     "response": "timeout",
-                },
+                }),
                 event="task_error",
             )
 
@@ -1023,11 +1122,11 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
             )
             yield ServerSentEvent(
-                data={
+                data=_SSEPayload({
                     "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                     "task_id": task_id,
                     "response": f"{e}",
-                },
+                }),
                 event="task_error",
             )
 
@@ -1046,6 +1145,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self._reset_step_counter(task_id)
         self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
@@ -1066,6 +1166,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             raise ValueError(f"task '{task_id}' not found")
 
+        self._reset_step_counter(task_id)
         self.mail_tasks[task_id].resume()
         await self.mail_tasks[task_id].queue_load(self.message_queue)
 
@@ -1126,7 +1227,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"last breakpoint tool calls for task '{task_id}' is not set"
             )
         last_breakpoint_tool_calls = self.last_breakpoint_tool_calls[task_id]
-        has_breakpoint_context = bool(self.last_breakpoint_tool_calls)
+        has_breakpoint_context = bool(last_breakpoint_tool_calls)
 
         if isinstance(payload, list) and has_breakpoint_context:
             logger.info(
@@ -1380,6 +1481,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 start_time=task_data["start_time"],
                 is_running=task_data["is_running"],
                 completed=task_data["completed"],
+                title=task_data.get("title"),
             )
             logger.debug(
                 f"{self._log_prelude()} persisted task '{task.task_id}' to database"
@@ -1796,8 +1898,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 seen.add(addr)
                 deduped.append(addr)
 
-        # Prevent agents from broadcasting to themselves
-        recipients = [addr for addr in deduped if addr != sender_address]
+        # Prevent agents from broadcasting to themselves (but allow system messages
+        # to agents even if the swarm name matches the agent name)
+        sender_type = message["message"]["sender"]["address_type"]
+        if sender_type == "system":
+            recipients = deduped
+        else:
+            recipients = [addr for addr in deduped if addr != sender_address]
 
         for recipient in recipients:
             # Parse recipient address to get local agent name
@@ -2072,6 +2179,18 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 else:
                     history.extend(tool_calls[0].responses)
 
+                # Emit tool_call events for all calls (before any mutations)
+                # Track last call with reasoning for reasoning_ref
+                last_reasoning_call_id: str | None = None
+                for call in tool_calls:
+                    if call.reasoning:
+                        self._emit_tool_call_event(task_id, recipient, call)
+                        last_reasoning_call_id = call.tool_call_id
+                    else:
+                        self._emit_tool_call_event(
+                            task_id, recipient, call, reasoning_ref=last_reasoning_call_id
+                        )
+
                 breakpoint_calls = [
                     call
                     for call in tool_calls
@@ -2089,16 +2208,31 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                     self.last_breakpoint_caller[task_id] = recipient
                     self.last_breakpoint_tool_calls[task_id] = breakpoint_calls
                     bp_dumps: list[dict[str, Any]] = []
-                    if breakpoint_calls[0].completion:
-                        bp_dumps.append(breakpoint_calls[0].completion)
-                    else:
-                        resps = breakpoint_calls[0].responses
-                        for resp in resps:
-                            if (
-                                resp["type"] == "function_call"
-                                and resp["name"] in self.breakpoint_tools
-                            ):
-                                bp_dumps.append(resp)
+                    for call in breakpoint_calls:
+                        raw_block: dict[str, Any] | None = None
+                        if call.completion:
+                            completion = call.completion
+                            content = completion.get("content", [])
+                            for block in content:
+                                if (
+                                    isinstance(block, dict)
+                                    and block.get("type") == "tool_use"
+                                    and block.get("id") == call.tool_call_id
+                                ):
+                                    raw_block = block
+                                    break
+                        else:
+                            for resp in call.responses:
+                                if (
+                                    isinstance(resp, dict)
+                                    and resp.get("type") == "function_call"
+                                    and resp.get("call_id") == call.tool_call_id
+                                ):
+                                    raw_block = resp
+                                    break
+                        bp_dumps.append(
+                            normalize_breakpoint_tool_call(call, raw_block)
+                        )
                     await self.submit(
                         self._system_broadcast(
                             task_id=task_id,
@@ -2145,36 +2279,36 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                             try:
                                 # Only store if this was a broadcast; otherwise treat as no-op
                                 if message["msg_type"] == "broadcast":
-                                    note = call.tool_args.get("note")
-                                    async with get_langmem_store() as store:
-                                        manager = create_memory_store_manager(
-                                            "anthropic:claude-sonnet-4-20250514",
-                                            query_model="anthropic:claude-sonnet-4-20250514",
-                                            query_limit=10,
-                                            namespace=(f"{recipient}_memory",),
-                                            store=store,
-                                        )
-                                        assistant_content = (
-                                            f"<acknowledged broadcast/>\n{note}".strip()
-                                            if note
-                                            else "<acknowledged broadcast/>"
-                                        )
-                                        await manager.ainvoke(
-                                            {
-                                                "messages": [
-                                                    {
-                                                        "role": "user",
-                                                        "content": incoming_message[
-                                                            "content"
-                                                        ],
-                                                    },
-                                                    {
-                                                        "role": "assistant",
-                                                        "content": assistant_content,
-                                                    },
-                                                ]
-                                            }
-                                        )
+                                    # note = call.tool_args.get("note")
+                                    # async with get_langmem_store() as store:
+                                    #     manager = create_memory_store_manager(
+                                    #         "anthropic:claude-sonnet-4-20250514",
+                                    #         query_model="anthropic:claude-sonnet-4-20250514",
+                                    #         query_limit=10,
+                                    #         namespace=(f"{recipient}_memory",),
+                                    #         store=store,
+                                    #     )
+                                    #     assistant_content = (
+                                    #         f"<acknowledged broadcast/>\n{note}".strip()
+                                    #         if note
+                                    #         else "<acknowledged broadcast/>"
+                                    #     )
+                                    #     await manager.ainvoke(
+                                    #         {
+                                    #             "messages": [
+                                    #                 {
+                                    #                     "role": "user",
+                                    #                     "content": incoming_message[
+                                    #                         "content"
+                                    #                     ],
+                                    #                 },
+                                    #                 {
+                                    #                     "role": "assistant",
+                                    #                     "content": assistant_content,
+                                    #                 },
+                                    #             ]
+                                    #         }
+                                    #     )
                                     self._tool_call_response(
                                         task_id=task_id,
                                         caller=recipient,
@@ -2250,34 +2384,41 @@ Use this information to decide how to complete your task.""",
                             )
                             # No further action
                         case "await_message":
-                            # only works if the message queue is not empty
-                            if self.message_queue.empty():
+                            # Allow await if there are outstanding requests OR messages in queue
+                            outstanding = self.outstanding_requests[task_id][recipient]
+                            queue_empty = self.message_queue.empty()
+                            if queue_empty and outstanding == 0:
                                 logger.warning(
-                                    f"{self._log_prelude()} agent '{recipient}' called 'await_message' but the message queue is empty"
+                                    f"{self._log_prelude()} agent '{recipient}' called 'await_message' "
+                                    f"but has no outstanding requests and message queue is empty"
                                 )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
                                     tool_call=call,
                                     status="error",
-                                    details="message queue is empty",
+                                    details="no outstanding requests and message queue is empty",
                                 )
                                 self._submit_event(
                                     "agent_error",
                                     task_id,
-                                    f"agent {recipient} called await_message but the message queue is empty",
+                                    f"agent {recipient} called await_message but has no outstanding requests and message queue is empty",
                                 )
                                 await self.submit(
                                     self._system_response(
                                         task_id=task_id,
                                         recipient=create_agent_address(recipient),
                                         subject="::tool_call_error::",
-                                        body="""The tool call `await_message` was attempted but the message queue is empty.
-In order to prevent frozen tasks, the `await_message` tool will only work if the message queue is not empty.
-Consider sending a message to another agent to keep the task alive.""",
+                                        body="""The tool call `await_message` was attempted but you have no outstanding requests and the message queue is empty.
+In order to prevent frozen tasks, `await_message` only works if you have sent requests that haven't been responded to yet, or if there are messages waiting in the queue.
+Consider sending a request to another agent before calling `await_message`.""",
                                     )
                                 )
                                 return
+                            logger.debug(
+                                f"{self._log_prelude()} agent '{recipient}' awaiting "
+                                f"(outstanding={outstanding}, queue_empty={queue_empty})"
+                            )
                             wait_reason = call.tool_args.get("reason")
                             logger.info(
                                 f"{self._log_prelude()} agent '{recipient}' called 'await_message'{f': {wait_reason}' if wait_reason else ''}",
@@ -2323,6 +2464,23 @@ Consider sending a message to another agent to keep the task alive.""",
                                     task_id, message, outgoing_message, call
                                 )
                                 await self.submit(outgoing_message)
+                                # Track outstanding requests for await_message
+                                if call.tool_name == "send_request":
+                                    # Sender is waiting for a response
+                                    self.outstanding_requests[task_id][recipient] += 1
+                                    logger.debug(
+                                        f"{self._log_prelude()} agent '{recipient}' sent request, "
+                                        f"outstanding={self.outstanding_requests[task_id][recipient]}"
+                                    )
+                                elif call.tool_name == "send_response":
+                                    # Response received, decrement target's outstanding count
+                                    target = call.tool_args.get("target", "")
+                                    if self.outstanding_requests[task_id][target] > 0:
+                                        self.outstanding_requests[task_id][target] -= 1
+                                        logger.debug(
+                                            f"{self._log_prelude()} agent '{recipient}' sent response to '{target}', "
+                                            f"target outstanding={self.outstanding_requests[task_id][target]}"
+                                        )
                                 self._tool_call_response(
                                     task_id=task_id,
                                     caller=recipient,
@@ -2989,6 +3147,11 @@ The final response message is: '{finish_body}'""",
 
         await task_state.queue_stash(self.message_queue)
         task_state.mark_complete()
+        self._clear_task_step_state(task_id)
+
+        # Clean up outstanding requests tracking for this task
+        if task_id in self.outstanding_requests:
+            del self.outstanding_requests[task_id]
 
         # Persist agent histories to the database if enabled
         await self._persist_agent_histories_to_db(task_id)
@@ -3184,6 +3347,47 @@ The final response message is: '{finish_body}'""",
                     f"{self._log_prelude()} failed to persist history for agent '{agent_name}' (task '{task_id}'): {e}"
                 )
 
+    def _emit_tool_call_event(
+        self,
+        task_id: str,
+        caller: str,
+        call: AgentToolCall,
+        reasoning_ref: str | None = None,
+    ) -> None:
+        """
+        Emit a tool_call event for a tool call.
+
+        Reasoning and preamble come from the AgentToolCall object fields (populated by factory).
+        If the call has no reasoning but reasoning_ref is provided, include that instead.
+        """
+        extra_data: dict[str, Any] = {
+            "tool_name": call.tool_name,
+            "tool_args": call.tool_args,
+            "tool_call_id": call.tool_call_id,
+        }
+
+        # Use reasoning from call object (populated by factory)
+        # Filter empty/whitespace blocks and join with double newlines
+        if call.reasoning:
+            filtered = [r for r in call.reasoning if r and r.strip()]
+            if filtered:
+                extra_data["reasoning"] = "\n\n".join(filtered)
+            elif reasoning_ref:
+                # Had reasoning list but all blocks were empty/whitespace
+                extra_data["reasoning_ref"] = reasoning_ref
+        elif reasoning_ref:
+            extra_data["reasoning_ref"] = reasoning_ref
+
+        if call.preamble:
+            extra_data["preamble"] = call.preamble
+
+        self._submit_event(
+            "tool_call",
+            task_id,
+            f"agent {caller} called {call.tool_name}",
+            extra_data=extra_data,
+        )
+
     def _submit_event(
         self,
         event: str,
@@ -3206,20 +3410,20 @@ The final response message is: '{finish_body}'""",
         if extra_data is None:
             extra_data = {}
 
+        # Pre-serialize to JSON to ensure proper formatting (sse_starlette may use str() instead)
         sse = ServerSentEvent(
-            data={
+            data=ujson.dumps({
                 "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                 "description": description,
                 "task_id": task_id,
                 "extra_data": extra_data,
-            },
+            }),
             event=event,
         )
-        self.new_events.append(sse)
         self.mail_tasks[task_id].add_event(sse)
-        # Signal that new events are available for streaming
+        # Signal that new events are available for streaming (task-specific)
         try:
-            self._events_available.set()
+            self._events_available_by_task[task_id].set()
         except Exception:
             pass
 
@@ -3302,8 +3506,20 @@ The final response message is: '{finish_body}'""",
         out: list[ServerSentEvent] = []
         for ev in candidates:
             try:
-                if isinstance(ev.data, dict) and ev.data.get("task_id") == task_id:
-                    out.append(ev)
+                payload = ev.data
+                if isinstance(payload, str):
+                    try:
+                        payload = ujson.loads(payload)
+                    except ValueError:
+                        payload = None
+                if isinstance(payload, dict) and payload.get("task_id") == task_id:
+                    out.append(
+                        ServerSentEvent(
+                            event=ev.event,
+                            data=payload,
+                            id=getattr(ev, "id", None),
+                        )
+                    )
             except Exception:
                 continue
         return out

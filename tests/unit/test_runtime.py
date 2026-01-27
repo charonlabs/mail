@@ -4,6 +4,7 @@
 import asyncio
 import copy
 import datetime
+import json
 import tempfile
 import uuid
 from types import MethodType
@@ -19,6 +20,7 @@ from mail.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
+    create_user_address,
     format_agent_address,
 )
 from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
@@ -196,8 +198,13 @@ async def test_submit_and_stream_handles_timeout_and_events(
     update_event = await agen.__anext__()
     assert update_event.event == "task_update"
     assert update_event.data is not None
-    assert update_event.data["task_id"] == task_id
-    assert update_event.data["description"] == "intermediate status"
+    update_payload = (
+        json.loads(update_event.data)
+        if isinstance(update_event.data, str)
+        else update_event.data
+    )
+    assert update_payload["task_id"] == task_id
+    assert update_payload["description"] == "intermediate status"
 
     completion_message = runtime._agent_task_complete(
         task_id=task_id,
@@ -908,7 +915,8 @@ async def test_submit_event_tracks_events_by_task() -> None:
     runtime._submit_event("update", "task-a", "first")
     runtime._submit_event("update", "task-b", "second")
 
-    assert runtime._events_available.is_set()
+    assert runtime._events_available_by_task["task-a"].is_set()
+    assert runtime._events_available_by_task["task-b"].is_set()
 
     events_a = runtime.get_events_by_task_id("task-a")
     assert len(events_a) == 1
@@ -918,6 +926,57 @@ async def test_submit_event_tracks_events_by_task() -> None:
 
     events_missing = runtime.get_events_by_task_id("missing")
     assert events_missing == []
+
+
+@pytest.mark.asyncio
+async def test_run_continuous_max_steps_is_per_task() -> None:
+    """
+    max_steps should be tracked per task, not globally.
+    """
+    runtime = MAILRuntime(
+        agents={"supervisor": _create_agent_core(comm_targets=[])},
+        actions={},
+        user_id="user-steps",
+        user_role="user",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    def _send_message(task_id: str) -> MAILMessage:
+        return MAILMessage(
+            id=str(uuid.uuid4()),
+            timestamp=datetime.datetime.now(datetime.UTC).isoformat(),
+            message=MAILRequest(
+                task_id=task_id,
+                request_id=str(uuid.uuid4()),
+                sender=create_user_address("user-steps"),
+                recipient=create_agent_address("supervisor"),
+                subject="Test",
+                body="Body",
+                sender_swarm=None,
+                recipient_swarm=None,
+                routing_info={},
+            ),
+            msg_type="request",
+        )
+
+    runner = asyncio.create_task(runtime.run_continuous(max_steps=1))
+    try:
+        task_a = "task-a"
+        await runtime.submit_and_wait(_send_message(task_a))
+
+        task_b = "task-b"
+        await runtime.submit_and_wait(_send_message(task_b))
+
+        events_b = runtime.get_events_by_task_id(task_b)
+        assert not any(event.data is None for event in events_b)
+        assert not any(
+            "::maximum_steps_reached::" in event.data["description"] # type: ignore
+            for event in events_b
+        )
+    finally:
+        await runtime.shutdown()
+        await runner
 
 
 @pytest.mark.asyncio

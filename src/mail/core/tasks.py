@@ -6,6 +6,7 @@ import heapq
 from asyncio import PriorityQueue
 from typing import Literal, cast
 
+import ujson
 from sse_starlette import ServerSentEvent
 
 from mail.core.message import MAILMessage, create_agent_address
@@ -33,6 +34,8 @@ class MAILTask:
         self.task_message_queue: list[QueueItem] = []
         self.remote_swarms: set[str] = set()
         self.completed = False
+        # Title for UI task history (generated once via Haiku)
+        self.title: str | None = None
 
     def add_event(self, event: ServerSentEvent) -> None:
         """
@@ -50,6 +53,13 @@ class MAILTask:
             if sse.event == "new_message":
                 data = sse.data
                 if data is None:
+                    continue
+                if isinstance(data, str):
+                    try:
+                        data = ujson.loads(data)
+                    except ValueError:
+                        continue
+                if not isinstance(data, dict):
                     continue
                 extra_data = data.get("extra_data")
                 if extra_data is None:
@@ -248,6 +258,7 @@ class MAILTask:
             "is_running": self.is_running,
             "completed": self.completed,
             "start_time": self.start_time.isoformat(),
+            "title": self.title,
         }
 
     @classmethod
@@ -272,6 +283,9 @@ class MAILTask:
                 task.start_time = datetime.datetime.fromisoformat(start_time)
             elif isinstance(start_time, datetime.datetime):
                 task.start_time = start_time
+
+        # Restore title
+        task.title = data.get("title")
 
         return task
 

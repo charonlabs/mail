@@ -21,6 +21,7 @@ from mail.examples.mafia.roles import (
     calculate_roles,
 )
 from mail.factories.base import base_agent_factory
+from mail.utils import get_version
 
 
 class GamePhase(Enum):
@@ -114,7 +115,7 @@ def build_agent_swarm(agents: list[MAILAgentTemplate]) -> MAILSwarmTemplate:
         actions.extend(agent.actions)
     return MAILSwarmTemplate(
         name="swarm",
-        version="1.3.0",
+        version=get_version(),
         agents=agents,
         actions=actions,
         entrypoint=agents[0].name,

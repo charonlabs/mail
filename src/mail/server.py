@@ -17,13 +17,15 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 
+import ujson
 import uvicorn
 from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 import mail.net.server_utils as server_utils
 import mail.utils as utils
-from mail.config.server import ServerConfig
+from mail.config.server import ServerConfig, SettingsConfig, SwarmConfig
 from mail.core.message import (
     MAIL_MESSAGE_TYPES,
     MAILAddress,
@@ -46,6 +48,11 @@ from .api import MAILSwarm, MAILSwarmTemplate
 _server_config: ServerConfig = ServerConfig()
 init_logger()
 logger = logging.getLogger("mail.server")
+
+# Template injection for programmatic server startup (single-process only)
+# Used by run_server_with_template() and MAILSwarmTemplate.start_server()
+_TEMPLATE_OVERRIDE: MAILSwarmTemplate | None = None
+_CONFIG_OVERRIDE: ServerConfig | None = None
 
 
 def _log_prelude(app: FastAPI) -> str:
@@ -71,15 +78,29 @@ async def _server_startup(app: FastAPI) -> None:
     """
     Server startup logic, run before the `yield` in the lifespan context manager.
     """
+    global _TEMPLATE_OVERRIDE, _CONFIG_OVERRIDE
     logger.info("MAIL server starting up...")
 
-    cfg = _server_config
+    # Use injected template/config if provided, else use module-level config
+    # IMPORTANT: When _TEMPLATE_OVERRIDE is set, we MUST use _CONFIG_OVERRIDE
+    # to ensure debug=True (required for /ui/message endpoint)
+    if _TEMPLATE_OVERRIDE is not None:
+        ps = _TEMPLATE_OVERRIDE
+        cfg = _CONFIG_OVERRIDE if _CONFIG_OVERRIDE is not None else _server_config
+        logger.info(f"Using injected template: {ps.name} (debug={cfg.debug})")
+    else:
+        cfg = _server_config
+        ps = server_utils.get_default_persistent_swarm(cfg)
+
+    # IMPORTANT: All code below must use the local `cfg` variable, NOT _server_config.
+    # This ensures injected config (with debug=True) is used throughout.
+    # DO NOT add `cfg = _server_config` anywhere below this point.
 
     # set defaults
     app.state.debug = cfg.debug
 
     # swarm stuff
-    app.state.persistent_swarm = server_utils.get_default_persistent_swarm(cfg)
+    app.state.persistent_swarm = ps
     app.state.admin_mail_instances = server_utils.init_mail_instances_dict()
     app.state.admin_mail_tasks = server_utils.init_mail_tasks_dict()
     app.state.user_mail_instances = server_utils.init_mail_instances_dict()
@@ -252,6 +273,15 @@ async def _server_shutdown(app: FastAPI) -> None:
 
 app = FastAPI(lifespan=lifespan)
 
+# Add CORS middleware for UI dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 async def get_or_create_mail_instance(
     role: Literal["admin", "swarm", "user"],
@@ -306,8 +336,9 @@ async def get_or_create_mail_instance(
             )
             mail_instances[id] = mail_instance
 
-            # Start interswarm messaging
-            await mail_instance.start_interswarm()
+            # Start interswarm messaging (only if enabled)
+            if mail_instance.enable_interswarm:
+                await mail_instance.start_interswarm()
 
             # Load existing agent histories and tasks from the database
             await mail_instance.load_agent_histories_from_db()
@@ -526,7 +557,7 @@ async def message(request: Request):
             status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
         )
 
-    if not body:
+    if not body and resume_from != "breakpoint_tool_call":
         logger.warning(f"{_log_prelude(app)} no message body provided")
         raise HTTPException(status_code=400, detail="no message provided")
 
@@ -589,6 +620,352 @@ async def message(request: Request):
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
         )
+
+
+@app.get("/ui/agents")
+async def get_ui_agents():
+    """
+    Return agent topology for UI visualization.
+    Returns agent names, comm_targets, and role flags.
+    """
+    if not app.state.persistent_swarm:
+        raise HTTPException(status_code=503, detail="no swarm loaded")
+
+    agents = []
+    for agent in app.state.persistent_swarm.agents:
+        agents.append({
+            "name": agent.name,
+            "comm_targets": agent.comm_targets,
+            "enable_entrypoint": agent.enable_entrypoint,
+            "can_complete_tasks": agent.can_complete_tasks,
+            "enable_interswarm": agent.enable_interswarm,
+        })
+
+    return {
+        "agents": agents,
+        "entrypoint": app.state.default_entrypoint_agent,
+    }
+
+
+@app.post("/ui/message", dependencies=[Depends(utils.require_debug)])
+async def ui_message(request: Request):
+    """
+    Development-only endpoint for UI to send messages without auth.
+    Only available when debug=true in server config.
+    """
+    # Use a default dev user
+    caller_id = "ui-dev-user"
+    caller_role: Literal["admin", "swarm", "user"] = "user"
+    api_key = "dev-token"
+
+    # parse request
+    try:
+        data = await request.json()
+        body = data.get("body") or ""
+        subject = data.get("subject") or "New Message"
+        msg_type = data.get("msg_type") or "request"
+        entrypoint = data.get("entrypoint")
+        task_id = data.get("task_id")
+        stream = data.get("stream", True)
+        resume_from = data.get("resume_from")  # "user_response" for follow-ups
+
+        if isinstance(entrypoint, str) and entrypoint.strip():
+            recipient_agent = entrypoint.strip()
+        else:
+            recipient_agent = app.state.default_entrypoint_agent
+
+        if msg_type not in MAIL_MESSAGE_TYPES:
+            raise HTTPException(
+                status_code=400, detail=f"invalid message type: {msg_type}"
+            )
+
+        logger.info(
+            f"{_log_prelude(app)} [UI-DEV] received message: '{subject}'"
+        )
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        logger.error(f"{_log_prelude(app)} error parsing request: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"error parsing request: {e.with_traceback(None)}"
+        )
+
+    if not body and resume_from != "breakpoint_tool_call":
+        raise HTTPException(status_code=400, detail="no message provided")
+
+    try:
+        assert app.state.persistent_swarm is not None
+
+        # Get or create a dev user MAIL instance
+        api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+
+        if not isinstance(task_id, str) or not task_id:
+            task_id = str(uuid.uuid4())
+        _register_task_binding(app, task_id, caller_role, caller_id, api_key)
+
+        if stream:
+            logger.info(
+                f"{_log_prelude(app)} [UI-DEV] submitting streamed message (resume_from={resume_from})"
+            )
+            return await api_swarm.post_message_stream(
+                subject=subject,
+                body=body,
+                msg_type=msg_type,  # type: ignore
+                entrypoint=recipient_agent,
+                task_id=task_id,
+                resume_from=resume_from,
+            )
+        else:
+            logger.info(
+                f"{_log_prelude(app)} [UI-DEV] submitting message and waiting"
+            )
+            result = await api_swarm.post_message(
+                subject=subject,
+                body=body,
+                msg_type=msg_type,  # type: ignore
+                entrypoint=recipient_agent,
+                show_events=True,
+                task_id=task_id,
+                resume_from=resume_from,
+            )
+            if isinstance(result, tuple) and len(result) == 2:
+                response, events = result
+            else:
+                response, events = result, []  # type: ignore[misc]
+
+            return types.PostMessageResponse(
+                response=response["message"]["body"],
+                events=events,
+            )
+
+    except Exception as e:
+        logger.error(
+            f"{_log_prelude(app)} [UI-DEV] error processing message: {e}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"error processing message: {e.with_traceback(None)}",
+        )
+
+
+@app.get("/ui/dump-events", dependencies=[Depends(utils.require_debug)])
+async def ui_dump_events():
+    """
+    Dump all events from all tasks to a JSONL file for debugging.
+    Returns the events and writes to events_dump.jsonl.
+    """
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    tasks = api_swarm.get_all_tasks()
+
+    all_events = []
+    for task_id, task in tasks.items():
+        for event in task.events:
+            event_data = event.data
+            # Parse if string
+            if isinstance(event_data, str):
+                try:
+                    event_data = ujson.loads(event_data)
+                except Exception:
+                    pass
+
+            all_events.append({
+                "task_id": task_id,
+                "event_type": event.event,
+                "event_id": event.id,
+                "data": event_data,
+            })
+
+    # Write to file
+    with open("events_dump.jsonl", "w") as f:
+        for event in all_events:
+            f.write(ujson.dumps(event) + "\n")
+
+    logger.info(f"{_log_prelude(app)} [UI-DEV] dumped {len(all_events)} events to events_dump.jsonl")
+
+    return {
+        "message": f"Dumped {len(all_events)} events to events_dump.jsonl",
+        "event_count": len(all_events),
+        "events": all_events,
+    }
+
+
+async def _persist_task_title(
+    api_swarm: MAILSwarm,
+    task_id: str,
+    title: str,
+    caller_role: str,
+    caller_id: str,
+) -> None:
+    """
+    Persist task title to database if db persistence is enabled.
+    """
+    if not api_swarm._runtime.enable_db_agent_histories:
+        return
+
+    try:
+        from mail.db.utils import update_task
+
+        await update_task(
+            task_id=task_id,
+            swarm_name=api_swarm._runtime.swarm_name,
+            caller_role=caller_role,  # type: ignore
+            caller_id=caller_id,
+            title=title,
+        )
+        logger.debug(f"persisted title for task '{task_id}' to database")
+    except Exception as e:
+        logger.warning(f"failed to persist title for task '{task_id}' to database: {e}")
+
+
+@app.get("/ui/task-summary/{task_id}", dependencies=[Depends(utils.require_debug)])
+async def ui_get_task_summary(task_id: str, force_regen: bool = False):
+    """
+    Get an AI-generated summary title for a task.
+    Generates using Haiku on first request, then returns cached title.
+    Pass force_regen=true to regenerate the title.
+    """
+    from mail.summarizer import summarize_task
+
+    caller_id = "ui-dev-user"
+    caller_role: Literal["admin", "swarm", "user"] = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    task = api_swarm.get_task_by_id(task_id)
+
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    # Return cached title if already generated (unless force_regen)
+    if task.title is not None and not force_regen:
+        return {"task_id": task_id, "title": task.title}
+
+    # Extract chat messages from task events
+    chat_messages: list[dict] = []
+    for event in task.events:
+        if event.event != "new_message":
+            continue
+
+        # Parse event data
+        event_data = event.data
+        if isinstance(event_data, str):
+            try:
+                event_data = ujson.loads(event_data)
+            except Exception:
+                continue
+
+        # Skip if not a dict (could be None, list, etc.)
+        if not isinstance(event_data, dict):
+            continue
+
+        extra_data = event_data.get("extra_data", {})
+        full_message = extra_data.get("full_message", {})
+        message = full_message.get("message", {})
+        sender = message.get("sender", {})
+        msg_type = full_message.get("msg_type")
+
+        # User message: sender.address_type == "user"
+        if sender.get("address_type") == "user":
+            chat_messages.append({
+                "role": "user",
+                "content": message.get("body", ""),
+            })
+
+        # Assistant response: msg_type == "broadcast_complete"
+        if msg_type == "broadcast_complete":
+            chat_messages.append({
+                "role": "assistant",
+                "content": message.get("body", ""),
+            })
+
+    if not chat_messages:
+        task.title = "<no messages>"
+        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
+        return {"task_id": task_id, "title": task.title}
+
+    # Generate title using summarizer (creates fresh swarm per request)
+    try:
+        title = await summarize_task(chat_messages)
+        task.title = title if title else "<title failed>"
+        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
+        return {"task_id": task_id, "title": task.title}
+    except Exception as e:
+        logger.warning(f"Failed to generate title for task {task_id}: {e}")
+        task.title = "<title failed>"
+        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
+        return {"task_id": task_id, "title": task.title}
+
+
+@app.get("/ui/tasks", dependencies=[Depends(utils.require_debug)])
+async def ui_get_tasks():
+    """Get all tasks for the UI (debug mode only)."""
+    caller_id = "ui-dev-user"
+    caller_role = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    tasks = api_swarm.get_all_tasks()
+
+    result = []
+    for task in tasks.values():
+        result.append({
+            "task_id": task.task_id,
+            "task_owner": task.task_owner,
+            "is_running": task.is_running,
+            "completed": task.completed,
+            "start_time": task.start_time.isoformat(),
+            "event_count": len(task.events),
+            "title": task.title,
+        })
+
+    # Sort by start_time descending (newest first)
+    result.sort(key=lambda t: t["start_time"], reverse=True)
+    return result
+
+
+@app.get("/ui/task/{task_id}", dependencies=[Depends(utils.require_debug)])
+async def ui_get_task(task_id: str):
+    """Get a specific task with events for the UI (debug mode only)."""
+    caller_id = "ui-dev-user"
+    caller_role: Literal["admin", "swarm", "user"] = "user"
+    api_key = "dev-token"
+
+    api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
+    task = api_swarm.get_task_by_id(task_id)
+
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+
+    # Serialize events - data is already a JSON string from runtime
+    events = []
+    for e in task.events:
+        event_data = e.data
+        # Parse if string (it should be), keep as-is if already dict
+        if isinstance(event_data, str):
+            try:
+                event_data = ujson.loads(event_data)
+            except Exception:
+                pass  # Keep as string if parse fails
+
+        events.append({
+            "event": e.event,
+            "data": event_data,  # Now a proper dict
+            "id": e.id,
+        })
+
+    return {
+        "task_id": task.task_id,
+        "task_owner": task.task_owner,
+        "is_running": task.is_running,
+        "completed": task.completed,
+        "start_time": task.start_time.isoformat(),
+        "title": task.title,
+        "events": events,
+    }
 
 
 @app.get("/swarms")
@@ -1169,6 +1546,57 @@ def run_server(
     os.environ.setdefault("BASE_URL", server_utils.compute_external_base_url(cfg))
 
     uvicorn.run(app, host=cfg.host, port=cfg.port, reload=cfg.reload)
+
+
+def run_server_with_template(
+    template: MAILSwarmTemplate,
+    port: int = 8000,
+    host: str = "0.0.0.0",
+    task_message_limit: int | None = None,
+) -> None:
+    """Run MAIL server with a pre-configured swarm template.
+
+    This function is for programmatic use only. It runs in single-process
+    mode (no reload, no workers) to support template injection.
+
+    Args:
+        template: The swarm template to use
+        port: Server port
+        host: Server host
+        task_message_limit: Max messages per task (None for unlimited)
+    """
+    global _TEMPLATE_OVERRIDE, _CONFIG_OVERRIDE
+
+    cfg = ServerConfig(
+        port=port,
+        host=host,
+        debug=True,  # Required for /ui/message endpoint
+        reload=False,  # Must be False for template injection
+        swarm=SwarmConfig(
+            name=template.name,
+            source="<injected>",
+            registry_file="",
+        ),
+        settings=SettingsConfig(
+            # Use large sentinel for "unlimited" - avoids changing type throughout codebase
+            task_message_limit=task_message_limit if task_message_limit is not None else 999999,
+        ),
+    )
+
+    # Set overrides BEFORE calling run_server
+    _TEMPLATE_OVERRIDE = template
+    _CONFIG_OVERRIDE = cfg
+
+    try:
+        # Use run_server() to ensure _server_config and env vars are set properly
+        # IMPORTANT: reload=False in cfg enforces single-process mode.
+        # Template injection via globals does NOT work with reload or workers.
+        assert cfg.reload is False, "reload must be False for template injection"
+        run_server(cfg)
+    finally:
+        # Clear globals even if server errors
+        _TEMPLATE_OVERRIDE = None
+        _CONFIG_OVERRIDE = None
 
 
 if __name__ == "__main__":

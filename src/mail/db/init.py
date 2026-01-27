@@ -76,6 +76,7 @@ async def create_tables() -> None:
         remote_swarms JSONB NOT NULL DEFAULT '[]',
         is_running BOOLEAN NOT NULL DEFAULT FALSE,
         completed BOOLEAN NOT NULL DEFAULT FALSE,
+        title TEXT,
         start_time TIMESTAMP WITH TIME ZONE NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
