@@ -652,6 +652,375 @@ This list is not exhaustive, and probably never will be. If you run into any res
 
 ===== End of `docs/troubleshooting.md` =====
 
+===== `docs/reasoning-trace-findings.md` =====
+
+# Reasoning Trace Smoke Test Findings
+
+## Overview
+
+This document captures findings from smoke tests investigating where reasoning/thinking content lives in different LLM API responses, to inform implementation of reasoning traces in tool call events.
+
+---
+
+## OpenAI Responses API (gpt-5.2)
+
+**Test Date:** 2026-01-06
+**Model:** `openai/gpt-5.2` (resolved to `gpt-5.2-2025-12-11`)
+**Test Question:** Einstein's Zebra Puzzle (complex logic puzzle requiring significant reasoning)
+
+### Configuration
+
+```python
+await aresponses(
+    input=messages,
+    model="openai/gpt-5.2",
+    max_output_tokens=8192,
+    include=["reasoning.encrypted_content"],
+    reasoning={"effort": "high", "summary": "detailed"},
+    tool_choice="required",
+    tools=tools,
+    stream=True/False,
+)
+```
+
+### Non-Streaming Response
+
+**Result:** ✅ Reasoning summary IS available
+
+**Location:** `response.output` array contains a `ResponseReasoningItem` with:
+- `type: "reasoning"`
+- `summary: List[Summary]` - Array of summary objects
+- `encrypted_content: str` - Encrypted raw reasoning (not usable)
+
+**Extraction Path:**
+```python
+for output in res.output:
+    if output.type == "reasoning":
+        for summary_item in output.summary:
+            reasoning_text = summary_item.text  # <-- This is the reasoning summary
+```
+
+**Example Output Structure:**
+```python
+ResponseReasoningItem(
+    id='rs_0f0806c96bd0a13f00695dbf738bc081928f41c6fa089b9f24',
+    type='reasoning',
+    summary=[
+        Summary(text="**Analyzing Chesterfield location**\n\nI'm figuring out the possible locations...")
+    ],
+    content=None,
+    encrypted_content='gAAAAABpXb-iTrxe8Argm1GqrIMN83Zy...'
+)
+```
+
+**Usage Stats:**
+- `reasoning_tokens: 1726` (in `usage.output_tokens_details`)
+
+**Important Notes:**
+- The `summary` field can be EMPTY (`[]`) if the model didn't need to reason much
+- Simple questions may not generate any summary content
+- The `reasoning` field on the response object is just the CONFIG (`{'effort': 'high', 'summary': 'detailed'}`), NOT the actual reasoning
+
+### Streaming Response
+
+**Result:** ✅ Reasoning summary IS available via streaming events
+
+**Event Types:**
+```
+response.reasoning_summary_part.added    - Start of a summary part
+response.reasoning_summary_text.delta    - Text chunk of reasoning summary
+response.reasoning_summary_text.done     - End of text for this part
+response.reasoning_summary_part.done     - End of summary part
+```
+
+**Extraction Approach:**
+```python
+reasoning_parts = []
+
+async for event in stream:
+    if event.type == "response.reasoning_summary_text.delta":
+        reasoning_parts.append(event.delta)
+    elif event.type == "response.completed":
+        final_response = event.response
+
+reasoning_summary = "".join(reasoning_parts)
+```
+
+**Event Structure (delta events):**
+```python
+{
+    'type': 'response.reasoning_summary_text.delta',
+    'sequence_number': 4,
+    'item_id': 'rs_022a860c041198e700695dbea537c48190a36863cbcb1aaec5',
+    'output_index': 0,
+    'summary_index': 0,
+    'delta': '**Analy',  # <-- Text chunk
+    'obfuscation': 'XTdhgYI7d'
+}
+```
+
+**Important Notes:**
+- The final `response.completed` event's `response.output` does NOT include the reasoning item
+- You MUST capture reasoning from streaming events, cannot get it from final response
+- 107 reasoning events captured for the zebra puzzle test
+- Events come with `obfuscation` field (purpose unclear, possibly for watermarking)
+
+### Key Differences: Streaming vs Non-Streaming
+
+| Aspect | Non-Streaming | Streaming |
+|--------|--------------|-----------|
+| Reasoning in final response | Yes, in `output` array | No |
+| How to capture | `output[i].summary[j].text` | Accumulate `delta` events |
+| Event types needed | N/A | `response.reasoning_summary_text.delta` |
+
+### Interleaved Reasoning (CONFIRMED)
+
+**Test Date:** 2026-01-06
+**Model:** `openai/gpt-5.2`
+**Test:** Multi-tool conversation with web_search and analyze_tradeoffs
+
+**Result:** ✅ OAI DOES have interleaved reasoning!
+
+**Observed Output Sequence:**
+```
+reasoning -> web_search_call -> reasoning -> function_call
+```
+
+**Analysis:**
+- Reasoning items at indices: [0, 2]
+- Tool items at indices: [1, 3]
+- **MULTIPLE REASONING BLOCKS DETECTED**
+- **REASONING AFTER TOOL CALL at index [2]**
+
+**Implication:** Must use `pending_reasoning` pattern (same as Anthropic) - each tool gets the reasoning that preceded it, not just "first tool gets all reasoning".
+
+---
+
+## Anthropic Native API (Claude)
+
+**Test Date:** 2026-01-06
+**Model:** `claude-sonnet-4-5-20250929`
+**Test:** Multi-turn conversation with web_search (server_tool_use), analyze_tradeoffs, and report_findings tools
+
+### Configuration
+
+```python
+response = await client.messages.create(
+    model="claude-sonnet-4-5-20250929",
+    max_tokens=16000,
+    thinking={
+        "type": "enabled",
+        "budget_tokens": 10000,
+    },
+    tools=tools,
+    messages=messages,
+    extra_headers={
+        "anthropic-beta": "interleaved-thinking-2025-05-14"  # REQUIRED for interleaved thinking!
+    },
+)
+```
+
+### Content Block Types Observed
+
+- `thinking` - Contains reasoning with `thinking` and `signature` fields
+- `text` - Text output (model's verbal response)
+- `server_tool_use` - Server-side tools (web_search)
+- `web_search_tool_result` - Result from web_search (comes in SAME response!)
+- `tool_use` - Client-side tool calls
+
+### Actual Interleaving Pattern (WITH beta header)
+
+**With `interleaved-thinking-2025-05-14` beta header, TRUE interleaving occurs!**
+
+**Turn 1 Block Sequence:**
+```
+thinking -> text -> server_tool_use -> web_search_tool_result -> thinking -> text... -> tool_use
+```
+
+Note: **TWO thinking blocks** in Turn 1 - one before web_search, one AFTER receiving results before analyze_tradeoffs!
+
+**Turn 2 Block Sequence:**
+```
+thinking -> text -> tool_use
+```
+
+**Turn 3 Block Sequence (final):**
+```
+thinking -> text
+```
+
+### Key Findings
+
+1. **With interleaved-thinking beta, each tool call can have its own preceding thinking**
+2. **Thinking appears AFTER receiving tool results** (e.g., after web_search_tool_result)
+3. **server_tool_use and web_search_tool_result come together** in the same response
+4. **text blocks appear between tool operations** (model explaining what it's doing)
+5. **Even final text responses have preceding thinking** (Turn 3)
+
+### Interleaving Analysis Results
+
+| Tool Call | Turn | Type | Preceded By |
+|-----------|------|------|-------------|
+| web_search | 1 | server_tool_use | `['thinking']` |
+| analyze_tradeoffs | 1 | tool_use | `['thinking']` ← SECOND thinking block! |
+| report_findings | 2 | tool_use | `['thinking']` |
+
+### Implementation Implications
+
+**With interleaved-thinking beta header enabled:**
+
+**Actual pattern within a turn:**
+```
+thinking -> [text] -> tool1 -> [result1] -> thinking -> [text] -> tool2 -> ...
+```
+
+**For reasoning attribution:**
+1. **Each tool call gets its own preceding thinking** (if the model generated one)
+2. **Thinking can appear AFTER tool results** - model reasons about what it learned
+3. **Parallel tool calls** (if any) would share the preceding thinking block
+4. **Use `reasoning_ref` only for truly parallel calls** with no thinking between them
+
+### Thinking Block Structure
+
+```python
+{
+    "type": "thinking",
+    "thinking": "The user wants me to research Python 3.13...",
+    "signature": "ErUBCkYIARAB..."  # Cryptographic signature
+}
+```
+
+### Server Tool Result Structure
+
+The `web_search_tool_result` block appears in the SAME response as `server_tool_use`:
+- No separate API call needed for server tool results
+- Must be included when reconstructing assistant messages for multi-turn
+
+### Extraction Approach
+
+```python
+# Within a single response/turn - with interleaved thinking, each tool gets its own thinking
+pending_thinking = []
+pending_thinking_content = []
+
+for block in response.content:
+    if block.type == "thinking":
+        pending_thinking.append(block.type)
+        pending_thinking_content.append(block.thinking)
+    elif block.type == "redacted_thinking":
+        pending_thinking.append(block.type)
+        pending_thinking_content.append("[REDACTED]")
+    elif block.type in ("tool_use", "server_tool_use"):
+        tool_call = AgentToolCall(
+            tool_name=block.name,
+            tool_args=block.input,
+            tool_call_id=block.id,
+        )
+        if pending_thinking:
+            # This tool gets all accumulated thinking since last tool
+            tool_call.tool_args["thinking_blocks"] = [
+                {"type": t, "content": c}
+                for t, c in zip(pending_thinking, pending_thinking_content)
+            ]
+            pending_thinking = []  # Reset for next tool
+            pending_thinking_content = []
+        tool_calls.append(tool_call)
+    # Skip text, web_search_tool_result - not tool calls
+
+# For text_output (text-only responses), attach any remaining thinking
+if not tool_calls and pending_thinking:
+    # Create text_output with accumulated thinking
+    tool_call.tool_args["thinking_blocks"] = [...]
+```
+
+### Edge Cases
+
+1. **No thinking before a tool** - Some tools may have no preceding thinking (use `reasoning_ref`)
+2. **Multiple thinking blocks before one tool** - Join with newlines, all go to that tool
+3. **redacted_thinking** - Handle with `[REDACTED]` placeholder
+4. **text blocks between tools** - Ignore for reasoning attribution (they're explanatory text)
+5. **web_search_tool_result** - Not a tool call; include in message history but don't emit event
+6. **Parallel tool calls** - If multiple tool_use blocks appear consecutively without thinking between, first gets reasoning, others get `reasoning_ref`
+7. **Final text with thinking** - Turn 3 showed `thinking -> text` pattern; if no tool_use, thinking goes to text_output
+
+---
+
+## Implementation Recommendations
+
+### For OpenAI Responses API
+
+**Non-Streaming (`_run_responses`):**
+```python
+# After getting response
+reasoning_summary = None
+for output in res.output:
+    if hasattr(output, 'type') and output.type == 'reasoning':
+        if hasattr(output, 'summary') and output.summary:
+            # Join all summary texts
+            reasoning_summary = "\n".join(
+                s.text for s in output.summary if hasattr(s, 'text')
+            )
+        break
+
+# Attach to first tool call
+if reasoning_summary and tool_calls:
+    tool_calls[0].tool_args["reasoning"] = reasoning_summary
+```
+
+**Streaming (`_stream_responses`):**
+```python
+reasoning_parts = []
+
+async for event in stream:
+    match event.type:
+        case "response.reasoning_summary_text.delta":
+            reasoning_parts.append(event.delta)
+            # Optionally print for visibility
+            print(event.delta, end="", flush=True)
+        case "response.completed":
+            final_response = event.response
+
+# After streaming, attach to first tool call
+reasoning_summary = "".join(reasoning_parts)
+if reasoning_summary and tool_calls:
+    tool_calls[0].tool_args["reasoning"] = reasoning_summary
+```
+
+### For Anthropic API
+
+```python
+# Track pending thinking blocks
+pending_thinking = []
+
+for block in response.content:
+    if block.type == "thinking":
+        pending_thinking.append(block.thinking)
+    elif block.type == "redacted_thinking":
+        pending_thinking.append("[redacted thinking]")
+    elif block.type in ("tool_use", "server_tool_use"):
+        # Create tool call with accumulated thinking
+        tool_call = AgentToolCall(...)
+        if pending_thinking:
+            tool_call.tool_args["thinking_blocks"] = pending_thinking.copy()
+            pending_thinking = []  # Reset for next tool
+        tool_calls.append(tool_call)
+    elif block.type == "text":
+        # For text-only, thinking goes to text_output
+        text_thinking = pending_thinking.copy()
+        pending_thinking = []
+```
+
+---
+
+## Test Script
+
+Location: `scripts/smoke_test_reasoning.py`
+
+Runs both streaming and non-streaming tests against OpenAI gpt-5.2 with Einstein's Zebra Puzzle to ensure sufficient reasoning is generated.
+
+
+===== End of `docs/reasoning-trace-findings.md` =====
+
 ===== `docs/quickstart.md` =====
 
 # Quickstart
@@ -799,6 +1168,569 @@ This repo includes example agents and demo scripts you can run locally.
 
 ===== End of `docs/examples.md` =====
 
+===== `docs/CHECKLIST.md` =====
+
+# Reasoning Trace Implementation Checklist
+
+Use this checklist to implement the reasoning trace plan in order. Do not move to the next step until the "Verify" items are checked.
+
+## Step 0 - Extend AgentToolCall
+
+- [ ] Add `reasoning: list[str] | None` to `AgentToolCall` (keep existing fields and validator).
+- [ ] Add `preamble: str | None` to `AgentToolCall` (keep existing fields and validator).
+- [ ] Confirm no other fields are removed or defaults changed.
+
+**Verify**
+- [ ] `AgentToolCall` still validates `completion` OR `responses` non-empty.
+- [ ] New fields are optional and do not affect existing call sites.
+
+---
+
+## Step 1 - Emit tool_call Events
+
+- [ ] Add `_emit_tool_call_event(...)` to `src/mail/core/runtime.py`.
+- [ ] Join `call.reasoning` with `"\n\n"` after filtering empty/whitespace-only blocks.
+- [ ] Include `preamble` when present.
+
+**Verify**
+- [ ] Events include `tool_name`, `tool_args`, `tool_call_id`.
+- [ ] `reasoning_ref` is only set when reasoning is absent.
+
+---
+
+## Step 2 - Remove Old tool_args Assignments
+
+- [ ] Remove `tool_args["reasoning"]` and `tool_args["thinking_blocks"]` assignments in `_run_completions_anthropic_native()`.
+- [ ] Remove `tool_args["reasoning"]` and `tool_args["thinking_blocks"]` assignments in `_stream_completions_anthropic_native()`.
+- [ ] Remove any now-dead `thinking_content` extraction blocks tied only to those assignments.
+
+**Verify**
+- [ ] No remaining `tool_args["reasoning"]` or `tool_args["thinking_blocks"]` in `src/mail/factories/base.py`.
+- [ ] Anthropic assistant message dict still contains full thinking blocks via `completion`.
+
+---
+
+## Step 3 - Generate UUIDs for text_output
+
+- [ ] Add `uuid.uuid4()` IDs for `text_output` tool calls in:
+  - [ ] `_run_completions()` (generic LiteLLM path - UUID only, no reasoning extraction)
+  - [ ] `_run_completions_anthropic_native()`
+  - [ ] `_stream_completions_anthropic_native()`
+  - [ ] `_run_responses()`
+- [ ] Keep `tool_args={"content": ...}` unchanged.
+
+**Verify**
+- [ ] All `text_output` calls now have non-empty `tool_call_id`.
+- [ ] `content` key is preserved (no `text` key introduced).
+
+---
+
+## Step 4 - Emit tool_call Events Before Mutations
+
+- [ ] In `src/mail/core/runtime.py`, emit `tool_call` events at the top of the tool processing loop.
+- [ ] Track `last_reasoning_call_id` and use it for `reasoning_ref` when needed.
+- [ ] Ensure the event is emitted before any tool-specific mutations (e.g., adding `target`).
+
+**Verify**
+- [ ] `reasoning_ref` points to the most recent call with reasoning.
+- [ ] Events are emitted for all calls in original order.
+
+---
+
+## Step 5 - Tool Coverage
+
+- [ ] Ensure `tool_call` events are emitted for:
+  - [ ] MAIL tools (send_request/send_response/send_interrupt/send_broadcast/task_complete)
+  - [ ] Actions
+  - [ ] Builtins (web_search_call, code_interpreter_call)
+  - [ ] await_message
+  - [ ] help
+  - [ ] acknowledge/ignore broadcast
+  - [ ] breakpoints (emit before existing `breakpoint_tool_call` event)
+
+**Verify**
+- [ ] No tool path bypasses `tool_call` emission.
+- [ ] Breakpoint tool calls emit `tool_call` before `breakpoint_tool_call`.
+
+---
+
+## Step 6 - OAI Streaming Reasoning (Interleaved)
+
+- [ ] Update `_stream_responses()` to collect reasoning via `response.reasoning_summary_text.delta`.
+- [ ] Use `response.output_item.added` to map reasoning to tool outputs (by `output_index`).
+- [ ] Flush `current_reasoning_text` on `response.completed`.
+- [ ] Return 3-tuple: `(response, tool_reasoning_map, streaming_pending_reasoning)`.
+- [ ] Handle dict and object event items.
+- [ ] Update `_run_responses()` call site to unpack 3-tuple (was just `response`).
+
+**Verify**
+- [ ] Reasoning deltas are joined with `""` (not newlines).
+- [ ] `tool_reasoning_map` keys align with `res.output` indices.
+- [ ] Streaming fallback reasoning is available for text-only responses.
+
+---
+
+## Step 7 - OAI Single-Pass Collection (Non-Streaming + Streaming Attach)
+
+- [ ] Replace multi-pass tool collection with a single-pass over `res.output`.
+- [ ] Handle both dict and object output formats for:
+  - [ ] reasoning
+  - [ ] message
+  - [ ] function_call
+  - [ ] web_search_call
+  - [ ] code_interpreter_call
+- [ ] Attach `responses=outputs` to every `AgentToolCall`.
+- [ ] Use `tool_reasoning_map` (when streaming) to fill reasoning if inline extraction is empty.
+- [ ] Use `streaming_pending_reasoning` only for text-only fallback (when no tool calls exist).
+- [ ] Keep richer builtin fields (status, outputs, search_type).
+
+**Verify**
+- [ ] Tool call ordering matches `res.output`.
+- [ ] Builtins still hit runtime builtin branches (`web_search_call`, `code_interpreter_call`).
+- [ ] Text-only responses create `text_output` with the first message chunk.
+
+---
+
+## Step 8 - Anthropic Interleaved Thinking
+
+- [ ] Rebuild tool call assembly to track `pending_reasoning` and `pending_preamble` by block order.
+- [ ] Use `[redacted thinking]` placeholder for `redacted_thinking`.
+- [ ] Store reasoning as list[str] on the call, not in `tool_args`.
+- [ ] Preserve `completion` for history.
+
+**Verify**
+- [ ] Each tool call gets only the reasoning since the previous tool call.
+- [ ] Text blocks contribute to preamble; thinking blocks do not reset on text.
+- [ ] Text-only responses create `text_output` with `preamble=None`.
+
+---
+
+## Step 9 - Cleanup and Consistency
+
+- [ ] Remove any remaining references to `tool_args["reasoning"]` or `tool_args["thinking_blocks"]`.
+- [ ] Ensure `reasoning` is never placed in `tool_args` in any provider path.
+- [ ] Confirm `preamble` is only on `AgentToolCall.preamble`.
+
+**Verify**
+- [ ] No new `tool_args` fields were added for reasoning/preamble.
+- [ ] All tool calls still carry valid `completion` or `responses` data for history.
+
+---
+
+## Step 10 - Validation Pass
+
+- [ ] Scan for any call sites still expecting `tool_args["reasoning"]` or `tool_args["thinking_blocks"]`.
+- [ ] Confirm `tool_call` events include `reasoning` or `reasoning_ref` only when appropriate.
+- [ ] Ensure `reasoning` is filtered for empty/whitespace blocks.
+
+**Verify**
+- [ ] No linting or type errors introduced.
+- [ ] The new event type appears in SSE stream after a tool call.
+
+---
+
+## Post-Implementation Tests (Optional)
+
+- [ ] Anthropic extended thinking (interleaved) produces per-tool reasoning events.
+- [ ] OAI Responses streaming produces per-tool reasoning events.
+- [ ] OAI Responses non-streaming produces per-tool reasoning events.
+- [ ] Parallel tool calls produce `reasoning_ref` to the most recent reasoning call.
+- [ ] Text-only responses emit `tool_call` with UUID and reasoning (if any).
+
+
+===== End of `docs/CHECKLIST.md` =====
+
+===== `docs/AGENTS_MAIL_PRIMER.md` =====
+
+# AGENTS_MAIL_PRIMER — Using MAIL as a Library
+
+Audience: developers integrating MAIL into their own codebases (not hacking MAIL internals).
+Focus: programmatic use of Actions, Agents, Swarms, and Templates.
+
+If you are developing MAIL itself, see `AGENTS.md` and `CLAUDE.md`.
+
+## Mental Model
+
+MAIL is an agent orchestration runtime:
+- **Actions** are tool-like functions agents can call.
+- **Agents** wrap an LLM call + metadata (comm targets, tool set, entrypoint/supervisor).
+- **Swarms** are a set of agents + actions + runtime.
+
+Templates vs instances:
+- `MAILAction` is an action definition.
+- `MAILAgentTemplate` defines how to build an agent.
+- `MAILSwarmTemplate` defines a swarm (agents + actions + entrypoint).
+- `MAILSwarm` is a running instance with a runtime.
+
+Key constraints:
+- Every swarm needs at least one `enable_entrypoint=True` agent (receives user messages).
+- Every swarm needs at least one `can_complete_tasks=True` agent (supervisor role).
+- `comm_targets` must reference valid agent names (or interswarm `agent@swarm`).
+
+## Core Imports
+
+```python
+from mail import MAILAction, MAILAgentTemplate, MAILSwarmTemplate, action
+from mail.factories import (
+    LiteLLMActionAgentFunction,
+    LiteLLMAgentFunction,
+    LiteLLMSupervisorFunction,
+)
+```
+
+## Quick Start — Minimal Swarm
+
+```python
+from mail import MAILAgentTemplate, MAILSwarmTemplate
+from mail.factories import LiteLLMSupervisorFunction
+
+supervisor = MAILAgentTemplate(
+    name="supervisor",
+    factory=LiteLLMSupervisorFunction,
+    comm_targets=[],
+    actions=[],
+    agent_params={
+        "llm": "anthropic/claude-sonnet-4-20250514",
+        "system": "You are a helpful assistant.",
+        "use_proxy": False,
+    },
+    enable_entrypoint=True,
+    can_complete_tasks=True,
+    tool_format="completions",
+)
+
+template = MAILSwarmTemplate(
+    name="my_swarm",
+    version="1.0.0",
+    agents=[supervisor],
+    actions=[],
+    entrypoint="supervisor",
+)
+
+swarm = template.instantiate(
+    instance_params={"user_token": "dummy"},
+    user_id="local_user",
+)
+
+response, _events = await swarm.post_message_and_run(
+    body="Hello!",
+    subject="Greeting",
+)
+print(response["message"]["body"])
+```
+
+## Actions (Tools)
+
+Actions must return a string. Two common patterns:
+
+### 1) `@action` decorator (typed payload)
+
+```python
+from pydantic import BaseModel, Field
+from mail import action
+
+class AddArgs(BaseModel):
+    a: int = Field(description="First number")
+    b: int = Field(description="Second number")
+
+@action(name="add", description="Add two numbers")
+async def add(args: AddArgs) -> str:
+    return str(args.a + args.b)
+```
+
+### 2) `MAILAction.from_pydantic_model` (closure-friendly)
+
+```python
+from functools import partial
+from pydantic import BaseModel, Field
+from mail import MAILAction
+
+class SelectSpeakerArgs(BaseModel):
+    player_name: str = Field(description="The player to speak next")
+
+async def select_speaker(game, payload: dict) -> str:
+    return game.select_speaker(payload["player_name"])
+
+select_speaker_action = MAILAction.from_pydantic_model(
+    model=SelectSpeakerArgs,
+    function=partial(select_speaker, game),
+    name="select_speaker",
+)
+```
+
+See `src/mail/examples/mafia/narrator_tools.py` for a full pattern.
+
+## Agents (Templates)
+
+Use existing factories rather than rolling your own:
+- `LiteLLMSupervisorFunction` for supervisors (can call `task_complete`)
+- `LiteLLMActionAgentFunction` for agents that have custom actions/tools
+- `LiteLLMAgentFunction` for agents with no custom actions/tools
+
+Note: Supervisors can also have actions. If an agent is a supervisor, keep using
+`LiteLLMSupervisorFunction` even when you add actions.
+
+Key fields on `MAILAgentTemplate`:
+- `name`
+- `factory`
+- `comm_targets` (names or interswarm `agent@swarm`)
+- `actions` (list of `MAILAction`)
+- `agent_params` (LLM config passed to factory)
+- `enable_entrypoint` (receive user messages)
+- `can_complete_tasks` (supervisor role)
+- `tool_format` (top-level; "completions" or "responses")
+
+Example (based on `MASter/src/master/prebuilt/agents.py`):
+
+```python
+supervisor = MAILAgentTemplate(
+    name="supervisor",
+    factory=LiteLLMSupervisorFunction,
+    comm_targets=["worker"],
+    actions=[],
+    agent_params={
+        "llm": "anthropic/claude-opus-4-5-20251101",
+        "system": "System prompt here",
+        "use_proxy": False,
+        "stream_tokens": True,
+        "reasoning_effort": "high",
+        "default_tool_choice": "auto",
+    },
+    enable_entrypoint=True,
+    can_complete_tasks=True,
+    tool_format="completions",
+)
+
+worker = MAILAgentTemplate(
+    name="worker",
+    factory=LiteLLMActionAgentFunction,
+    comm_targets=["supervisor"],
+    actions=[select_speaker_action],
+    agent_params={
+        "llm": "anthropic/claude-opus-4-5-20251101",
+        "system": "Worker prompt",
+        "use_proxy": False,
+        "stream_tokens": True,
+    },
+    tool_format="completions",
+)
+```
+
+Notes:
+- `tool_format` should be set at the template level. It is passed to the factory and used for action tool specs.
+- OpenAI models generally use `tool_format="responses"`, Anthropic models use `"completions"`.
+- If `tool_format` appears inside `agent_params`, it is ignored and a warning is logged; top-level wins.
+- `comm_targets` must include valid agent names (or `agent@swarm` if interswarm is enabled).
+- A swarm must have at least one `enable_entrypoint=True` and one `can_complete_tasks=True`.
+
+## Swarms (Templates + Instances)
+
+Build a `MAILSwarmTemplate`, then instantiate it into a runtime:
+
+```python
+from mail import MAILSwarmTemplate
+
+swarm_template = MAILSwarmTemplate(
+    name="example_swarm",
+    version="1.0.0",
+    agents=[supervisor, worker],
+    actions=[select_speaker_action],
+    entrypoint="supervisor",
+)
+
+swarm = swarm_template.instantiate(
+    instance_params={"user_token": "dummy"},
+    user_id="local_user",
+)
+```
+
+The swarm constructor validates:
+- entrypoint exists and is enabled
+- comm_targets are valid
+- at least one supervisor exists
+- breakpoint/exclude tools are valid
+
+## Running a Swarm
+
+### One-off run (no continuous loop)
+
+```python
+response, events = await swarm.post_message_and_run(
+    body="Hello",
+    subject="New Message",
+    show_events=True,
+)
+print(response["message"]["body"])
+```
+
+### Continuous runtime
+
+```python
+import asyncio
+
+runtime_task = asyncio.create_task(swarm.run_continuous())
+
+response, events = await swarm.post_message(
+    body="Hello",
+    subject="New Message",
+    show_events=True,
+)
+
+await swarm.shutdown()
+await runtime_task
+```
+
+### Streaming
+
+```python
+stream = await swarm.post_message_stream(body="Hello")
+# stream is an EventSourceResponse (SSE)
+```
+
+### Manual mode (step-by-step)
+
+`run_continuous(mode="manual")` enables manual stepping. The mafia example uses this:
+`src/mail/examples/mafia/game.py`.
+
+```python
+import asyncio
+import uuid
+
+asyncio.create_task(swarm.run_continuous(mode="manual"))
+
+task_id = str(uuid.uuid4())
+init_msg = swarm.build_message(
+    subject="::init::",
+    body="Game starting",
+    targets=["all"],
+    sender_type="user",
+    type="broadcast",
+    task_id=task_id,
+)
+await swarm.submit_message_nowait(init_msg)
+await swarm.await_queue_empty()
+
+response = await swarm.manual_step(
+    task_id=task_id,
+    target="narrator",
+    response_targets=["all"],
+    response_type="broadcast",
+    payload="Describe the scene.",
+    dynamic_ctx_ratio=0.75,
+)
+```
+
+## Starting a Server (Programmatic)
+
+`MAILSwarmTemplate.start_server()` launches a FastAPI server with your template
+and optional UI dev server:
+
+```python
+swarm_template.start_server(
+    port=8000,
+    host="0.0.0.0",
+    launch_ui=True,
+    ui_port=3000,
+)
+```
+
+See `../MASter/scripts/GEPA/start_eval_swarm_server.py` for a full example.
+
+## Breakpoints + Resume
+
+Use `breakpoint_tools` to pause execution and resume with user-supplied tool results:
+
+```python
+swarm_template = MAILSwarmTemplate(
+    name="eval_swarm",
+    version="1.0.0",
+    agents=[supervisor, worker],
+    actions=[select_speaker_action],
+    entrypoint="supervisor",
+    breakpoint_tools=["human_review"],
+)
+```
+
+To resume:
+```python
+await swarm.post_message(
+    body="",
+    resume_from="breakpoint_tool_call",
+    task_id=existing_task_id,
+    breakpoint_tool_call_result={"content": "approved"},
+)
+```
+
+### Parsing Breakpoint Tool Call Arguments
+
+When a breakpoint tool is called, the response has this structure:
+
+```python
+response["message"]["subject"] == "::breakpoint_tool_call::"
+response["message"]["body"] == '[{"arguments": "{...}", "name": "tool_name", "id": "call_..."}]'
+```
+
+Tool calls are standardized to OpenAI/LiteLLM format. To extract:
+
+```python
+import json
+
+def parse_breakpoint_args(response: dict, tool_name: str) -> dict | None:
+    message = response.get("message", {})
+    if message.get("subject") != "::breakpoint_tool_call::":
+        return None
+    body = message.get("body", "")
+    if not body:
+        return None
+    data = json.loads(body)
+    # Structure: [{"arguments": "{...}", "name": "tool_name", "id": "..."}]
+    for call in data:
+        if call.get("name") == tool_name:
+            args = call.get("arguments", "{}")
+            return json.loads(args) if isinstance(args, str) else args
+    return None
+```
+
+This pattern is useful for structured output: define a breakpoint tool, have the agent call it,
+then extract the typed arguments instead of parsing freeform text.
+
+## Common Patterns and Gotchas
+
+1. `tool_format` should be a top-level template field. If it appears inside `agent_params`, it is ignored with a warning.
+2. Solo agent swarms need both `enable_entrypoint=True` and `can_complete_tasks=True`.
+3. Actions must return a string (serialize dicts yourself).
+4. Use `functools.partial` to bind state into `MAILAction.from_pydantic_model`.
+5. `dynamic_ctx_ratio` (manual step) controls how much context is reserved for dynamic history.
+
+## Loading from swarms.json (Optional)
+
+You can build templates from `swarms.json` (JSON array of swarms):
+
+```python
+template = MAILSwarmTemplate.from_swarm_json_file(
+    swarm_name="example",
+    json_filepath="swarms.json",
+)
+```
+
+Note: `actions` is required in each swarm definition (use `[]` if none).
+
+## Tool-to-Message Behavior (Quick Reference)
+
+`send_broadcast` currently ignores `targets` and broadcasts to all agents.
+`task_complete` emits a `broadcast_complete` to all agents.
+
+## Where to Look for Real Usage
+
+- `../MASter/src/master/prebuilt/agents.py` — agent templates and factory params
+- `../MASter/scripts/GEPA/start_eval_swarm_server.py` — template + server startup
+- `src/mail/examples/mafia/game.py` — building swarm templates and running manual mode
+- `src/mail/examples/mafia/narrator_tools.py` — `MAILAction.from_pydantic_model` patterns
+- `src/mail/examples/weather_dummy/agent.py` — `LiteLLMActionAgentFunction` usage
+
+
+===== End of `docs/AGENTS_MAIL_PRIMER.md` =====
+
 ===== `docs/message-format.md` =====
 
 # Message Format
@@ -866,6 +1798,564 @@ MAIL messages are strongly typed envelopes used internally and over interswarm H
 
 
 ===== End of `docs/testing.md` =====
+
+===== `docs/CLAUDE_MAIL_PRIMER.md` =====
+
+# CLAUDE_MAIL_PRIMER — Using MAIL as a Library
+
+This document is for Claude sessions building applications that use MAIL as an imported library. If you're developing MAIL itself, see `CLAUDE.md` in the repository root.
+
+## Mental Model
+
+MAIL is a multi-agent orchestration runtime where agents communicate via an async message queue. The core abstraction is **templates vs instances**:
+
+```
+MAILAction          → defines a tool (callable + schema)
+MAILAgentTemplate   → defines how to build an agent (factory + params)
+MAILSwarmTemplate   → defines a swarm (agents + actions + entrypoint)
+        ↓
+    .instantiate()
+        ↓
+MAILSwarm           → running swarm with a MAILRuntime inside
+```
+
+A `MAILSwarmTemplate` is a blueprint. Calling `.instantiate()` creates a `MAILSwarm` with an actual runtime that can process messages.
+
+**Key constraints:**
+- Every swarm needs at least one `enable_entrypoint=True` agent (can receive user messages)
+- Every swarm needs at least one `can_complete_tasks=True` agent (supervisor role)
+- `comm_targets` must reference valid agent names within the swarm
+
+## Core Imports
+
+```python
+from mail import MAILAction, MAILAgentTemplate, MAILSwarmTemplate, action
+from mail.factories import (
+    LiteLLMAgentFunction,        # Base agent (no actions, no task_complete)
+    LiteLLMActionAgentFunction,  # Agent with actions (no task_complete)
+    LiteLLMSupervisorFunction,   # Supervisor (has task_complete)
+)
+```
+
+## Quick Start — Minimal Working Swarm
+
+```python
+from mail import MAILAgentTemplate, MAILSwarmTemplate
+from mail.factories import LiteLLMSupervisorFunction
+
+# 1. Define an agent template
+supervisor = MAILAgentTemplate(
+    name="supervisor",
+    factory=LiteLLMSupervisorFunction,
+    comm_targets=[],  # No other agents to talk to
+    actions=[],
+    agent_params={
+        "llm": "anthropic/claude-sonnet-4-20250514",
+        "system": "You are a helpful assistant.",
+        "use_proxy": False,
+    },
+    enable_entrypoint=True,
+    can_complete_tasks=True,
+    tool_format="completions",  # or "responses" for OpenAI
+)
+
+# 2. Build swarm template
+template = MAILSwarmTemplate(
+    name="my_swarm",
+    version="1.0.0",
+    agents=[supervisor],
+    actions=[],
+    entrypoint="supervisor",
+)
+
+# 3. Instantiate and run
+swarm = template.instantiate(
+    instance_params={"user_token": "dummy"},
+    user_id="local_user",
+)
+
+# One-shot execution
+response, events = await swarm.post_message_and_run(
+    body="Hello!",
+    subject="Greeting",
+)
+print(response["message"]["body"])
+```
+
+## Actions (Tools)
+
+Actions are tools that agents can call. They must return a string. Two patterns:
+
+### Pattern 1: `@action` Decorator
+
+Use when the action is standalone and doesn't need external state.
+
+```python
+from pydantic import BaseModel, Field
+from mail import action
+
+class AddNumbersArgs(BaseModel):
+    a: int = Field(description="First number")
+    b: int = Field(description="Second number")
+
+@action(name="add_numbers", description="Add two numbers together")
+async def add_numbers(args: AddNumbersArgs) -> str:
+    return str(args.a + args.b)
+
+# Use in agent template:
+worker = MAILAgentTemplate(
+    name="worker",
+    factory=LiteLLMActionAgentFunction,  # Use ActionAgent when agent has actions
+    comm_targets=["supervisor"],
+    actions=[add_numbers],  # Pass the decorated function directly
+    agent_params={...},
+)
+```
+
+### Pattern 2: `MAILAction.from_pydantic_model` with Closure
+
+Use when the action needs access to external state (like a game object or database).
+
+```python
+from functools import partial
+from pydantic import BaseModel, Field
+from mail import MAILAction
+
+class SelectPlayerArgs(BaseModel):
+    player_name: str = Field(description="Name of the player to select")
+
+async def select_player(game_state, args: dict) -> str:
+    """The game_state is captured via partial()."""
+    name = args["player_name"]
+    game_state.current_player = name
+    return f"Selected {name}"
+
+# Create action with game state bound
+def get_game_actions(game):
+    return [
+        MAILAction.from_pydantic_model(
+            model=SelectPlayerArgs,
+            function=partial(select_player, game),
+            name="select_player",
+        ),
+    ]
+
+# Usage
+game = GameState()
+actions = get_game_actions(game)
+
+narrator = MAILAgentTemplate(
+    name="narrator",
+    factory=LiteLLMActionAgentFunction,  # Has actions
+    comm_targets=["player1", "player2"],
+    actions=actions,
+    agent_params={...},
+)
+```
+
+This pattern is extensively used in `src/mail/examples/mafia/narrator_tools.py`.
+
+## Agent Templates
+
+### Factory Selection
+
+The key distinction is **whether the agent can call `task_complete`** (supervisor role):
+
+- **`LiteLLMSupervisorFunction`** — For agents that can complete tasks (call `task_complete`). Use this for your entrypoint/coordinator agent. Can also have actions.
+- **`LiteLLMActionAgentFunction`** — For worker agents that have actions but cannot complete tasks.
+- **`LiteLLMAgentFunction`** — Base agent with no actions, cannot complete tasks. Use when the agent only communicates via MAIL messages.
+
+### Key Template Fields
+
+```python
+MAILAgentTemplate(
+    name="agent_name",                    # Unique within swarm
+    factory=LiteLLMSupervisorFunction,    # Or LiteLLMAgentFunction
+    comm_targets=["other_agent"],         # Who this agent can message
+    actions=[my_action],                  # List of MAILAction objects
+    agent_params={                        # Passed to factory
+        "llm": "anthropic/claude-sonnet-4-20250514",
+        "system": "System prompt here",
+        "use_proxy": False,
+        "stream_tokens": True,            # Stream to terminal
+        "reasoning_effort": "high",       # For extended thinking
+        "default_tool_choice": "auto",    # Tool choice override
+    },
+    enable_entrypoint=True,               # Can receive user messages
+    can_complete_tasks=True,              # Can call task_complete
+    tool_format="completions",            # "completions" or "responses"
+    exclude_tools=[],                     # MAIL tools to hide
+)
+```
+
+**Note:** `tool_format` should be a top-level template field. OpenAI models use `"responses"`, Anthropic models use `"completions"`.
+
+### Multi-Agent Example
+
+```python
+supervisor = MAILAgentTemplate(
+    name="supervisor",
+    factory=LiteLLMSupervisorFunction,
+    comm_targets=["researcher", "coder"],
+    actions=[],
+    agent_params={
+        "llm": "anthropic/claude-sonnet-4-20250514",
+        "system": "You coordinate research and coding tasks.",
+        "use_proxy": False,
+    },
+    enable_entrypoint=True,
+    can_complete_tasks=True,
+    tool_format="completions",
+)
+
+researcher = MAILAgentTemplate(
+    name="researcher",
+    factory=LiteLLMActionAgentFunction,  # Has actions
+    comm_targets=["supervisor"],
+    actions=[web_search_action],
+    agent_params={
+        "llm": "anthropic/claude-sonnet-4-20250514",
+        "system": "You search the web and report findings.",
+        "use_proxy": False,
+    },
+    tool_format="completions",
+)
+
+coder = MAILAgentTemplate(
+    name="coder",
+    factory=LiteLLMActionAgentFunction,  # Has actions
+    comm_targets=["supervisor"],
+    actions=[run_code_action],
+    agent_params={
+        "llm": "anthropic/claude-sonnet-4-20250514",
+        "system": "You write and execute code.",
+        "use_proxy": False,
+    },
+    tool_format="completions",
+)
+```
+
+## Swarm Templates
+
+```python
+template = MAILSwarmTemplate(
+    name="my_swarm",
+    version="1.0.0",
+    agents=[supervisor, researcher, coder],
+    actions=[web_search_action, run_code_action],  # All actions used by any agent
+    entrypoint="supervisor",                        # Must have enable_entrypoint=True
+    breakpoint_tools=[],                            # Tools that pause execution
+    exclude_tools=[],                               # MAIL tools to hide from all agents
+)
+```
+
+The swarm template validates:
+- Entrypoint agent exists and has `enable_entrypoint=True`
+- At least one agent has `can_complete_tasks=True`
+- All `comm_targets` reference valid agent names
+- All breakpoint tools exist
+
+## Running Swarms
+
+### One-Shot Execution
+
+Best for simple request-response patterns:
+
+```python
+swarm = template.instantiate({"user_token": "dummy"}, "user_123")
+
+response, events = await swarm.post_message_and_run(
+    body="What's 2 + 2?",
+    subject="Math Question",
+    show_events=True,  # Include SSE events
+)
+
+print(response["message"]["body"])  # Final answer
+```
+
+### Continuous Mode
+
+Best for persistent swarms that handle multiple tasks:
+
+```python
+swarm = template.instantiate({"user_token": "dummy"}, "user_123")
+
+# Start continuous processing in background
+asyncio.create_task(swarm.run_continuous())
+
+# Submit tasks (runtime handles queue)
+response, events = await swarm.post_message(
+    body="First task",
+    subject="Task 1",
+)
+
+response2, events2 = await swarm.post_message(
+    body="Second task",
+    subject="Task 2",
+)
+
+# Shutdown when done
+await swarm.shutdown()
+```
+
+### Streaming
+
+```python
+stream = await swarm.post_message_stream(body="Hello")
+# Returns EventSourceResponse - use in FastAPI endpoint
+```
+
+### Starting a Server
+
+`MAILSwarmTemplate` has a convenience method to launch a FastAPI server with optional UI:
+
+```python
+template.start_server(
+    port=8000,
+    host="0.0.0.0",
+    launch_ui=True,   # Starts Next.js dev server
+    ui_port=3000,
+    open_browser=True,
+)
+```
+
+See `../MASter/scripts/GEPA/start_eval_swarm_server.py` for a complete example.
+
+## Manual Mode
+
+Manual mode gives you fine-grained control over agent stepping. This is useful for turn-based games, simulations, or debugging.
+
+```python
+# Start swarm in manual mode
+swarm = template.instantiate({"user_token": "dummy"}, "game_session")
+asyncio.create_task(swarm.run_continuous(mode="manual"))
+
+# Initialize a task
+task_id = str(uuid.uuid4())
+init_msg = swarm.build_message(
+    subject="::init::",
+    body="Game starting",
+    targets=["all"],
+    sender_type="user",
+    type="broadcast",
+    task_id=task_id,
+)
+await swarm.submit_message_nowait(init_msg)
+
+# Manually step specific agents
+response = await swarm.manual_step(
+    task_id=task_id,
+    target="narrator",                # Agent to invoke
+    response_targets=["all"],         # Who receives the response
+    response_type="broadcast",        # "broadcast", "response", or "request"
+    payload="Describe the scene.",    # Additional context for this step
+)
+
+# Step another agent
+response = await swarm.manual_step(
+    task_id=task_id,
+    target="player1",
+    response_targets=["narrator"],
+    response_type="response",
+    payload="What do you do?",
+)
+```
+
+The mafia example (`src/mail/examples/mafia/game.py`) demonstrates this pattern extensively.
+
+## Breakpoints — Pausing and Resuming
+
+Breakpoint tools pause execution and return control to the caller:
+
+```python
+template = MAILSwarmTemplate(
+    name="approval_swarm",
+    version="1.0.0",
+    agents=[...],
+    actions=[human_review_action],
+    entrypoint="supervisor",
+    breakpoint_tools=["human_review"],  # This tool pauses execution
+)
+
+swarm = template.instantiate(...)
+
+# Initial request
+response, events = await swarm.post_message_and_run(
+    body="Please process this document",
+    task_id="task_123",
+)
+
+# If agent called human_review, task pauses and returns
+# Response will indicate breakpoint was hit
+
+# Resume with user-provided result
+response, events = await swarm.post_message_and_run(
+    body="",
+    task_id="task_123",
+    resume_from="breakpoint_tool_call",
+    breakpoint_tool_call_result={"content": "Approved"},
+)
+```
+
+### Parsing Breakpoint Tool Call Arguments
+
+When a breakpoint tool is called, the response structure looks like this:
+
+```python
+response = {
+    "message": {
+        "subject": "::breakpoint_tool_call::",  # Indicates breakpoint was hit
+        "body": "[{\"arguments\": \"{\\\"field\\\": \\\"value\\\"}\", \"name\": \"tool_name\", \"id\": \"call_...\"}]"
+    }
+}
+```
+
+Tool calls are standardized to OpenAI/LiteLLM format (arguments as JSON string). To extract:
+
+```python
+import json
+
+def parse_breakpoint_tool_call(response: dict, tool_name: str) -> dict | None:
+    """Extract tool call arguments from a breakpoint response."""
+    message = response.get("message", {})
+    subject = message.get("subject", "")
+    body = message.get("body", "")
+
+    if subject != "::breakpoint_tool_call::" or not body:
+        return None
+
+    body_data = json.loads(body)
+
+    # Structure: [{"arguments": "{...}", "name": "tool_name", "id": "..."}]
+    if isinstance(body_data, list) and len(body_data) > 0:
+        for call in body_data:
+            if call.get("name") == tool_name:
+                args = call.get("arguments", "{}")
+                # Arguments is a JSON string, parse it
+                if isinstance(args, str):
+                    return json.loads(args)
+                return args
+
+    return None
+```
+
+This pattern is useful for **structured output** scenarios where you want the LLM to call a tool with specific parameters rather than outputting freeform text.
+
+## Common Patterns and Gotchas
+
+### 1. `tool_format` Location
+
+`tool_format` should be a top-level field on the agent template, not inside `agent_params`:
+
+```python
+MAILAgentTemplate(
+    ...
+    tool_format="completions",  # Top-level field (preferred)
+    agent_params={...},         # Don't put tool_format here
+)
+```
+
+If `tool_format` is found inside `agent_params`, a deprecation warning is logged and the top-level value takes precedence.
+
+### 2. Solo Agent Swarm
+
+A swarm with one agent needs both `enable_entrypoint=True` AND `can_complete_tasks=True`:
+
+```python
+solo = MAILAgentTemplate(
+    name="solo",
+    factory=LiteLLMSupervisorFunction,
+    comm_targets=[],  # Empty is OK for solo
+    actions=[],
+    agent_params={...},
+    enable_entrypoint=True,
+    can_complete_tasks=True,
+)
+```
+
+### 3. Action Must Return String
+
+```python
+# Wrong
+async def my_action(args: dict) -> dict:
+    return {"result": 123}
+
+# Correct
+async def my_action(args: dict) -> str:
+    return json.dumps({"result": 123})
+```
+
+### 4. Closing Over State with `functools.partial`
+
+```python
+async def do_thing(state, args: dict) -> str:
+    state.counter += 1
+    return f"Count: {state.counter}"
+
+# Create action with state bound
+action = MAILAction.from_pydantic_model(
+    model=DoThingArgs,
+    function=partial(do_thing, my_state_object),
+    name="do_thing",
+)
+```
+
+### 5. OpenAI vs Anthropic `tool_format`
+
+- OpenAI models: `tool_format="responses"`
+- Anthropic models: `tool_format="completions"`
+
+If you see tool parsing errors, check this first.
+
+### 6. Waiting for Queue to Empty
+
+In manual mode, wait for messages to be processed before stepping:
+
+```python
+await swarm.await_queue_empty()
+response = await swarm.manual_step(...)
+```
+
+### 7. Dynamic Context Ratio
+
+When using `manual_step`, the `dynamic_ctx_ratio` parameter (0.0-1.0) controls how much of the agent's context window is reserved for conversation history vs. static content:
+
+```python
+await swarm.manual_step(
+    task_id=task_id,
+    target="agent",
+    dynamic_ctx_ratio=0.75,  # 75% for dynamic content
+    ...
+)
+```
+
+## Quick Reference
+
+| What you want | How to do it |
+|---------------|--------------|
+| Define a tool | `@action` decorator or `MAILAction.from_pydantic_model()` |
+| Define an agent | `MAILAgentTemplate(...)` |
+| Define a swarm | `MAILSwarmTemplate(...)` |
+| Create runnable swarm | `template.instantiate(params, user_id)` |
+| One-shot task | `await swarm.post_message_and_run(body=...)` |
+| Persistent runtime | `asyncio.create_task(swarm.run_continuous())` |
+| Manual stepping | `swarm.run_continuous(mode="manual")` then `swarm.manual_step(...)` |
+| Pause on tool call | Add tool name to `breakpoint_tools` |
+| Resume from pause | `resume_from="breakpoint_tool_call"` |
+| Stream events | `await swarm.post_message_stream(...)` |
+| Launch server + UI | `template.start_server(port=8000, launch_ui=True)` |
+
+## Example Files Worth Reading
+
+| File | What it demonstrates |
+|------|---------------------|
+| `src/mail/examples/mafia/game.py` | Manual mode, complex game loop |
+| `src/mail/examples/mafia/narrator_tools.py` | `MAILAction.from_pydantic_model` with closures |
+| `../MASter/src/master/prebuilt/agents.py` | Agent template factory patterns |
+| `../MASter/scripts/GEPA/start_eval_swarm_server.py` | Server startup with template |
+
+
+===== End of `docs/CLAUDE_MAIL_PRIMER.md` =====
 
 ===== `docs/api.md` =====
 
