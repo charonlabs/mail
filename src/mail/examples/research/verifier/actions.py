@@ -21,16 +21,42 @@ SOURCE_RELIABILITY = {
 
 # Keywords that indicate verifiable facts
 VERIFIABLE_INDICATORS = [
-    "percent", "%", "million", "billion", "year", "date",
-    "according to", "research", "study", "report", "data",
-    "survey", "analysis", "measured", "recorded", "documented",
+    "percent",
+    "%",
+    "million",
+    "billion",
+    "year",
+    "date",
+    "according to",
+    "research",
+    "study",
+    "report",
+    "data",
+    "survey",
+    "analysis",
+    "measured",
+    "recorded",
+    "documented",
 ]
 
 # Keywords that indicate subjective claims
 SUBJECTIVE_INDICATORS = [
-    "best", "worst", "most", "should", "could", "might",
-    "believe", "think", "opinion", "feel", "seems", "appears",
-    "probably", "possibly", "arguably", "supposedly",
+    "best",
+    "worst",
+    "most",
+    "should",
+    "could",
+    "might",
+    "believe",
+    "think",
+    "opinion",
+    "feel",
+    "seems",
+    "appears",
+    "probably",
+    "possibly",
+    "arguably",
+    "supposedly",
 ]
 
 
@@ -59,7 +85,9 @@ def _analyze_claim_verifiability(claim: str) -> dict[str, Any]:
     }
 
 
-def _check_source_support(claim: str, sources: list[str], rng: Random) -> dict[str, Any]:
+def _check_source_support(
+    claim: str, sources: list[str], rng: Random
+) -> dict[str, Any]:
     """Check how well sources support a claim."""
     if not sources:
         return {
@@ -151,7 +179,9 @@ async def verify_claim(args: dict[str, Any]) -> str:
     # Determine verification status
     if claim_analysis["claim_type"] == "opinion":
         status = "not_verifiable"
-        explanation = "This appears to be a subjective opinion rather than a verifiable fact."
+        explanation = (
+            "This appears to be a subjective opinion rather than a verifiable fact."
+        )
     elif not sources:
         status = "unverified"
         explanation = "No sources provided for verification. Additional sources needed."
@@ -160,7 +190,9 @@ async def verify_claim(args: dict[str, Any]) -> str:
         explanation = f"Claim is supported by {source_check['supporting_sources']} of {len(sources)} sources."
     elif source_check["support_level"] == "disputed":
         status = "disputed"
-        explanation = f"Claim is contradicted by {source_check['contradicting_sources']} sources."
+        explanation = (
+            f"Claim is contradicted by {source_check['contradicting_sources']} sources."
+        )
     else:
         status = "inconclusive"
         explanation = "Sources provide mixed or insufficient evidence."
@@ -233,13 +265,15 @@ async def rate_confidence(args: dict[str, Any]) -> str:
         return json.dumps({"error": "Claim cannot be empty"})
 
     if not evidence:
-        return json.dumps({
-            "claim": claim,
-            "confidence_level": "very_low",
-            "confidence_score": 0.1,
-            "reason": "No evidence provided",
-            "evidence_count": 0,
-        })
+        return json.dumps(
+            {
+                "claim": claim,
+                "confidence_level": "very_low",
+                "confidence_score": 0.1,
+                "reason": "No evidence provided",
+                "evidence_count": 0,
+            }
+        )
 
     # Calculate weighted confidence based on evidence
     total_weight: float = 0.0

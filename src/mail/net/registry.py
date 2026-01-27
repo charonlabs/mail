@@ -140,7 +140,9 @@ class SwarmRegistry:
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(swarm_url, timeout=timeout) as response: # GET the root
+                async with session.get(
+                    swarm_url, timeout=timeout
+                ) as response:  # GET the root
                     if response.status == 200:
                         json = await response.json()
                         swarm_info = json.get("swarm", {})
@@ -153,10 +155,16 @@ class SwarmRegistry:
                             public=swarm_info.get("public", False),
                         )
                     else:
-                        logger.error(f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {response.status}")
-                        raise RuntimeError(f"failed to get remote swarm info from {swarm_url}: {response.status}")
+                        logger.error(
+                            f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {response.status}"
+                        )
+                        raise RuntimeError(
+                            f"failed to get remote swarm info from {swarm_url}: {response.status}"
+                        )
         except Exception as e:
-            logger.error(f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {e}")
+            logger.error(
+                f"{self._log_prelude()} failed to get remote swarm info from {swarm_url}: {e}"
+            )
             raise RuntimeError(f"failed to get remote swarm info from {swarm_url}: {e}")
 
     def unregister_swarm(self, swarm_name: str) -> None:

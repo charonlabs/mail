@@ -20,7 +20,10 @@ from mail.examples.research.searcher.actions import search_topic, extract_facts
 from mail.examples.research.verifier.agent import LiteLLMVerifierFunction
 from mail.examples.research.verifier.actions import verify_claim, rate_confidence
 from mail.examples.research.summarizer.agent import LiteLLMSummarizerFunction
-from mail.examples.research.summarizer.actions import summarize_text, create_bibliography
+from mail.examples.research.summarizer.actions import (
+    summarize_text,
+    create_bibliography,
+)
 
 __all__ = [
     "LiteLLMResearcherFunction",

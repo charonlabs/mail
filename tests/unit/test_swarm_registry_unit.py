@@ -83,6 +83,7 @@ async def test_migrate_and_validate_env_vars(tmp_path, monkeypatch):
     """
     Test that `SwarmRegistry.migrate_auth_tokens_to_env_refs` and `SwarmRegistry.validate_environment_variables` work as expected.
     """
+
     async def fake_remote_info(self, base_url):  # noqa: ARG002
         return {
             "name": "other",

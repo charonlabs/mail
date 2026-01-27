@@ -205,17 +205,23 @@ async def search_topic(args: dict[str, Any]) -> str:
         for r in all_results:
             combined_facts.extend(r.get("facts", []))
 
-        return json.dumps({
-            "query": query,
-            "source": "general (aggregated)",
-            "result_count": len(all_results),
-            "combined_facts": combined_facts[:8],  # Top 8 facts
-            "sources": [
-                {"source": r["source"], "url": r["url"], "relevance": r["relevance_score"]}
-                for r in all_results
-            ],
-            "retrieved_at": datetime.now(UTC).isoformat(),
-        })
+        return json.dumps(
+            {
+                "query": query,
+                "source": "general (aggregated)",
+                "result_count": len(all_results),
+                "combined_facts": combined_facts[:8],  # Top 8 facts
+                "sources": [
+                    {
+                        "source": r["source"],
+                        "url": r["url"],
+                        "relevance": r["relevance_score"],
+                    }
+                    for r in all_results
+                ],
+                "retrieved_at": datetime.now(UTC).isoformat(),
+            }
+        )
 
     results = _generate_search_results(query, source, rng)
     return json.dumps(results)
@@ -259,38 +265,60 @@ async def extract_facts(args: dict[str, Any]) -> str:
         sentence_lower = sentence.lower()
 
         # Identify factual statements (contains numbers, dates, or definitive language)
-        is_fact = any([
-            any(char.isdigit() for char in sentence),
-            any(word in sentence_lower for word in ["is", "are", "was", "were", "has", "have"]),
-            any(word in sentence_lower for word in ["according to", "research shows", "studies indicate"]),
-        ])
+        is_fact = any(
+            [
+                any(char.isdigit() for char in sentence),
+                any(
+                    word in sentence_lower
+                    for word in ["is", "are", "was", "were", "has", "have"]
+                ),
+                any(
+                    word in sentence_lower
+                    for word in ["according to", "research shows", "studies indicate"]
+                ),
+            ]
+        )
 
         # Identify claims (subjective or requiring verification)
-        is_claim = any([
-            any(word in sentence_lower for word in ["should", "could", "might", "may", "probably"]),
-            any(word in sentence_lower for word in ["best", "worst", "most", "least"]),
-            any(word in sentence_lower for word in ["believe", "think", "opinion"]),
-        ])
+        is_claim = any(
+            [
+                any(
+                    word in sentence_lower
+                    for word in ["should", "could", "might", "may", "probably"]
+                ),
+                any(
+                    word in sentence_lower
+                    for word in ["best", "worst", "most", "least"]
+                ),
+                any(word in sentence_lower for word in ["believe", "think", "opinion"]),
+            ]
+        )
 
         if is_claim:
-            claims.append({
-                "text": sentence,
-                "type": "claim",
-                "needs_verification": True,
-            })
+            claims.append(
+                {
+                    "text": sentence,
+                    "type": "claim",
+                    "needs_verification": True,
+                }
+            )
         elif is_fact:
-            facts.append({
-                "text": sentence,
-                "type": "fact",
-                "confidence": 0.7,  # Default confidence
-            })
+            facts.append(
+                {
+                    "text": sentence,
+                    "type": "fact",
+                    "confidence": 0.7,  # Default confidence
+                }
+            )
 
-    return json.dumps({
-        "original_length": len(text),
-        "sentences_analyzed": len(sentences),
-        "facts_extracted": len(facts),
-        "claims_identified": len(claims),
-        "facts": facts,
-        "claims": claims,
-        "extraction_note": "Facts are statements with specific data; claims require verification",
-    })
+    return json.dumps(
+        {
+            "original_length": len(text),
+            "sentences_analyzed": len(sentences),
+            "facts_extracted": len(facts),
+            "claims_identified": len(claims),
+            "facts": facts,
+            "claims": claims,
+            "extraction_note": "Facts are statements with specific data; claims require verification",
+        }
+    )

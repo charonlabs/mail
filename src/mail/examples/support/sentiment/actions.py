@@ -14,37 +14,87 @@ from mail import action
 # Sentiment indicators with associated scores
 POSITIVE_INDICATORS = {
     "strong": [
-        ("love", 0.9), ("amazing", 0.85), ("excellent", 0.85), ("fantastic", 0.85),
-        ("wonderful", 0.8), ("great", 0.75), ("awesome", 0.8), ("perfect", 0.85),
-        ("best", 0.75), ("thank you so much", 0.8), ("really appreciate", 0.75),
+        ("love", 0.9),
+        ("amazing", 0.85),
+        ("excellent", 0.85),
+        ("fantastic", 0.85),
+        ("wonderful", 0.8),
+        ("great", 0.75),
+        ("awesome", 0.8),
+        ("perfect", 0.85),
+        ("best", 0.75),
+        ("thank you so much", 0.8),
+        ("really appreciate", 0.75),
     ],
     "moderate": [
-        ("good", 0.5), ("nice", 0.5), ("helpful", 0.6), ("thanks", 0.4),
-        ("appreciate", 0.5), ("pleased", 0.6), ("happy", 0.6), ("satisfied", 0.5),
-        ("works", 0.3), ("resolved", 0.5), ("fixed", 0.5),
+        ("good", 0.5),
+        ("nice", 0.5),
+        ("helpful", 0.6),
+        ("thanks", 0.4),
+        ("appreciate", 0.5),
+        ("pleased", 0.6),
+        ("happy", 0.6),
+        ("satisfied", 0.5),
+        ("works", 0.3),
+        ("resolved", 0.5),
+        ("fixed", 0.5),
     ],
 }
 
 NEGATIVE_INDICATORS = {
     "strong": [
-        ("terrible", -0.9), ("horrible", -0.9), ("worst", -0.85), ("hate", -0.85),
-        ("disgusted", -0.8), ("furious", -0.85), ("outraged", -0.85), ("scam", -0.9),
-        ("fraud", -0.9), ("lawsuit", -0.9), ("lawyer", -0.8), ("sue", -0.85),
-        ("unacceptable", -0.75), ("ridiculous", -0.7),
+        ("terrible", -0.9),
+        ("horrible", -0.9),
+        ("worst", -0.85),
+        ("hate", -0.85),
+        ("disgusted", -0.8),
+        ("furious", -0.85),
+        ("outraged", -0.85),
+        ("scam", -0.9),
+        ("fraud", -0.9),
+        ("lawsuit", -0.9),
+        ("lawyer", -0.8),
+        ("sue", -0.85),
+        ("unacceptable", -0.75),
+        ("ridiculous", -0.7),
     ],
     "moderate": [
-        ("frustrated", -0.6), ("annoyed", -0.5), ("disappointed", -0.5),
-        ("upset", -0.55), ("angry", -0.65), ("bad", -0.5), ("poor", -0.5),
-        ("awful", -0.7), ("useless", -0.6), ("broken", -0.4), ("failed", -0.45),
-        ("doesn't work", -0.5), ("not working", -0.5), ("can't", -0.3),
+        ("frustrated", -0.6),
+        ("annoyed", -0.5),
+        ("disappointed", -0.5),
+        ("upset", -0.55),
+        ("angry", -0.65),
+        ("bad", -0.5),
+        ("poor", -0.5),
+        ("awful", -0.7),
+        ("useless", -0.6),
+        ("broken", -0.4),
+        ("failed", -0.45),
+        ("doesn't work", -0.5),
+        ("not working", -0.5),
+        ("can't", -0.3),
     ],
 }
 
 ESCALATION_PHRASES = [
-    "speak to manager", "speak to a manager", "talk to manager", "supervisor",
-    "escalate", "cancel my account", "cancel my subscription", "legal action",
-    "lawyer", "sue you", "report you", "bbb", "better business bureau",
-    "never again", "worst company", "stealing", "theft", "refund now",
+    "speak to manager",
+    "speak to a manager",
+    "talk to manager",
+    "supervisor",
+    "escalate",
+    "cancel my account",
+    "cancel my subscription",
+    "legal action",
+    "lawyer",
+    "sue you",
+    "report you",
+    "bbb",
+    "better business bureau",
+    "never again",
+    "worst company",
+    "stealing",
+    "theft",
+    "refund now",
 ]
 
 EMOTION_PATTERNS = {
@@ -66,10 +116,12 @@ def _detect_emotions(text: str) -> list[dict[str, Any]]:
     for emotion, patterns in EMOTION_PATTERNS.items():
         for pattern in patterns:
             if pattern in text_lower:
-                detected.append({
-                    "emotion": emotion,
-                    "indicator": pattern,
-                })
+                detected.append(
+                    {
+                        "emotion": emotion,
+                        "indicator": pattern,
+                    }
+                )
                 break  # Only add each emotion once
 
     return detected
@@ -111,14 +163,20 @@ def _check_escalation_needed(text: str, score: float) -> tuple[bool, str | None]
     # Check for explicit escalation phrases
     for phrase in ESCALATION_PHRASES:
         if phrase in text_lower:
-            return True, f"Customer explicitly requested escalation or used concerning phrase: '{phrase}'"
+            return (
+                True,
+                f"Customer explicitly requested escalation or used concerning phrase: '{phrase}'",
+            )
 
     # Check for very negative sentiment
     if score <= -0.6:
         return True, f"Very negative sentiment detected (score: {score})"
 
     # Check for strong negative emotions
-    if any(word in text_lower for word in ["furious", "outraged", "lawsuit", "lawyer", "sue"]):
+    if any(
+        word in text_lower
+        for word in ["furious", "outraged", "lawsuit", "lawyer", "sue"]
+    ):
         return True, "Strong negative emotions or legal language detected"
 
     return False, None
@@ -171,17 +229,25 @@ async def analyze_sentiment(args: dict[str, Any]) -> str:
     result = {
         "sentiment": sentiment,
         "score": score,
-        "score_factors": factors if factors else ["No strong sentiment indicators found"],
-        "emotions_detected": emotions if emotions else [{"emotion": "neutral", "indicator": "none detected"}],
+        "score_factors": factors
+        if factors
+        else ["No strong sentiment indicators found"],
+        "emotions_detected": emotions
+        if emotions
+        else [{"emotion": "neutral", "indicator": "none detected"}],
         "escalation_recommended": escalation_needed,
         "escalation_reason": escalation_reason,
-        "analysis_summary": _generate_summary(sentiment, score, emotions, escalation_needed),
+        "analysis_summary": _generate_summary(
+            sentiment, score, emotions, escalation_needed
+        ),
     }
 
     return json.dumps(result)
 
 
-def _generate_summary(sentiment: str, score: float, emotions: list[dict], escalation: bool) -> str:
+def _generate_summary(
+    sentiment: str, score: float, emotions: list[dict], escalation: bool
+) -> str:
     """Generate a human-readable summary of the sentiment analysis."""
     summary_parts = []
 
@@ -207,7 +273,9 @@ def _generate_summary(sentiment: str, score: float, emotions: list[dict], escala
 
     # Escalation note
     if escalation:
-        summary_parts.append("ESCALATION RECOMMENDED - Human agent intervention suggested")
+        summary_parts.append(
+            "ESCALATION RECOMMENDED - Human agent intervention suggested"
+        )
 
     return ". ".join(summary_parts) + "."
 
@@ -258,12 +326,16 @@ async def create_escalation(args: dict[str, Any]) -> str:
         "priority": priority,
         "status": "pending",
         "created_at": datetime.now(UTC).isoformat(),
-        "assigned_to": "support_supervisor_queue" if priority == "high" else "urgent_response_team",
+        "assigned_to": "support_supervisor_queue"
+        if priority == "high"
+        else "urgent_response_team",
         "sla_target": "4 hours" if priority == "high" else "1 hour",
     }
 
-    return json.dumps({
-        "success": True,
-        "message": f"Escalation created successfully with {priority} priority",
-        "escalation": escalation,
-    })
+    return json.dumps(
+        {
+            "success": True,
+            "message": f"Escalation created successfully with {priority} priority",
+            "escalation": escalation,
+        }
+    )

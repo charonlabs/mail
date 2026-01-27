@@ -105,7 +105,9 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
                 "name": swarm_section.get("name", swarm_defaults["name"]),
                 "source": swarm_section.get("source", swarm_defaults["source"]),
                 "registry_file": registry_value or swarm_defaults["registry_file"],
-                "description": swarm_section.get("description", swarm_defaults["description"]),
+                "description": swarm_section.get(
+                    "description", swarm_defaults["description"]
+                ),
                 "keywords": swarm_section.get("keywords", swarm_defaults["keywords"]),
                 "public": swarm_section.get("public", swarm_defaults["public"]),
             }

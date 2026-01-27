@@ -57,7 +57,16 @@ FAQ_DATABASE = [
         "question": "What features are included in my plan?",
         "answer": "Plan features vary by tier: Basic includes core features and email support. Pro adds advanced analytics, priority support, and API access. Enterprise includes all Pro features plus dedicated account manager, custom integrations, and 24/7 phone support. Visit our pricing page for detailed comparisons.",
         "category": "general",
-        "keywords": ["features", "plan", "tier", "pricing", "include", "basic", "pro", "enterprise"],
+        "keywords": [
+            "features",
+            "plan",
+            "tier",
+            "pricing",
+            "include",
+            "basic",
+            "pro",
+            "enterprise",
+        ],
     },
     {
         "id": "faq-008",
@@ -71,7 +80,15 @@ FAQ_DATABASE = [
         "question": "Is my data secure?",
         "answer": "Yes, we take security seriously. We use: 1) AES-256 encryption for data at rest, 2) TLS 1.3 for data in transit, 3) Regular security audits by third parties, 4) SOC 2 Type II certification, 5) GDPR and CCPA compliance. We never sell your data to third parties.",
         "category": "technical",
-        "keywords": ["security", "data", "encryption", "privacy", "secure", "safe", "gdpr"],
+        "keywords": [
+            "security",
+            "data",
+            "encryption",
+            "privacy",
+            "secure",
+            "safe",
+            "gdpr",
+        ],
     },
     {
         "id": "faq-010",
@@ -145,17 +162,21 @@ async def search_faq(args: dict[str, Any]) -> str:
     # Take top results
     results = []
     for score, entry in scored_entries[:max_results]:
-        results.append({
-            "id": entry["id"],
-            "question": entry["question"],
-            "answer": entry["answer"],
-            "category": entry["category"],
-            "relevance_score": round(score, 2),
-        })
+        results.append(
+            {
+                "id": entry["id"],
+                "question": entry["question"],
+                "answer": entry["answer"],
+                "category": entry["category"],
+                "relevance_score": round(score, 2),
+            }
+        )
 
-    return json.dumps({
-        "query": query,
-        "total_matches": len(scored_entries),
-        "results_returned": len(results),
-        "results": results,
-    })
+    return json.dumps(
+        {
+            "query": query,
+            "total_matches": len(scored_entries),
+            "results_returned": len(results),
+            "results": results,
+        }
+    )

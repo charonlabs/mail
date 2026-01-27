@@ -14,7 +14,7 @@ from mail import action
 def _extract_sentences(text: str) -> list[str]:
     """Extract sentences from text."""
     # Simple sentence splitting
-    sentences = re.split(r'(?<=[.!?])\s+', text)
+    sentences = re.split(r"(?<=[.!?])\s+", text)
     return [s.strip() for s in sentences if len(s.strip()) > 10]
 
 
@@ -29,10 +29,26 @@ def _score_sentence_importance(sentence: str, all_sentences: list[str]) -> float
 
     # Contains important indicators
     importance_words = [
-        "important", "key", "main", "significant", "primary",
-        "crucial", "essential", "critical", "major", "notable",
-        "first", "second", "third", "finally", "however", "therefore",
-        "in conclusion", "as a result", "research shows", "data indicates",
+        "important",
+        "key",
+        "main",
+        "significant",
+        "primary",
+        "crucial",
+        "essential",
+        "critical",
+        "major",
+        "notable",
+        "first",
+        "second",
+        "third",
+        "finally",
+        "however",
+        "therefore",
+        "in conclusion",
+        "as a result",
+        "research shows",
+        "data indicates",
     ]
     for word in importance_words:
         if word in sentence_lower:
@@ -122,7 +138,7 @@ async def summarize_text(args: dict[str, Any]) -> str:
 
     # Truncate if still too long
     if len(summary) > max_length:
-        summary = summary[:max_length - 3].rsplit(" ", 1)[0] + "..."
+        summary = summary[: max_length - 3].rsplit(" ", 1)[0] + "..."
 
     compression_ratio = len(summary) / original_length if original_length > 0 else 1
 
@@ -216,12 +232,14 @@ async def create_bibliography(args: dict[str, Any]) -> str:
             if url:
                 entry += f" - {url}"
 
-        formatted_entries.append({
-            "index": i,
-            "formatted": entry,
-            "source_type": source_type,
-            "original": source,
-        })
+        formatted_entries.append(
+            {
+                "index": i,
+                "formatted": entry,
+                "source_type": source_type,
+                "original": source,
+            }
+        )
 
     # Create bibliography text
     bibliography_text = "\n".join([e["formatted"] for e in formatted_entries])

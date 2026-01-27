@@ -1764,7 +1764,9 @@ class MAILSwarmTemplate:
             description=swarm_data.get("description", ""),
             keywords=swarm_data.get("keywords", []),
             public=swarm_data.get("public", False),
-            enable_db_agent_histories=swarm_data.get("enable_db_agent_histories", False),
+            enable_db_agent_histories=swarm_data.get(
+                "enable_db_agent_histories", False
+            ),
         )
 
     @staticmethod
