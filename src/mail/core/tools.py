@@ -6,6 +6,7 @@ import logging
 from typing import Any, Literal, Optional, cast
 from uuid import uuid4
 
+import ujson
 from openai import pydantic_function_tool
 from openai.resources.responses.responses import _make_tools
 from pydantic import BaseModel, Field, model_validator
@@ -80,6 +81,8 @@ class AgentToolCall(BaseModel):
         tool_call_id: The ID of the tool call.
         completion: The full completion of the tool call, if using completions api.
         responses: The full responses list of the tool call, if using responses api.
+        reasoning: List of reasoning/thinking text blocks preceding this tool call.
+        preamble: Text/message content that appeared before this tool call.
     """
 
     tool_name: str
@@ -87,6 +90,8 @@ class AgentToolCall(BaseModel):
     tool_call_id: str
     completion: dict[str, Any] = Field(default_factory=dict)
     responses: list[dict[str, Any]] = Field(default_factory=list)
+    reasoning: list[str] | None = None
+    preamble: str | None = None
 
     @model_validator(mode="after")
     def check_completion_or_responses(self):
@@ -209,6 +214,52 @@ def convert_call_to_mail_message(
             )
         case _:
             raise ValueError(f"Unknown tool name: {call.tool_name}")
+
+
+def normalize_breakpoint_tool_call(
+    call: AgentToolCall, raw: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """
+    Normalize a breakpoint tool call to Responses-style function_call shape.
+    """
+    call_id: str | None = None
+    name: str | None = None
+    arguments: Any = None
+    status: str = "completed"
+    fc_id: str | None = None
+
+    if isinstance(raw, dict):
+        raw_type = raw.get("type")
+        if raw_type == "function_call":
+            call_id = raw.get("call_id")
+            name = raw.get("name")
+            arguments = raw.get("arguments")
+            status = raw.get("status") or status
+            fc_id = raw.get("id")
+        elif raw_type == "tool_use":
+            call_id = raw.get("id")
+            name = raw.get("name")
+            arguments = raw.get("input")
+
+    if name is None:
+        name = call.tool_name
+    if not call_id:
+        call_id = call.tool_call_id
+    if arguments is None:
+        arguments = call.tool_args
+    if not isinstance(arguments, str):
+        arguments = ujson.dumps(arguments)
+    if not fc_id:
+        fc_id = f"fc_{call_id}"
+
+    return {
+        "arguments": arguments,
+        "call_id": call_id,
+        "name": name,
+        "type": "function_call",
+        "id": fc_id,
+        "status": status,
+    }
 
 
 def convert_manual_step_call_to_mail_message(
@@ -1046,7 +1097,7 @@ def create_mail_tools(
     targets: list[str],
     enable_interswarm: bool = False,
     style: Literal["completions", "responses"] = "completions",
-    exclude_tools: list[str] = [],
+    exclude_tools: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Create MAIL tools. These should be used for all agents.
@@ -1057,6 +1108,7 @@ def create_mail_tools(
         style: The style of the tools to create.
         exclude_tools: The names of MAIL tools that should not be available.
     """
+    exclude_tools = exclude_tools or []
     all_tools = [
         create_request_tool(targets, enable_interswarm, style),
         create_response_tool(targets, enable_interswarm, style),
@@ -1080,7 +1132,7 @@ def create_supervisor_tools(
     targets: list[str],
     can_complete_tasks: bool = True,
     enable_interswarm: bool = False,
-    exclude_tools: list[str] = [],
+    exclude_tools: list[str] | None = None,
     style: Literal["completions", "responses"] = "completions",
     _debug_include_intraswarm: bool = True,
 ) -> list[dict[str, Any]]:
@@ -1094,6 +1146,7 @@ def create_supervisor_tools(
         exclude_tools: The names of MAIL tools that should not be available.
         style: The style of the tools to create.
     """
+    exclude_tools = exclude_tools or []
     tools: list[dict[str, Any]] = []
     if _debug_include_intraswarm:
         tools += [

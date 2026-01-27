@@ -13,7 +13,7 @@ def build_mail_help_string(
     swarm: str,
     get_summary: bool = True,
     get_identity: bool = False,
-    get_tool_help: list[str] = [],
+    get_tool_help: list[str] | None = None,
     get_full_protocol: bool = False,
 ) -> str:
     """
@@ -49,10 +49,11 @@ def _get_identity(name: str, swarm: str) -> str:
     )
 
 
-def _get_tool_help(tool_help: list[str] = []) -> str:
+def _get_tool_help(tool_help: list[str] | None = None) -> str:
     """
     Get the help for the given tools.
     """
+    tool_help = tool_help or []
     return _create_section("tool help", f"\n{get_tool_help(tool_help)}")
 
 

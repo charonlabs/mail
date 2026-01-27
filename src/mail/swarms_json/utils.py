@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Addison Kline
 
 import json
+import warnings
 from typing import Any
 
 from .types import (
@@ -170,6 +171,16 @@ def validate_agent_from_swarms_json(agent_candidate: Any) -> None:
         if not isinstance(agent_candidate[field], field_type):
             raise ValueError(
                 f"agent candidate field '{field}' must be a {field_type.__name__}, actually got {type(agent_candidate[field])}"
+            )
+
+    # Warn about deprecated tool_format placement
+    if "agent_params" in agent_candidate:
+        if "tool_format" in agent_candidate["agent_params"]:
+            warnings.warn(
+                f"agent '{agent_candidate.get('name', '?')}' has tool_format inside agent_params; "
+                "this is deprecated, use top-level tool_format instead",
+                DeprecationWarning,
+                stacklevel=2,
             )
 
     return

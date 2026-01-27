@@ -45,6 +45,8 @@ def supervisor_factory(
     max_tokens: int | None = None,
     memory: bool = True,
     use_proxy: bool = True,
+    stream_tokens: bool = False,
+    default_tool_choice: str | dict[str, str] | None = None,
 ) -> AgentFunction:
     """
     Create a `supervisor` agent function.
@@ -73,6 +75,8 @@ def supervisor_factory(
         use_proxy=use_proxy,
         tool_format=tool_format,
         exclude_tools=exclude_tools,
+        stream_tokens=stream_tokens,
+        default_tool_choice=default_tool_choice,
     )
 
     async def run(
@@ -178,6 +182,8 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
         memory: bool = True,
         use_proxy: bool = True,
         _debug_include_mail_tools: bool = True,
+        stream_tokens: bool = False,
+        default_tool_choice: str | dict[str, str] | None = None,
     ) -> None:
         super().__init__(
             name=name,
@@ -198,6 +204,8 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
         self.memory = memory
         self.use_proxy = use_proxy
         self._debug_include_mail_tools = _debug_include_mail_tools
+        self.stream_tokens = stream_tokens
+        self.default_tool_choice = default_tool_choice
         self.supervisor_fn = LiteLLMAgentFunction(
             name=self.name,
             comm_targets=self.comm_targets,
@@ -215,6 +223,8 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
             memory=self.memory,
             use_proxy=self.use_proxy,
             _debug_include_mail_tools=self._debug_include_mail_tools,
+            stream_tokens=self.stream_tokens,
+            default_tool_choice=self.default_tool_choice,
         )
 
     def __call__(

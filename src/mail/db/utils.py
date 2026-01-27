@@ -231,6 +231,7 @@ async def create_task(
     start_time: str,
     is_running: bool = True,
     completed: bool = False,
+    title: str | None = None,
 ) -> None:
     """
     Create a new task record in the database.
@@ -242,8 +243,8 @@ async def create_task(
     pool = await get_pool()
     query = """
     INSERT INTO tasks (task_id, swarm_name, caller_role, caller_id, task_owner,
-                       task_contributors, remote_swarms, start_time, is_running, completed)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                       task_contributors, remote_swarms, start_time, is_running, completed, title)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     ON CONFLICT (task_id, swarm_name, caller_role, caller_id) DO NOTHING
     """
 
@@ -266,6 +267,7 @@ async def create_task(
             start_time_dt,
             is_running,
             completed,
+            title,
         )
 
 
@@ -278,6 +280,7 @@ async def update_task(
     completed: bool | None = None,
     task_contributors: list[str] | None = None,
     remote_swarms: list[str] | None = None,
+    title: str | None = None,
 ) -> None:
     """
     Update an existing task record in the database.
@@ -312,6 +315,11 @@ async def update_task(
         params.append(json.dumps(remote_swarms))  # type: ignore
         param_idx += 1
 
+    if title is not None:
+        updates.append(f"title = ${param_idx}")
+        params.append(title) # type: ignore
+        param_idx += 1
+
     if not updates:
         return  # Nothing to update
 
@@ -343,7 +351,7 @@ async def load_tasks(
     pool = await get_pool()
     query = """
     SELECT task_id, task_owner, task_contributors, remote_swarms,
-           is_running, completed, start_time
+           is_running, completed, start_time, title
     FROM tasks
     WHERE swarm_name = $1 AND caller_role = $2 AND caller_id = $3
     ORDER BY start_time ASC
@@ -362,21 +370,20 @@ async def load_tasks(
             if isinstance(remote_swarms, str):
                 remote_swarms = json.loads(remote_swarms)
 
-            tasks.append(
-                {
-                    "task_id": row["task_id"],
-                    "task_owner": row["task_owner"],
-                    "task_contributors": task_contributors,
-                    "remote_swarms": remote_swarms,
-                    "is_running": row["is_running"],
-                    "completed": row["completed"],
-                    "start_time": row["start_time"].isoformat()
-                    if row["start_time"]
-                    else None,
-                }
-            )
+            tasks.append({
+                "task_id": row["task_id"],
+                "task_owner": row["task_owner"],
+                "task_contributors": task_contributors,
+                "remote_swarms": remote_swarms,
+                "is_running": row["is_running"],
+                "completed": row["completed"],
+                "start_time": row["start_time"].isoformat() if row["start_time"] else None,
+                "title": row["title"],
+            })
 
-    logger.info(f"loaded {len(tasks)} tasks for {caller_role}:{caller_id}@{swarm_name}")
+    logger.info(
+        f"loaded {len(tasks)} tasks for {caller_role}:{caller_id}@{swarm_name}"
+    )
     return tasks
 
 
