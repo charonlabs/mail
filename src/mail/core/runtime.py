@@ -118,8 +118,10 @@ class MAILRuntime:
         self.user_role = user_role
         self._steps_by_task: dict[str, int] = defaultdict(int)
         self._max_steps_by_task: dict[str, int | None] = {}
-        # Event notifier for streaming to avoid busy-waiting
-        self._events_available = asyncio.Event()
+        # Per-task event notifier for streaming to avoid busy-waiting
+        self._events_available_by_task: dict[str, asyncio.Event] = defaultdict(
+            asyncio.Event
+        )
         # Interswarm messaging support
         self.swarm_name = swarm_name
         self.enable_interswarm = enable_interswarm
@@ -1017,18 +1019,16 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     await self.submit(message)
 
             # Stream events as they become available, emitting periodic heartbeats
+            task_event = self._events_available_by_task[task_id]
             while not future.done():
                 task_state = self.mail_tasks.get(task_id)
                 task_events = task_state.events if task_state else []
                 if next_event_index < len(task_events):
                     for ev in task_events[next_event_index:]:
                         payload = ev.data
-                        if isinstance(payload, str):
-                            try:
-                                payload = ujson.loads(payload)
-                            except ValueError:
-                                payload = ev.data
-                        if isinstance(payload, dict):
+                        if isinstance(payload, dict) and not isinstance(
+                            payload, _SSEPayload
+                        ):
                             payload = _SSEPayload(payload)
                         yield ServerSentEvent(
                             event=ev.event,
@@ -1039,7 +1039,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     continue
 
                 # Reset the event flag before waiting to avoid busy loops.
-                self._events_available.clear()
+                task_event.clear()
                 task_state = self.mail_tasks.get(task_id)
                 task_events = task_state.events if task_state else []
                 if next_event_index < len(task_events):
@@ -1047,7 +1047,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
 
                 try:
                     # Wait up to 15s for new events; on timeout send a heartbeat
-                    await asyncio.wait_for(self._events_available.wait(), timeout=15.0)
+                    await asyncio.wait_for(task_event.wait(), timeout=15.0)
                 except TimeoutError:
                     # Heartbeat to keep the connection alive
                     yield ServerSentEvent(
@@ -1067,12 +1067,9 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             if next_event_index < len(task_events):
                 for ev in task_events[next_event_index:]:
                     payload = ev.data
-                    if isinstance(payload, str):
-                        try:
-                            payload = ujson.loads(payload)
-                        except ValueError:
-                            payload = ev.data
-                    if isinstance(payload, dict):
+                    if isinstance(payload, dict) and not isinstance(
+                        payload, _SSEPayload
+                    ):
                         payload = _SSEPayload(payload)
                     yield ServerSentEvent(
                         event=ev.event,
@@ -3424,9 +3421,9 @@ The final response message is: '{finish_body}'""",
             event=event,
         )
         self.mail_tasks[task_id].add_event(sse)
-        # Signal that new events are available for streaming
+        # Signal that new events are available for streaming (task-specific)
         try:
-            self._events_available.set()
+            self._events_available_by_task[task_id].set()
         except Exception:
             pass
 

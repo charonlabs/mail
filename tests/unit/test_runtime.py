@@ -4,6 +4,7 @@
 import asyncio
 import copy
 import datetime
+import json
 import tempfile
 import uuid
 from types import MethodType
@@ -197,8 +198,13 @@ async def test_submit_and_stream_handles_timeout_and_events(
     update_event = await agen.__anext__()
     assert update_event.event == "task_update"
     assert update_event.data is not None
-    assert update_event.data["task_id"] == task_id
-    assert update_event.data["description"] == "intermediate status"
+    update_payload = (
+        json.loads(update_event.data)
+        if isinstance(update_event.data, str)
+        else update_event.data
+    )
+    assert update_payload["task_id"] == task_id
+    assert update_payload["description"] == "intermediate status"
 
     completion_message = runtime._agent_task_complete(
         task_id=task_id,
@@ -909,7 +915,8 @@ async def test_submit_event_tracks_events_by_task() -> None:
     runtime._submit_event("update", "task-a", "first")
     runtime._submit_event("update", "task-b", "second")
 
-    assert runtime._events_available.is_set()
+    assert runtime._events_available_by_task["task-a"].is_set()
+    assert runtime._events_available_by_task["task-b"].is_set()
 
     events_a = runtime.get_events_by_task_id("task-a")
     assert len(events_a) == 1
