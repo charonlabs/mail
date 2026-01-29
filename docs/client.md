@@ -19,8 +19,8 @@ from mail.client import MAILClient
 
 async def main() -> None:
     async with MAILClient("http://localhost:8000", api_key="user-token") as client:
-        root = await client.get_root()
-        print(root["version"])
+        root = await client.ping()
+        print(root["protocol_version"])
 
         response = await client.post_message(
             "Hello from MAILClient",
@@ -77,14 +77,14 @@ See [cli.md](./cli.md) for more details on URL scheme handling and OS registrati
 
 | Category | Methods | Notes |
 | --- | --- | --- |
-| Service metadata | `get_root()`, `get_status()` | Mirrors `GET /` and `GET /status`. |
+| Service metadata | `ping()`, `get_status()` | Mirrors `GET /` and `GET /status`. |
 | Identity | `get_whoami()` | Fetches the caller's username and role via `GET /whoami`. |
 | Health | `get_health()` | Returns interswarm readiness info. |
 | Messaging | `post_message(message, entrypoint=None, show_events=False)`, `post_message_stream(message, entrypoint=None)` | Handles synchronous responses and SSE streaming. |
 | Task inspection | `get_tasks()`, `get_task(task_id)` | Fetch task overviews or a full record using `GET /tasks` and `GET /task`. |
 | Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |
 | Interswarm | `post_interswarm_message(...)`, `post_interswarm_response(...)`, `send_interswarm_message(...)` | Submit or receive interswarm traffic. |
-| Debug/OpenAI | `debug_post_responses(api_key, input, tools, instructions=None, previous_response_id=None, tool_choice="auto", parallel_tool_calls=True, **kwargs)` | Calls the debug-only `/responses` endpoint; requires server debug mode. |
+| Debug/OpenAI | `debug_post_responses(input, tools, instructions=None, previous_response_id=None, tool_choice=None, parallel_tool_calls=None, **kwargs)` | Calls the debug-only `/responses` endpoint; requires server debug mode. |
 
 All helpers return deserialized `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
 

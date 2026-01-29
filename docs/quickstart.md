@@ -6,7 +6,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
 - **Python 3.12+**
 - **uv** (recommended) or **pip**
 - An **auth service** providing `AUTH_ENDPOINT` and `TOKEN_INFO_ENDPOINT` or a stub for local testing
-- An **LLM proxy** compatible with LiteLLM (e.g., `litellm`) if you want tool‑driven behavior
+- An **LLM proxy** compatible with LiteLLM (e.g., `litellm`) only if your swarm uses `use_proxy=true`
 
 ## Install
 
@@ -29,8 +29,7 @@ pip install -e .
 - Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings.task_message_limit]`. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
-  - `LITELLM_PROXY_API_BASE` for LLM access via the proxy
-  - Optional overrides: `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE` – these supersede values hydrated from `mail.toml`
+  - `LITELLM_PROXY_API_BASE` for LLM access only when `use_proxy=true`
   - Optional: `DATABASE_URL` for PostgreSQL persistence of agent histories and task state (see [database.md](/docs/database.md))
 
 ## Run
@@ -42,7 +41,7 @@ uv run mail server
 # Or
 python -m mail.server
 ```
-- Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
+- Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags or by editing the file / `MAIL_CONFIG_PATH`.
 - Need the OpenAI Responses bridge for integration testing? Start the server with `uv run mail server --debug` (or set `[server].debug = true`) to expose the debug-only `/responses` endpoint.
 - Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
@@ -75,7 +74,7 @@ http://localhost:8000 \
 ```bash
 uv run mail client http://localhost:8000 --api-key $TOKEN
 mail> responses '[{"role":"user","content":"Plan tomorrow"}]' '[]' \
-      --kwargs '{"api_key":"'"$TOKEN"'"}'
+      --instructions "You are a helpful planner."
 ```
 - **Send a message**: 
 ```bash
@@ -100,7 +99,7 @@ from mail.client import MAILClient
 async def main() -> None:
     token = os.getenv("TOKEN")
     async with MAILClient("http://localhost:8000", api_key=token) as client:
-        print(await client.get_root())
+        print(await client.ping())
         print(await client.post_message("Hello from Python"))
 
 asyncio.run(main())

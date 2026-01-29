@@ -16,7 +16,7 @@ debug = false
 [server.swarm]
 name = "example-no-proxy"
 source = "swarms.json"
-registry_file = "registries/example-no-proxy.json"
+registry = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
@@ -27,7 +27,7 @@ verbose = false
 ```
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`) and whether debug-only integrations are exposed (`debug`).
-- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry_file`, also accepted as legacy `registry`), and the runtime swarm name (`name`).
+- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry` or `registry_file`), and the runtime swarm name (`name`).
 - The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
@@ -39,15 +39,14 @@ verbose = false
 ## Environment variables
 
 ### Required
-- `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy used by agents
 - `AUTH_ENDPOINT`: URL for login endpoint used by the server (Bearer API key -> temporary token)
 - `TOKEN_INFO_ENDPOINT`: URL for token info endpoint (Bearer temporary token -> {role,id,api_key})
 
-### Swarm Identity & Networking
-- `SWARM_NAME`: Name of this swarm instance. Overrides the value calculated from `mail.toml`.
-- `BASE_URL`: Base URL for this server. Overrides the derived value (defaults to `http://localhost:<port>`).
-- `SWARM_SOURCE`: Path to the swarm template JSON loaded on startup. Overrides `[server.swarm.source]` from `mail.toml`.
-- `SWARM_REGISTRY_FILE`: Path used by the server to persist non-volatile registry entries. Overrides the `mail.toml` default.
+### Conditional
+- `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy (required only if your swarm uses `use_proxy=true`).
+
+### Exported by the server (not config overrides)
+- `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, `BASE_URL` are set by `mail server` based on the active config. Change them via `mail.toml` or `mail server --swarm-name/--swarm-source/--swarm-registry`.
 
 ### Database Persistence (Optional)
 - `DATABASE_URL`: PostgreSQL connection string for agent history and task persistence. Format: `postgresql://user:password@host:port/database`. When set, the runtime automatically saves and restores conversation histories, task state, and event timelines. Run `mail db-init` to create the required tables. See [database.md](./database.md) for details.
@@ -60,6 +59,8 @@ verbose = false
 - Sets the entrypoint agent and the set of available agents and actions
 - Agents are built via factories referenced by import path strings; prompts and actions are configured per agent
 - `action_imports` lets you reuse decorated `MAILAction` objects (for example from `mail.stdlib`) without duplicating their schema in `actions`
+- Optional swarm-level fields include `description`, `keywords`, `public`, `breakpoint_tools`, `exclude_tools`, and `enable_db_agent_histories`
+- Agent entries may also include `exclude_tools` to hide specific MAIL tools for that agent
 - A formal JSON schema for `swarms.json` can be found in [docs/swarms-schema.json](/docs/swarms-schema.json)
 
 ### Minimal example

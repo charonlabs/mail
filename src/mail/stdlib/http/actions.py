@@ -57,14 +57,13 @@ HTTP_POST_PARAMETERS = {
         "headers": {
             "type": "object",
             "description": "The headers to send with the request.",
-            "optional": True,
         },
         "body": {
             "type": "object",
             "description": "The body to send with the request.",
         },
     },
-    "required": ["url", "body"],
+    "required": ["url", "headers", "body"],
 }
 
 
@@ -113,14 +112,13 @@ HTTP_PUT_PARAMETERS = {
         "headers": {
             "type": "object",
             "description": "The headers to send with the request.",
-            "optional": True,
         },
         "body": {
             "type": "object",
             "description": "The body to send with the request.",
         },
     },
-    "required": ["url", "body"],
+    "required": ["url", "headers", "body"],
 }
 
 

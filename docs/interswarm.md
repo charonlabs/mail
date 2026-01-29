@@ -30,7 +30,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 - **POST `/interswarm/message`** (admin/user): local callers proxy a task to a remote swarm; body `{ user_token, body, targets, ... }`
 
 ## Enabling interswarm
-- Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
+- Ensure `mail.toml` (or CLI flags like `--swarm-name`, `--swarm-source`, `--swarm-registry`) identifies this server instance. The base URL is derived from `host` + `port`.
 - Ensure your persistent swarm template enables interswarm where needed (see agents & supervisor tools)
 - Export `SWARM_AUTH_TOKEN_<REMOTE>` for every persistent remote entry before starting the server (the registry logs a warning if the variable is missing).
 - Start two servers on different ports; register them with each other using `/swarms` endpoints
@@ -46,4 +46,4 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 
 ## Runtime behavior
 - Local agents still need explicit `comm_targets` to message peers in the same swarm, even when the address includes `@<local-swarm>`.
-- Remote recipients (e.g. `supervisor@swarm-beta`) bypass the local `comm_targets` guard so interswarm traffic is not blocked when agent names overlap across swarms.
+- `comm_targets` are enforced for local agents (including `agent@swarm` targets). Messages originating from remote swarms bypass local `comm_targets` checks.

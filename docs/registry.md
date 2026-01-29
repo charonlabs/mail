@@ -9,7 +9,7 @@ The registry manages discovery and routing for remote swarms.
 - Migration and validation of env-backed auth tokens
 
 ## Persistence
-- **File**: `SWARM_REGISTRY_FILE` (default `registries/example.json`)
+- **File**: registry path from `mail.toml` (`[server.swarm].registry` / `registry_file`), default `registries/example-no-proxy.json`
 - On shutdown, volatile entries are discarded; persistent entries are saved
 
 ## Auth token references

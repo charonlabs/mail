@@ -14,7 +14,7 @@ This section explains the runtime, server, and networking layers that make up a 
 - **Swarm**: a set of agents plus optional actions, with a directed communication graph and a designated entrypoint
 
 ## Runtime
-- **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution
+- **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution (FIFO by enqueue sequence within a priority)
 - **Task queue snapshots**: task-specific messages are stashed when `task_complete` or breakpoint pauses occur and reloaded when the task resumes, preserving execution ordering
 - **Task state tracking**: each logical task is represented by a `MAILTask` record that persists the running/completed flag, SSE event log, stashed queue snapshot, and any remote swarms participating in the conversation so resumes and audits stay consistent
 - **Agent histories**: maintained per agent for context and multi-turn behavior

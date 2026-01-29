@@ -34,7 +34,7 @@ MAIL defines five core message types that all conforming systems MUST understand
 | `response`           | `task_id`, `request_id`, `sender`, `recipient`, `subject`, `body`                        | Reply that correlates with a prior request        |
 | `broadcast`          | `task_id`, `broadcast_id`, `sender`, `recipients[]`, `subject`, `body`                   | Notify many agents in a swarm                     |
 | `interrupt`          | `task_id`, `interrupt_id`, `sender`, `recipients[]`, `subject`, `body`                   | High-priority stop/alter instructions             |
-| `broadcast_complete` | `id`, `timestamp`, `message.broadcast_id`, plus broadcast payload                        | Marks task completion by a supervisor agent       |
+| `broadcast_complete` | `task_id`, `broadcast_id`, `sender`, `recipients[]`, `subject`, `body` (MAILBroadcast)   | Marks task completion by a supervisor agent       |
 
 All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC 3339 timestamp. Optional fields such as `sender_swarm`, `recipient_swarm`, and `routing_info` carry federation metadata without altering the core contract.
 
@@ -42,7 +42,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 - **Local agents** are addressed by name (`agent-name`).
 - **Interswarm addresses** append the remote swarm (`agent-name@swarm-name`).
 - **Routers** MUST wrap cross-swarm traffic in a `MAILInterswarmMessage` that includes source/target swarm identifiers and optional metadata.
-- **Priority tiers** ensure urgent system and user messages preempt regular agent chatter. Within a tier, messages are FIFO by timestamp.
+- **Priority tiers** ensure urgent system and user messages preempt regular agent chatter. Within a tier, messages are FIFO by enqueue sequence.
 
 ### Transport Requirements
 - The **normative HTTP binding** is published in [spec/openapi.yaml](/spec/openapi.yaml) and implemented by the reference **FastAPI** service.
@@ -88,7 +88,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.3.0-pre1
+git clone https://github.com/charonlabs/mail --branch v1.3.1
 cd mail
 
 # Install dependencies (preferred)
@@ -102,27 +102,22 @@ pip install -e .
 Set the following **environment variables** before starting the server:
 
 ```bash
-# LLM proxy
-export LITELLM_PROXY_API_BASE=http://your-litellm-proxy
-
 # Authentication endpoints
 export AUTH_ENDPOINT=http://your-auth-server/auth/login
 export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 
-# Optional provider keys consumed by the proxy
+# LLM proxy (required only if your swarm uses use_proxy=true)
+export LITELLM_PROXY_API_BASE=http://your-litellm-proxy
+
+# Optional provider keys (required for direct provider calls)
 export OPENAI_API_KEY=sk-your-openai-api-key
 export ANTHROPIC_API_KEY=sk-your-anthropic-key
 
-# Swarm identity & networking
-export SWARM_NAME=my-swarm            # default: "default"
-export BASE_URL=http://localhost:8000
-export SWARM_SOURCE=swarms.json       # default aligns with [server.swarm.source]
-export SWARM_REGISTRY_FILE=registries/example.json
 # Optional persistence (set to "none" to disable)
 export DATABASE_URL=postgresql://...
 ```
 
-Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment.
+Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment. Use `mail server --swarm-name/--swarm-source/--swarm-registry` (or edit `mail.toml`) to change swarm identity; `mail server` exports `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for downstream tools but does not read them as config overrides.
 
 MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
 
@@ -139,18 +134,18 @@ uv run -m mail.server
 ### Federate Two Swarms (Example)
 ```bash
 # Terminal 1
-BASE_URL=http://localhost:8000 SWARM_NAME=swarm-alpha uv run mail
+uv run mail server --port 8000 --swarm-name swarm-alpha --swarm-registry registries/swarm-alpha.json
 
 # Terminal 2
-BASE_URL=http://localhost:8001 SWARM_NAME=swarm-beta uv run mail
+uv run mail server --port 8001 --swarm-name swarm-beta --swarm-registry registries/swarm-beta.json
 
 # Register each swarm with the other (requires admin bearer token)
-curl -X POST http://localhost:8000/swarms/register \
+curl -X POST http://localhost:8000/swarms \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "swarm-beta", "base_url": "http://localhost:8001"}'
 
-curl -X POST http://localhost:8001/swarms/register \
+curl -X POST http://localhost:8001/swarms \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "swarm-alpha", "base_url": "http://localhost:8000"}'

@@ -330,13 +330,73 @@ class InterswarmRouter:
 
         # attempt to post this message to the remote swarm
         try:
+            auth_token = message.get("auth_token")
+            if not auth_token:
+                raise ValueError("user token is required for interswarm user messages")
+
+            payload = message.get("payload", {})
+            if not isinstance(payload, dict):
+                raise ValueError("invalid interswarm payload")
+
+            msg_type = message.get("msg_type")
+            if msg_type not in {"request", "broadcast"}:
+                raise ValueError(
+                    f"msg_type '{msg_type}' is not supported for interswarm user messages"
+                )
+
+            subject = payload.get("subject") if isinstance(payload.get("subject"), str) else None
+            body = payload.get("body") if isinstance(payload.get("body"), str) else None
+            task_id = payload.get("task_id") if isinstance(payload.get("task_id"), str) else None
+            routing_info = payload.get("routing_info") if isinstance(payload.get("routing_info"), dict) else {}
+
+            if body is None:
+                raise ValueError("body is required for interswarm user messages")
+
+            targets: list[str] = []
+            if msg_type == "request":
+                recipient = payload.get("recipient")
+                if isinstance(recipient, dict):
+                    address = recipient.get("address")
+                    if isinstance(address, str):
+                        targets = [address]
+            elif msg_type == "broadcast":
+                recipients = payload.get("recipients")
+                if isinstance(recipients, list):
+                    for recipient in recipients:
+                        if isinstance(recipient, dict):
+                            address = recipient.get("address")
+                            if isinstance(address, str):
+                                targets.append(address)
+
+            if not targets:
+                raise ValueError("targets are required for interswarm user messages")
+
+            request_body: dict[str, Any] = {
+                "user_token": auth_token,
+                "body": body,
+                "targets": targets,
+                "msg_type": msg_type,
+            }
+            if subject is not None:
+                request_body["subject"] = subject
+            if task_id is not None:
+                request_body["task_id"] = task_id
+            if routing_info:
+                request_body["routing_info"] = routing_info
+            if "stream" in routing_info:
+                request_body["stream"] = bool(routing_info.get("stream"))
+            if "ignore_stream_pings" in routing_info:
+                request_body["ignore_stream_pings"] = bool(
+                    routing_info.get("ignore_stream_pings")
+                )
+
             async with self.session.post(
                 endpoint["base_url"] + "/interswarm/message",
-                json=message,
+                json=request_body,
                 headers={
                     "Content-Type": "application/json",
                     "User-Agent": f"MAIL-Interswarm-Router/{self.local_swarm_name}",
-                    "Authorization": f"Bearer {message['auth_token']}",
+                    "Authorization": f"Bearer {auth_token}",
                 },
             ) as response:
                 if response.status != 200:

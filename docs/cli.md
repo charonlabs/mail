@@ -19,7 +19,7 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 - Configuration defaults are read from `mail.toml` (see
   [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
-- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
+- Environment variables such as `AUTH_ENDPOINT` and `TOKEN_INFO_ENDPOINT` remain required; `LITELLM_PROXY_API_BASE` is required only if your swarm uses `use_proxy=true`. The CLI does not provide defaults for these. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
 - Pass `--debug` (or set `[server].debug = true`) when you need the debug-only surface, including the OpenAI-compatible `/responses` endpoint. Leave it off for production deployments.
 - Example:
 
@@ -171,7 +171,7 @@ uv run mail client "swarm://connect?server=example.com&token=my-api-key"
 uv run mail ping "swarm://connect?server=example.com"
 ```
 
-The URL is automatically converted to `https://<server>`, and the token (if provided) is used as the API key.
+The URL is automatically converted to `https://<server>`. The token (if provided) is used as the API key for `mail client`; `mail ping` ignores the token because `/health` is public.
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.

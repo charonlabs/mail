@@ -19,7 +19,7 @@ from mail.factories import LiteLLMAgentFunction
 analytics_agent = LiteLLMAgentFunction(
     # top-level wiring
     name="analyst",
-    comm_targets=["consultant@mail", "supervisor@mail"],
+    comm_targets=["consultant", "supervisor"],
     tools=[{"type": "function", "function": {"name": "fetch_report", "description": "...", "parameters": {...}}}],
     # LiteLLM config
     llm="openai/gpt-5-mini",
@@ -29,7 +29,7 @@ analytics_agent = LiteLLMAgentFunction(
     enable_interswarm=False,
     can_complete_tasks=False,
     # runtime instance parameter defaults
-    user_token="", # overridden per invocation
+    user_token="",  # provided when instantiating a swarm (per runtime instance)
     reasoning_effort="low",
     thinking_budget=4000,
     max_tokens=6000,
@@ -38,7 +38,7 @@ analytics_agent = LiteLLMAgentFunction(
 )
 ```
 
-At runtime, `LiteLLMAgentFunction` receives `messages`, an optional `tool_choice`, and may be passed a per-request `user_token` override by the scheduler.
+At runtime, `LiteLLMAgentFunction` receives `messages` and an optional `tool_choice`; the `user_token` is captured at instantiation time (per runtime instance), not per message.
 
 The agent shown above can be directly run as follows:
 
@@ -77,7 +77,7 @@ from collections.abc import Awaitable
 from typing import Any
 
 from mail.core.tools import AgentToolCall
-from mail.factories.base import LiteLLMAgentFactory
+from mail.factories.base import LiteLLMAgentFunction
 
 
 class LiteLLMAnalystFunction(LiteLLMAgentFunction):
@@ -86,7 +86,7 @@ class LiteLLMAnalystFunction(LiteLLMAgentFunction):
         messages: list[dict[str, Any]],
         tool_choice: str | dict[str, str] = "required",
     ) -> Awaitable[tuple[str | None, list[AgentToolCall]]]:
-        # Leverage LiteLLMAgentFactory's async implementation
+        # Leverage LiteLLMAgentFunction's async implementation
         return super().__call__(messages, tool_choice)
 ```
 
@@ -107,10 +107,10 @@ When building custom agent functions, consider reusing these helpers instead of 
 Factory call signatures follow a convention:
 
 - **Top-level parameters** (`comm_targets`, `tools`, `name`, `enable_entrypoint`, etc.) describe the agent's static wiring and are typically supplied from `swarms.json` or other configuration.
-- **Instance parameters** (`user_token`, per-request overrides) are filled by the runtime on each invocation.
+- **Instance parameters** (`user_token`, instance-level overrides) are filled when the swarm or agent instance is created.
 - **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`) control the LLM call and are often set by package defaults or environment configuration.
 
-`LiteLLMAgentFunction` closes over the supplied top-level settings and produces a coroutine that merges invocation-time overrides—specifically, it prioritizes an incoming `user_token` while keeping the default captured during factory construction.
+`LiteLLMAgentFunction` closes over the supplied top-level settings and uses the instance parameters provided when the swarm is instantiated (for example, a per-user `user_token`).
 
 ## Integrating with Swarms
 
