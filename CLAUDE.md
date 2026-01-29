@@ -199,7 +199,7 @@ The file contains a **JSON array** of swarm definitions. Required fields: `name`
 [
   {
     "name": "example",
-    "version": "1.3.1",
+    "version": "1.3.2",
     "entrypoint": "supervisor",
     "enable_interswarm": true,
     "enable_db_agent_histories": true,
