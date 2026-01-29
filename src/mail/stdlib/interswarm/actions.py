@@ -141,11 +141,15 @@ async def _is_valid_mail_root_response(response: aiohttp.ClientResponse) -> bool
         return False
     if (
         not isinstance(name, str)
-        or not isinstance(swarm, str)
+        or not isinstance(swarm, dict)
         or not isinstance(status, str)
     ):
         return False
     if name != "mail" or status != "running":
+        return False
+    if not isinstance(swarm.get("name"), str) or not isinstance(
+        swarm.get("entrypoint"), str
+    ):
         return False
 
     return True

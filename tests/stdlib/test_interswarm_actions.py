@@ -61,7 +61,11 @@ async def test_ping_swarm_returns_pong(monkeypatch: pytest.MonkeyPatch) -> None:
     routes = {
         f"GET:{url}": _DummyResponse(
             status=200,
-            json_data={"name": "mail", "swarm": "remote", "status": "running"},
+            json_data={
+                "name": "mail",
+                "swarm": {"name": "remote", "entrypoint": "supervisor"},
+                "status": "running",
+            },
         )
     }
     _patch_session(monkeypatch, routes)

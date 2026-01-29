@@ -36,7 +36,7 @@ MAIL defines five core message types that all conforming systems MUST understand
 | `response`           | `task_id`, `request_id`, `sender`, `recipient`, `subject`, `body`                        | Reply that correlates with a prior request        |
 | `broadcast`          | `task_id`, `broadcast_id`, `sender`, `recipients[]`, `subject`, `body`                   | Notify many agents in a swarm                     |
 | `interrupt`          | `task_id`, `interrupt_id`, `sender`, `recipients[]`, `subject`, `body`                   | High-priority stop/alter instructions             |
-| `broadcast_complete` | `id`, `timestamp`, `message.broadcast_id`, plus broadcast payload                        | Marks task completion by a supervisor agent       |
+| `broadcast_complete` | `task_id`, `broadcast_id`, `sender`, `recipients[]`, `subject`, `body` (MAILBroadcast)   | Marks task completion by a supervisor agent       |
 
 All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC 3339 timestamp. Optional fields such as `sender_swarm`, `recipient_swarm`, and `routing_info` carry federation metadata without altering the core contract.
 
@@ -44,7 +44,7 @@ All messages are wrapped in a `MAILMessage` envelope with an `id` (UUID) and RFC
 - **Local agents** are addressed by name (`agent-name`).
 - **Interswarm addresses** append the remote swarm (`agent-name@swarm-name`).
 - **Routers** MUST wrap cross-swarm traffic in a `MAILInterswarmMessage` that includes source/target swarm identifiers and optional metadata.
-- **Priority tiers** ensure urgent system and user messages preempt regular agent chatter. Within a tier, messages are FIFO by timestamp.
+- **Priority tiers** ensure urgent system and user messages preempt regular agent chatter. Within a tier, messages are FIFO by enqueue sequence.
 
 ### Transport Requirements
 - The **normative HTTP binding** is published in [spec/openapi.yaml](/spec/openapi.yaml) and implemented by the reference **FastAPI** service.
@@ -90,7 +90,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.3.0-pre1
+git clone https://github.com/charonlabs/mail --branch v1.3.1
 cd mail
 
 # Install dependencies (preferred)
@@ -104,27 +104,22 @@ pip install -e .
 Set the following **environment variables** before starting the server:
 
 ```bash
-# LLM proxy
-export LITELLM_PROXY_API_BASE=http://your-litellm-proxy
-
 # Authentication endpoints
 export AUTH_ENDPOINT=http://your-auth-server/auth/login
 export TOKEN_INFO_ENDPOINT=http://your-auth-server/auth/check
 
-# Optional provider keys consumed by the proxy
+# LLM proxy (required only if your swarm uses use_proxy=true)
+export LITELLM_PROXY_API_BASE=http://your-litellm-proxy
+
+# Optional provider keys (required for direct provider calls)
 export OPENAI_API_KEY=sk-your-openai-api-key
 export ANTHROPIC_API_KEY=sk-your-anthropic-key
 
-# Swarm identity & networking
-export SWARM_NAME=my-swarm            # default: "default"
-export BASE_URL=http://localhost:8000
-export SWARM_SOURCE=swarms.json       # default aligns with [server.swarm.source]
-export SWARM_REGISTRY_FILE=registries/example.json
 # Optional persistence (set to "none" to disable)
 export DATABASE_URL=postgresql://...
 ```
 
-Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment.
+Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment. Use `mail server --swarm-name/--swarm-source/--swarm-registry` (or edit `mail.toml`) to change swarm identity; `mail server` exports `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for downstream tools but does not read them as config overrides.
 
 MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
 
@@ -141,18 +136,18 @@ uv run -m mail.server
 ### Federate Two Swarms (Example)
 ```bash
 # Terminal 1
-BASE_URL=http://localhost:8000 SWARM_NAME=swarm-alpha uv run mail
+uv run mail server --port 8000 --swarm-name swarm-alpha --swarm-registry registries/swarm-alpha.json
 
 # Terminal 2
-BASE_URL=http://localhost:8001 SWARM_NAME=swarm-beta uv run mail
+uv run mail server --port 8001 --swarm-name swarm-beta --swarm-registry registries/swarm-beta.json
 
 # Register each swarm with the other (requires admin bearer token)
-curl -X POST http://localhost:8000/swarms/register \
+curl -X POST http://localhost:8000/swarms \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "swarm-beta", "base_url": "http://localhost:8001"}'
 
-curl -X POST http://localhost:8001/swarms/register \
+curl -X POST http://localhost:8001/swarms \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name": "swarm-alpha", "base_url": "http://localhost:8000"}'
@@ -247,7 +242,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 - **POST `/interswarm/message`** (admin/user): local callers proxy a task to a remote swarm; body `{ user_token, body, targets, ... }`
 
 ## Enabling interswarm
-- Ensure `mail.toml` (or environment variables) supplies `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, and `SWARM_REGISTRY_FILE` values that identify this server instance.
+- Ensure `mail.toml` (or CLI flags like `--swarm-name`, `--swarm-source`, `--swarm-registry`) identifies this server instance. The base URL is derived from `host` + `port`.
 - Ensure your persistent swarm template enables interswarm where needed (see agents & supervisor tools)
 - Export `SWARM_AUTH_TOKEN_<REMOTE>` for every persistent remote entry before starting the server (the registry logs a warning if the variable is missing).
 - Start two servers on different ports; register them with each other using `/swarms` endpoints
@@ -263,7 +258,7 @@ MAIL supports cross-swarm communication over HTTP. Remote addresses are written 
 
 ## Runtime behavior
 - Local agents still need explicit `comm_targets` to message peers in the same swarm, even when the address includes `@<local-swarm>`.
-- Remote recipients (e.g. `supervisor@swarm-beta`) bypass the local `comm_targets` guard so interswarm traffic is not blocked when agent names overlap across swarms.
+- `comm_targets` are enforced for local agents (including `agent@swarm` targets). Messages originating from remote swarms bypass local `comm_targets` checks.
 
 
 ===== End of `docs/interswarm.md` =====
@@ -291,7 +286,7 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 - Configuration defaults are read from `mail.toml` (see
   [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
-- Environment variables such as `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` remain required; the CLI does not provide defaults for them. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
+- Environment variables such as `AUTH_ENDPOINT` and `TOKEN_INFO_ENDPOINT` remain required; `LITELLM_PROXY_API_BASE` is required only if your swarm uses `use_proxy=true`. The CLI does not provide defaults for these. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
 - Pass `--debug` (or set `[server].debug = true`) when you need the debug-only surface, including the OpenAI-compatible `/responses` endpoint. Leave it off for production deployments.
 - Example:
 
@@ -443,7 +438,7 @@ uv run mail client "swarm://connect?server=example.com&token=my-api-key"
 uv run mail ping "swarm://connect?server=example.com"
 ```
 
-The URL is automatically converted to `https://<server>`, and the token (if provided) is used as the API key.
+The URL is automatically converted to `https://<server>`. The token (if provided) is used as the API key for `mail client`; `mail ping` ignores the token because `/health` is public.
 
 ## Tips
 - Use the same environment variables you would for the Python client. The CLI simply wraps `MAILClient` and forwards `--api-key`, `--timeout`, and `--verbose` into `ClientConfig`.
@@ -488,7 +483,7 @@ from mail.factories import LiteLLMAgentFunction
 analytics_agent = LiteLLMAgentFunction(
     # top-level wiring
     name="analyst",
-    comm_targets=["consultant@mail", "supervisor@mail"],
+    comm_targets=["consultant", "supervisor"],
     tools=[{"type": "function", "function": {"name": "fetch_report", "description": "...", "parameters": {...}}}],
     # LiteLLM config
     llm="openai/gpt-5-mini",
@@ -498,7 +493,7 @@ analytics_agent = LiteLLMAgentFunction(
     enable_interswarm=False,
     can_complete_tasks=False,
     # runtime instance parameter defaults
-    user_token="", # overridden per invocation
+    user_token="",  # provided when instantiating a swarm (per runtime instance)
     reasoning_effort="low",
     thinking_budget=4000,
     max_tokens=6000,
@@ -507,7 +502,7 @@ analytics_agent = LiteLLMAgentFunction(
 )
 ```
 
-At runtime, `LiteLLMAgentFunction` receives `messages`, an optional `tool_choice`, and may be passed a per-request `user_token` override by the scheduler.
+At runtime, `LiteLLMAgentFunction` receives `messages` and an optional `tool_choice`; the `user_token` is captured at instantiation time (per runtime instance), not per message.
 
 The agent shown above can be directly run as follows:
 
@@ -546,7 +541,7 @@ from collections.abc import Awaitable
 from typing import Any
 
 from mail.core.tools import AgentToolCall
-from mail.factories.base import LiteLLMAgentFactory
+from mail.factories.base import LiteLLMAgentFunction
 
 
 class LiteLLMAnalystFunction(LiteLLMAgentFunction):
@@ -555,7 +550,7 @@ class LiteLLMAnalystFunction(LiteLLMAgentFunction):
         messages: list[dict[str, Any]],
         tool_choice: str | dict[str, str] = "required",
     ) -> Awaitable[tuple[str | None, list[AgentToolCall]]]:
-        # Leverage LiteLLMAgentFactory's async implementation
+        # Leverage LiteLLMAgentFunction's async implementation
         return super().__call__(messages, tool_choice)
 ```
 
@@ -576,10 +571,10 @@ When building custom agent functions, consider reusing these helpers instead of 
 Factory call signatures follow a convention:
 
 - **Top-level parameters** (`comm_targets`, `tools`, `name`, `enable_entrypoint`, etc.) describe the agent's static wiring and are typically supplied from `swarms.json` or other configuration.
-- **Instance parameters** (`user_token`, per-request overrides) are filled by the runtime on each invocation.
+- **Instance parameters** (`user_token`, instance-level overrides) are filled when the swarm or agent instance is created.
 - **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`) control the LLM call and are often set by package defaults or environment configuration.
 
-`LiteLLMAgentFunction` closes over the supplied top-level settings and produces a coroutine that merges invocation-time overrides—specifically, it prioritizes an incoming `user_token` while keeping the default captured during factory construction.
+`LiteLLMAgentFunction` closes over the supplied top-level settings and uses the instance parameters provided when the swarm is instantiated (for example, a per-user `user_token`).
 
 ## Integrating with Swarms
 
@@ -624,7 +619,8 @@ Below is a list of possible issues you may encounter during setup, and steps you
 This list is not exhaustive, and probably never will be. If you run into any resolvable issue worth mentioning, feel free to add it here.
 
 ### Server won't start
-  - Check required env vars: `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, `LITELLM_PROXY_API_BASE`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`
+  - Check required env vars: `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` (and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`)
+  - Verify `mail.toml` (or `MAIL_CONFIG_PATH`) points at the correct swarm source and registry file
   - Verify **Python 3.12+** and dependency install
   
 ### Auth errors
@@ -637,7 +633,7 @@ This list is not exhaustive, and probably never will be. If you run into any res
   
 ### Interswarm routing fails
   - Use `agent@swarm` addressing and register swarms via `/swarms`
-  - Verify `SWARM_NAME`, `BASE_URL`, the registry persistence file, and env var tokens (set them in `mail.toml` or override with environment variables)
+  - Verify swarm name/registry settings in `mail.toml`, the registry persistence file path, and env var tokens (set `SWARM_AUTH_TOKEN_<SWARM>` before startup)
   
 ### SSE stream disconnects
   - Check client and proxy timeouts; events include periodic ping heartbeats
@@ -1031,14 +1027,14 @@ This guide gets you running a local MAIL swarm and interacting with it.
 - **Python 3.12+**
 - **uv** (recommended) or **pip**
 - An **auth service** providing `AUTH_ENDPOINT` and `TOKEN_INFO_ENDPOINT` or a stub for local testing
-- An **LLM proxy** compatible with LiteLLM (e.g., `litellm`) if you want tool‑driven behavior
+- An **LLM proxy** compatible with LiteLLM (e.g., `litellm`) only if your swarm uses `use_proxy=true`
 
 ## Install
 
 ### Cloning the repo
 ```bash
 git clone https://github.com/charonlabs/mail.git \
---branch v1.3.0-pre1
+--branch v1.3.1
 ```
 
 ### Installing dependencies
@@ -1054,8 +1050,7 @@ pip install -e .
 - Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings.task_message_limit]`. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
-  - `LITELLM_PROXY_API_BASE` for LLM access via the proxy
-  - Optional overrides: `SWARM_NAME`, `BASE_URL`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE` – these supersede values hydrated from `mail.toml`
+  - `LITELLM_PROXY_API_BASE` for LLM access only when `use_proxy=true`
   - Optional: `DATABASE_URL` for PostgreSQL persistence of agent histories and task state (see [database.md](/docs/database.md))
 
 ## Run
@@ -1067,7 +1062,7 @@ uv run mail server
 # Or
 python -m mail.server
 ```
-- Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags, environment variables, or by editing the file.
+- Default base URL comes from `mail.toml` (`host` + `port`); override per run with CLI flags or by editing the file / `MAIL_CONFIG_PATH`.
 - Need the OpenAI Responses bridge for integration testing? Start the server with `uv run mail server --debug` (or set `[server].debug = true`) to expose the debug-only `/responses` endpoint.
 - Prefer containers? Follow the [Docker deployment guide](./docker.md) to build and run the same server with Docker or Compose.
 
@@ -1100,7 +1095,7 @@ http://localhost:8000 \
 ```bash
 uv run mail client http://localhost:8000 --api-key $TOKEN
 mail> responses '[{"role":"user","content":"Plan tomorrow"}]' '[]' \
-      --kwargs '{"api_key":"'"$TOKEN"'"}'
+      --instructions "You are a helpful planner."
 ```
 - **Send a message**: 
 ```bash
@@ -1125,7 +1120,7 @@ from mail.client import MAILClient
 async def main() -> None:
     token = os.getenv("TOKEN")
     async with MAILClient("http://localhost:8000", api_key=token) as client:
-        print(await client.get_root())
+        print(await client.ping())
         print(await client.post_message("Hello from Python"))
 
 asyncio.run(main())
@@ -1153,8 +1148,8 @@ This repo includes example agents and demo scripts you can run locally.
 - **Analyst**: [src/mail/examples/analyst_dummy/](/src/mail/examples/analyst_dummy/__init__.py)
 
 ## Agent functions and factories
-- **Agent functions** in [src/mail/factories/](/src/mail/factories/__init__.py) represent MAIL-compatible agent callables, with factories in `__init__` and agent functions in `__call__`
-- **Agent factories** in [src/mail/factories/](/src/mail/factories/__init__.py) build agent callables used by `MAILAgentTemplate`
+- **Agent factories** in [src/mail/factories/](/src/mail/factories/__init__.py) are classes/functions that construct MAIL-compatible agent callables used by `MAILAgentTemplate`.
+- For class-based factories (e.g., `LiteLLMAgentFunction`), the instantiated object's `__call__` method is the agent function the runtime schedules.
 
 ## Demo scripts
 - **Single swarm**: [scripts/single_swarm_demo.py](/scripts/single_swarm_demo.py)
@@ -1738,7 +1733,7 @@ Note: `actions` is required in each swarm definition (use `[]` if none).
 MAIL messages are strongly typed envelopes used internally and over interswarm HTTP. See [src/mail/core/message.py](/src/mail/core/message.py) and the JSON Schemas in [spec/](/spec/MAIL-core.schema.json).
 
 ## Addresses
-- **`MAILAddress`**: `{ "address_type": "agent"|"user"|"system", "address": "string" }`
+- **`MAILAddress`**: `{ "address_type": "admin"|"agent"|"user"|"system", "address": "string" }`
 - **Helpers**: `create_agent_address`, `create_user_address`, `create_system_address`
 - Interswarm routing uses `agent@swarm` in `address`
 
@@ -1759,9 +1754,10 @@ MAIL messages are strongly typed envelopes used internally and over interswarm H
 ## Wrapper for interswarm HTTP
 - **`MAILInterswarmMessage`**
   - `message_id`, `source_swarm`, `target_swarm`, `timestamp`
+  - `task_owner`, `task_contributors`
   - `payload`: one of the core envelopes
   - `msg_type`: `request|response|broadcast|interrupt`
-  - `auth_token` (optional), `metadata` (optional)
+  - `auth_token` (optional in schema; required by current `/interswarm/forward` and `/interswarm/back` validators), `metadata` (optional in schema; required by the same validators)
 
 ## XML helper
 - The runtime can render a human-readable XML body for LLM input: `build_mail_xml(message)`
@@ -1769,7 +1765,6 @@ MAIL messages are strongly typed envelopes used internally and over interswarm H
 ## Schemas and examples
 - **Spec JSON Schemas**: [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.json), [spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json)
 - **Examples**: [spec/examples/](/spec/examples/README.md)
-
 
 
 ===== End of `docs/message-format.md` =====
@@ -2376,7 +2371,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 
 | Method | Path | Auth required | Request body | Response body | Summary |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, protocol_version, swarm: SwarmInfo, uptime }` | Returns MAIL service metadata and version string. `SwarmInfo` includes `name`, `entrypoint`, `keywords`, and `is_public`. |
+| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, protocol_version, swarm: SwarmInfo, uptime }` | Returns MAIL service metadata and version string. `SwarmInfo` includes `name`, `version`, `description`, `entrypoint`, `keywords`, and `public`. |
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
 | GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { id, role }` | Returns the caller identifier and role associated with the provided token |
 | POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
@@ -2384,14 +2379,14 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | GET | `/task` | `Bearer` token with role `admin` or `user` | `JSON { task_id: str }` | `TaskRecord` | Returns the full record for a single task, including SSE history and queue snapshot |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
 | POST | `/health` | `Bearer` token with role `admin` | `JSON { status: str }` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Updates the health status reported to other swarms |
-| GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpointCleaned] }` | Lists swarms known to the local registry. Returns cleaned endpoints (auth tokens hidden) with fields: `swarm_name`, `base_url`, `version`, `last_seen`, `is_active`, `latency`, `swarm_description`, `keywords`, `metadata`. |
+| GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpointCleaned] }` | Lists *public* swarms known to the local registry. Returns cleaned endpoints (auth tokens hidden) with fields: `swarm_name`, `base_url`, `version`, `last_seen`, `is_active`, `latency`, `swarm_description`, `keywords`, `metadata`. |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/forward` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmForwardResponse { swarm, task_id, status, local_runner }` | Accepts a remote swarm's new-task payload and spawns/attaches a local runtime |
 | POST | `/interswarm/back` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmBackResponse { swarm, task_id, status, local_runner }` | Injects a follow-up or completion payload from the remote swarm into the active local runtime |
 | POST | `/interswarm/message` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmMessageResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Proxies a user/admin task to a remote swarm using the caller's runtime and interswarm router |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
-| POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { api_key: str, input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
+| POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
 
 **TaskRecord** aligns with [`mail.core.tasks.MAILTask`](/src/mail/core/tasks.py):
 - `task_id`, `task_owner`, `task_contributors`, `start_time`, `is_running`, `completed`, `remote_swarms` summarise runtime status
@@ -2402,12 +2397,12 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
-- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
+- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string, dict, or list that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - `POST /interswarm/message` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror local streaming; the server copies those hints into the interswarm `routing_info` it sends downstream.
 
 ### Debug mode & OpenAI compatibility
 - Enabling server debug mode (`mail server --debug` or `[server].debug = true`) bootstraps a `SwarmOAIClient` alongside the FastAPI app so it can mirror OpenAI's `/responses` API.
-- `POST /responses` expects the caller's `api_key` plus the OpenAI-style `input`, `tools`, `instructions`, `previous_response_id`, and other optional fields. The API key is used to hydrate or reuse the caller's MAIL runtime before piping the request into the OpenAI bridge.
+- `POST /responses` expects the OpenAI-style `input`, `tools`, `instructions`, `previous_response_id`, and other optional fields. The caller is authenticated via the normal `Authorization: Bearer ...` header, which is used to hydrate or reuse the caller's MAIL runtime before piping the request into the OpenAI bridge.
 - Responses conform to `openai.types.responses.Response`, letting you plug a MAIL swarm behind clients or SDKs that already speak the OpenAI Responses protocol. Because it is debug-only, the route is hidden from the generated OpenAPI document.
 - Wrap it from code via `MAILClient.debug_post_responses(...)` or from the REPL using `mail client responses …` (see [client.md](/docs/client.md) and [cli.md](/docs/cli.md) for usage).
 
@@ -2468,7 +2463,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAction` (`mail.api`)
 - **Summary**: Describes an action/tool exposed by an agent; wraps a callable with metadata for OpenAI tools.
-- **Constructor parameters**: `name: str`, `description: str`, `parameters: dict[str, Any]` (JSONSchema-like), `function: str` (dotted `module:function`).
+- **Constructor parameters**: `name: str`, `description: str`, `parameters: dict[str, Any]` (JSONSchema-like), `function: str | ActionFunction` (import string or callable).
 - **Key methods**:
   - `from_pydantic_model(model, function_str, name?, description?) -> MAILAction`: build from a Pydantic model definition.
   - `from_swarm_json(json_str) -> MAILAction`: rebuild from persisted `swarms.json` entries.
@@ -2503,7 +2498,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAgent` (`mail.api`)
 - **Summary**: Concrete runtime agent produced by an agent factory and associated actions.
-- **Constructor parameters**: `name: str`, `factory: str | Callable`, `actions: list[MAILAction]`, `function: AgentFunction`, `comm_targets: list[str]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
+- **Constructor parameters**: `name: str`, `factory: str | Callable`, `actions: list[MAILAction]`, `function: AgentFunction`, `comm_targets: list[str]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`, `exclude_tools: list[str] | None = None`.
 - **Key methods**:
   - `__call__(messages, tool_choice="required") -> Awaitable[tuple[str | None, list[AgentToolCall]]]`: execute the agent implementation.
   - `_to_template(names: list[str]) -> MAILAgentTemplate`: internal helper that trims targets for sub-swarms.
@@ -2512,7 +2507,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAgentTemplate` (`mail.api`)
 - **Summary**: Declarative agent description used for persistence, cloning, and factory instantiation.
-- **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
+- **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`, `exclude_tools: list[str] | None = None`.
 - **Key methods**:
   - `instantiate(instance_params: dict[str, Any]) -> MAILAgent`: load the factory and produce a concrete `MAILAgent`.
   - `from_swarm_json(json_str, actions_by_name: dict[str, MAILAction] | None = None) -> MAILAgentTemplate`: rebuild from `swarms.json` entries, optionally supplying pre-built actions to resolve `actions` references efficiently.
@@ -2523,7 +2518,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
-- **Constructor parameters**: `name: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default_user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`.
+- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default"`, `user_role: Literal["admin","agent","user"] = "user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `enable_db_agent_histories: bool = False`.
 - **Key methods**:
   - `post_message(...)`, `post_message_stream(...)`, `post_message_and_run(...)`: enqueue user requests (optionally streaming or running to completion).
   - `submit_message(...)`, `submit_message_stream(...)`: submit fully-formed `MAILMessage` envelopes.
@@ -2539,9 +2534,9 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 #### `MAILSwarmTemplate` (`mail.api`)
 - **Summary**: Immutable swarm blueprint comprised of `MAILAgentTemplate`s and shared actions.
 - **Notes**: Inline definitions from `actions` may be combined with `action_imports` that resolve to decorated `MAILAction` objects (e.g., from `mail.stdlib`).
-- **Constructor parameters**: `name: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`.
+- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `public: bool = False`, `enable_db_agent_histories: bool = False`.
 - **Key methods**:
-  - `instantiate(instance_params, user_id?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
+  - `instantiate(instance_params, user_id?, user_role?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
   - `get_subswarm(names, name_suffix, entrypoint?) -> MAILSwarmTemplate`: filter agents into a smaller template while preserving supervisors and entrypoints.
   - `update_from_adjacency_matrix(adj: list[list[int]]) -> None`: sync template wiring back to `comm_targets` for each agent.
   - `from_swarm_json(json_str) -> MAILSwarmTemplate` / `from_swarm_json_file(swarm_name, json_filepath?) -> MAILSwarmTemplate`: rebuild from persisted JSON.
@@ -2549,14 +2544,14 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `AgentToolCall` (`mail.core.tools`)
 - **Summary**: Pydantic model capturing the outcome of an OpenAI tool invocation.
-- **Fields**: `tool_name: str`, `tool_args: dict[str, Any]`, `tool_call_id: str`, `completion: dict[str, Any]`, `responses: list[dict[str, Any]]`.
+- **Fields**: `tool_name: str`, `tool_args: dict[str, Any]`, `tool_call_id: str`, `completion: dict[str, Any]`, `responses: list[dict[str, Any]]`, `reasoning: list[str] | None`, `preamble: str | None`.
 - **Key methods**:
   - `create_response_msg(content: str) -> dict[str, str]`: format a response payload for completions or responses API.
   - `model_validator` (after-init) enforces that either `completion` or `responses` is populated.
 
 #### `MAILRuntime` (`mail.core.runtime`)
 - **Summary**: Asynchronous runtime that owns the internal message queue, tool execution, and optional interswarm router.
-- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `swarm_name: str = "example"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `entrypoint: str = "supervisor"`.
+- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `user_role: Literal["admin","agent","user"]`, `swarm_name: str = "example"`, `entrypoint: str = "supervisor"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] | None = None`, `exclude_tools: list[str] | None = None`, `enable_db_agent_histories: bool = False`.
 - Pass the lower-level `AgentCore` / `ActionCore` objects (for example via `MAILAgent.to_core()` and `MAILAction.to_core()`) when instantiating the runtime directly.
 - **Key methods**:
   - `start_interswarm()`, `stop_interswarm()`, `is_interswarm_running()`.
@@ -2569,7 +2564,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `SwarmRegistry` (`mail.net.registry`)
 - **Summary**: Tracks known swarm endpoints, performs health checks, and persists non-volatile registrations.
-- **Constructor parameters**: `local_swarm_name: str`, `local_base_url: str`, `persistence_file: str | None = None`.
+- **Constructor parameters**: `local_swarm_name: str`, `local_base_url: str`, `persistence_file: str | None = None`, `local_swarm_description: str = ""`, `local_swarm_keywords: list[str] | None = None`, `local_swarm_public: bool = False`.
 - **Key methods**:
   - `register_local_swarm(base_url)`, `register_swarm(...)`, `unregister_swarm(swarm_name)`.
   - `get_swarm_endpoint(swarm_name)`, `get_resolved_auth_token(swarm_name)`, `get_all_endpoints()`, `get_active_endpoints()`, `get_persistent_endpoints()`.
@@ -2592,7 +2587,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 #### `MAILAddress`
 ```python
 { 
-    address_type: Literal["agent", "user", "system"], 
+    address_type: Literal["admin", "agent", "user", "system"], 
     address: str 
 }
 ```
@@ -2658,6 +2653,8 @@ The Python surface is designed for embedding MAIL inside other applications, bui
     message_id: str,
     source_swarm: str, target_swarm: str,
     timestamp: str,
+    task_owner: str,
+    task_contributors: list[str],
     payload: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt,
     msg_type: Literal["request", "response", "broadcast", "interrupt"],
     auth_token: str | None,
@@ -3021,8 +3018,8 @@ from mail.client import MAILClient
 
 async def main() -> None:
     async with MAILClient("http://localhost:8000", api_key="user-token") as client:
-        root = await client.get_root()
-        print(root["version"])
+        root = await client.ping()
+        print(root["protocol_version"])
 
         response = await client.post_message(
             "Hello from MAILClient",
@@ -3079,14 +3076,14 @@ See [cli.md](./cli.md) for more details on URL scheme handling and OS registrati
 
 | Category | Methods | Notes |
 | --- | --- | --- |
-| Service metadata | `get_root()`, `get_status()` | Mirrors `GET /` and `GET /status`. |
+| Service metadata | `ping()`, `get_status()` | Mirrors `GET /` and `GET /status`. |
 | Identity | `get_whoami()` | Fetches the caller's username and role via `GET /whoami`. |
 | Health | `get_health()` | Returns interswarm readiness info. |
 | Messaging | `post_message(message, entrypoint=None, show_events=False)`, `post_message_stream(message, entrypoint=None)` | Handles synchronous responses and SSE streaming. |
 | Task inspection | `get_tasks()`, `get_task(task_id)` | Fetch task overviews or a full record using `GET /tasks` and `GET /task`. |
 | Swarm registry | `get_swarms()`, `register_swarm(...)`, `dump_swarm()`, `load_swarm_from_json(json_str)` | Manage remote swarm entries and persistent templates. |
 | Interswarm | `post_interswarm_message(...)`, `post_interswarm_response(...)`, `send_interswarm_message(...)` | Submit or receive interswarm traffic. |
-| Debug/OpenAI | `debug_post_responses(api_key, input, tools, instructions=None, previous_response_id=None, tool_choice="auto", parallel_tool_calls=True, **kwargs)` | Calls the debug-only `/responses` endpoint; requires server debug mode. |
+| Debug/OpenAI | `debug_post_responses(input, tools, instructions=None, previous_response_id=None, tool_choice=None, parallel_tool_calls=None, **kwargs)` | Calls the debug-only `/responses` endpoint; requires server debug mode. |
 
 All helpers return deserialized `dict` objects matching the schemas in `spec/openapi.yaml`. For MAIL envelope types (`MAILMessage`, `MAILInterswarmMessage`) the client expects the dictionary shape defined in `mail.core.message`.
 
@@ -3228,7 +3225,7 @@ The registry manages discovery and routing for remote swarms.
 - Migration and validation of env-backed auth tokens
 
 ## Persistence
-- **File**: `SWARM_REGISTRY_FILE` (default `registries/example.json`)
+- **File**: registry path from `mail.toml` (`[server.swarm].registry` / `registry_file`), default `registries/example-no-proxy.json`
 - On shutdown, volatile entries are discarded; persistent entries are saved
 
 ## Auth token references
@@ -3315,7 +3312,7 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 - `send_request(target, subject, body)` → emits a `MAILRequest` to a validated in-swarm target; when the agent template enables interswarm the `target` accepts the `agent@swarm` form.
 - `send_response(target, subject, body)` → mirrors `send_request` but produces a `MAILResponse`, letting agents continue existing conversations.
 - `send_interrupt(target, subject, body)` → issues a `MAILInterrupt` so supervisors can pause or redirect downstream agents.
-- `send_broadcast(subject, body)` → fans a `MAILBroadcast` out to every agent in the local swarm.
+- `send_broadcast(subject, body, targets)` → schema includes `targets`, but the runtime currently ignores it and broadcasts to every agent in the local swarm.
 - `acknowledge_broadcast(note=None)` → records the broadcast in agent memory without replying; the optional note stays internal.
 - `ignore_broadcast(reason=None)` → explicitly drops the broadcast and skips both memory storage and outbound mail; optional reason is internal only.
 - `await_message(reason=None)` → signals that the agent has no further output this turn and should be rescheduled when new mail arrives; an optional reason is surfaced in SSE events and tool-call history for debugging.
@@ -3357,13 +3354,12 @@ If you’re new, start with [Quickstart](/docs/quickstart.md), then read [Archit
 ## Auth integration
 - The server delegates token validation to `TOKEN_INFO_ENDPOINT`
 - **Expected shape**: `{ role: "admin"|"user"|"agent", id: string, api_key: string }`
-- Internal user token is derived as `{role}_{id}` and used for per-user MAIL instances
+- Per-user MAIL instances are keyed by caller role + id; task owner identifiers use `{role}:{id}@{swarm}`
 
 ## Operational
 - Keep `SWARM_REGISTRY_FILE` on secure storage and ensure only env-var references are persisted
 - **Rotate environment variables** instead of editing persisted JSON
 - **Monitor logs** for interswarm health changes and failures
-
 
 
 ===== End of `docs/security.md` =====
@@ -3403,13 +3399,11 @@ COPY src ./src
 COPY spec ./spec
 COPY docs ./docs
 
-# Default configuration; override via `docker run -e` or compose files
+# Default configuration; override via `mail.toml`/`MAIL_CONFIG_PATH` or CLI flags
 ENV PORT=8000 \
     AUTH_ENDPOINT=http://auth.local/login \
     TOKEN_INFO_ENDPOINT=http://auth.local/token-info \
-    LITELLM_PROXY_API_BASE=http://litellm.local \
-    SWARM_NAME=example-no-proxy \
-    BASE_URL=http://localhost:8000
+    LITELLM_PROXY_API_BASE=http://litellm.local
 
 EXPOSE 8000
 CMD ["uv", "run", "mail", "server", "--host", "0.0.0.0", "--port", "8000"]
@@ -3425,7 +3419,7 @@ docker build -t mail-server .
 The build context must contain the repository so that the `COPY` commands pick up the source and configuration files.
 
 ## Run the container
-The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, `LITELLM_PROXY_API_BASE`, and optional swarm overrides). Pass them via `--env` flags or an env file:
+The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`). Pass them via `--env` flags or an env file. To change swarm name/source/registry, mount a custom `mail.toml` and set `MAIL_CONFIG_PATH` or pass `mail server --swarm-name/--swarm-source/--swarm-registry` in the container command.
 
 ```bash
 # Option 1: export locally then forward with --env
@@ -3438,7 +3432,6 @@ docker run --rm \
   -e AUTH_ENDPOINT \
   -e TOKEN_INFO_ENDPOINT \
   -e LITELLM_PROXY_API_BASE \
-  -e BASE_URL="https://your-hostname" \
   mail-server
 ```
 
@@ -3448,8 +3441,6 @@ cat <<'ENVVARS' > .env.mail
 AUTH_ENDPOINT=http://127.0.0.1:8999/login
 TOKEN_INFO_ENDPOINT=http://127.0.0.1:8999/token-info
 LITELLM_PROXY_API_BASE=http://127.0.0.1:8080
-BASE_URL=https://your-hostname
-SWARM_NAME=example-no-proxy
 ENVVARS
 
 docker run --rm -p 8000:8000 --env-file .env.mail mail-server
@@ -3705,7 +3696,7 @@ This section explains the runtime, server, and networking layers that make up a 
 - **Swarm**: a set of agents plus optional actions, with a directed communication graph and a designated entrypoint
 
 ## Runtime
-- **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution
+- **Message queue**: priority queue with deterministic tie-breaking; processes messages and schedules tool execution (FIFO by enqueue sequence within a priority)
 - **Task queue snapshots**: task-specific messages are stashed when `task_complete` or breakpoint pauses occur and reloaded when the task resumes, preserving execution ordering
 - **Task state tracking**: each logical task is represented by a `MAILTask` record that persists the running/completed flag, SSE event log, stashed queue snapshot, and any remote swarms participating in the conversation so resumes and audits stay consistent
 - **Agent histories**: maintained per agent for context and multi-turn behavior
@@ -4726,7 +4717,7 @@ debug = false
 [server.swarm]
 name = "example-no-proxy"
 source = "swarms.json"
-registry_file = "registries/example-no-proxy.json"
+registry = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
@@ -4737,7 +4728,7 @@ verbose = false
 ```
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`) and whether debug-only integrations are exposed (`debug`).
-- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry_file`, also accepted as legacy `registry`), and the runtime swarm name (`name`).
+- The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry` or `registry_file`), and the runtime swarm name (`name`).
 - The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
@@ -4749,15 +4740,14 @@ verbose = false
 ## Environment variables
 
 ### Required
-- `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy used by agents
 - `AUTH_ENDPOINT`: URL for login endpoint used by the server (Bearer API key -> temporary token)
 - `TOKEN_INFO_ENDPOINT`: URL for token info endpoint (Bearer temporary token -> {role,id,api_key})
 
-### Swarm Identity & Networking
-- `SWARM_NAME`: Name of this swarm instance. Overrides the value calculated from `mail.toml`.
-- `BASE_URL`: Base URL for this server. Overrides the derived value (defaults to `http://localhost:<port>`).
-- `SWARM_SOURCE`: Path to the swarm template JSON loaded on startup. Overrides `[server.swarm.source]` from `mail.toml`.
-- `SWARM_REGISTRY_FILE`: Path used by the server to persist non-volatile registry entries. Overrides the `mail.toml` default.
+### Conditional
+- `LITELLM_PROXY_API_BASE`: Base URL for your LiteLLM-compatible proxy (required only if your swarm uses `use_proxy=true`).
+
+### Exported by the server (not config overrides)
+- `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, `BASE_URL` are set by `mail server` based on the active config. Change them via `mail.toml` or `mail server --swarm-name/--swarm-source/--swarm-registry`.
 
 ### Database Persistence (Optional)
 - `DATABASE_URL`: PostgreSQL connection string for agent history and task persistence. Format: `postgresql://user:password@host:port/database`. When set, the runtime automatically saves and restores conversation histories, task state, and event timelines. Run `mail db-init` to create the required tables. See [database.md](./database.md) for details.
@@ -4770,6 +4760,8 @@ verbose = false
 - Sets the entrypoint agent and the set of available agents and actions
 - Agents are built via factories referenced by import path strings; prompts and actions are configured per agent
 - `action_imports` lets you reuse decorated `MAILAction` objects (for example from `mail.stdlib`) without duplicating their schema in `actions`
+- Optional swarm-level fields include `description`, `keywords`, `public`, `breakpoint_tools`, `exclude_tools`, and `enable_db_agent_histories`
+- Agent entries may also include `exclude_tools` to hide specific MAIL tools for that agent
 - A formal JSON schema for `swarms.json` can be found in [docs/swarms-schema.json](/docs/swarms-schema.json)
 
 ### Minimal example
@@ -4777,7 +4769,7 @@ verbose = false
 [
     {
         "name": "example",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "entrypoint": "supervisor",
         "enable_interswarm": true,
         "agents": [

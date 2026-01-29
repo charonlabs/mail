@@ -10,7 +10,8 @@ Below is a list of possible issues you may encounter during setup, and steps you
 This list is not exhaustive, and probably never will be. If you run into any resolvable issue worth mentioning, feel free to add it here.
 
 ### Server won't start
-  - Check required env vars: `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, `LITELLM_PROXY_API_BASE`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`
+  - Check required env vars: `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` (and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`)
+  - Verify `mail.toml` (or `MAIL_CONFIG_PATH`) points at the correct swarm source and registry file
   - Verify **Python 3.12+** and dependency install
   
 ### Auth errors
@@ -23,7 +24,7 @@ This list is not exhaustive, and probably never will be. If you run into any res
   
 ### Interswarm routing fails
   - Use `agent@swarm` addressing and register swarms via `/swarms`
-  - Verify `SWARM_NAME`, `BASE_URL`, the registry persistence file, and env var tokens (set them in `mail.toml` or override with environment variables)
+  - Verify swarm name/registry settings in `mail.toml`, the registry persistence file path, and env var tokens (set `SWARM_AUTH_TOKEN_<SWARM>` before startup)
   
 ### SSE stream disconnects
   - Check client and proxy timeouts; events include periodic ping heartbeats

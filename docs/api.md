@@ -15,7 +15,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 
 | Method | Path | Auth required | Request body | Response body | Summary |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, protocol_version, swarm: SwarmInfo, uptime }` | Returns MAIL service metadata and version string. `SwarmInfo` includes `name`, `entrypoint`, `keywords`, and `is_public`. |
+| GET | `/` | None (public) | `None` | `types.GetRootResponse { name, status, protocol_version, swarm: SwarmInfo, uptime }` | Returns MAIL service metadata and version string. `SwarmInfo` includes `name`, `version`, `description`, `entrypoint`, `keywords`, and `public`. |
 | GET | `/status` | `Bearer` token with role `admin` or `user` | `None` | `types.GetStatusResponse { swarm, active_users, user_mail_ready, user_task_running }` | Reports persistent swarm readiness and whether the caller already has a running runtime |
 | GET | `/whoami` | `Bearer` token with role `admin` or `user` | `None` | `types.GetWhoamiResponse { id, role }` | Returns the caller identifier and role associated with the provided token |
 | POST | `/message` | `Bearer` token with role `admin` or `user` | `JSON { subject: str, body: str, msg_type?: str, entrypoint?: str, show_events?: bool, stream?: bool, task_id?: str, resume_from?: str, kwargs?: dict }` | `types.PostMessageResponse { response: str, events?: list[ServerSentEvent] }` (or `text/event-stream` when `stream: true`) | Queues or resumes a user-scoped task; supports breakpoint resumes via `resume_from="breakpoint_tool_call"` and extra kwargs |
@@ -23,14 +23,14 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 | GET | `/task` | `Bearer` token with role `admin` or `user` | `JSON { task_id: str }` | `TaskRecord` | Returns the full record for a single task, including SSE history and queue snapshot |
 | GET | `/health` | None (public) | `None` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Liveness signal used for interswarm discovery |
 | POST | `/health` | `Bearer` token with role `admin` | `JSON { status: str }` | `types.GetHealthResponse { status, swarm_name, timestamp }` | Updates the health status reported to other swarms |
-| GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpointCleaned] }` | Lists swarms known to the local registry. Returns cleaned endpoints (auth tokens hidden) with fields: `swarm_name`, `base_url`, `version`, `last_seen`, `is_active`, `latency`, `swarm_description`, `keywords`, `metadata`. |
+| GET | `/swarms` | None (public) | `None` | `types.GetSwarmsResponse { swarms: list[types.SwarmEndpointCleaned] }` | Lists *public* swarms known to the local registry. Returns cleaned endpoints (auth tokens hidden) with fields: `swarm_name`, `base_url`, `version`, `last_seen`, `is_active`, `latency`, `swarm_description`, `keywords`, `metadata`. |
 | POST | `/swarms` | `Bearer` token with role `admin` | `JSON { name: str, base_url: str, auth_token?: str, metadata?: dict, volatile?: bool }` | `types.PostSwarmsResponse { status, swarm_name }` | Registers a remote swarm (persistent when `volatile` is `False`) |
 | GET | `/swarms/dump` | `Bearer` token with role `admin` | `None` | `types.GetSwarmsDumpResponse { status, swarm_name }` | Logs the configured persistent swarm and returns acknowledgement |
 | POST | `/interswarm/forward` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmForwardResponse { swarm, task_id, status, local_runner }` | Accepts a remote swarm's new-task payload and spawns/attaches a local runtime |
 | POST | `/interswarm/back` | `Bearer` token with role `agent` | `JSON { message: MAILInterswarmMessage }` | `types.PostInterswarmBackResponse { swarm, task_id, status, local_runner }` | Injects a follow-up or completion payload from the remote swarm into the active local runtime |
 | POST | `/interswarm/message` | `Bearer` token with role `admin` or `user` | `JSON { user_token: str, body: str, targets: list[str], subject?: str, msg_type?: Literal["request","broadcast"], task_id?: str, routing_info?: dict, stream?: bool, ignore_stream_pings?: bool }` | `types.PostInterswarmMessageResponse { response: MAILMessage, events?: list[ServerSentEvent] }` | Proxies a user/admin task to a remote swarm using the caller's runtime and interswarm router |
 | POST | `/swarms/load` | `Bearer` token with role `admin` | `JSON { json: str }` (serialized swarm template) | `types.PostSwarmsLoadResponse { status, swarm_name }` | Replaces the persistent swarm template using a JSON document |
-| POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { api_key: str, input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
+| POST | `/responses` | `Bearer` token with role `admin` or `user` (debug mode only) | `JSON { input: list[dict], tools: list[dict], instructions?: str, previous_response_id?: str, tool_choice?: str \| dict, parallel_tool_calls?: bool, kwargs?: dict }` | `openai.types.responses.Response` | OpenAI Responses-compatible bridge available when the server runs with `debug` enabled; not included in the public OpenAPI spec |
 
 **TaskRecord** aligns with [`mail.core.tasks.MAILTask`](/src/mail/core/tasks.py):
 - `task_id`, `task_owner`, `task_contributors`, `start_time`, `is_running`, `completed`, `remote_swarms` summarise runtime status
@@ -41,12 +41,12 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 ### SSE streaming
 - `POST /message` with `stream: true` yields a `text/event-stream`
 - **Events** include periodic `ping` heartbeats and terminate with `task_complete` carrying the final serialized response
-- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
+- When resuming a task from a breakpoint tool call, provide `resume_from="breakpoint_tool_call"` and include `breakpoint_tool_call_result` inside `kwargs`. Pass a JSON string, dict, or list that represents either a single tool response (`{"content": "..."}`) or a list of responses (`[{"call_id": "...", "content": "..."}]`) so the runtime can fan the outputs back to the corresponding breakpoint tool calls.
 - `POST /interswarm/message` accepts the same customization flags as local messaging. Use `msg_type="request"` with a single-element `targets` list, or `msg_type="broadcast"` with one or more entries. Include `stream` / `ignore_stream_pings` to mirror local streaming; the server copies those hints into the interswarm `routing_info` it sends downstream.
 
 ### Debug mode & OpenAI compatibility
 - Enabling server debug mode (`mail server --debug` or `[server].debug = true`) bootstraps a `SwarmOAIClient` alongside the FastAPI app so it can mirror OpenAI's `/responses` API.
-- `POST /responses` expects the caller's `api_key` plus the OpenAI-style `input`, `tools`, `instructions`, `previous_response_id`, and other optional fields. The API key is used to hydrate or reuse the caller's MAIL runtime before piping the request into the OpenAI bridge.
+- `POST /responses` expects the OpenAI-style `input`, `tools`, `instructions`, `previous_response_id`, and other optional fields. The caller is authenticated via the normal `Authorization: Bearer ...` header, which is used to hydrate or reuse the caller's MAIL runtime before piping the request into the OpenAI bridge.
 - Responses conform to `openai.types.responses.Response`, letting you plug a MAIL swarm behind clients or SDKs that already speak the OpenAI Responses protocol. Because it is debug-only, the route is hidden from the generated OpenAPI document.
 - Wrap it from code via `MAILClient.debug_post_responses(...)` or from the REPL using `mail client responses …` (see [client.md](/docs/client.md) and [cli.md](/docs/cli.md) for usage).
 
@@ -107,7 +107,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAction` (`mail.api`)
 - **Summary**: Describes an action/tool exposed by an agent; wraps a callable with metadata for OpenAI tools.
-- **Constructor parameters**: `name: str`, `description: str`, `parameters: dict[str, Any]` (JSONSchema-like), `function: str` (dotted `module:function`).
+- **Constructor parameters**: `name: str`, `description: str`, `parameters: dict[str, Any]` (JSONSchema-like), `function: str | ActionFunction` (import string or callable).
 - **Key methods**:
   - `from_pydantic_model(model, function_str, name?, description?) -> MAILAction`: build from a Pydantic model definition.
   - `from_swarm_json(json_str) -> MAILAction`: rebuild from persisted `swarms.json` entries.
@@ -142,7 +142,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAgent` (`mail.api`)
 - **Summary**: Concrete runtime agent produced by an agent factory and associated actions.
-- **Constructor parameters**: `name: str`, `factory: str | Callable`, `actions: list[MAILAction]`, `function: AgentFunction`, `comm_targets: list[str]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
+- **Constructor parameters**: `name: str`, `factory: str | Callable`, `actions: list[MAILAction]`, `function: AgentFunction`, `comm_targets: list[str]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`, `exclude_tools: list[str] | None = None`.
 - **Key methods**:
   - `__call__(messages, tool_choice="required") -> Awaitable[tuple[str | None, list[AgentToolCall]]]`: execute the agent implementation.
   - `_to_template(names: list[str]) -> MAILAgentTemplate`: internal helper that trims targets for sub-swarms.
@@ -151,7 +151,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAgentTemplate` (`mail.api`)
 - **Summary**: Declarative agent description used for persistence, cloning, and factory instantiation.
-- **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`.
+- **Constructor parameters**: `name: str`, `factory: str | Callable`, `comm_targets: list[str]`, `actions: list[MAILAction]`, `agent_params: dict[str, Any]`, `enable_entrypoint: bool = False`, `enable_interswarm: bool = False`, `can_complete_tasks: bool = False`, `tool_format: Literal["completions", "responses"] = "responses"`, `exclude_tools: list[str] | None = None`.
 - **Key methods**:
   - `instantiate(instance_params: dict[str, Any]) -> MAILAgent`: load the factory and produce a concrete `MAILAgent`.
   - `from_swarm_json(json_str, actions_by_name: dict[str, MAILAction] | None = None) -> MAILAgentTemplate`: rebuild from `swarms.json` entries, optionally supplying pre-built actions to resolve `actions` references efficiently.
@@ -162,7 +162,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
-- **Constructor parameters**: `name: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default_user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`.
+- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default"`, `user_role: Literal["admin","agent","user"] = "user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `enable_db_agent_histories: bool = False`.
 - **Key methods**:
   - `post_message(...)`, `post_message_stream(...)`, `post_message_and_run(...)`: enqueue user requests (optionally streaming or running to completion).
   - `submit_message(...)`, `submit_message_stream(...)`: submit fully-formed `MAILMessage` envelopes.
@@ -178,9 +178,9 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 #### `MAILSwarmTemplate` (`mail.api`)
 - **Summary**: Immutable swarm blueprint comprised of `MAILAgentTemplate`s and shared actions.
 - **Notes**: Inline definitions from `actions` may be combined with `action_imports` that resolve to decorated `MAILAction` objects (e.g., from `mail.stdlib`).
-- **Constructor parameters**: `name: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`.
+- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `public: bool = False`, `enable_db_agent_histories: bool = False`.
 - **Key methods**:
-  - `instantiate(instance_params, user_id?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
+  - `instantiate(instance_params, user_id?, user_role?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
   - `get_subswarm(names, name_suffix, entrypoint?) -> MAILSwarmTemplate`: filter agents into a smaller template while preserving supervisors and entrypoints.
   - `update_from_adjacency_matrix(adj: list[list[int]]) -> None`: sync template wiring back to `comm_targets` for each agent.
   - `from_swarm_json(json_str) -> MAILSwarmTemplate` / `from_swarm_json_file(swarm_name, json_filepath?) -> MAILSwarmTemplate`: rebuild from persisted JSON.
@@ -188,14 +188,14 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `AgentToolCall` (`mail.core.tools`)
 - **Summary**: Pydantic model capturing the outcome of an OpenAI tool invocation.
-- **Fields**: `tool_name: str`, `tool_args: dict[str, Any]`, `tool_call_id: str`, `completion: dict[str, Any]`, `responses: list[dict[str, Any]]`.
+- **Fields**: `tool_name: str`, `tool_args: dict[str, Any]`, `tool_call_id: str`, `completion: dict[str, Any]`, `responses: list[dict[str, Any]]`, `reasoning: list[str] | None`, `preamble: str | None`.
 - **Key methods**:
   - `create_response_msg(content: str) -> dict[str, str]`: format a response payload for completions or responses API.
   - `model_validator` (after-init) enforces that either `completion` or `responses` is populated.
 
 #### `MAILRuntime` (`mail.core.runtime`)
 - **Summary**: Asynchronous runtime that owns the internal message queue, tool execution, and optional interswarm router.
-- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `swarm_name: str = "example"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `entrypoint: str = "supervisor"`.
+- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `user_role: Literal["admin","agent","user"]`, `swarm_name: str = "example"`, `entrypoint: str = "supervisor"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] | None = None`, `exclude_tools: list[str] | None = None`, `enable_db_agent_histories: bool = False`.
 - Pass the lower-level `AgentCore` / `ActionCore` objects (for example via `MAILAgent.to_core()` and `MAILAction.to_core()`) when instantiating the runtime directly.
 - **Key methods**:
   - `start_interswarm()`, `stop_interswarm()`, `is_interswarm_running()`.
@@ -208,7 +208,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `SwarmRegistry` (`mail.net.registry`)
 - **Summary**: Tracks known swarm endpoints, performs health checks, and persists non-volatile registrations.
-- **Constructor parameters**: `local_swarm_name: str`, `local_base_url: str`, `persistence_file: str | None = None`.
+- **Constructor parameters**: `local_swarm_name: str`, `local_base_url: str`, `persistence_file: str | None = None`, `local_swarm_description: str = ""`, `local_swarm_keywords: list[str] | None = None`, `local_swarm_public: bool = False`.
 - **Key methods**:
   - `register_local_swarm(base_url)`, `register_swarm(...)`, `unregister_swarm(swarm_name)`.
   - `get_swarm_endpoint(swarm_name)`, `get_resolved_auth_token(swarm_name)`, `get_all_endpoints()`, `get_active_endpoints()`, `get_persistent_endpoints()`.
@@ -231,7 +231,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 #### `MAILAddress`
 ```python
 { 
-    address_type: Literal["agent", "user", "system"], 
+    address_type: Literal["admin", "agent", "user", "system"], 
     address: str 
 }
 ```
@@ -297,6 +297,8 @@ The Python surface is designed for embedding MAIL inside other applications, bui
     message_id: str,
     source_swarm: str, target_swarm: str,
     timestamp: str,
+    task_owner: str,
+    task_contributors: list[str],
     payload: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt,
     msg_type: Literal["request", "response", "broadcast", "interrupt"],
     auth_token: str | None,

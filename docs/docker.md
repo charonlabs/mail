@@ -31,13 +31,11 @@ COPY src ./src
 COPY spec ./spec
 COPY docs ./docs
 
-# Default configuration; override via `docker run -e` or compose files
+# Default configuration; override via `mail.toml`/`MAIL_CONFIG_PATH` or CLI flags
 ENV PORT=8000 \
     AUTH_ENDPOINT=http://auth.local/login \
     TOKEN_INFO_ENDPOINT=http://auth.local/token-info \
-    LITELLM_PROXY_API_BASE=http://litellm.local \
-    SWARM_NAME=example-no-proxy \
-    BASE_URL=http://localhost:8000
+    LITELLM_PROXY_API_BASE=http://litellm.local
 
 EXPOSE 8000
 CMD ["uv", "run", "mail", "server", "--host", "0.0.0.0", "--port", "8000"]
@@ -53,7 +51,7 @@ docker build -t mail-server .
 The build context must contain the repository so that the `COPY` commands pick up the source and configuration files.
 
 ## Run the container
-The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, `LITELLM_PROXY_API_BASE`, and optional swarm overrides). Pass them via `--env` flags or an env file:
+The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`). Pass them via `--env` flags or an env file. To change swarm name/source/registry, mount a custom `mail.toml` and set `MAIL_CONFIG_PATH` or pass `mail server --swarm-name/--swarm-source/--swarm-registry` in the container command.
 
 ```bash
 # Option 1: export locally then forward with --env
@@ -66,7 +64,6 @@ docker run --rm \
   -e AUTH_ENDPOINT \
   -e TOKEN_INFO_ENDPOINT \
   -e LITELLM_PROXY_API_BASE \
-  -e BASE_URL="https://your-hostname" \
   mail-server
 ```
 
@@ -76,8 +73,6 @@ cat <<'ENVVARS' > .env.mail
 AUTH_ENDPOINT=http://127.0.0.1:8999/login
 TOKEN_INFO_ENDPOINT=http://127.0.0.1:8999/token-info
 LITELLM_PROXY_API_BASE=http://127.0.0.1:8080
-BASE_URL=https://your-hostname
-SWARM_NAME=example-no-proxy
 ENVVARS
 
 docker run --rm -p 8000:8000 --env-file .env.mail mail-server

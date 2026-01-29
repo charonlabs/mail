@@ -21,7 +21,7 @@
 - `send_request(target, subject, body)` → emits a `MAILRequest` to a validated in-swarm target; when the agent template enables interswarm the `target` accepts the `agent@swarm` form.
 - `send_response(target, subject, body)` → mirrors `send_request` but produces a `MAILResponse`, letting agents continue existing conversations.
 - `send_interrupt(target, subject, body)` → issues a `MAILInterrupt` so supervisors can pause or redirect downstream agents.
-- `send_broadcast(subject, body)` → fans a `MAILBroadcast` out to every agent in the local swarm.
+- `send_broadcast(subject, body, targets)` → schema includes `targets`, but the runtime currently ignores it and broadcasts to every agent in the local swarm.
 - `acknowledge_broadcast(note=None)` → records the broadcast in agent memory without replying; the optional note stays internal.
 - `ignore_broadcast(reason=None)` → explicitly drops the broadcast and skips both memory storage and outbound mail; optional reason is internal only.
 - `await_message(reason=None)` → signals that the agent has no further output this turn and should be rescheduled when new mail arrives; an optional reason is surfaced in SSE events and tool-call history for debugging.

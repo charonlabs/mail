@@ -10,8 +10,8 @@ This repo includes example agents and demo scripts you can run locally.
 - **Analyst**: [src/mail/examples/analyst_dummy/](/src/mail/examples/analyst_dummy/__init__.py)
 
 ## Agent functions and factories
-- **Agent functions** in [src/mail/factories/](/src/mail/factories/__init__.py) represent MAIL-compatible agent callables, with factories in `__init__` and agent functions in `__call__`
-- **Agent factories** in [src/mail/factories/](/src/mail/factories/__init__.py) build agent callables used by `MAILAgentTemplate`
+- **Agent factories** in [src/mail/factories/](/src/mail/factories/__init__.py) are classes/functions that construct MAIL-compatible agent callables used by `MAILAgentTemplate`.
+- For class-based factories (e.g., `LiteLLMAgentFunction`), the instantiated object's `__call__` method is the agent function the runtime schedules.
 
 ## Demo scripts
 - **Single swarm**: [scripts/single_swarm_demo.py](/scripts/single_swarm_demo.py)
