@@ -117,7 +117,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     """
     data = {
         "name": "myswarm",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "description": "demo swarm",
         "keywords": ["demo", "mail"],
         "public": True,
@@ -186,7 +186,7 @@ def test_swarm_level_exclude_tools_union() -> None:
 
     swarm_template = MAILSwarmTemplate(
         name="myswarm",
-        version="1.3.0",
+        version="1.3.1",
         agents=[agent_template],
         actions=[],
         entrypoint="supervisor",
@@ -208,7 +208,7 @@ def test_agent_params_prefixed_python_strings_resolved() -> None:
     """
     data = {
         "name": "myswarm",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "agents": [
             {
                 "name": "supervisor",
@@ -244,7 +244,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
 
     base = {
         "name": "x",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "agents": [],
         "actions": [],
         "entrypoint": "supervisor",
@@ -266,7 +266,7 @@ def test_from_swarm_json_wrong_types_raise() -> None:
 
     bad = {
         "name": 123,
-        "version": "1.3.0",
+        "version": "1.3.1",
         "agents": {},
         "actions": {},
         "entrypoint": 999,
@@ -288,14 +288,14 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     contents = [
         {
             "name": "other",
-            "version": "1.3.0",
+            "version": "1.3.1",
             "agents": [],
             "actions": [],
             "entrypoint": "s",
         },
         {
             "name": "target",
-            "version": "1.3.0",
+            "version": "1.3.1",
             "agents": [
                 {
                     "name": "supervisor",
@@ -369,7 +369,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
 
     swarm = MAILSwarm(
         name="myswarm",
-        version="1.3.0",
+        version="1.3.1",
         agents=[
             MAILAgent(
                 name="supervisor",
@@ -420,7 +420,7 @@ async def test_post_message_stream_headers_and_type() -> None:
 
     swarm = MAILSwarm(
         name="myswarm",
-        version="1.3.0",
+            version="1.3.1",
         agents=[
             MAILAgent(
                 name="supervisor",
@@ -460,7 +460,7 @@ def test_build_message_request_validation() -> None:
 
     swarm = MAILSwarm(
         name="myswarm",
-        version="1.3.0",
+        version="1.3.1",
         agents=[
             MAILAgent(
                 name="supervisor",
@@ -691,7 +691,7 @@ def test_swarm_template_action_imports_populate_actions() -> None:
     """
     swarm_candidate = {
         "name": "imported",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "entrypoint": "alpha",
         "agents": [
             {
@@ -730,7 +730,7 @@ def test_swarm_template_action_imports_duplicate_names_raise() -> None:
     """
     swarm_candidate = {
         "name": "imported",
-        "version": "1.3.0",
+        "version": "1.3.1",
         "entrypoint": "alpha",
         "agents": [
             {
