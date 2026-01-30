@@ -748,6 +748,7 @@ class MAILSwarm:
         description: str = "",
         keywords: list[str] = [],
         enable_db_agent_histories: bool = False,
+        print_llm_streams: bool = True,
     ) -> None:
         self.name = name
         self.version = version
@@ -763,6 +764,7 @@ class MAILSwarm:
         self.task_message_limit = task_message_limit
         self.description = description
         self.keywords = keywords
+        self.print_llm_streams = print_llm_streams
         self.adjacency_matrix, self.agent_names = self._build_adjacency_matrix()
         self.supervisors = [agent for agent in agents if agent.can_complete_tasks]
         self._agent_cores = {agent.name: agent.to_core() for agent in agents}
@@ -778,6 +780,7 @@ class MAILSwarm:
             breakpoint_tools=breakpoint_tools,
             exclude_tools=exclude_tools,
             enable_db_agent_histories=enable_db_agent_histories,
+            print_llm_streams=print_llm_streams,
         )
         self._validate()
 
@@ -1543,6 +1546,7 @@ class MAILSwarmTemplate:
         user_role: Literal["admin", "agent", "user"] = "user",
         base_url: str = "http://localhost:8000",
         registry_file: str | None = None,
+        print_llm_streams: bool = True,
     ) -> MAILSwarm:
         """
         Instantiate a MAILSwarm from a MAILSwarmTemplate.
@@ -1638,6 +1642,7 @@ class MAILSwarmTemplate:
             description=self.description,
             keywords=self.keywords,
             enable_db_agent_histories=self.enable_db_agent_histories,
+            print_llm_streams=print_llm_streams,
         )
 
     def get_subswarm(

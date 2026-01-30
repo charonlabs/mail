@@ -57,6 +57,7 @@ def base_agent_factory(
     memory: bool = True,
     use_proxy: bool = True,
     stream_tokens: bool = False,
+    print_llm_streams: bool = True,
     _debug_include_mail_tools: bool = True,
     default_tool_choice: str | dict[str, str] | None = None,
 ) -> AgentFunction:
@@ -85,6 +86,7 @@ def base_agent_factory(
         memory=memory,
         use_proxy=use_proxy,
         stream_tokens=stream_tokens,
+        print_llm_streams=print_llm_streams,
         _debug_include_mail_tools=_debug_include_mail_tools,
         default_tool_choice=default_tool_choice,
     )
@@ -101,6 +103,8 @@ def base_agent_factory(
             messages=messages,
             tool_choice=tool_choice,
         )
+
+    run._mail_agent = litellm_agent  # type: ignore[attr-defined]
 
     return run
 
@@ -168,6 +172,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         memory: bool = True,
         use_proxy: bool = True,
         stream_tokens: bool = False,
+        print_llm_streams: bool = True,
         _debug_include_mail_tools: bool = True,
         default_tool_choice: str | dict[str, str] | None = None,
     ) -> None:
@@ -219,6 +224,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         self.memory = memory
         self.use_proxy = use_proxy
         self.stream_tokens = stream_tokens
+        self.print_llm_streams = print_llm_streams
         self._debug_include_mail_tools = _debug_include_mail_tools
         self.default_tool_choice = default_tool_choice
 
@@ -903,32 +909,37 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
                         if block_type == "thinking":
                             if not is_reasoning:
-                                rich.print(
-                                    f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
-                                )
+                                if self.print_llm_streams:
+                                    rich.print(
+                                        f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                                    )
                                 is_reasoning = True
 
                         elif block_type == "redacted_thinking":
                             # Redacted thinking blocks contain encrypted content
                             if not is_reasoning:
-                                rich.print(
-                                    f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
-                                )
+                                if self.print_llm_streams:
+                                    rich.print(
+                                        f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                                    )
                                 is_reasoning = True
-                            rich.print("[redacted thinking]", flush=True)
+                            if self.print_llm_streams:
+                                rich.print("[redacted thinking]", flush=True)
 
                         elif block_type == "server_tool_use":
                             if not is_searching:
-                                rich.print(
-                                    f"\n\n[bold yellow]{'=' * 21} WEB SEARCH {'=' * 21}[/bold yellow]\n\n"
-                                )
+                                if self.print_llm_streams:
+                                    rich.print(
+                                        f"\n\n[bold yellow]{'=' * 21} WEB SEARCH {'=' * 21}[/bold yellow]\n\n"
+                                    )
                                 is_searching = True
 
                         elif block_type == "text":
                             if not is_response:
-                                rich.print(
-                                    f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
-                                )
+                                if self.print_llm_streams:
+                                    rich.print(
+                                        f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                                    )
                                 is_response = True
 
                     elif event_type == "content_block_delta":
@@ -938,10 +949,12 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
                         if delta_type == "thinking_delta":
                             assert isinstance(delta, ThinkingDelta)
-                            print(delta.thinking, end="", flush=True)
+                            if self.print_llm_streams:
+                                print(delta.thinking, end="", flush=True)
                         elif delta_type == "text_delta":
                             assert isinstance(delta, TextDelta)
-                            print(delta.text, end="", flush=True)
+                            if self.print_llm_streams:
+                                print(delta.text, end="", flush=True)
 
                 # Get the final message with full content
                 final_message = await stream.get_final_message()
@@ -1128,18 +1141,22 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             delta = chunk.choices[0].delta
             if getattr(delta, "reasoning_content", None) is not None:
                 if not is_reasoning:
-                    rich.print(
-                        f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
-                    )
+                    if self.print_llm_streams:
+                        rich.print(
+                            f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                        )
                     is_reasoning = True
-                rich.print(delta.reasoning_content, end="", flush=True)
+                if self.print_llm_streams:
+                    rich.print(delta.reasoning_content, end="", flush=True)
             elif getattr(delta, "content", None) is not None:
                 if not is_response:
-                    rich.print(
-                        f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
-                    )
+                    if self.print_llm_streams:
+                        rich.print(
+                            f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                        )
                     is_response = True
-                rich.print(delta.content, end="", flush=True)
+                if self.print_llm_streams:
+                    rich.print(delta.content, end="", flush=True)
             chunks.append(chunk)
 
         final_completion = litellm.stream_chunk_builder(chunks, messages=messages)
@@ -1468,17 +1485,20 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         async for event in stream:
             match event.type:
                 case "response.created":
-                    rich.print(
-                        f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
-                    )
+                    if self.print_llm_streams:
+                        rich.print(
+                            f"\n\n[bold green]{'=' * 21} REASONING {'=' * 21}[/bold green]\n\n"
+                        )
                 case "response.reasoning_summary_text.delta":
                     # Stream reasoning text and accumulate for mapping
-                    rich.print(event.delta, end="", flush=True)
+                    if self.print_llm_streams:
+                        rich.print(event.delta, end="", flush=True)
                     current_reasoning_text.append(event.delta)
 
                 case "response.reasoning_summary_part.done":
                     # Reasoning part complete - finalize the block
-                    rich.print("\n\n")
+                    if self.print_llm_streams:
+                        rich.print("\n\n")
                     if current_reasoning_text:
                         pending_reasoning_parts.append("".join(current_reasoning_text))
                         current_reasoning_text = []
@@ -1512,12 +1532,14 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         pending_reasoning_parts = []
 
                     if item_type == "message":
-                        rich.print(
-                            f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
-                        )
+                        if self.print_llm_streams:
+                            rich.print(
+                                f"\n\n[bold blue]{'=' * 21} RESPONSE {'=' * 21}[/bold blue]\n\n"
+                            )
 
                 case "response.output_text.delta":
-                    rich.print(event.delta, end="", flush=True)
+                    if self.print_llm_streams:
+                        rich.print(event.delta, end="", flush=True)
 
                 case "response.completed":
                     # Defensive: flush any remaining reasoning text

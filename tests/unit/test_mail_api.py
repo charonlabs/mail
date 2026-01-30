@@ -31,6 +31,7 @@ class FakeMAILRuntime:
         breakpoint_tools: list[str] | None = None,  # noqa: ARG002
         exclude_tools: list[str] | None = None,  # noqa: ARG002
         enable_db_agent_histories: bool = False,  # noqa: ARG002
+        print_llm_streams: bool = True,
     ) -> None:
         self.agents = agents
         self.actions = actions
@@ -42,7 +43,8 @@ class FakeMAILRuntime:
         self._events: dict[str, list[Any]] = {}
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
-
+        self.print_llm_streams = print_llm_streams
+        
     @pytest.mark.asyncio
     async def submit_and_wait(
         self,
