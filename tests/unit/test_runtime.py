@@ -111,6 +111,48 @@ def _make_interrupt(task_id: str) -> MAILMessage:
     )
 
 
+def test_runtime_applies_print_llm_streams_to_agent_functions() -> None:
+    """
+    MAILRuntime should propagate print_llm_streams to agent functions.
+    """
+
+    class DummyInnerAgent:
+        def __init__(self) -> None:
+            self.print_llm_streams = True
+
+        async def __call__(
+            self, _history: list[dict[str, Any]], _tool_choice: str
+        ) -> tuple[None, list[AgentToolCall]]:
+            return None, []
+
+    class DummyWrapperAgent:
+        def __init__(self, inner: DummyInnerAgent) -> None:
+            self.print_llm_streams = True
+            self._mail_agent = inner
+
+        async def __call__(
+            self, _history: list[dict[str, Any]], _tool_choice: str
+        ) -> tuple[None, list[AgentToolCall]]:
+            return None, []
+
+    inner = DummyInnerAgent()
+    wrapper = DummyWrapperAgent(inner)
+
+    runtime = MAILRuntime(
+        agents={"agent": AgentCore(function=wrapper, comm_targets=[])},
+        actions={},
+        user_id="u-1",
+        user_role="user",
+        swarm_name="myswarm",
+        entrypoint="agent",
+        print_llm_streams=False,
+    )
+
+    assert runtime.print_llm_streams is False
+    assert wrapper.print_llm_streams is False
+    assert inner.print_llm_streams is False
+
+
 @pytest.mark.asyncio
 async def test_submit_prioritizes_message_types() -> None:
     """
