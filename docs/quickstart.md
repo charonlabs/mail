@@ -13,7 +13,7 @@ This guide gets you running a local MAIL swarm and interacting with it.
 ### Cloning the repo
 ```bash
 git clone https://github.com/charonlabs/mail.git \
---branch v1.3.2
+--branch v1.3.3
 ```
 
 ### Installing dependencies

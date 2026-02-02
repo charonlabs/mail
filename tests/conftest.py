@@ -192,7 +192,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
 
     stub_swarm = MAILSwarmTemplate(
-        version="1.3.2",
+        version="1.3.3",
         name=os.getenv("SWARM_NAME", "example"),
         agents=[
             MAILAgentTemplate(
