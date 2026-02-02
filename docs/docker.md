@@ -51,7 +51,7 @@ docker build -t mail-server .
 The build context must contain the repository so that the `COPY` commands pick up the source and configuration files.
 
 ## Run the container
-The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`). Pass them via `--env` flags or an env file. To change swarm name/source/registry, mount a custom `mail.toml` and set `MAIL_CONFIG_PATH` or pass `mail server --swarm-name/--swarm-source/--swarm-registry` in the container command.
+The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`). Pass them via `--env` flags or an env file. To change swarm name/source/registry or runtime LLM stream-print behavior, mount a custom `mail.toml` and set `MAIL_CONFIG_PATH` or pass `mail server` flags such as `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false` in the container command.
 
 ```bash
 # Option 1: export locally then forward with --env

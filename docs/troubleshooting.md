@@ -31,6 +31,7 @@ This list is not exhaustive, and probably never will be. If you run into any res
 
 ## Logs
 - **Enable logging** to debug flow and events
+- If model reasoning/token stream output is too noisy in server logs, set `[server.settings].print_llm_streams = false` (or launch with `mail server --print-llm-streams false`)
 - See [src/mail/utils/logger.py](/src/mail/utils/logger.py) for initialization
 
 ## Where to ask

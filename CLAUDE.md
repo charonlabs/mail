@@ -185,6 +185,7 @@ registry_file = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
+print_llm_streams = true
 ```
 
 **Environment variables:**
@@ -266,6 +267,7 @@ The file contains a **JSON array** of swarm definitions. Required fields: `name`
 - `reasoning_effort` - "minimal", "low", "medium", "high"
 - `thinking_budget` - Token budget for extended thinking
 - `stream_tokens` - Stream output to terminal
+- `print_llm_streams` - Print streamed reasoning/response chunks when streaming; runtime-level `print_llm_streams` can override this globally
 
 Note: `tool_format` should be a top-level agent field. If placed in agent_params, a deprecation warning is logged.
 

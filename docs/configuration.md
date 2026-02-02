@@ -20,6 +20,7 @@ registry = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
+print_llm_streams = true
 
 [client]
 timeout = 3600.0
@@ -28,10 +29,10 @@ verbose = false
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`) and whether debug-only integrations are exposed (`debug`).
 - The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry` or `registry_file`), and the runtime swarm name (`name`).
-- The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
+- The `[server.settings]` table exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control, and `print_llm_streams`, which controls whether runtime-managed agents print LLM reasoning/response stream output to the server console. Set `print_llm_streams = false` for quieter logs (SSE event streaming is unchanged).
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
-- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--debug`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
+- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--debug`, `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
 - The CLI command `mail client` honors `timeout` from `[client]` and allows `--timeout` to override it per invocation.
 - Set `MAIL_CONFIG_PATH` to point at an alternate `mail.toml` (for example per environment). `mail server --config /path/to/mail.toml` temporarily overrides this variable for the lifetime of the command.
 - Toggle `[server].debug` (or pass `mail server --debug`) when you need the optional OpenAI-compatible `/responses` endpoint or other debug helpers exposed by the FastAPI app. Leave it `false` for production deployments to keep the surface minimal.

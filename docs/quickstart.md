@@ -26,7 +26,7 @@ pip install -e .
 ```
 
 ## Environment & Config
-- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings.task_message_limit]`. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
+- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings]` values (`task_message_limit`, `print_llm_streams`). Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access only when `use_proxy=true`

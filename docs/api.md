@@ -162,7 +162,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
-- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default"`, `user_role: Literal["admin","agent","user"] = "user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `enable_db_agent_histories: bool = False`.
+- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default"`, `user_role: Literal["admin","agent","user"] = "user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `enable_db_agent_histories: bool = False`, `print_llm_streams: bool = True`.
 - **Key methods**:
   - `post_message(...)`, `post_message_stream(...)`, `post_message_and_run(...)`: enqueue user requests (optionally streaming or running to completion).
   - `submit_message(...)`, `submit_message_stream(...)`: submit fully-formed `MAILMessage` envelopes.
@@ -180,7 +180,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Notes**: Inline definitions from `actions` may be combined with `action_imports` that resolve to decorated `MAILAction` objects (e.g., from `mail.stdlib`).
 - **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `public: bool = False`, `enable_db_agent_histories: bool = False`.
 - **Key methods**:
-  - `instantiate(instance_params, user_id?, user_role?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
+  - `instantiate(instance_params, user_id?, user_role?, base_url?, registry_file?, print_llm_streams?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
   - `get_subswarm(names, name_suffix, entrypoint?) -> MAILSwarmTemplate`: filter agents into a smaller template while preserving supervisors and entrypoints.
   - `update_from_adjacency_matrix(adj: list[list[int]]) -> None`: sync template wiring back to `comm_targets` for each agent.
   - `from_swarm_json(json_str) -> MAILSwarmTemplate` / `from_swarm_json_file(swarm_name, json_filepath?) -> MAILSwarmTemplate`: rebuild from persisted JSON.
@@ -195,8 +195,9 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILRuntime` (`mail.core.runtime`)
 - **Summary**: Asynchronous runtime that owns the internal message queue, tool execution, and optional interswarm router.
-- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `user_role: Literal["admin","agent","user"]`, `swarm_name: str = "example"`, `entrypoint: str = "supervisor"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] | None = None`, `exclude_tools: list[str] | None = None`, `enable_db_agent_histories: bool = False`.
+- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `user_role: Literal["admin","agent","user"]`, `swarm_name: str = "example"`, `entrypoint: str = "supervisor"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] | None = None`, `exclude_tools: list[str] | None = None`, `enable_db_agent_histories: bool = False`, `print_llm_streams: bool = True`.
 - Pass the lower-level `AgentCore` / `ActionCore` objects (for example via `MAILAgent.to_core()` and `MAILAction.to_core()`) when instantiating the runtime directly.
+- `print_llm_streams` is applied recursively to known agent-function wrappers (`supervisor_fn`, `action_agent_fn`, `_mail_agent`) so a runtime can centrally suppress local LLM stream printing without changing each agent definition.
 - **Key methods**:
   - `start_interswarm()`, `stop_interswarm()`, `is_interswarm_running()`.
   - `handle_interswarm_response(response_message)` and internal `_handle_local_message(message)`.
