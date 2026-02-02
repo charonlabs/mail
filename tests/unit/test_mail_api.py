@@ -31,6 +31,7 @@ class FakeMAILRuntime:
         breakpoint_tools: list[str] | None = None,  # noqa: ARG002
         exclude_tools: list[str] | None = None,  # noqa: ARG002
         enable_db_agent_histories: bool = False,  # noqa: ARG002
+        print_llm_streams: bool = True,
     ) -> None:
         self.agents = agents
         self.actions = actions
@@ -42,7 +43,8 @@ class FakeMAILRuntime:
         self._events: dict[str, list[Any]] = {}
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
-
+        self.print_llm_streams = print_llm_streams
+        
     @pytest.mark.asyncio
     async def submit_and_wait(
         self,
@@ -155,6 +157,38 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
     assert tmpl.description == "demo swarm"
     assert tmpl.keywords == ["demo", "mail"]
     assert tmpl.public is True
+
+
+def test_swarm_instantiate_sets_print_llm_streams() -> None:
+    """
+    Instantiate should pass through print_llm_streams to the runtime.
+    """
+    agent_template = MAILAgentTemplate(
+        name="supervisor",
+        factory=make_stub_agent,
+        comm_targets=["supervisor"],
+        actions=[],
+        agent_params={},
+        enable_entrypoint=True,
+        can_complete_tasks=True,
+    )
+
+    swarm_template = MAILSwarmTemplate(
+        name="myswarm",
+        version="1.3.2",
+        agents=[agent_template],
+        actions=[],
+        entrypoint="supervisor",
+    )
+
+    swarm = swarm_template.instantiate(
+        instance_params={},
+        user_id="tester",
+        print_llm_streams=False,
+    )
+
+    assert isinstance(swarm._runtime, FakeMAILRuntime)
+    assert swarm._runtime.print_llm_streams is False
 
 
 def test_swarm_level_exclude_tools_union() -> None:

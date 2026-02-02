@@ -182,6 +182,7 @@ registry_file = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
+print_llm_streams = true
 ```
 
 Environment variables:
@@ -258,6 +259,7 @@ Common `agent_params`:
 - `reasoning_effort` - "minimal", "low", "medium", "high"
 - `thinking_budget` - Token budget for extended thinking
 - `stream_tokens` - Stream output to terminal
+- `print_llm_streams` - Print streamed reasoning/response chunks when streaming; runtime-level `print_llm_streams` can override this globally
 
 Note: `tool_format` is top-level, not inside `agent_params`.
 

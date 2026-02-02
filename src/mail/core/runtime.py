@@ -94,6 +94,7 @@ class MAILRuntime:
         breakpoint_tools: list[str] | None = None,
         exclude_tools: list[str] | None = None,
         enable_db_agent_histories: bool = False,
+        print_llm_streams: bool = True,
     ):
         # Use a priority queue with a deterministic tiebreaker to avoid comparing dicts
         # Structure: (priority, seq, message)
@@ -142,6 +143,7 @@ class MAILRuntime:
         self.manual_return_events: dict[str, asyncio.Event] = defaultdict(asyncio.Event)
         self.manual_return_messages: dict[str, MAILMessage | None] = defaultdict(None)
         self.exclude_tools = list(exclude_tools or [])
+        self.print_llm_streams = print_llm_streams
         self.response_messages: dict[str, MAILMessage] = {}
         self.last_breakpoint_caller: dict[str, str] = {}
         self.last_breakpoint_tool_calls: dict[str, list[AgentToolCall]] = {}
@@ -151,6 +153,42 @@ class MAILRuntime:
         self.outstanding_requests: dict[str, dict[str, int]] = defaultdict(
             lambda: defaultdict(int)
         )
+        self._apply_llm_stream_settings()
+
+    def _apply_llm_stream_settings(self) -> None:
+        """
+        Best-effort propagation of LLM stream print settings to agent functions.
+        """
+        seen: set[int] = set()
+        for agent in self.agents.values():
+            self._set_llm_stream_setting(agent.function, seen)
+
+    def _set_llm_stream_setting(
+        self, fn: Any, seen: set[int], value: bool | None = None
+    ) -> None:
+        """
+        Recursively apply print_llm_streams to known agent function wrappers.
+        """
+        if fn is None:
+            return
+        fn_id = id(fn)
+        if fn_id in seen:
+            return
+        seen.add(fn_id)
+        stream_value = self.print_llm_streams if value is None else value
+
+        if hasattr(fn, "print_llm_streams"):
+            try:
+                setattr(fn, "print_llm_streams", stream_value)
+            except Exception:  # pragma: no cover - defensive
+                logger.debug(
+                    f"{self._log_prelude()} unable to update print_llm_streams on {fn}"
+                )
+
+        for attr in ("supervisor_fn", "action_agent_fn", "_mail_agent"):
+            inner = getattr(fn, attr, None)
+            if inner is not None:
+                self._set_llm_stream_setting(inner, seen, stream_value)
 
     def _log_prelude(self) -> str:
         """

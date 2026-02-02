@@ -43,6 +43,7 @@ def action_agent_factory(
     memory: bool = True,
     use_proxy: bool = True,
     _debug_include_mail_tools: bool = True,
+    print_llm_streams: bool = True,
 ) -> AgentFunction:
     warnings.warn(
         "`mail.factories.action:action_agent_factory` is deprecated and will be removed in a future version. "
@@ -69,6 +70,7 @@ def action_agent_factory(
         memory=memory,
         use_proxy=use_proxy,
         _debug_include_mail_tools=_debug_include_mail_tools,
+        print_llm_streams=print_llm_streams,
     )
 
     async def run(
@@ -79,6 +81,8 @@ def action_agent_factory(
         Execute the LiteLLM-based action agent function.
         """
         return await litellm_action_agent(messages, tool_choice)
+
+    run._mail_agent = litellm_action_agent  # type: ignore[attr-defined]
 
     return run
 
@@ -159,6 +163,7 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         use_proxy: bool = True,
         _debug_include_mail_tools: bool = True,
         stream_tokens: bool = False,
+        print_llm_streams: bool = True,
         default_tool_choice: str | dict[str, str] | None = None,
     ) -> None:
         super().__init__(
@@ -181,6 +186,7 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
         self.use_proxy = use_proxy
         self._debug_include_mail_tools = _debug_include_mail_tools
         self.stream_tokens = stream_tokens
+        self.print_llm_streams = print_llm_streams
         self.default_tool_choice = default_tool_choice
         self.action_agent_fn = LiteLLMAgentFunction(
             llm=self.llm,
@@ -201,6 +207,7 @@ class LiteLLMActionAgentFunction(ActionAgentFunction):
             exclude_tools=self.exclude_tools,
             _debug_include_mail_tools=self._debug_include_mail_tools,
             stream_tokens=self.stream_tokens,
+            print_llm_streams=self.print_llm_streams,
         )
 
     def __call__(

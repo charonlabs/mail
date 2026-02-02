@@ -11,6 +11,7 @@ registry = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
+print_llm_streams = true
 
 [client]
 timeout = 3600.0

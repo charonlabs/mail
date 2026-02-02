@@ -68,6 +68,7 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
     }
     settings_defaults: dict[str, Any] = {
         "task_message_limit": 15,
+        "print_llm_streams": True,
     }
 
     if tomllib is None:
@@ -118,6 +119,9 @@ def _load_defaults_from_toml() -> tuple[dict[str, Any], dict[str, Any], dict[str
                     "task_message_limit": settings_section.get(
                         "task_message_limit", settings_defaults["task_message_limit"]
                     ),
+                    "print_llm_streams": settings_section.get(
+                        "print_llm_streams", settings_defaults["print_llm_streams"]
+                    ),
                 }
 
     logger.info(
@@ -152,6 +156,9 @@ class SwarmConfig(BaseModel):
 class SettingsConfig(BaseModel):
     task_message_limit: int = Field(
         default_factory=lambda: _settings_defaults()["task_message_limit"]
+    )
+    print_llm_streams: bool = Field(
+        default_factory=lambda: _settings_defaults()["print_llm_streams"]
     )
 
 

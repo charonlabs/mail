@@ -98,6 +98,7 @@ async def _server_startup(app: FastAPI) -> None:
 
     # set defaults
     app.state.debug = cfg.debug
+    app.state.settings = cfg.settings
 
     # swarm stuff
     app.state.persistent_swarm = ps
@@ -333,6 +334,7 @@ async def get_or_create_mail_instance(
                 user_role=role,
                 base_url=app.state.local_base_url,
                 registry_file=app.state.swarm_registry.persistence_file,
+                print_llm_streams=app.state.settings.print_llm_streams,
             )
             mail_instances[id] = mail_instance
 
@@ -1553,6 +1555,7 @@ def run_server_with_template(
     port: int = 8000,
     host: str = "0.0.0.0",
     task_message_limit: int | None = None,
+    print_llm_streams: bool = True,
 ) -> None:
     """Run MAIL server with a pre-configured swarm template.
 
@@ -1579,7 +1582,10 @@ def run_server_with_template(
         ),
         settings=SettingsConfig(
             # Use large sentinel for "unlimited" - avoids changing type throughout codebase
-            task_message_limit=task_message_limit if task_message_limit is not None else 999999,
+            task_message_limit=task_message_limit
+            if task_message_limit is not None
+            else 999999,
+            print_llm_streams=print_llm_streams,
         ),
     )
 

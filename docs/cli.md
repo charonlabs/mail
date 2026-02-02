@@ -17,10 +17,11 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 
 ### `mail server`
 - Configuration defaults are read from `mail.toml` (see
-  [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
+  [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
 - Environment variables such as `AUTH_ENDPOINT` and `TOKEN_INFO_ENDPOINT` remain required; `LITELLM_PROXY_API_BASE` is required only if your swarm uses `use_proxy=true`. The CLI does not provide defaults for these. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
 - Pass `--debug` (or set `[server].debug = true`) when you need the debug-only surface, including the OpenAI-compatible `/responses` endpoint. Leave it off for production deployments.
+- Use `--print-llm-streams true|false` to control whether runtime-managed agents print LLM reasoning/response stream chunks to server stdout. This does not affect SSE event streaming returned by `message-stream`/`POST /message`.
 - Example:
 
   ```bash

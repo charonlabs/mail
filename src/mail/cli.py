@@ -68,9 +68,17 @@ def _run_server_with_args(args: argparse.Namespace) -> None:
         if args.swarm_registry is not None:
             swarm_overrides["registry_file"] = args.swarm_registry
 
+        settings_overrides: dict[str, object] = {}
+        if args.print_llm_streams is not None:
+            settings_overrides["print_llm_streams"] = args.print_llm_streams
+
         if swarm_overrides:
             server_overrides["swarm"] = base_config.swarm.model_copy(
                 update=swarm_overrides
+            )
+        if settings_overrides:
+            server_overrides["settings"] = base_config.settings.model_copy(
+                update=settings_overrides
             )
 
         effective_config = (
@@ -344,6 +352,12 @@ def main() -> None:
         type=str,
         required=False,
         help="registry file of the swarm",
+    )
+    server_parser.add_argument(
+        "--print-llm-streams",
+        type=_str_to_bool,
+        required=False,
+        help="whether to print LLM reasoning/response streams to the console (true/false)",
     )
 
     # command `client`

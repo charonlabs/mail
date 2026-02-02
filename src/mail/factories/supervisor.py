@@ -46,6 +46,7 @@ def supervisor_factory(
     memory: bool = True,
     use_proxy: bool = True,
     stream_tokens: bool = False,
+    print_llm_streams: bool = True,
     default_tool_choice: str | dict[str, str] | None = None,
 ) -> AgentFunction:
     """
@@ -76,6 +77,7 @@ def supervisor_factory(
         tool_format=tool_format,
         exclude_tools=exclude_tools,
         stream_tokens=stream_tokens,
+        print_llm_streams=print_llm_streams,
         default_tool_choice=default_tool_choice,
     )
 
@@ -87,6 +89,8 @@ def supervisor_factory(
         Execute the MAIL-compatible supervisor function.
         """
         return await litellm_supervisor(messages, tool_choice)
+
+    run._mail_agent = litellm_supervisor  # type: ignore[attr-defined]
 
     return run
 
@@ -183,6 +187,7 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
         use_proxy: bool = True,
         _debug_include_mail_tools: bool = True,
         stream_tokens: bool = False,
+        print_llm_streams: bool = True,
         default_tool_choice: str | dict[str, str] | None = None,
     ) -> None:
         super().__init__(
@@ -205,6 +210,7 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
         self.use_proxy = use_proxy
         self._debug_include_mail_tools = _debug_include_mail_tools
         self.stream_tokens = stream_tokens
+        self.print_llm_streams = print_llm_streams
         self.default_tool_choice = default_tool_choice
         self.supervisor_fn = LiteLLMAgentFunction(
             name=self.name,
@@ -224,6 +230,7 @@ class LiteLLMSupervisorFunction(SupervisorFunction):
             use_proxy=self.use_proxy,
             _debug_include_mail_tools=self._debug_include_mail_tools,
             stream_tokens=self.stream_tokens,
+            print_llm_streams=self.print_llm_streams,
             default_tool_choice=self.default_tool_choice,
         )
 

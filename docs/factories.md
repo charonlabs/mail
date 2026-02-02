@@ -35,6 +35,8 @@ analytics_agent = LiteLLMAgentFunction(
     max_tokens=6000,
     memory=True,
     use_proxy=True,
+    stream_tokens=True,
+    print_llm_streams=True,
 )
 ```
 
@@ -108,9 +110,11 @@ Factory call signatures follow a convention:
 
 - **Top-level parameters** (`comm_targets`, `tools`, `name`, `enable_entrypoint`, etc.) describe the agent's static wiring and are typically supplied from `swarms.json` or other configuration.
 - **Instance parameters** (`user_token`, instance-level overrides) are filled when the swarm or agent instance is created.
-- **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`) control the LLM call and are often set by package defaults or environment configuration.
+- **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`, `stream_tokens`, `print_llm_streams`) control the LLM call and are often set by package defaults or environment configuration.
 
 `LiteLLMAgentFunction` closes over the supplied top-level settings and uses the instance parameters provided when the swarm is instantiated (for example, a per-user `user_token`).
+
+When a `MAILRuntime` is created with `print_llm_streams=False`, it best-effort propagates that value down to these function wrappers so stream output is centrally suppressed even if individual agent params were set to `true`.
 
 ## Integrating with Swarms
 
