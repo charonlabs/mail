@@ -90,7 +90,7 @@ The runtime processes MAIL messages **asynchronously**, tracks per-task state, a
 ### Installation
 ```bash
 # Clone and enter the repository
-git clone https://github.com/charonlabs/mail --branch v1.3.1
+git clone https://github.com/charonlabs/mail --branch v1.3.2
 cd mail
 
 # Install dependencies (preferred)
@@ -119,7 +119,7 @@ export ANTHROPIC_API_KEY=sk-your-anthropic-key
 export DATABASE_URL=postgresql://...
 ```
 
-Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`). Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment. Use `mail server --swarm-name/--swarm-source/--swarm-registry` (or edit `mail.toml`) to change swarm identity; `mail server` exports `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for downstream tools but does not read them as config overrides.
+Defaults for host, port, swarm metadata, and client behaviour are loaded from [`mail.toml`](mail.toml). The `[server.settings]` table exposes `task_message_limit`, which bounds how many messages the runtime will process per task when `run_continuous` is active (default `15`), and `print_llm_streams` (default `true`), which controls whether runtime-managed agents print LLM reasoning/response stream chunks to server stdout. Set `print_llm_streams=false` (or pass `mail server --print-llm-streams false`) for quieter server logs; task/event SSE streaming is unaffected. Override the file or point `MAIL_CONFIG_PATH` at an alternate TOML to adjust these values per environment. Use CLI flags such as `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false` (or edit `mail.toml`) to override these at launch; `mail server` exports `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for downstream tools but does not read them as config overrides.
 
 MAIL will create the parent directory for `SWARM_REGISTRY_FILE` on startup if it is missing, so you can rely on the default `registries/` path without committing the folder.
 
@@ -284,10 +284,11 @@ The top-level parser accepts the same flags regardless of how you invoke it, for
 
 ### `mail server`
 - Configuration defaults are read from `mail.toml` (see
-  [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, and `--swarm-registry` only override the values you provide.
+  [configuration.md](./configuration.md)). Flags such as `--host`, `--port`, `--reload`, `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false` only override the values you provide.
 - Use `--config /path/to/mail.toml` to point at a different   configuration file for a single run. The environment variable `MAIL_CONFIG_PATH` acts as the persistent override if you prefer exporting it once.
 - Environment variables such as `AUTH_ENDPOINT` and `TOKEN_INFO_ENDPOINT` remain required; `LITELLM_PROXY_API_BASE` is required only if your swarm uses `use_proxy=true`. The CLI does not provide defaults for these. When launched via `mail server`, defaults from `mail.toml` are exported to `SWARM_NAME`, `SWARM_SOURCE`, `SWARM_REGISTRY_FILE`, and `BASE_URL` for you.
 - Pass `--debug` (or set `[server].debug = true`) when you need the debug-only surface, including the OpenAI-compatible `/responses` endpoint. Leave it off for production deployments.
+- Use `--print-llm-streams true|false` to control whether runtime-managed agents print LLM reasoning/response stream chunks to server stdout. This does not affect SSE event streaming returned by `message-stream`/`POST /message`.
 - Example:
 
   ```bash
@@ -499,6 +500,8 @@ analytics_agent = LiteLLMAgentFunction(
     max_tokens=6000,
     memory=True,
     use_proxy=True,
+    stream_tokens=True,
+    print_llm_streams=True,
 )
 ```
 
@@ -572,9 +575,11 @@ Factory call signatures follow a convention:
 
 - **Top-level parameters** (`comm_targets`, `tools`, `name`, `enable_entrypoint`, etc.) describe the agent's static wiring and are typically supplied from `swarms.json` or other configuration.
 - **Instance parameters** (`user_token`, instance-level overrides) are filled when the swarm or agent instance is created.
-- **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`) control the LLM call and are often set by package defaults or environment configuration.
+- **Internal parameters (`agent_params`)** (`llm`, `system`, `reasoning_effort`, `thinking_budget`, `stream_tokens`, `print_llm_streams`) control the LLM call and are often set by package defaults or environment configuration.
 
 `LiteLLMAgentFunction` closes over the supplied top-level settings and uses the instance parameters provided when the swarm is instantiated (for example, a per-user `user_token`).
+
+When a `MAILRuntime` is created with `print_llm_streams=False`, it best-effort propagates that value down to these function wrappers so stream output is centrally suppressed even if individual agent params were set to `true`.
 
 ## Integrating with Swarms
 
@@ -640,6 +645,7 @@ This list is not exhaustive, and probably never will be. If you run into any res
 
 ## Logs
 - **Enable logging** to debug flow and events
+- If model reasoning/token stream output is too noisy in server logs, set `[server.settings].print_llm_streams = false` (or launch with `mail server --print-llm-streams false`)
 - See [src/mail/utils/logger.py](/src/mail/utils/logger.py) for initialization
 
 ## Where to ask
@@ -1047,7 +1053,7 @@ pip install -e .
 ```
 
 ## Environment & Config
-- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings.task_message_limit]`. Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
+- Start with `mail.toml` (checked into the repo) to control default host, port, swarm source, client timeout, and `[server.settings]` values (`task_message_limit`, `print_llm_streams`). Copy it if you need environment-specific values and point `MAIL_CONFIG_PATH` (or `--config`) at the new file.
 - Minimum environment variables:
   - `AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT` for auth (see [configuration.md](/docs/configuration.md))
   - `LITELLM_PROXY_API_BASE` for LLM access only when `use_proxy=true`
@@ -2518,7 +2524,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILSwarm` (`mail.api`)
 - **Summary**: Runtime container that owns instantiated agents/actions and embeds a `MAILRuntime`.
-- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default"`, `user_role: Literal["admin","agent","user"] = "user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `enable_db_agent_histories: bool = False`.
+- **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgent]`, `actions: list[MAILAction]`, `entrypoint: str`, `user_id: str = "default"`, `user_role: Literal["admin","agent","user"] = "user"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `enable_db_agent_histories: bool = False`, `print_llm_streams: bool = True`.
 - **Key methods**:
   - `post_message(...)`, `post_message_stream(...)`, `post_message_and_run(...)`: enqueue user requests (optionally streaming or running to completion).
   - `submit_message(...)`, `submit_message_stream(...)`: submit fully-formed `MAILMessage` envelopes.
@@ -2536,7 +2542,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 - **Notes**: Inline definitions from `actions` may be combined with `action_imports` that resolve to decorated `MAILAction` objects (e.g., from `mail.stdlib`).
 - **Constructor parameters**: `name: str`, `version: str`, `agents: list[MAILAgentTemplate]`, `actions: list[MAILAction]`, `entrypoint: str`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] = []`, `exclude_tools: list[str] = []`, `task_message_limit: int | None = None`, `description: str = ""`, `keywords: list[str] = []`, `public: bool = False`, `enable_db_agent_histories: bool = False`.
 - **Key methods**:
-  - `instantiate(instance_params, user_id?, user_role?, base_url?, registry_file?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
+  - `instantiate(instance_params, user_id?, user_role?, base_url?, registry_file?, print_llm_streams?) -> MAILSwarm`: produce a runtime swarm (creates `SwarmRegistry` when interswarm is enabled).
   - `get_subswarm(names, name_suffix, entrypoint?) -> MAILSwarmTemplate`: filter agents into a smaller template while preserving supervisors and entrypoints.
   - `update_from_adjacency_matrix(adj: list[list[int]]) -> None`: sync template wiring back to `comm_targets` for each agent.
   - `from_swarm_json(json_str) -> MAILSwarmTemplate` / `from_swarm_json_file(swarm_name, json_filepath?) -> MAILSwarmTemplate`: rebuild from persisted JSON.
@@ -2551,8 +2557,9 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILRuntime` (`mail.core.runtime`)
 - **Summary**: Asynchronous runtime that owns the internal message queue, tool execution, and optional interswarm router.
-- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `user_role: Literal["admin","agent","user"]`, `swarm_name: str = "example"`, `entrypoint: str = "supervisor"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] | None = None`, `exclude_tools: list[str] | None = None`, `enable_db_agent_histories: bool = False`.
+- **Constructor parameters**: `agents: dict[str, AgentCore]`, `actions: dict[str, ActionCore]`, `user_id: str`, `user_role: Literal["admin","agent","user"]`, `swarm_name: str = "example"`, `entrypoint: str = "supervisor"`, `swarm_registry: SwarmRegistry | None = None`, `enable_interswarm: bool = False`, `breakpoint_tools: list[str] | None = None`, `exclude_tools: list[str] | None = None`, `enable_db_agent_histories: bool = False`, `print_llm_streams: bool = True`.
 - Pass the lower-level `AgentCore` / `ActionCore` objects (for example via `MAILAgent.to_core()` and `MAILAction.to_core()`) when instantiating the runtime directly.
+- `print_llm_streams` is applied recursively to known agent-function wrappers (`supervisor_fn`, `action_agent_fn`, `_mail_agent`) so a runtime can centrally suppress local LLM stream printing without changing each agent definition.
 - **Key methods**:
   - `start_interswarm()`, `stop_interswarm()`, `is_interswarm_running()`.
   - `handle_interswarm_response(response_message)` and internal `_handle_local_message(message)`.
@@ -3419,7 +3426,7 @@ docker build -t mail-server .
 The build context must contain the repository so that the `COPY` commands pick up the source and configuration files.
 
 ## Run the container
-The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`). Pass them via `--env` flags or an env file. To change swarm name/source/registry, mount a custom `mail.toml` and set `MAIL_CONFIG_PATH` or pass `mail server --swarm-name/--swarm-source/--swarm-registry` in the container command.
+The server requires the same environment variables as the native quickstart (`AUTH_ENDPOINT`, `TOKEN_INFO_ENDPOINT`, and `LITELLM_PROXY_API_BASE` only if your swarm uses `use_proxy=true`). Pass them via `--env` flags or an env file. To change swarm name/source/registry or runtime LLM stream-print behavior, mount a custom `mail.toml` and set `MAIL_CONFIG_PATH` or pass `mail server` flags such as `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false` in the container command.
 
 ```bash
 # Option 1: export locally then forward with --env
@@ -4721,6 +4728,7 @@ registry = "registries/example-no-proxy.json"
 
 [server.settings]
 task_message_limit = 15
+print_llm_streams = true
 
 [client]
 timeout = 3600.0
@@ -4729,10 +4737,10 @@ verbose = false
 
 - The `[server]` table controls how Uvicorn listens (`port`, `host`, `reload`) and whether debug-only integrations are exposed (`debug`).
 - The `[server.swarm]` table specifies the persistent swarm template (`source`), the registry persistence file (`registry` or `registry_file`), and the runtime swarm name (`name`).
-- The `[server.settings]` table currently exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control. Increase the number if your agents require longer conversations per task.
+- The `[server.settings]` table exposes `task_message_limit`, which caps how many MAIL messages a task will process in continuous mode before yielding control, and `print_llm_streams`, which controls whether runtime-managed agents print LLM reasoning/response stream output to the server console. Set `print_llm_streams = false` for quieter logs (SSE event streaming is unchanged).
 - The `[client]` table exposes `timeout` (seconds) and `verbose` (bool). They feed `ClientConfig`, which in turn sets the default timeout and whether the CLI/HTTP client emit debug logs.
 - Instantiating `ServerConfig()` or `ClientConfig()` with no arguments uses these values as defaults; if a key is missing or the file is absent, the literal defaults above are applied.
-- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--debug`, `--swarm-name`, `--swarm-source`, and `--swarm-registry`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
+- The CLI command `mail server` accepts `--port`, `--host`, `--reload`, `--debug`, `--swarm-name`, `--swarm-source`, `--swarm-registry`, and `--print-llm-streams true|false`. Provided flags override the file-driven defaults, while omitted flags continue to use `mail.toml` values.
 - The CLI command `mail client` honors `timeout` from `[client]` and allows `--timeout` to override it per invocation.
 - Set `MAIL_CONFIG_PATH` to point at an alternate `mail.toml` (for example per environment). `mail server --config /path/to/mail.toml` temporarily overrides this variable for the lifetime of the command.
 - Toggle `[server].debug` (or pass `mail server --debug`) when you need the optional OpenAI-compatible `/responses` endpoint or other debug helpers exposed by the FastAPI app. Leave it `false` for production deployments to keep the surface minimal.
