@@ -1183,7 +1183,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mail"
+name = "mail-swarms"
 version = "1.3.2"
 source = { editable = "." }
 dependencies = [
