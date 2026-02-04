@@ -14,6 +14,7 @@ dependencies = [
     "ujson>=5.8.0",
     "langmem>=0.0.29",
     "rich>=13.0.0",
+    "pyreadline3>=3.5.4; platform_system == 'Windows'",
     "langgraph>=0.6.3",
     "aiohttp>=3.9.0",
     "pyjwt>=2.10.1",

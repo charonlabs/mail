@@ -16,6 +16,12 @@ def _make_cli() -> MAILClientCLI:
     return MAILClientCLI(args)  # type: ignore[arg-type]
 
 
+def test_cli_initializes_without_readline(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("mail.client.readline", None)
+    cli = _make_cli()
+    assert cli._history_file.name == ".mail_history"
+
+
 @pytest.mark.asyncio
 async def test_cli_help_does_not_exit(monkeypatch: pytest.MonkeyPatch) -> None:
     cli = _make_cli()

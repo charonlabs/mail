@@ -8,7 +8,6 @@ import datetime
 import json
 import logging
 import re
-import readline
 import shlex
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -43,6 +42,11 @@ from mail.net.types import (
     PostSwarmsLoadResponse,
     PostSwarmsResponse,
 )
+
+try:
+    import readline  # type: ignore[import-not-found]
+except ModuleNotFoundError:
+    readline = None
 
 
 class MAILClient:
@@ -604,11 +608,12 @@ class MAILClientCLI:
 
         # Initialize readline history
         self._history_file = Path.home() / ".mail_history"
-        try:
-            readline.read_history_file(self._history_file)
-        except (FileNotFoundError, OSError):
-            pass
-        readline.set_history_length(1000)
+        if readline is not None:
+            try:
+                readline.read_history_file(self._history_file)
+            except (FileNotFoundError, OSError):
+                pass
+            readline.set_history_length(1000)
 
     def _build_parser(self) -> argparse.ArgumentParser:
         """
@@ -1589,10 +1594,11 @@ class MAILClientCLI:
             await func(args)
 
         # Save readline history on exit
-        try:
-            readline.write_history_file(self._history_file)
-        except OSError:
-            pass
+        if readline is not None:
+            try:
+                readline.write_history_file(self._history_file)
+            except OSError:
+                pass
 
     @staticmethod
     def _collect_xml_strings(candidate: Any) -> list[str]:
