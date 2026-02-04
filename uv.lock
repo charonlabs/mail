@@ -1201,6 +1201,7 @@ dependencies = [
     { name = "openai" },
     { name = "pydantic" },
     { name = "pyjwt" },
+    { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "rich" },
     { name = "sse-starlette" },
     { name = "toml" },
@@ -1237,6 +1238,7 @@ requires-dist = [
     { name = "openai", specifier = ">=1.106.1" },
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pyjwt", specifier = ">=2.10.1" },
+    { name = "pyreadline3", marker = "sys_platform == 'win32'", specifier = ">=3.5.4" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "sse-starlette", specifier = ">=3.0.2" },
     { name = "toml", specifier = ">=0.10.2" },
@@ -1828,6 +1830,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e8/52/d87eba7cb129b81563019d1679026e7a112ef76855d6159d24754dbd2a51/pyperclip-1.11.0.tar.gz", hash = "sha256:244035963e4428530d9e3a6101a1ef97209c6825edab1567beac148ccc1db1b6", size = 12185, upload-time = "2025-09-26T14:40:37.245Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/80/fc9d01d5ed37ba4c42ca2b55b4339ae6e200b456be3a1aaddf4a9fa99b8c/pyperclip-1.11.0-py3-none-any.whl", hash = "sha256:299403e9ff44581cb9ba2ffeed69c7aa96a008622ad0c46cb575ca75b5b84273", size = 11063, upload-time = "2025-09-26T14:40:36.069Z" },
+]
+
+[[package]]
+name = "pyreadline3"
+version = "3.5.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/49/4cea918a08f02817aabae639e3d0ac046fef9f9180518a3ad394e22da148/pyreadline3-3.5.4.tar.gz", hash = "sha256:8d57d53039a1c75adba8e50dd3d992b28143480816187ea5efbd5c78e6c885b7", size = 99839, upload-time = "2024-09-19T02:40:10.062Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/dc/491b7661614ab97483abf2056be1deee4dc2490ecbf7bff9ab5cdbac86e1/pyreadline3-3.5.4-py3-none-any.whl", hash = "sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6", size = 83178, upload-time = "2024-09-19T02:40:08.598Z" },
 ]
 
 [[package]]
