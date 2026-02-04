@@ -197,7 +197,7 @@ Environment variables:
 [
   {
     "name": "example",
-    "version": "1.3.3",
+    "version": "1.3.4",
     "entrypoint": "supervisor",
     "enable_interswarm": true,
     "enable_db_agent_histories": true,
