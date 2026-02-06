@@ -220,3 +220,6 @@ test-swarm-registry.json
 
 # mac specific files
 **.DS_Store
+
+# plan documents
+.plans/

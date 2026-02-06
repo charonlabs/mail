@@ -1312,3 +1312,83 @@ async def test_broadcast_all_excludes_sender_with_interswarm(
         assert set(dispatched) == {"analyst", "math"}
         assert "supervisor" not in dispatched
         assert broadcast["message"]["recipients"] == [create_agent_address("all")]  # type: ignore
+
+
+@pytest.mark.asyncio
+async def test_schedule_error_before_tool_calls_surfaces_original_error() -> None:
+    async def exploding_agent(
+        _history: list[dict[str, Any]], _tool_choice: str | dict[str, str]
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        raise RuntimeError("boom-before-tool-calls")
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=exploding_agent, comm_targets=[])},
+        actions={},
+        user_id="user-err-1",
+        user_role="user",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-error-before-call"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    events = runtime.get_events_by_task_id(task_id)
+    error_events = [event for event in events if event.event == "agent_error"]
+    assert error_events, "expected an agent_error event"
+    description = error_events[-1].data["description"]  # type: ignore[index]
+    assert "boom-before-tool-calls" in description
+    assert "UnboundLocalError" not in description
+
+    _resp_priority, _resp_seq, response_message = await runtime.message_queue.get()
+    runtime.message_queue.task_done()
+    assert response_message["msg_type"] == "response"
+    assert response_message["message"]["subject"] == "::agent_error::"
+    assert "boom-before-tool-calls" in response_message["message"]["body"]
+    assert "UnboundLocalError" not in response_message["message"]["body"]
+
+
+@pytest.mark.asyncio
+async def test_schedule_empty_tool_calls_is_explicit_runtime_error() -> None:
+    async def empty_calls_agent(
+        _history: list[dict[str, Any]], _tool_choice: str | dict[str, str]
+    ) -> tuple[str | None, list[AgentToolCall]]:
+        return None, []
+
+    runtime = MAILRuntime(
+        agents={"analyst": AgentCore(function=empty_calls_agent, comm_targets=[])},
+        actions={},
+        user_id="user-err-2",
+        user_role="user",
+        swarm_name="example",
+        entrypoint="supervisor",
+    )
+
+    task_id = "task-empty-tool-calls"
+    message = _make_request(task_id, sender="supervisor", recipient="analyst")
+
+    await runtime.submit(message)
+    _priority, _seq, queued_message = await runtime.message_queue.get()
+    await runtime._process_message(queued_message)
+
+    while runtime.active_tasks:
+        await asyncio.gather(*list(runtime.active_tasks))
+
+    events = runtime.get_events_by_task_id(task_id)
+    error_events = [event for event in events if event.event == "agent_error"]
+    assert error_events, "expected an agent_error event"
+    description = error_events[-1].data["description"]  # type: ignore[index]
+    assert "returned no tool calls" in description
+
+    _resp_priority, _resp_seq, response_message = await runtime.message_queue.get()
+    runtime.message_queue.task_done()
+    assert response_message["msg_type"] == "response"
+    assert response_message["message"]["subject"] == "::agent_error::"
+    assert "returned no tool calls" in response_message["message"]["body"]

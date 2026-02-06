@@ -2,12 +2,13 @@
 # Copyright (c) 2025 Addison Kline, Ryan Heaton
 
 import asyncio
+import json
 import logging
 import uuid
 import warnings
 from abc import abstractmethod
 from collections.abc import Awaitable
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import anthropic
 from anthropic.types import ContentBlockDeltaEvent, ContentBlockStartEvent, TextDelta, ThinkingDelta
@@ -324,6 +325,43 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         return anthropic_tools
 
+    def _sanitize_anthropic_payload(self, value: Any) -> Any:
+        """
+        Sanitize Anthropic message payloads without mutating inputs.
+
+        - Removes `parsed_output` keys recursively.
+        - Normalizes typed text blocks to always have string `text`.
+        """
+        if isinstance(value, list):
+            return [self._sanitize_anthropic_payload(v) for v in value]
+
+        if isinstance(value, dict):
+            out: dict[str, Any] = {}
+            for key, val in value.items():
+                if key == "parsed_output":
+                    continue
+                out[key] = self._sanitize_anthropic_payload(val)
+
+            if out.get("type") == "text":
+                text_value = out.get("text", "")
+                if isinstance(text_value, dict):
+                    resolved = text_value.get("text") or text_value.get("value")
+                    if resolved is None:
+                        try:
+                            resolved = json.dumps(text_value, ensure_ascii=False)
+                        except TypeError:
+                            resolved = str(text_value)
+                    text_value = resolved
+                elif text_value is None:
+                    text_value = ""
+                elif not isinstance(text_value, str):
+                    text_value = str(text_value)
+                out["text"] = text_value
+
+            return out
+
+        return value
+
     def _convert_messages_to_anthropic_format(
         self, messages: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
@@ -411,8 +449,6 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         args = func.get("arguments", {})
                         if isinstance(args, str):
                             try:
-                                import json
-
                                 args = json.loads(args)
                             except json.JSONDecodeError:
                                 args = {"raw": args}
@@ -469,7 +505,10 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Flush any remaining tool results
         flush_tool_results()
 
-        return anthropic_messages
+        return cast(
+            list[dict[str, Any]],
+            self._sanitize_anthropic_payload(anthropic_messages),
+        )
 
     async def _run_completions(
         self,
@@ -606,7 +645,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": anthropic_messages,
+            "messages": self._sanitize_anthropic_payload(anthropic_messages),
             "tools": anthropic_tools,
             "max_tokens": 64000,  # TODO: make this configurable - currently hardcoded to 64k
         }
@@ -650,6 +689,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             else:
                 request_params["tool_choice"] = tool_choice
 
+        request_params["messages"] = self._sanitize_anthropic_payload(
+            request_params["messages"]
+        )
         response = await client.messages.create(**request_params)
 
         # Handle pause_turn - model paused mid-generation (often during long thinking)
@@ -663,10 +705,15 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             anthropic_messages.append(
                 {
                     "role": "assistant",
-                    "content": [block.model_dump() for block in response.content],
+                    "content": [
+                        self._sanitize_anthropic_payload(block.model_dump())
+                        for block in response.content
+                    ],
                 }
             )
-            request_params["messages"] = anthropic_messages
+            request_params["messages"] = self._sanitize_anthropic_payload(
+                anthropic_messages
+            )
             response = await client.messages.create(**request_params)
             # Accumulate content blocks from continuation
             all_content_blocks.extend(response.content)
@@ -675,7 +722,10 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # This preserves thinking blocks, tool_use, text, etc. in Anthropic format
         assistant_message: dict[str, Any] = {
             "role": "assistant",
-            "content": [block.model_dump() for block in all_content_blocks],
+            "content": [
+                self._sanitize_anthropic_payload(block.model_dump())
+                for block in all_content_blocks
+            ],
         }
 
         # Parse response content blocks with interleaved thinking support
@@ -845,7 +895,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # Build request params
         request_params: dict[str, Any] = {
             "model": model,
-            "messages": anthropic_messages,
+            "messages": self._sanitize_anthropic_payload(anthropic_messages),
             "tools": anthropic_tools,
             "max_tokens": 64000,  # TODO: make this configurable - currently hardcoded to 64k
         }
@@ -898,6 +948,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         final_message = None
 
         while True:
+            request_params["messages"] = self._sanitize_anthropic_payload(
+                anthropic_messages
+            )
             async with client.messages.stream(**request_params) as stream:
                 async for event in stream:
                     event_type = event.type
@@ -972,11 +1025,11 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     {
                         "role": "assistant",
                         "content": [
-                            block.model_dump() for block in final_message.content
+                            self._sanitize_anthropic_payload(block.model_dump())
+                            for block in final_message.content
                         ],
                     }
                 )
-                request_params["messages"] = anthropic_messages
                 # Continue the loop to start a new stream
             else:
                 # Generation complete (end_turn, tool_use, etc.)
@@ -986,7 +1039,10 @@ class LiteLLMAgentFunction(MAILAgentFunction):
         # This preserves thinking blocks, tool_use, text, etc. in Anthropic format
         assistant_message: dict[str, Any] = {
             "role": "assistant",
-            "content": [block.model_dump() for block in all_content_blocks],
+            "content": [
+                self._sanitize_anthropic_payload(block.model_dump())
+                for block in all_content_blocks
+            ],
         }
 
         # Process the final message to get complete data with interleaved thinking
