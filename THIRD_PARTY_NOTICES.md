@@ -5124,14 +5124,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## `mail-swarms==1.3.3`
+## `mail-swarms==1.3.5`
 Multi-Agent Interface Layer reference implementation
 ### License field:
 Apache-2.0
 ### Classifiers:
 License :: OSI Approved :: Apache Software License
 
-### License Text (`mail_swarms-1.3.3.dist-info/licenses/LICENSE`)
+### License Text (`mail_swarms-1.3.5.dist-info/licenses/LICENSE`)
 
 ```text
 Apache License
@@ -5337,7 +5337,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### License Text (`mail_swarms-1.3.3.dist-info/licenses/NOTICE`)
+### License Text (`mail_swarms-1.3.5.dist-info/licenses/NOTICE`)
 
 ```text
 MAIL Project
@@ -8569,6 +8569,12 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## `pyreadline3==3.5.4`
+### License field:
+(license metadata not found)
+### Warning:
+Package not installed; install to capture metadata.
 
 ## `pytest==8.4.2`
 pytest: simple powerful testing with Python
