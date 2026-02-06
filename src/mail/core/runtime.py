@@ -2166,9 +2166,11 @@ Your directly reachable agents can be found in the tool definitions for `send_re
             Schedule a message for processing.
             Agent functions are called here.
             """
+            task_id = message["message"].get("task_id", "unknown_task")
+            call: AgentToolCall | None = None
             try:
                 # prepare the message for agent input
-                task_id = message["message"]["task_id"]
+                task_id = message["message"].get("task_id", task_id)
                 tool_choice: str | dict[str, str] = (
                     "required" if not self._is_manual else "auto"
                 )
@@ -2210,6 +2212,11 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                 # agent function is called here
                 agent_fn = self.agents[recipient].function
                 _output_text, tool_calls = await agent_fn(history, tool_choice)  # type: ignore
+
+                if not tool_calls:
+                    raise ValueError(
+                        f"agent '{recipient}' returned no tool calls; at least one tool call is required"
+                    )
 
                 # append the agent's response to the history
                 if tool_calls[0].completion:
@@ -2835,13 +2842,14 @@ Use this information to decide how to complete your task."""),
                     f"{self._log_prelude()} error scheduling message for agent '{recipient}': {e}"
                 )
                 traceback.print_exc()
-                self._tool_call_response(
-                    task_id=task_id,
-                    caller=recipient,
-                    tool_call=call,
-                    status="error",
-                    details=f"failed to schedule message: {e}",
-                )
+                if call is not None:
+                    self._tool_call_response(
+                        task_id=task_id,
+                        caller=recipient,
+                        tool_call=call,
+                        status="error",
+                        details=f"failed to schedule message: {e}",
+                    )
                 self._submit_event(
                     "agent_error",
                     task_id,
