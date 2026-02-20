@@ -35,12 +35,29 @@ async def test_oai_interleaved_reasoning():
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "approach_a": {"type": "string", "description": "First approach being compared"},
-                    "approach_b": {"type": "string", "description": "Second approach being compared"},
-                    "context": {"type": "string", "description": "The specific use case context"},
-                    "your_initial_hypothesis": {"type": "string", "description": "Your hypothesis about which is better BEFORE seeing analysis"},
+                    "approach_a": {
+                        "type": "string",
+                        "description": "First approach being compared",
+                    },
+                    "approach_b": {
+                        "type": "string",
+                        "description": "Second approach being compared",
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "The specific use case context",
+                    },
+                    "your_initial_hypothesis": {
+                        "type": "string",
+                        "description": "Your hypothesis about which is better BEFORE seeing analysis",
+                    },
                 },
-                "required": ["approach_a", "approach_b", "context", "your_initial_hypothesis"],
+                "required": [
+                    "approach_a",
+                    "approach_b",
+                    "context",
+                    "your_initial_hypothesis",
+                ],
             },
         },
         {
@@ -50,9 +67,18 @@ async def test_oai_interleaved_reasoning():
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "recommendation": {"type": "string", "description": "Your final recommendation"},
-                    "reasoning_changed": {"type": "boolean", "description": "Did your thinking change after the tradeoff analysis?"},
-                    "key_insight": {"type": "string", "description": "The most important insight from your research"},
+                    "recommendation": {
+                        "type": "string",
+                        "description": "Your final recommendation",
+                    },
+                    "reasoning_changed": {
+                        "type": "boolean",
+                        "description": "Did your thinking change after the tradeoff analysis?",
+                    },
+                    "key_insight": {
+                        "type": "string",
+                        "description": "The most important insight from your research",
+                    },
                 },
                 "required": ["recommendation", "reasoning_changed", "key_insight"],
             },
@@ -88,9 +114,9 @@ This is a critical architecture decision. Take your time to reason through each 
     turn = 1
 
     while True:
-        print(f"\n{'='*40}")
+        print(f"\n{'=' * 40}")
         print(f"TURN {turn}")
-        print(f"{'='*40}")
+        print(f"{'=' * 40}")
 
         response = await aresponses(
             input=messages,
@@ -109,38 +135,62 @@ This is a critical architecture decision. Take your time to reason through each 
         # Print output sequence for this turn
         print("\n--- Output Items (in order) ---")
         for i, output in enumerate(response.output):
-            output_type = getattr(output, 'type', 'unknown')
+            output_type = getattr(output, "type", "unknown")
             print(f"\n  Output {i}:")
             print(f"    type: {output_type}")
 
-            if output_type == 'reasoning':
-                if hasattr(output, 'summary') and output.summary:
+            if output_type == "reasoning":
+                if hasattr(output, "summary") and output.summary:
                     summary_text = output.summary[0].text if output.summary else ""
-                    print(f"    summary: {summary_text[:200]}..." if len(summary_text) > 200 else f"    summary: {summary_text}")
+                    print(
+                        f"    summary: {summary_text[:200]}..."
+                        if len(summary_text) > 200
+                        else f"    summary: {summary_text}"
+                    )
                 else:
                     print(f"    summary: []")
-            elif output_type == 'function_call':
+            elif output_type == "function_call":
                 print(f"    name: {output.name}")
                 print(f"    call_id: {output.call_id}")
-                args = output.arguments if hasattr(output, 'arguments') else "{}"
-                print(f"    arguments: {args[:200]}..." if len(str(args)) > 200 else f"    arguments: {args}")
-            elif output_type == 'web_search_call':
+                args = output.arguments if hasattr(output, "arguments") else "{}"
+                print(
+                    f"    arguments: {args[:200]}..."
+                    if len(str(args)) > 200
+                    else f"    arguments: {args}"
+                )
+            elif output_type == "web_search_call":
                 print(f"    id: {output.id}")
                 print(f"    status: {getattr(output, 'status', 'N/A')}")
-            elif output_type == 'message':
-                content = getattr(output, 'content', [])
+            elif output_type == "message":
+                content = getattr(output, "content", [])
                 if content:
-                    text = content[0].text if hasattr(content[0], 'text') else str(content[0])
-                    print(f"    content: {text[:200]}..." if len(text) > 200 else f"    content: {text}")
+                    text = (
+                        content[0].text
+                        if hasattr(content[0], "text")
+                        else str(content[0])
+                    )
+                    print(
+                        f"    content: {text[:200]}..."
+                        if len(text) > 200
+                        else f"    content: {text}"
+                    )
 
         # Print output type sequence
         print("\n--- Output Type Sequence ---")
-        sequence = [getattr(o, 'type', 'unknown') for o in response.output]
+        sequence = [getattr(o, "type", "unknown") for o in response.output]
         print(f"  {' -> '.join(sequence)}")
 
         # Check for interleaved reasoning pattern
-        reasoning_indices = [i for i, o in enumerate(response.output) if getattr(o, 'type', '') == 'reasoning']
-        tool_indices = [i for i, o in enumerate(response.output) if getattr(o, 'type', '') in ('function_call', 'web_search_call')]
+        reasoning_indices = [
+            i
+            for i, o in enumerate(response.output)
+            if getattr(o, "type", "") == "reasoning"
+        ]
+        tool_indices = [
+            i
+            for i, o in enumerate(response.output)
+            if getattr(o, "type", "") in ("function_call", "web_search_call")
+        ]
 
         print(f"\n--- Interleaving Analysis ---")
         print(f"  Reasoning items at indices: {reasoning_indices}")
@@ -154,28 +204,35 @@ This is a critical architecture decision. Take your time to reason through each 
             first_tool_idx = min(tool_indices)
             reasoning_after_tool = [r for r in reasoning_indices if r > first_tool_idx]
             if reasoning_after_tool:
-                print(f"  *** REASONING AFTER TOOL CALL at indices {reasoning_after_tool}! ***")
+                print(
+                    f"  *** REASONING AFTER TOOL CALL at indices {reasoning_after_tool}! ***"
+                )
 
         # Check stop reason
-        stop_reason = getattr(response, 'stop_reason', None)
+        stop_reason = getattr(response, "stop_reason", None)
         print(f"\nStop reason: {stop_reason}")
 
         # Check if we need to handle tool results
-        has_function_calls = any(getattr(o, 'type', '') == 'function_call' for o in response.output)
+        has_function_calls = any(
+            getattr(o, "type", "") == "function_call" for o in response.output
+        )
 
         if has_function_calls:
             # Collect tool results
             tool_results = []
 
             for output in response.output:
-                if getattr(output, 'type', '') == 'function_call':
-                    print(f"  -> Tool call: {output.name} (id={output.call_id[:20]}...)")
+                if getattr(output, "type", "") == "function_call":
+                    print(
+                        f"  -> Tool call: {output.name} (id={output.call_id[:20]}...)"
+                    )
 
                     if output.name == "analyze_tradeoffs":
-                        tool_results.append({
-                            "type": "function_call_output",
-                            "call_id": output.call_id,
-                            "output": """TRADEOFF ANALYSIS RESULTS:
+                        tool_results.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": output.call_id,
+                                "output": """TRADEOFF ANALYSIS RESULTS:
 
 Redis Pros:
 - Extremely fast in-memory operations (sub-millisecond latency)
@@ -202,13 +259,16 @@ PostgreSQL Cons:
 - Connection pooling complexity at scale
 
 RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient and simpler. Choose Redis only if you need >10k jobs/second or sub-millisecond latency.""",
-                        })
+                            }
+                        )
                     elif output.name == "report_findings":
-                        tool_results.append({
-                            "type": "function_call_output",
-                            "call_id": output.call_id,
-                            "output": "Report recorded successfully.",
-                        })
+                        tool_results.append(
+                            {
+                                "type": "function_call_output",
+                                "call_id": output.call_id,
+                                "output": "Report recorded successfully.",
+                            }
+                        )
 
             # Build next turn input
             if tool_results:
@@ -222,7 +282,9 @@ RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient
                 break
         else:
             # No function calls or end turn
-            print(f"\nConversation ended (no function calls or stop_reason={stop_reason})")
+            print(
+                f"\nConversation ended (no function calls or stop_reason={stop_reason})"
+            )
             break
 
     print("\n" + "=" * 60)
@@ -233,12 +295,12 @@ RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient
     print("\n--- Combined Output Analysis ---")
     all_outputs = []
     for i, resp in enumerate(all_responses):
-        print(f"\nTurn {i+1} outputs:")
+        print(f"\nTurn {i + 1} outputs:")
         for output in resp.output:
-            all_outputs.append((i+1, output))
-            output_type = getattr(output, 'type', 'unknown')
+            all_outputs.append((i + 1, output))
+            output_type = getattr(output, "type", "unknown")
             print(f"  {output_type}", end="")
-            if output_type == 'function_call':
+            if output_type == "function_call":
                 print(f" ({output.name})", end="")
             print()
 
@@ -248,16 +310,24 @@ RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient
 
     # Check for ANY interleaving across all turns
     print("\n--- Interleaving Summary ---")
-    total_reasoning = sum(1 for _, o in all_outputs if getattr(o, 'type', '') == 'reasoning')
-    total_tools = sum(1 for _, o in all_outputs if getattr(o, 'type', '') in ('function_call', 'web_search_call'))
+    total_reasoning = sum(
+        1 for _, o in all_outputs if getattr(o, "type", "") == "reasoning"
+    )
+    total_tools = sum(
+        1
+        for _, o in all_outputs
+        if getattr(o, "type", "") in ("function_call", "web_search_call")
+    )
     print(f"  Total reasoning blocks: {total_reasoning}")
     print(f"  Total tool calls: {total_tools}")
 
     # Check if multiple reasoning blocks exist within any single turn
     for i, resp in enumerate(all_responses):
-        reasoning_count = sum(1 for o in resp.output if getattr(o, 'type', '') == 'reasoning')
+        reasoning_count = sum(
+            1 for o in resp.output if getattr(o, "type", "") == "reasoning"
+        )
         if reasoning_count > 1:
-            print(f"  Turn {i+1}: {reasoning_count} reasoning blocks (INTERLEAVED!)")
+            print(f"  Turn {i + 1}: {reasoning_count} reasoning blocks (INTERLEAVED!)")
 
     return all_responses
 

@@ -34,9 +34,7 @@ def test_get_messages_parses_json_event_data() -> None:
         "task_id": "task-1",
         "extra_data": {"full_message": message},
     }
-    task.add_event(
-        ServerSentEvent(event="new_message", data=ujson.dumps(payload))
-    )
+    task.add_event(ServerSentEvent(event="new_message", data=ujson.dumps(payload)))
 
     messages = task.get_messages()
     assert messages == [message]

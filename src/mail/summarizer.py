@@ -23,8 +23,10 @@ if TYPE_CHECKING:
 # Tool Definition: submit_title
 # ============================================================================
 
+
 class SubmitTitleArgs(BaseModel):
     """Arguments for the submit_title tool."""
+
     title: str = Field(
         description="A concise title for the conversation (maximum 6 words)",
         max_length=50,
@@ -71,6 +73,7 @@ Examples:
 # ============================================================================
 # TaskSummarizer class
 # ============================================================================
+
 
 class TaskSummarizer:
     """
@@ -177,10 +180,9 @@ class TaskSummarizer:
             A short title string, or None if generation failed.
         """
         # Filter to user/assistant messages and take last N
-        filtered = [
-            m for m in messages
-            if m.get("role") in ("user", "assistant")
-        ][-max_messages:]
+        filtered = [m for m in messages if m.get("role") in ("user", "assistant")][
+            -max_messages:
+        ]
 
         if not filtered:
             return None
@@ -205,7 +207,7 @@ class TaskSummarizer:
             show_events=False,
         )
 
-        return self._parse_title(response) # type: ignore
+        return self._parse_title(response)  # type: ignore
 
     async def shutdown(self):
         """Shutdown the swarm."""

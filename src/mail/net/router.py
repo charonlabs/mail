@@ -344,10 +344,22 @@ class InterswarmRouter:
                     f"msg_type '{msg_type}' is not supported for interswarm user messages"
                 )
 
-            subject = payload.get("subject") if isinstance(payload.get("subject"), str) else None
+            subject = (
+                payload.get("subject")
+                if isinstance(payload.get("subject"), str)
+                else None
+            )
             body = payload.get("body") if isinstance(payload.get("body"), str) else None
-            task_id = payload.get("task_id") if isinstance(payload.get("task_id"), str) else None
-            routing_info = payload.get("routing_info") if isinstance(payload.get("routing_info"), dict) else {}
+            task_id = (
+                payload.get("task_id")
+                if isinstance(payload.get("task_id"), str)
+                else None
+            )
+            routing_info = (
+                payload.get("routing_info")
+                if isinstance(payload.get("routing_info"), dict)
+                else {}
+            )
 
             if body is None:
                 raise ValueError("body is required for interswarm user messages")

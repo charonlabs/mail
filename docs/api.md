@@ -101,7 +101,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   from mail.core import AgentCore, ActionCore
   ```
 - `mail.utils` bundles token helpers, logging utilities, dynamic function loading via `read_python_string`, and interswarm address parsing
-- `mail.swarms_json.utils` provides lightweight helpers for loading and validating `swarms.json` content before instantiating templates
+- `mail.swarms_json.utils` provides helpers for loading and validating `swarms.json` content before instantiating templates. Beyond basic field-level checks, `validate_swarm_from_swarms_json` runs cross-validation that catches common wiring mistakes at parse time (typo'd entrypoints, invalid comm_targets, missing supervisors, duplicate agent names, etc.) and includes fuzzy-match "Did you mean '...'?" suggestions in error messages
 
 ### Class reference
 

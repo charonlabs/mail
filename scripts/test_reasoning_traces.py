@@ -65,7 +65,9 @@ def extract_tool_call_events(events: list) -> list[dict[str, Any]]:
     tool_calls = []
     for event in events:
         if event.event == "tool_call":
-            data = event.data if isinstance(event.data, dict) else json.loads(event.data)
+            data = (
+                event.data if isinstance(event.data, dict) else json.loads(event.data)
+            )
             tool_calls.append(data)
     return tool_calls
 
@@ -92,7 +94,9 @@ def validate_tool_call_event(
 
     # Expected tool name
     if expected_tool and extra.get("tool_name") != expected_tool:
-        issues.append(f"Expected tool '{expected_tool}', got '{extra.get('tool_name')}'")
+        issues.append(
+            f"Expected tool '{expected_tool}', got '{extra.get('tool_name')}'"
+        )
 
     # Reasoning
     if expect_reasoning:
@@ -120,7 +124,9 @@ def validate_tool_call_event(
         tool_call_id = extra.get("tool_call_id", "")
         # UUID4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
         if not tool_call_id or len(tool_call_id) != 36 or tool_call_id.count("-") != 4:
-            issues.append(f"Expected UUID format for tool_call_id, got '{tool_call_id}'")
+            issues.append(
+                f"Expected UUID format for tool_call_id, got '{tool_call_id}'"
+            )
 
     return issues
 
@@ -149,7 +155,7 @@ def print_tool_call_summary(tool_calls: list[dict[str, Any]]):
         if has_preamble:
             flags.append("preamble")
         flag_str = f" [{', '.join(flags)}]" if flags else ""
-        print(f"     {i+1}. {tool_name}{flag_str}")
+        print(f"     {i + 1}. {tool_name}{flag_str}")
 
 
 # =============================================================================
@@ -229,14 +235,18 @@ async def test_anthropic_streaming():
         # Validate
         issues = []
         if len(tool_calls) < 2:
-            issues.append(f"Expected at least 2 tool_call events, got {len(tool_calls)}")
+            issues.append(
+                f"Expected at least 2 tool_call events, got {len(tool_calls)}"
+            )
         else:
             # First tool call should have reasoning (Supervisor -> send_request)
-            issues.extend(validate_tool_call_event(
-                tool_calls[0],
-                expected_tool="send_request",
-                expect_reasoning=True,
-            ))
+            issues.extend(
+                validate_tool_call_event(
+                    tool_calls[0],
+                    expected_tool="send_request",
+                    expect_reasoning=True,
+                )
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -247,6 +257,7 @@ async def test_anthropic_streaming():
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -330,13 +341,17 @@ async def test_oai_streaming():
         # Validate - OAI may or may not have reasoning depending on model
         issues = []
         if len(tool_calls) < 2:
-            issues.append(f"Expected at least 2 tool_call events, got {len(tool_calls)}")
+            issues.append(
+                f"Expected at least 2 tool_call events, got {len(tool_calls)}"
+            )
         else:
             # Check structure is correct (reasoning optional for non-reasoning models)
-            issues.extend(validate_tool_call_event(
-                tool_calls[0],
-                expected_tool="send_request",
-            ))
+            issues.extend(
+                validate_tool_call_event(
+                    tool_calls[0],
+                    expected_tool="send_request",
+                )
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -347,6 +362,7 @@ async def test_oai_streaming():
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -430,12 +446,16 @@ async def test_oai_non_streaming():
         # Validate
         issues = []
         if len(tool_calls) < 2:
-            issues.append(f"Expected at least 2 tool_call events, got {len(tool_calls)}")
+            issues.append(
+                f"Expected at least 2 tool_call events, got {len(tool_calls)}"
+            )
         else:
-            issues.extend(validate_tool_call_event(
-                tool_calls[0],
-                expected_tool="send_request",
-            ))
+            issues.extend(
+                validate_tool_call_event(
+                    tool_calls[0],
+                    expected_tool="send_request",
+                )
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -446,6 +466,7 @@ async def test_oai_non_streaming():
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -557,7 +578,8 @@ After receiving responses from both workers, call task_complete with a summary."
         # - Second send_request has reasoning_ref pointing to first
         issues = []
         coordinator_sends = [
-            tc for tc in tool_calls
+            tc
+            for tc in tool_calls
             if tc.get("extra_data", {}).get("tool_name") == "send_request"
             and "Coordinator" in tc.get("description", "")
         ]
@@ -570,7 +592,9 @@ After receiving responses from both workers, call task_complete with a summary."
             if "reasoning_ref" in second:
                 print(f"\n   Detected parallel calls!")
                 print(f"     First call ID: {first.get('tool_call_id', 'N/A')[:30]}...")
-                print(f"     Second reasoning_ref: {second.get('reasoning_ref', 'N/A')[:30]}...")
+                print(
+                    f"     Second reasoning_ref: {second.get('reasoning_ref', 'N/A')[:30]}..."
+                )
                 if second.get("reasoning_ref") == first.get("tool_call_id"):
                     print("     reasoning_ref correctly points to first call!")
                 else:
@@ -580,7 +604,9 @@ After receiving responses from both workers, call task_complete with a summary."
                 # This is still valid - model just didn't parallelize
 
         if len(tool_calls) < 3:
-            issues.append(f"Expected at least 3 tool_call events, got {len(tool_calls)}")
+            issues.append(
+                f"Expected at least 3 tool_call events, got {len(tool_calls)}"
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -591,6 +617,7 @@ After receiving responses from both workers, call task_complete with a summary."
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -658,7 +685,8 @@ IMPORTANT: Do NOT use any tools. Just respond with plain text.""",
 
         # Look for text_output events
         text_outputs = [
-            tc for tc in tool_calls
+            tc
+            for tc in tool_calls
             if tc.get("extra_data", {}).get("tool_name") == "text_output"
         ]
 
@@ -668,20 +696,24 @@ IMPORTANT: Do NOT use any tools. Just respond with plain text.""",
             for i, to in enumerate(text_outputs):
                 extra = to.get("extra_data", {})
                 tool_call_id = extra.get("tool_call_id", "")
-                print(f"     {i+1}. tool_call_id: {tool_call_id}")
+                print(f"     {i + 1}. tool_call_id: {tool_call_id}")
 
                 # Validate UUID format
                 if len(tool_call_id) == 36 and tool_call_id.count("-") == 4:
                     print(f"        Valid UUID format")
                 else:
-                    issues.append(f"text_output {i+1} has invalid UUID: {tool_call_id}")
+                    issues.append(
+                        f"text_output {i + 1} has invalid UUID: {tool_call_id}"
+                    )
 
                 # Check for reasoning
                 if "reasoning" in extra:
                     print(f"        Has reasoning: {extra['reasoning'][:50]}...")
         else:
             # Model might have used task_complete instead
-            print("\n   Note: No text_output events (model may have used task_complete)")
+            print(
+                "\n   Note: No text_output events (model may have used task_complete)"
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -692,6 +724,7 @@ IMPORTANT: Do NOT use any tools. Just respond with plain text.""",
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -774,13 +807,17 @@ async def test_anthropic_non_streaming():
 
         issues = []
         if len(tool_calls) < 2:
-            issues.append(f"Expected at least 2 tool_call events, got {len(tool_calls)}")
+            issues.append(
+                f"Expected at least 2 tool_call events, got {len(tool_calls)}"
+            )
         else:
-            issues.extend(validate_tool_call_event(
-                tool_calls[0],
-                expected_tool="send_request",
-                expect_reasoning=True,
-            ))
+            issues.extend(
+                validate_tool_call_event(
+                    tool_calls[0],
+                    expected_tool="send_request",
+                    expect_reasoning=True,
+                )
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -791,6 +828,7 @@ async def test_anthropic_non_streaming():
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -901,20 +939,22 @@ You MUST follow these steps in order.""",
 
         # Count Planner's tool calls - should have multiple with reasoning
         planner_calls = [
-            tc for tc in tool_calls
-            if "Planner" in tc.get("description", "")
+            tc for tc in tool_calls if "Planner" in tc.get("description", "")
         ]
 
         issues = []
         reasoning_count = sum(
-            1 for tc in planner_calls
-            if "reasoning" in tc.get("extra_data", {})
+            1 for tc in planner_calls if "reasoning" in tc.get("extra_data", {})
         )
 
-        print(f"\n   Planner made {len(planner_calls)} calls, {reasoning_count} with reasoning")
+        print(
+            f"\n   Planner made {len(planner_calls)} calls, {reasoning_count} with reasoning"
+        )
 
         if len(planner_calls) < 2:
-            issues.append(f"Expected at least 2 Planner calls, got {len(planner_calls)}")
+            issues.append(
+                f"Expected at least 2 Planner calls, got {len(planner_calls)}"
+            )
 
         # Each Planner call should have its own reasoning (interleaved)
         if reasoning_count < 2:
@@ -929,6 +969,7 @@ You MUST follow these steps in order.""",
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:
@@ -1012,18 +1053,23 @@ async def test_oai_reasoning_model():
         # gpt-5.2 should have reasoning
         issues = []
         reasoning_calls = [
-            tc for tc in tool_calls
-            if "reasoning" in tc.get("extra_data", {})
+            tc for tc in tool_calls if "reasoning" in tc.get("extra_data", {})
         ]
 
-        print(f"\n   Tool calls with reasoning: {len(reasoning_calls)}/{len(tool_calls)}")
+        print(
+            f"\n   Tool calls with reasoning: {len(reasoning_calls)}/{len(tool_calls)}"
+        )
 
         if len(tool_calls) < 2:
-            issues.append(f"Expected at least 2 tool_call events, got {len(tool_calls)}")
+            issues.append(
+                f"Expected at least 2 tool_call events, got {len(tool_calls)}"
+            )
 
         # Check if we got reasoning (gpt-5.2 should have it)
         if len(reasoning_calls) == 0:
-            print("   WARNING: No reasoning captured from gpt-5.2 (may be model behavior)")
+            print(
+                "   WARNING: No reasoning captured from gpt-5.2 (may be model behavior)"
+            )
 
         if issues:
             print(f"\n   ISSUES: {issues}")
@@ -1034,6 +1080,7 @@ async def test_oai_reasoning_model():
     except Exception as e:
         print(f"\n   ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         return False
     finally:

@@ -152,12 +152,13 @@ verbose = false
 - `url::` fetch failures return the original URL unless you set `raise_on_error` when calling `mail.utils.parsing.read_url_string`, which converts errors into descriptive `RuntimeError`s
 
 ### Validity of `comm_targets`
-- In the code, none of the `MAILSwarmTemplate`,`SwarmsJSONSwarm`, `MAILAgentTemplate`, or `SwarmsJSONAgent` types automatically check that the provided `comm_targets` are valid (reference existing agent names, interswarm only if allowed, etc.)
-- Instead, `comm_targets` are only thoroughly checked when a `MAILSwarm` is instantiated from a `MAILSwarmTemplate`
-- Invalid `comm_targets` are allowed in template types for debugging purposes; however, they will not run
+- `comm_targets` are cross-validated at parse time by `validate_swarm_from_swarms_json`: each target must reference an existing agent name or use interswarm `agent@swarm` addressing
+- Typo'd targets produce error messages with fuzzy-match suggestions (e.g. "Did you mean 'analyst'?")
+- `MAILSwarmTemplate._validate()` and `MAILSwarm._validate()` perform additional runtime checks with the same fuzzy-match suggestions
 
 ### Validity of `entrypoint`
 - The swarm parameter `entrypoint` is required; it must reference exactly one agent with `enable_entrypoint = True` by name
+- Cross-validation enforces this at parse time: if the entrypoint doesn't match any agent name, or the matching agent lacks `enable_entrypoint: true`, a clear error is raised
 - Default swarm entrypoints are not automatically inferred from the swarm configuration--you must specify this default yourself
 
 ### Versioning
@@ -167,3 +168,4 @@ verbose = false
 ### Other notes
 - Actions are declared once at the swarm level and referenced by name in each agent's `actions` list; [see agents-and-tools.md](/docs/agents-and-tools.md)
 - The helpers in `mail.swarms_json.utils` can be used to validate and load `swarms.json` prior to instantiating templates
+- Cross-validation checks run automatically during `validate_swarm_from_swarms_json` and cover: entrypoint validity, `enable_entrypoint` / `can_complete_tasks` flags, `comm_targets` references, duplicate agent names, and agent action references

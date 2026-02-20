@@ -135,7 +135,9 @@ async def test_swarm_communication():
 
     print("\nSwarm created with agents:")
     for agent in swarm.agents:
-        print(f"  - {agent.name} (entrypoint={agent.enable_entrypoint}, supervisor={agent.can_complete_tasks})")
+        print(
+            f"  - {agent.name} (entrypoint={agent.enable_entrypoint}, supervisor={agent.can_complete_tasks})"
+        )
 
     print("\n" + "-" * 60)
     print("Posting message to swarm...")
@@ -169,9 +171,10 @@ async def test_swarm_communication():
         # Count agent steps
         agent_steps = {}
         for event in events:
-            if hasattr(event, 'data') and event.data:
+            if hasattr(event, "data") and event.data:
                 try:
                     import json
+
                     data = json.loads(event.data)
                     if "agent" in data:
                         agent = data["agent"]
@@ -189,6 +192,7 @@ async def test_swarm_communication():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:
@@ -296,6 +300,7 @@ Once you get a response, call task_complete with the final answer to finish the 
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:

@@ -44,7 +44,7 @@ class FakeMAILRuntime:
         self.breakpoint_tools = breakpoint_tools
         self.exclude_tools = exclude_tools
         self.print_llm_streams = print_llm_streams
-        
+
     @pytest.mark.asyncio
     async def submit_and_wait(
         self,
@@ -323,7 +323,17 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
         {
             "name": "other",
             "version": "1.3.5",
-            "agents": [],
+            "agents": [
+                {
+                    "name": "s",
+                    "factory": "tests.conftest:make_stub_agent",
+                    "comm_targets": [],
+                    "actions": [],
+                    "can_complete_tasks": True,
+                    "enable_entrypoint": True,
+                    "agent_params": {},
+                },
+            ],
             "actions": [],
             "entrypoint": "s",
         },
@@ -454,7 +464,7 @@ async def test_post_message_stream_headers_and_type() -> None:
 
     swarm = MAILSwarm(
         name="myswarm",
-            version="1.3.5",
+        version="1.3.5",
         agents=[
             MAILAgent(
                 name="supervisor",

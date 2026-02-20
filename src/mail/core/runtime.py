@@ -882,9 +882,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     and not message["message"]["sender"]["address_type"] == "system"
                 ):
                     self._steps_by_task[task_id] += 1
-                    max_steps_for_task = self._max_steps_by_task.get(
-                        task_id, max_steps
-                    )
+                    max_steps_for_task = self._max_steps_by_task.get(task_id, max_steps)
                     if (
                         max_steps_for_task is not None
                         and self._steps_by_task[task_id] > max_steps_for_task
@@ -1089,12 +1087,14 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 except TimeoutError:
                     # Heartbeat to keep the connection alive
                     yield ServerSentEvent(
-                        data=ujson.dumps({
-                            "timestamp": datetime.datetime.now(
-                                datetime.UTC
-                            ).isoformat(),
-                            "task_id": task_id,
-                        }),
+                        data=ujson.dumps(
+                            {
+                                "timestamp": datetime.datetime.now(
+                                    datetime.UTC
+                                ).isoformat(),
+                                "task_id": task_id,
+                            }
+                        ),
                         event="ping",
                     )
                     continue
@@ -1119,11 +1119,15 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             try:
                 response = future.result()
                 yield ServerSentEvent(
-                    data=_SSEPayload({
-                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                        "task_id": task_id,
-                        "response": response["message"]["body"],
-                    }),
+                    data=_SSEPayload(
+                        {
+                            "timestamp": datetime.datetime.now(
+                                datetime.UTC
+                            ).isoformat(),
+                            "task_id": task_id,
+                            "response": response["message"]["body"],
+                        }
+                    ),
                     event="task_complete",
                 )
             except Exception as e:
@@ -1132,11 +1136,15 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                     f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
                 )
                 yield ServerSentEvent(
-                    data=_SSEPayload({
-                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                        "task_id": task_id,
-                        "response": f"{e}",
-                    }),
+                    data=_SSEPayload(
+                        {
+                            "timestamp": datetime.datetime.now(
+                                datetime.UTC
+                            ).isoformat(),
+                            "task_id": task_id,
+                            "response": f"{e}",
+                        }
+                    ),
                     event="task_error",
                 )
 
@@ -1146,11 +1154,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: timeout for task '{task_id}'"
             )
             yield ServerSentEvent(
-                data=_SSEPayload({
-                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                    "task_id": task_id,
-                    "response": "timeout",
-                }),
+                data=_SSEPayload(
+                    {
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                        "task_id": task_id,
+                        "response": "timeout",
+                    }
+                ),
                 event="task_error",
             )
 
@@ -1160,11 +1170,13 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 f"{self._log_prelude()} `submit_and_stream`: exception for task '{task_id}' with error: {e}"
             )
             yield ServerSentEvent(
-                data=_SSEPayload({
-                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                    "task_id": task_id,
-                    "response": f"{e}",
-                }),
+                data=_SSEPayload(
+                    {
+                        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                        "task_id": task_id,
+                        "response": f"{e}",
+                    }
+                ),
                 event="task_error",
             )
 
@@ -1222,7 +1234,7 @@ It is impossible to resume a task without `{kwarg}` specified.""",
         if breakpoint_tool_caller is None:
             if task_id not in self.last_breakpoint_caller:
                 logger.error(
-                    f"{self._log_prelude} `submmit_breakpoint_tool_call_result`: last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
+                    f"{self._log_prelude()} `submit_breakpoint_tool_call_result`: last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
                 )
                 raise ValueError(
                     f"last breakpoint caller for task '{task_id}' is not set and no breakpoint tool caller was provided"
@@ -1585,8 +1597,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             )
             try:
                 self.message_queue.task_done()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"{self._log_prelude()} task_done() failed for completed task '{task_id}': {e}"
+                )
             return
 
         msg_content = message["message"]
@@ -1648,8 +1662,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 )
             try:
                 self.message_queue.task_done()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"{self._log_prelude()} task_done() failed after disallowed-targets exit: {e}"
+                )
             return
 
         if self.enable_interswarm and self.interswarm_router and recipients_for_routing:
@@ -1664,8 +1680,10 @@ It is impossible to resume a task without `{kwarg}` specified.""",
                 asyncio.create_task(self._send_interswarm_message(message))
                 try:
                     self.message_queue.task_done()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(
+                        f"{self._log_prelude()} task_done() failed after interswarm handoff: {e}"
+                    )
                 return
 
         # Fall back to local processing
@@ -1702,11 +1720,23 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             f"{self._log_prelude()} receiving interswarm message for task '{task_id}' with contributors: {task_contributors}"
         )
 
-        assert isinstance(recipients, list)
+        if not isinstance(recipients, list):
+            raise TypeError(
+                f"expected recipients to be a list for task '{task_id}', got {type(recipients).__name__}"
+            )
         for recipient in recipients:
-            assert isinstance(recipient, dict)
-            assert "address" in recipient
-            assert "address_type" in recipient
+            if not isinstance(recipient, dict):
+                raise TypeError(
+                    f"expected recipient to be a dict for task '{task_id}', got {type(recipient).__name__}"
+                )
+            if "address" not in recipient:
+                raise ValueError(
+                    f"recipient missing 'address' field for task '{task_id}'"
+                )
+            if "address_type" not in recipient:
+                raise ValueError(
+                    f"recipient missing 'address_type' field for task '{task_id}'"
+                )
             recipient_agent, recipient_swarm = parse_agent_address(recipient["address"])
             if recipient_swarm != self.swarm_name:
                 logger.debug(
@@ -1882,7 +1912,8 @@ It is impossible to resume a task without `{kwarg}` specified.""",
             if recipient_address in {None, MAIL_ALL_LOCAL_AGENTS["address"]}:
                 continue
             if recipient_address not in allowed_targets:
-                assert isinstance(recipient_address, str)
+                if not isinstance(recipient_address, str):
+                    continue
                 disallowed.append(recipient_address)
 
         return disallowed
@@ -2233,7 +2264,10 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                         last_reasoning_call_id = call.tool_call_id
                     else:
                         self._emit_tool_call_event(
-                            task_id, recipient, call, reasoning_ref=last_reasoning_call_id
+                            task_id,
+                            recipient,
+                            call,
+                            reasoning_ref=last_reasoning_call_id,
                         )
 
                 breakpoint_calls = [
@@ -2275,9 +2309,7 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                                 ):
                                     raw_block = resp
                                     break
-                        bp_dumps.append(
-                            normalize_breakpoint_tool_call(call, raw_block)
-                        )
+                        bp_dumps.append(normalize_breakpoint_tool_call(call, raw_block))
                     await self.submit(
                         self._system_broadcast(
                             task_id=task_id,
@@ -2305,7 +2337,10 @@ Your directly reachable agents can be found in the tool definitions for `send_re
                             call.tool_args["target"] = message["message"]["sender"][
                                 "address"
                             ]
-                            assert routing_info is not None
+                            if routing_info is None:
+                                raise RuntimeError(
+                                    f"routing_info is None when processing text_output for agent '{recipient}'"
+                                )
                             res_type = routing_info.get(
                                 "manual_response_type", "broadcast"
                             )
@@ -3458,20 +3493,24 @@ The final response message is: '{finish_body}'""",
 
         # Pre-serialize to JSON to ensure proper formatting (sse_starlette may use str() instead)
         sse = ServerSentEvent(
-            data=ujson.dumps({
-                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
-                "description": description,
-                "task_id": task_id,
-                "extra_data": extra_data,
-            }),
+            data=ujson.dumps(
+                {
+                    "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                    "description": description,
+                    "task_id": task_id,
+                    "extra_data": extra_data,
+                }
+            ),
             event=event,
         )
         self.mail_tasks[task_id].add_event(sse)
         # Signal that new events are available for streaming (task-specific)
         try:
             self._events_available_by_task[task_id].set()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to signal events available for task '{task_id}': {e}"
+            )
 
         # Persist event to DB in background if enabled
         if self.enable_db_agent_histories:
@@ -3546,8 +3585,10 @@ The final response message is: '{finish_body}'""",
         candidates: list[ServerSentEvent] = []
         try:
             candidates.extend(self.mail_tasks[task_id].events)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"{self._log_prelude()} failed to retrieve events for task '{task_id}': {e}"
+            )
 
         out: list[ServerSentEvent] = []
         for ev in candidates:
