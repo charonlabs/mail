@@ -21,6 +21,7 @@ This list is not exhaustive, and probably never will be. If you run into any res
 ### No response from agents
   - Confirm [swarms.json](/swarms.json) factory and prompt import paths are valid
   - Ensure at least one supervisor agent exists and is the configured entrypoint
+  - Run `validate_swarm_from_swarms_json()` on your swarm dict to catch wiring mistakes early; it checks entrypoint validity, comm_targets, supervisor presence, duplicate names, and action references, with "Did you mean '...'?" suggestions for typos
   
 ### Interswarm routing fails
   - Use `agent@swarm` addressing and register swarms via `/swarms`

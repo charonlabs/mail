@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
+import difflib
 import json
 import warnings
 from typing import Any
+
+from mail.utils.parsing import target_address_is_interswarm
 
 from .types import (
     SwarmsJSONAction,
@@ -101,7 +104,125 @@ def validate_swarm_from_swarms_json(swarm_candidate: Any) -> None:
                 "swarm candidate field 'action_imports' must be a list of strings"
             )
 
+    _cross_validate_swarm(swarm_candidate)
+
     return
+
+
+def _suggest(word: str, possibilities: list[str]) -> str:
+    """
+    Return a " Did you mean '...'?" suffix if a close match exists, else empty string.
+    """
+    matches = difflib.get_close_matches(word, possibilities, n=1, cutoff=0.6)
+    if matches:
+        return f" Did you mean '{matches[0]}'?"
+    return ""
+
+
+def _cross_validate_swarm(swarm_candidate: dict[str, Any]) -> None:
+    """
+    Cross-validate structural relationships in a swarm dict.
+    Called after all field-level checks pass.
+    """
+    agents = swarm_candidate.get("agents", [])
+    actions = swarm_candidate.get("actions", [])
+    entrypoint = swarm_candidate.get("entrypoint", "")
+    action_imports = swarm_candidate.get("action_imports", [])
+
+    # Collect agent names (defensively - agents may not all be dicts yet)
+    agent_names: list[str] = []
+    for agent in agents:
+        if isinstance(agent, dict):
+            name = agent.get("name")
+            if isinstance(name, str):
+                agent_names.append(name)
+
+    # Check 7: duplicate agent names (check early so other checks are meaningful)
+    seen_names: set[str] = set()
+    for name in agent_names:
+        if name in seen_names:
+            raise ValueError(f"duplicate agent name '{name}'")
+        seen_names.add(name)
+
+    # Check 1: entrypoint matches an agent name
+    if entrypoint not in agent_names:
+        raise ValueError(
+            f"entrypoint '{entrypoint}' does not match any agent name."
+            + _suggest(entrypoint, agent_names)
+        )
+
+    # Check 2: at least one agent has enable_entrypoint: true
+    has_entrypoint_flag = any(
+        isinstance(a, dict) and a.get("enable_entrypoint") is True for a in agents
+    )
+    if not has_entrypoint_flag:
+        raise ValueError(
+            "no agent has 'enable_entrypoint' set to true; "
+            "the swarm will reject all incoming messages"
+        )
+
+    # Check 3: the entrypoint agent specifically has enable_entrypoint: true
+    for agent in agents:
+        if isinstance(agent, dict) and agent.get("name") == entrypoint:
+            if agent.get("enable_entrypoint") is not True:
+                raise ValueError(
+                    f"entrypoint agent '{entrypoint}' does not have "
+                    "'enable_entrypoint' set to true"
+                )
+            break
+
+    # Check 4: comm_targets reference valid agents or interswarm addresses
+    for agent in agents:
+        if not isinstance(agent, dict):
+            continue
+        agent_name = agent.get("name", "?")
+        for target in agent.get("comm_targets", []):
+            if not isinstance(target, str):
+                continue
+            if target_address_is_interswarm(target):
+                continue
+            if target not in agent_names:
+                raise ValueError(
+                    f"agent '{agent_name}' has comm_target '{target}' "
+                    "which is not a defined agent."
+                    + _suggest(target, agent_names)
+                )
+
+    # Check 5: at least one agent has can_complete_tasks: true
+    has_supervisor = any(
+        isinstance(a, dict) and a.get("can_complete_tasks") is True for a in agents
+    )
+    if not has_supervisor:
+        raise ValueError(
+            "no agent has 'can_complete_tasks' set to true; "
+            "no agent will be able to complete tasks"
+        )
+
+    # Check 6: agent action references exist in swarm actions
+    action_names: list[str] = []
+    for act in actions:
+        if isinstance(act, dict):
+            act_name = act.get("name")
+            if isinstance(act_name, str):
+                action_names.append(act_name)
+
+    for agent in agents:
+        if not isinstance(agent, dict):
+            continue
+        agent_name = agent.get("name", "?")
+        for action_ref in agent.get("actions", []):
+            if not isinstance(action_ref, str):
+                continue
+            if action_ref in action_names:
+                continue
+            # When action_imports is non-empty, unmatched names may come from imports
+            if action_imports:
+                continue
+            raise ValueError(
+                f"agent '{agent_name}' references action '{action_ref}' "
+                "which is not defined in the swarm's actions."
+                + _suggest(action_ref, action_names)
+            )
 
 
 def build_swarm_from_swarms_json(swarm_candidate: Any) -> SwarmsJSONSwarm:

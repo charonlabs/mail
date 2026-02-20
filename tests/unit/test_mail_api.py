@@ -323,7 +323,17 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
         {
             "name": "other",
             "version": "1.3.5",
-            "agents": [],
+            "agents": [
+                {
+                    "name": "s",
+                    "factory": "tests.conftest:make_stub_agent",
+                    "comm_targets": [],
+                    "actions": [],
+                    "can_complete_tasks": True,
+                    "enable_entrypoint": True,
+                    "agent_params": {},
+                },
+            ],
             "actions": [],
             "entrypoint": "s",
         },

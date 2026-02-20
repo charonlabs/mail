@@ -495,6 +495,8 @@ For models with extended thinking (Claude with `thinking_budget`):
 
 8. **System responses end loops**: System-to-system messages immediately terminate tasks to prevent infinite loops.
 
+9. **Cross-validation at parse time**: `validate_swarm_from_swarms_json()` runs `_cross_validate_swarm()` after field-level checks, catching entrypoint mismatches, missing `enable_entrypoint`/`can_complete_tasks` flags, invalid `comm_targets`, duplicate agent names, and undefined action references. Error messages include fuzzy-match "Did you mean?" suggestions via `difflib.get_close_matches`.
+
 ## Conventions
 
 - **Async everywhere** - All I/O operations are async

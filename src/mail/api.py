@@ -3,6 +3,7 @@
 
 import asyncio
 import datetime
+import difflib
 import inspect
 import logging
 import uuid
@@ -252,9 +253,13 @@ class MAILAgentTemplate:
                 )
             for action_name in action_names:
                 if action_name not in actions_by_name:
-                    raise ValueError(
-                        f"agent '{agent_data['name']}' references unknown action '{action_name}'"
+                    suggestion = difflib.get_close_matches(
+                        action_name, list(actions_by_name.keys()), n=1, cutoff=0.6
                     )
+                    msg = f"agent '{agent_data['name']}' references unknown action '{action_name}'"
+                    if suggestion:
+                        msg += f". Did you mean '{suggestion[0]}'?"
+                    raise ValueError(msg)
                 actions.append(actions_by_name[action_name])
 
         agent_params = resolve_prefixed_string_references(agent_data["agent_params"])
@@ -808,9 +813,15 @@ class MAILSwarm:
                 f"swarm must have at least one entrypoint agent, got {len(entrypoints)}"
             )
         if self.entrypoint not in entrypoints:
-            raise ValueError(f"entrypoint agent '{self.entrypoint}' not found in swarm")
+            agent_names = [agent.name for agent in self.agents]
+            suggestion = difflib.get_close_matches(self.entrypoint, agent_names, n=1, cutoff=0.6)
+            msg = f"entrypoint agent '{self.entrypoint}' not found in swarm"
+            if suggestion:
+                msg += f". Did you mean '{suggestion[0]}'?"
+            raise ValueError(msg)
 
         # are agent comm targets valid?
+        agent_names = [agent.name for agent in self.agents]
         for agent in self.agents:
             for target in agent.comm_targets:
                 interswarm_target = utils.target_address_is_interswarm(target)
@@ -818,12 +829,12 @@ class MAILSwarm:
                     raise ValueError(
                         f"agent '{agent.name}' has interswarm communication target '{target}' but interswarm messaging is not enabled for this swarm"
                     )
-                if not interswarm_target and target not in [
-                    agent.name for agent in self.agents
-                ]:
-                    raise ValueError(
-                        f"agent '{agent.name}' has invalid communication target '{target}'"
-                    )
+                if not interswarm_target and target not in agent_names:
+                    suggestion = difflib.get_close_matches(target, agent_names, n=1, cutoff=0.6)
+                    msg = f"agent '{agent.name}' has invalid communication target '{target}'"
+                    if suggestion:
+                        msg += f". Did you mean '{suggestion[0]}'?"
+                    raise ValueError(msg)
 
         if self.swarm_registry is None and self.enable_interswarm:
             raise ValueError(
@@ -837,14 +848,24 @@ class MAILSwarm:
             )
 
         # is each breakpoint tool valid?
+        action_names = [action.name for action in self.actions]
+        valid_breakpoint_tools = MAIL_TOOL_NAMES + action_names
         for tool in self.breakpoint_tools:
-            if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
-                raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
+            if tool not in valid_breakpoint_tools:
+                suggestion = difflib.get_close_matches(tool, valid_breakpoint_tools, n=1, cutoff=0.6)
+                msg = f"breakpoint tool '{tool}' not found in swarm"
+                if suggestion:
+                    msg += f". Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
         # are the excluded tools valid?
         for tool in self.exclude_tools:
             if tool not in MAIL_TOOL_NAMES:
-                raise ValueError(f"excluded tool '{tool}' is not valid")
+                suggestion = difflib.get_close_matches(tool, MAIL_TOOL_NAMES, n=1, cutoff=0.6)
+                msg = f"excluded tool '{tool}' is not valid"
+                if suggestion:
+                    msg += f". Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
@@ -1468,7 +1489,12 @@ class MAILSwarmTemplate:
                 f"swarm must have at least one entrypoint agent, got {len(entrypoints)}"
             )
         if self.entrypoint not in entrypoints:
-            raise ValueError(f"entrypoint agent '{self.entrypoint}' not found in swarm")
+            agent_names = [agent.name for agent in self.agents]
+            suggestion = difflib.get_close_matches(self.entrypoint, agent_names, n=1, cutoff=0.6)
+            msg = f"entrypoint agent '{self.entrypoint}' not found in swarm"
+            if suggestion:
+                msg += f". Did you mean '{suggestion[0]}'?"
+            raise ValueError(msg)
 
         # are agent comm targets valid?
         agent_names = [agent.name for agent in self.agents]
@@ -1480,9 +1506,11 @@ class MAILSwarmTemplate:
                         f"agent '{agent.name}' has interswarm communication target '{target}' but interswarm messaging is not enabled for this swarm"
                     )
                 if not interswarm_target and target not in agent_names:
-                    raise ValueError(
-                        f"agent '{agent.name}' has invalid communication target '{target}'"
-                    )
+                    suggestion = difflib.get_close_matches(target, agent_names, n=1, cutoff=0.6)
+                    msg = f"agent '{agent.name}' has invalid communication target '{target}'"
+                    if suggestion:
+                        msg += f". Did you mean '{suggestion[0]}'?"
+                    raise ValueError(msg)
 
         # is there at least one supervisor?
         if len(self.supervisors) < 1:
@@ -1491,14 +1519,24 @@ class MAILSwarmTemplate:
             )
 
         # is each breakpoint tool valid?
+        action_names = [action.name for action in self.actions]
+        valid_breakpoint_tools = MAIL_TOOL_NAMES + action_names
         for tool in self.breakpoint_tools:
-            if tool not in MAIL_TOOL_NAMES + [action.name for action in self.actions]:
-                raise ValueError(f"breakpoint tool '{tool}' not found in swarm")
+            if tool not in valid_breakpoint_tools:
+                suggestion = difflib.get_close_matches(tool, valid_breakpoint_tools, n=1, cutoff=0.6)
+                msg = f"breakpoint tool '{tool}' not found in swarm"
+                if suggestion:
+                    msg += f". Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
         # are the excluded tools valid?
         for tool in self.exclude_tools:
             if tool not in MAIL_TOOL_NAMES:
-                raise ValueError(f"excluded tool '{tool}' is not valid")
+                suggestion = difflib.get_close_matches(tool, MAIL_TOOL_NAMES, n=1, cutoff=0.6)
+                msg = f"excluded tool '{tool}' is not valid"
+                if suggestion:
+                    msg += f". Did you mean '{suggestion[0]}'?"
+                raise ValueError(msg)
 
     def _build_adjacency_matrix(self) -> tuple[list[list[int]], list[str]]:
         """
