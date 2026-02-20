@@ -46,7 +46,7 @@ def test_load_swarms_json_from_string_accepts_valid_list() -> None:
     swarms = [
         {
             "name": "demo",
-            "version": "1.3.5",
+            "version": "1.3.6",
             "entrypoint": "alpha",
             "agents": [
                 _minimal_agent(
@@ -67,7 +67,7 @@ def test_build_swarm_from_swarms_json_populates_defaults() -> None:
     """
     data = {
         "name": "demo",
-        "version": "1.3.5",
+        "version": "1.3.6",
         "entrypoint": "alpha",
         "agents": [
             _minimal_agent(
@@ -130,7 +130,7 @@ def test_build_swarm_from_swarms_json_rejects_bad_action_imports() -> None:
     """
     data = {
         "name": "demo",
-        "version": "1.3.5",
+        "version": "1.3.6",
         "entrypoint": "alpha",
         "agents": [
             _minimal_agent("alpha", [], enable_entrypoint=True, can_complete_tasks=True)
