@@ -49,7 +49,9 @@ def test_load_swarms_json_from_string_accepts_valid_list() -> None:
             "version": "1.3.5",
             "entrypoint": "alpha",
             "agents": [
-                _minimal_agent("alpha", ["beta"], enable_entrypoint=True, can_complete_tasks=True),
+                _minimal_agent(
+                    "alpha", ["beta"], enable_entrypoint=True, can_complete_tasks=True
+                ),
                 _minimal_agent("beta", ["alpha"]),
             ],
             "actions": [],
@@ -68,7 +70,9 @@ def test_build_swarm_from_swarms_json_populates_defaults() -> None:
         "version": "1.3.5",
         "entrypoint": "alpha",
         "agents": [
-            _minimal_agent("alpha", ["beta"], enable_entrypoint=True, can_complete_tasks=True),
+            _minimal_agent(
+                "alpha", ["beta"], enable_entrypoint=True, can_complete_tasks=True
+            ),
             _minimal_agent("beta", ["alpha"]),
         ],
         "actions": [_minimal_action()],
@@ -128,7 +132,9 @@ def test_build_swarm_from_swarms_json_rejects_bad_action_imports() -> None:
         "name": "demo",
         "version": "1.3.5",
         "entrypoint": "alpha",
-        "agents": [_minimal_agent("alpha", [], enable_entrypoint=True, can_complete_tasks=True)],
+        "agents": [
+            _minimal_agent("alpha", [], enable_entrypoint=True, can_complete_tasks=True)
+        ],
         "actions": [],
         "action_imports": ["python::tests.conftest:make_stub_agent", 123],
     }
@@ -147,7 +153,12 @@ def _valid_swarm(**overrides: object) -> dict[str, object]:
         "version": "1.0.0",
         "entrypoint": "supervisor",
         "agents": [
-            _minimal_agent("supervisor", ["worker"], enable_entrypoint=True, can_complete_tasks=True),
+            _minimal_agent(
+                "supervisor",
+                ["worker"],
+                enable_entrypoint=True,
+                can_complete_tasks=True,
+            ),
             _minimal_agent("worker", ["supervisor"]),
         ],
         "actions": [],
@@ -159,7 +170,9 @@ def _valid_swarm(**overrides: object) -> dict[str, object]:
 def test_cross_validate_entrypoint_not_in_agents() -> None:
     """Entrypoint name that doesn't match any agent raises ValueError."""
     data = _valid_swarm(entrypoint="nonexistent")
-    with pytest.raises(ValueError, match="entrypoint 'nonexistent' does not match any agent name"):
+    with pytest.raises(
+        ValueError, match="entrypoint 'nonexistent' does not match any agent name"
+    ):
         build_swarm_from_swarms_json(data)
 
 
@@ -172,67 +185,112 @@ def test_cross_validate_entrypoint_not_in_agents_suggests_correction() -> None:
 
 def test_cross_validate_no_entrypoint_agent() -> None:
     """No agent with enable_entrypoint: true raises ValueError."""
-    data = _valid_swarm(agents=[
-        _minimal_agent("supervisor", ["worker"], enable_entrypoint=False, can_complete_tasks=True),
-        _minimal_agent("worker", ["supervisor"]),
-    ])
-    with pytest.raises(ValueError, match="no agent has 'enable_entrypoint' set to true"):
+    data = _valid_swarm(
+        agents=[
+            _minimal_agent(
+                "supervisor",
+                ["worker"],
+                enable_entrypoint=False,
+                can_complete_tasks=True,
+            ),
+            _minimal_agent("worker", ["supervisor"]),
+        ]
+    )
+    with pytest.raises(
+        ValueError, match="no agent has 'enable_entrypoint' set to true"
+    ):
         build_swarm_from_swarms_json(data)
 
 
 def test_cross_validate_entrypoint_agent_missing_flag() -> None:
     """Entrypoint agent exists but lacks enable_entrypoint: true."""
-    data = _valid_swarm(agents=[
-        _minimal_agent("supervisor", ["worker"], enable_entrypoint=False, can_complete_tasks=True),
-        _minimal_agent("worker", ["supervisor"], enable_entrypoint=True),
-    ])
+    data = _valid_swarm(
+        agents=[
+            _minimal_agent(
+                "supervisor",
+                ["worker"],
+                enable_entrypoint=False,
+                can_complete_tasks=True,
+            ),
+            _minimal_agent("worker", ["supervisor"], enable_entrypoint=True),
+        ]
+    )
     with pytest.raises(ValueError, match="entrypoint agent 'supervisor' does not have"):
         build_swarm_from_swarms_json(data)
 
 
 def test_cross_validate_comm_target_not_in_agents() -> None:
     """Bad comm_target raises ValueError with suggestion."""
-    data = _valid_swarm(agents=[
-        _minimal_agent("supervisor", ["worke"], enable_entrypoint=True, can_complete_tasks=True),
-        _minimal_agent("worker", ["supervisor"]),
-    ])
+    data = _valid_swarm(
+        agents=[
+            _minimal_agent(
+                "supervisor", ["worke"], enable_entrypoint=True, can_complete_tasks=True
+            ),
+            _minimal_agent("worker", ["supervisor"]),
+        ]
+    )
     with pytest.raises(ValueError, match="Did you mean 'worker'"):
         build_swarm_from_swarms_json(data)
 
 
 def test_cross_validate_comm_target_interswarm_allowed() -> None:
     """agent@swarm format comm_targets pass validation."""
-    data = _valid_swarm(agents=[
-        _minimal_agent("supervisor", ["worker", "remote@other-swarm"], enable_entrypoint=True, can_complete_tasks=True),
-        _minimal_agent("worker", ["supervisor"]),
-    ])
+    data = _valid_swarm(
+        agents=[
+            _minimal_agent(
+                "supervisor",
+                ["worker", "remote@other-swarm"],
+                enable_entrypoint=True,
+                can_complete_tasks=True,
+            ),
+            _minimal_agent("worker", ["supervisor"]),
+        ]
+    )
     # Should not raise
     build_swarm_from_swarms_json(data)
 
 
 def test_cross_validate_no_supervisor() -> None:
     """No can_complete_tasks: true agent raises ValueError."""
-    data = _valid_swarm(agents=[
-        _minimal_agent("supervisor", ["worker"], enable_entrypoint=True, can_complete_tasks=False),
-        _minimal_agent("worker", ["supervisor"]),
-    ])
-    with pytest.raises(ValueError, match="no agent has 'can_complete_tasks' set to true"):
+    data = _valid_swarm(
+        agents=[
+            _minimal_agent(
+                "supervisor",
+                ["worker"],
+                enable_entrypoint=True,
+                can_complete_tasks=False,
+            ),
+            _minimal_agent("worker", ["supervisor"]),
+        ]
+    )
+    with pytest.raises(
+        ValueError, match="no agent has 'can_complete_tasks' set to true"
+    ):
         build_swarm_from_swarms_json(data)
 
 
 def test_cross_validate_duplicate_agent_names() -> None:
     """Two agents with the same name raises ValueError."""
-    data = _valid_swarm(agents=[
-        _minimal_agent("supervisor", ["supervisor"], enable_entrypoint=True, can_complete_tasks=True),
-        _minimal_agent("supervisor", ["supervisor"]),
-    ])
+    data = _valid_swarm(
+        agents=[
+            _minimal_agent(
+                "supervisor",
+                ["supervisor"],
+                enable_entrypoint=True,
+                can_complete_tasks=True,
+            ),
+            _minimal_agent("supervisor", ["supervisor"]),
+        ]
+    )
     with pytest.raises(ValueError, match="duplicate agent name 'supervisor'"):
         build_swarm_from_swarms_json(data)
 
 
 def test_cross_validate_agent_action_not_in_swarm() -> None:
     """Agent references undefined action, raises ValueError with suggestion."""
-    agent = _minimal_agent("supervisor", ["worker"], enable_entrypoint=True, can_complete_tasks=True)
+    agent = _minimal_agent(
+        "supervisor", ["worker"], enable_entrypoint=True, can_complete_tasks=True
+    )
     agent["actions"] = ["pign"]
     data = _valid_swarm(
         agents=[agent, _minimal_agent("worker", ["supervisor"])],
@@ -244,7 +302,9 @@ def test_cross_validate_agent_action_not_in_swarm() -> None:
 
 def test_cross_validate_agent_action_with_imports_skips() -> None:
     """When action_imports present, unmatched agent action names don't error."""
-    agent = _minimal_agent("supervisor", ["worker"], enable_entrypoint=True, can_complete_tasks=True)
+    agent = _minimal_agent(
+        "supervisor", ["worker"], enable_entrypoint=True, can_complete_tasks=True
+    )
     agent["actions"] = ["imported_action"]
     data = _valid_swarm(
         agents=[agent, _minimal_agent("worker", ["supervisor"])],

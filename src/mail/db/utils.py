@@ -317,7 +317,7 @@ async def update_task(
 
     if title is not None:
         updates.append(f"title = ${param_idx}")
-        params.append(title) # type: ignore
+        params.append(title)  # type: ignore
         param_idx += 1
 
     if not updates:
@@ -370,20 +370,22 @@ async def load_tasks(
             if isinstance(remote_swarms, str):
                 remote_swarms = json.loads(remote_swarms)
 
-            tasks.append({
-                "task_id": row["task_id"],
-                "task_owner": row["task_owner"],
-                "task_contributors": task_contributors,
-                "remote_swarms": remote_swarms,
-                "is_running": row["is_running"],
-                "completed": row["completed"],
-                "start_time": row["start_time"].isoformat() if row["start_time"] else None,
-                "title": row["title"],
-            })
+            tasks.append(
+                {
+                    "task_id": row["task_id"],
+                    "task_owner": row["task_owner"],
+                    "task_contributors": task_contributors,
+                    "remote_swarms": remote_swarms,
+                    "is_running": row["is_running"],
+                    "completed": row["completed"],
+                    "start_time": row["start_time"].isoformat()
+                    if row["start_time"]
+                    else None,
+                    "title": row["title"],
+                }
+            )
 
-    logger.info(
-        f"loaded {len(tasks)} tasks for {caller_role}:{caller_id}@{swarm_name}"
-    )
+    logger.info(f"loaded {len(tasks)} tasks for {caller_role}:{caller_id}@{swarm_name}")
     return tasks
 
 

@@ -187,12 +187,12 @@ async def patch_server() -> None:
     server.MAILSwarmTemplate.from_swarm_json_file = staticmethod(  # type: ignore[assignment, misc]
         lambda swarm_name, _=None: DemoSwarmTemplate(swarm_name)
     )
-    server.user_mail_instances.clear() # type: ignore[attr-defined]
-    server.user_mail_tasks.clear() # type: ignore[attr-defined]
-    server.swarm_mail_instances.clear() # type: ignore[attr-defined]
-    server.swarm_mail_tasks.clear() # type: ignore[attr-defined]
-    server.swarm_registry = None # type: ignore[attr-defined]
-    server.persistent_swarm = None # type: ignore[attr-defined]
+    server.user_mail_instances.clear()  # type: ignore[attr-defined]
+    server.user_mail_tasks.clear()  # type: ignore[attr-defined]
+    server.swarm_mail_instances.clear()  # type: ignore[attr-defined]
+    server.swarm_mail_tasks.clear()  # type: ignore[attr-defined]
+    server.swarm_registry = None  # type: ignore[attr-defined]
+    server.persistent_swarm = None  # type: ignore[attr-defined]
 
     async def _fake_login(_: str) -> str:
         return "demo-token"

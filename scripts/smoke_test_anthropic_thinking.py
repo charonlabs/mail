@@ -82,11 +82,17 @@ Think carefully about each step before acting.""",
         print(f"    type: {block.type}")
 
         if block.type == "thinking":
-            print(f"    thinking: {block.thinking[:200]}..." if len(block.thinking) > 200 else f"    thinking: {block.thinking}")
+            print(
+                f"    thinking: {block.thinking[:200]}..."
+                if len(block.thinking) > 200
+                else f"    thinking: {block.thinking}"
+            )
             if hasattr(block, "signature"):
                 print(f"    signature: {block.signature[:50]}...")
         elif block.type == "redacted_thinking":
-            print(f"    data: [REDACTED - {len(block.data) if hasattr(block, 'data') else 'N/A'} chars]")
+            print(
+                f"    data: [REDACTED - {len(block.data) if hasattr(block, 'data') else 'N/A'} chars]"
+            )
         elif block.type == "tool_use":
             print(f"    id: {block.id}")
             print(f"    name: {block.name}")
@@ -97,7 +103,11 @@ Think carefully about each step before acting.""",
             if hasattr(block, "input"):
                 print(f"    input: {block.input}")
         elif block.type == "text":
-            print(f"    text: {block.text[:200]}..." if len(block.text) > 200 else f"    text: {block.text}")
+            print(
+                f"    text: {block.text[:200]}..."
+                if len(block.text) > 200
+                else f"    text: {block.text}"
+            )
 
     print("\n--- Block Type Sequence ---")
     sequence = [block.type for block in response.content]
@@ -161,11 +171,19 @@ Why could the third logician answer definitively?""",
         print(f"    type: {block.type}")
 
         if block.type == "thinking":
-            print(f"    thinking: {block.thinking[:300]}..." if len(block.thinking) > 300 else f"    thinking: {block.thinking}")
+            print(
+                f"    thinking: {block.thinking[:300]}..."
+                if len(block.thinking) > 300
+                else f"    thinking: {block.thinking}"
+            )
         elif block.type == "redacted_thinking":
             print(f"    data: [REDACTED]")
         elif block.type == "text":
-            print(f"    text: {block.text[:300]}..." if len(block.text) > 300 else f"    text: {block.text}")
+            print(
+                f"    text: {block.text[:300]}..."
+                if len(block.text) > 300
+                else f"    text: {block.text}"
+            )
 
     print("\n--- Block Type Sequence ---")
     sequence = [block.type for block in response.content]
@@ -189,12 +207,29 @@ async def test_anthropic_interleaved_thinking():
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "approach_a": {"type": "string", "description": "First approach being compared"},
-                    "approach_b": {"type": "string", "description": "Second approach being compared"},
-                    "context": {"type": "string", "description": "The specific use case context"},
-                    "your_initial_hypothesis": {"type": "string", "description": "Your hypothesis about which is better BEFORE seeing analysis"},
+                    "approach_a": {
+                        "type": "string",
+                        "description": "First approach being compared",
+                    },
+                    "approach_b": {
+                        "type": "string",
+                        "description": "Second approach being compared",
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "The specific use case context",
+                    },
+                    "your_initial_hypothesis": {
+                        "type": "string",
+                        "description": "Your hypothesis about which is better BEFORE seeing analysis",
+                    },
                 },
-                "required": ["approach_a", "approach_b", "context", "your_initial_hypothesis"],
+                "required": [
+                    "approach_a",
+                    "approach_b",
+                    "context",
+                    "your_initial_hypothesis",
+                ],
             },
         },
         {
@@ -203,9 +238,18 @@ async def test_anthropic_interleaved_thinking():
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "recommendation": {"type": "string", "description": "Your final recommendation"},
-                    "reasoning_changed": {"type": "boolean", "description": "Did your thinking change after the tradeoff analysis?"},
-                    "key_insight": {"type": "string", "description": "The most important insight from your research"},
+                    "recommendation": {
+                        "type": "string",
+                        "description": "Your final recommendation",
+                    },
+                    "reasoning_changed": {
+                        "type": "boolean",
+                        "description": "Did your thinking change after the tradeoff analysis?",
+                    },
+                    "key_insight": {
+                        "type": "string",
+                        "description": "The most important insight from your research",
+                    },
                 },
                 "required": ["recommendation", "reasoning_changed", "key_insight"],
             },
@@ -243,9 +287,9 @@ This is a critical architecture decision. Take your time to reason through each 
     turn = 1
 
     while True:
-        print(f"\n{'='*40}")
+        print(f"\n{'=' * 40}")
         print(f"TURN {turn}")
-        print(f"{'='*40}")
+        print(f"{'=' * 40}")
 
         response = await client.messages.create(
             model="claude-sonnet-4-5-20250929",
@@ -256,9 +300,7 @@ This is a critical architecture decision. Take your time to reason through each 
             },
             tools=tools,
             messages=messages,
-            extra_headers={
-                "anthropic-beta": "interleaved-thinking-2025-05-14"
-            },
+            extra_headers={"anthropic-beta": "interleaved-thinking-2025-05-14"},
         )
 
         all_responses.append(response)
@@ -279,35 +321,44 @@ This is a critical architecture decision. Take your time to reason through each 
             for block in response.content:
                 # Keep all blocks for assistant message
                 if block.type == "thinking":
-                    assistant_content.append({
-                        "type": "thinking",
-                        "thinking": block.thinking,
-                        "signature": block.signature,
-                    })
+                    assistant_content.append(
+                        {
+                            "type": "thinking",
+                            "thinking": block.thinking,
+                            "signature": block.signature,
+                        }
+                    )
                 elif block.type == "redacted_thinking":
-                    assistant_content.append({
-                        "type": "redacted_thinking",
-                        "data": block.data,
-                    })
+                    assistant_content.append(
+                        {
+                            "type": "redacted_thinking",
+                            "data": block.data,
+                        }
+                    )
                 elif block.type == "text":
-                    assistant_content.append({
-                        "type": "text",
-                        "text": block.text,
-                    })
+                    assistant_content.append(
+                        {
+                            "type": "text",
+                            "text": block.text,
+                        }
+                    )
                 elif block.type == "tool_use":
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": block.id,
-                        "name": block.name,
-                        "input": block.input,
-                    })
+                    assistant_content.append(
+                        {
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        }
+                    )
                     # Create dummy result for client-side tools
                     print(f"  -> Tool call: {block.name} (id={block.id[:20]}...)")
                     if block.name == "analyze_tradeoffs":
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": """TRADEOFF ANALYSIS RESULTS:
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": """TRADEOFF ANALYSIS RESULTS:
 
 Redis Pros:
 - Extremely fast in-memory operations (sub-millisecond latency)
@@ -334,13 +385,16 @@ PostgreSQL Cons:
 - Connection pooling complexity at scale
 
 RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient and simpler. Choose Redis only if you need >10k jobs/second or sub-millisecond latency.""",
-                        })
+                            }
+                        )
                     elif block.name == "report_findings":
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": "Report recorded successfully.",
-                        })
+                        tool_results.append(
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": "Report recorded successfully.",
+                            }
+                        )
                 elif block.type == "server_tool_use":
                     # Server tool use - include as-is
                     assistant_content.append(block.model_dump())
@@ -376,9 +430,9 @@ RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient
     print("\n--- Combined Block Analysis ---")
     all_blocks = []
     for i, resp in enumerate(all_responses):
-        print(f"\nTurn {i+1} blocks:")
+        print(f"\nTurn {i + 1} blocks:")
         for block in resp.content:
-            all_blocks.append((i+1, block))
+            all_blocks.append((i + 1, block))
             print(f"  {block.type}", end="")
             if block.type in ("tool_use", "server_tool_use"):
                 print(f" ({block.name})", end="")
@@ -399,33 +453,43 @@ RECOMMENDATION: For most applications, PostgreSQL with SKIP LOCKED is sufficient
         for block in resp.content:
             if block.type == "thinking":
                 current_thinking.append(block.type)
-                thinking_text = block.thinking[:100] + "..." if len(block.thinking) > 100 else block.thinking
+                thinking_text = (
+                    block.thinking[:100] + "..."
+                    if len(block.thinking) > 100
+                    else block.thinking
+                )
                 current_thinking_content.append(thinking_text)
             elif block.type == "redacted_thinking":
                 current_thinking.append(block.type)
                 current_thinking_content.append("[REDACTED]")
             elif block.type in ("tool_use", "server_tool_use"):
-                tool_input = block.input if hasattr(block, 'input') else {}
-                thinking_to_tool.append({
-                    "turn": turn_idx + 1,
-                    "tool_type": block.type,
-                    "tool": block.name,
-                    "tool_id": block.id,
-                    "tool_input": tool_input,
-                    "preceding_thinking_types": current_thinking.copy(),
-                    "preceding_thinking_preview": current_thinking_content.copy(),
-                })
+                tool_input = block.input if hasattr(block, "input") else {}
+                thinking_to_tool.append(
+                    {
+                        "turn": turn_idx + 1,
+                        "tool_type": block.type,
+                        "tool": block.name,
+                        "tool_id": block.id,
+                        "tool_input": tool_input,
+                        "preceding_thinking_types": current_thinking.copy(),
+                        "preceding_thinking_preview": current_thinking_content.copy(),
+                    }
+                )
                 current_thinking = []
                 current_thinking_content = []
 
     print(f"\n  Total tool calls across all turns: {len(thinking_to_tool)}")
     for i, item in enumerate(thinking_to_tool):
-        print(f"\n  [{i+1}] Turn {item['turn']} - {item['tool_type']}: '{item['tool']}'")
+        print(
+            f"\n  [{i + 1}] Turn {item['turn']} - {item['tool_type']}: '{item['tool']}'"
+        )
         print(f"      ID: {item['tool_id']}")
         print(f"      Input: {json.dumps(item['tool_input'])[:100]}")
-        print(f"      Preceded by: {item['preceding_thinking_types'] if item['preceding_thinking_types'] else '[no thinking]'}")
-        if item['preceding_thinking_preview']:
-            for j, preview in enumerate(item['preceding_thinking_preview']):
+        print(
+            f"      Preceded by: {item['preceding_thinking_types'] if item['preceding_thinking_types'] else '[no thinking]'}"
+        )
+        if item["preceding_thinking_preview"]:
+            for j, preview in enumerate(item["preceding_thinking_preview"]):
                 print(f"        thinking[{j}]: {preview[:80]}...")
 
     return all_responses

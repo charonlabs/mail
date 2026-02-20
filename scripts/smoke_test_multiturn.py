@@ -31,12 +31,12 @@ async def test_multiturn_with_custom_tool():
                     "properties": {
                         "expression": {
                             "type": "string",
-                            "description": "The math expression to evaluate, e.g. '2 + 2'"
+                            "description": "The math expression to evaluate, e.g. '2 + 2'",
                         }
                     },
-                    "required": ["expression"]
-                }
-            }
+                    "required": ["expression"],
+                },
+            },
         }
     ]
 
@@ -53,9 +53,7 @@ async def test_multiturn_with_custom_tool():
     )
 
     # Turn 1: User asks a math question
-    messages = [
-        {"role": "user", "content": "What is 15 + 27?"}
-    ]
+    messages = [{"role": "user", "content": "What is 15 + 27?"}]
 
     print("\n--- Turn 1: Initial request ---")
     content, tool_calls = await agent(messages, tool_choice="auto")
@@ -90,16 +88,12 @@ async def test_multiturn_with_custom_tool():
                     "type": "function",
                     "function": {
                         "name": "calculate",
-                        "arguments": '{"expression": "15 + 27"}'
-                    }
+                        "arguments": '{"expression": "15 + 27"}',
+                    },
                 }
-            ]
+            ],
         },
-        {
-            "role": "tool",
-            "tool_call_id": calc_call.tool_call_id,
-            "content": "42"
-        }
+        {"role": "tool", "tool_call_id": calc_call.tool_call_id, "content": "42"},
     ]
 
     print(f"Sending {len(messages)} messages (including tool result)")
@@ -119,6 +113,7 @@ async def test_multiturn_with_custom_tool():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -139,9 +134,9 @@ async def test_multiturn_parallel_tools():
                     "properties": {
                         "city": {"type": "string", "description": "City name"}
                     },
-                    "required": ["city"]
-                }
-            }
+                    "required": ["city"],
+                },
+            },
         }
     ]
 
@@ -170,30 +165,26 @@ async def test_multiturn_parallel_tools():
                     "type": "function",
                     "function": {
                         "name": "get_weather",
-                        "arguments": '{"city": "New York"}'
-                    }
+                        "arguments": '{"city": "New York"}',
+                    },
                 },
                 {
                     "id": "call_2",
                     "type": "function",
                     "function": {
                         "name": "get_weather",
-                        "arguments": '{"city": "Los Angeles"}'
-                    }
-                }
-            ]
+                        "arguments": '{"city": "Los Angeles"}',
+                    },
+                },
+            ],
         },
         # Multiple tool results - should be grouped into single user message
-        {
-            "role": "tool",
-            "tool_call_id": "call_1",
-            "content": "New York: 45°F, cloudy"
-        },
+        {"role": "tool", "tool_call_id": "call_1", "content": "New York: 45°F, cloudy"},
         {
             "role": "tool",
             "tool_call_id": "call_2",
-            "content": "Los Angeles: 72°F, sunny"
-        }
+            "content": "Los Angeles: 72°F, sunny",
+        },
     ]
 
     print(f"\nSending conversation with 2 parallel tool results...")
@@ -204,8 +195,12 @@ async def test_multiturn_parallel_tools():
         print(f"\nFinal response:\n{content}")
 
         # Check if both results were used
-        has_nyc = "45" in content or "New York" in content or "cloudy" in content.lower()
-        has_la = "72" in content or "Los Angeles" in content or "sunny" in content.lower()
+        has_nyc = (
+            "45" in content or "New York" in content or "cloudy" in content.lower()
+        )
+        has_la = (
+            "72" in content or "Los Angeles" in content or "sunny" in content.lower()
+        )
 
         if has_nyc and has_la:
             print("\n✅ Test passed! Both tool results were used correctly")
@@ -217,6 +212,7 @@ async def test_multiturn_parallel_tools():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -235,11 +231,14 @@ async def test_multiturn_with_thinking():
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "query": {"type": "string", "description": "The query to look up"}
+                        "query": {
+                            "type": "string",
+                            "description": "The query to look up",
+                        }
                     },
-                    "required": ["query"]
-                }
-            }
+                    "required": ["query"],
+                },
+            },
         }
     ]
 
@@ -257,9 +256,7 @@ async def test_multiturn_with_thinking():
     )
 
     # Turn 1: Initial request that should trigger tool use
-    messages = [
-        {"role": "user", "content": "Look up the population of Tokyo."}
-    ]
+    messages = [{"role": "user", "content": "Look up the population of Tokyo."}]
 
     print("\n--- Turn 1: Initial request (with thinking) ---")
 
@@ -284,10 +281,10 @@ async def test_multiturn_with_thinking():
         # Check that completion has thinking blocks
         completion = lookup_call.completion
         print(f"\nCompletion has 'content': {'content' in completion}")
-        if 'content' in completion:
-            content_types = [b.get('type') for b in completion.get('content', [])]
+        if "content" in completion:
+            content_types = [b.get("type") for b in completion.get("content", [])]
             print(f"Content block types: {content_types}")
-            has_thinking_in_completion = 'thinking' in content_types
+            has_thinking_in_completion = "thinking" in content_types
             print(f"Has thinking in completion: {has_thinking_in_completion}")
 
         # Turn 2: Send tool result using the real completion from turn 1
@@ -300,11 +297,13 @@ async def test_multiturn_with_thinking():
             {
                 "role": "tool",
                 "tool_call_id": lookup_call.tool_call_id,
-                "content": "Tokyo metropolitan area population: approximately 37.4 million people, making it the most populous metropolitan area in the world."
-            }
+                "content": "Tokyo metropolitan area population: approximately 37.4 million people, making it the most populous metropolitan area in the world.",
+            },
         ]
 
-        print(f"Sending {len(messages)} messages (user + assistant w/thinking + tool result)")
+        print(
+            f"Sending {len(messages)} messages (user + assistant w/thinking + tool result)"
+        )
 
         content2, tool_calls2 = await agent(messages, tool_choice="auto")
 
@@ -326,6 +325,7 @@ async def test_multiturn_with_thinking():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 

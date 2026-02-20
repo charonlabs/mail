@@ -814,7 +814,9 @@ class MAILSwarm:
             )
         if self.entrypoint not in entrypoints:
             agent_names = [agent.name for agent in self.agents]
-            suggestion = difflib.get_close_matches(self.entrypoint, agent_names, n=1, cutoff=0.6)
+            suggestion = difflib.get_close_matches(
+                self.entrypoint, agent_names, n=1, cutoff=0.6
+            )
             msg = f"entrypoint agent '{self.entrypoint}' not found in swarm"
             if suggestion:
                 msg += f". Did you mean '{suggestion[0]}'?"
@@ -830,7 +832,9 @@ class MAILSwarm:
                         f"agent '{agent.name}' has interswarm communication target '{target}' but interswarm messaging is not enabled for this swarm"
                     )
                 if not interswarm_target and target not in agent_names:
-                    suggestion = difflib.get_close_matches(target, agent_names, n=1, cutoff=0.6)
+                    suggestion = difflib.get_close_matches(
+                        target, agent_names, n=1, cutoff=0.6
+                    )
                     msg = f"agent '{agent.name}' has invalid communication target '{target}'"
                     if suggestion:
                         msg += f". Did you mean '{suggestion[0]}'?"
@@ -852,7 +856,9 @@ class MAILSwarm:
         valid_breakpoint_tools = MAIL_TOOL_NAMES + action_names
         for tool in self.breakpoint_tools:
             if tool not in valid_breakpoint_tools:
-                suggestion = difflib.get_close_matches(tool, valid_breakpoint_tools, n=1, cutoff=0.6)
+                suggestion = difflib.get_close_matches(
+                    tool, valid_breakpoint_tools, n=1, cutoff=0.6
+                )
                 msg = f"breakpoint tool '{tool}' not found in swarm"
                 if suggestion:
                     msg += f". Did you mean '{suggestion[0]}'?"
@@ -861,7 +867,9 @@ class MAILSwarm:
         # are the excluded tools valid?
         for tool in self.exclude_tools:
             if tool not in MAIL_TOOL_NAMES:
-                suggestion = difflib.get_close_matches(tool, MAIL_TOOL_NAMES, n=1, cutoff=0.6)
+                suggestion = difflib.get_close_matches(
+                    tool, MAIL_TOOL_NAMES, n=1, cutoff=0.6
+                )
                 msg = f"excluded tool '{tool}' is not valid"
                 if suggestion:
                     msg += f". Did you mean '{suggestion[0]}'?"
@@ -1490,7 +1498,9 @@ class MAILSwarmTemplate:
             )
         if self.entrypoint not in entrypoints:
             agent_names = [agent.name for agent in self.agents]
-            suggestion = difflib.get_close_matches(self.entrypoint, agent_names, n=1, cutoff=0.6)
+            suggestion = difflib.get_close_matches(
+                self.entrypoint, agent_names, n=1, cutoff=0.6
+            )
             msg = f"entrypoint agent '{self.entrypoint}' not found in swarm"
             if suggestion:
                 msg += f". Did you mean '{suggestion[0]}'?"
@@ -1506,7 +1516,9 @@ class MAILSwarmTemplate:
                         f"agent '{agent.name}' has interswarm communication target '{target}' but interswarm messaging is not enabled for this swarm"
                     )
                 if not interswarm_target and target not in agent_names:
-                    suggestion = difflib.get_close_matches(target, agent_names, n=1, cutoff=0.6)
+                    suggestion = difflib.get_close_matches(
+                        target, agent_names, n=1, cutoff=0.6
+                    )
                     msg = f"agent '{agent.name}' has invalid communication target '{target}'"
                     if suggestion:
                         msg += f". Did you mean '{suggestion[0]}'?"
@@ -1523,7 +1535,9 @@ class MAILSwarmTemplate:
         valid_breakpoint_tools = MAIL_TOOL_NAMES + action_names
         for tool in self.breakpoint_tools:
             if tool not in valid_breakpoint_tools:
-                suggestion = difflib.get_close_matches(tool, valid_breakpoint_tools, n=1, cutoff=0.6)
+                suggestion = difflib.get_close_matches(
+                    tool, valid_breakpoint_tools, n=1, cutoff=0.6
+                )
                 msg = f"breakpoint tool '{tool}' not found in swarm"
                 if suggestion:
                     msg += f". Did you mean '{suggestion[0]}'?"
@@ -1532,7 +1546,9 @@ class MAILSwarmTemplate:
         # are the excluded tools valid?
         for tool in self.exclude_tools:
             if tool not in MAIL_TOOL_NAMES:
-                suggestion = difflib.get_close_matches(tool, MAIL_TOOL_NAMES, n=1, cutoff=0.6)
+                suggestion = difflib.get_close_matches(
+                    tool, MAIL_TOOL_NAMES, n=1, cutoff=0.6
+                )
                 msg = f"excluded tool '{tool}' is not valid"
                 if suggestion:
                     msg += f". Did you mean '{suggestion[0]}'?"
@@ -1917,17 +1933,19 @@ class MAILSwarmTemplate:
             # Check if UI port is available before launching
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 if s.connect_ex(("localhost", ui_port)) == 0:
-                    raise OSError(f"UI port {ui_port} is already in use. Try a different ui_port.")
+                    raise OSError(
+                        f"UI port {ui_port} is already in use. Try a different ui_port."
+                    )
 
             # Print startup banner
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"  MAIL Swarm Viewer")
             print(f"  Swarm: {self.name}")
             print(f"  Agents: {', '.join(self.agent_names)}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             print(f"  Server: http://{host}:{port}")
             print(f"  UI:     http://localhost:{ui_port}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             print(f"  Press Ctrl+C to stop\n")
 
             # Set up environment for UI to connect to server
@@ -1977,13 +1995,13 @@ class MAILSwarmTemplate:
                     webbrowser.open(url)
         else:
             # Server-only banner
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"  MAIL Server")
             print(f"  Swarm: {self.name}")
             print(f"  Agents: {', '.join(self.agent_names)}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             print(f"  Server: http://{host}:{port}")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             print(f"  Press Ctrl+C to stop\n")
 
         try:
@@ -1994,8 +2012,10 @@ class MAILSwarmTemplate:
                 task_message_limit=None,
             )
         except OSError as e:
-            if "Address already in use" in str(e) or getattr(e, 'errno', None) == 98:
-                raise OSError(f"Port {port} is already in use. Try a different port.") from e
+            if "Address already in use" in str(e) or getattr(e, "errno", None) == 98:
+                raise OSError(
+                    f"Port {port} is already in use. Try a different port."
+                ) from e
             raise
         finally:
             # Graceful shutdown of UI process

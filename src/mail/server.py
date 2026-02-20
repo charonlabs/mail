@@ -543,7 +543,10 @@ async def message(request: Request):
         stream = data.get("stream", False)
 
         if not isinstance(msg_type, str):
-            raise HTTPException(status_code=400, detail=f"msg_type must be a string, got {type(msg_type).__name__}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"msg_type must be a string, got {type(msg_type).__name__}",
+            )
         if msg_type not in MAIL_MESSAGE_TYPES:
             raise HTTPException(
                 status_code=400, detail=f"invalid message type: {msg_type}"
@@ -637,13 +640,15 @@ async def get_ui_agents():
 
     agents = []
     for agent in app.state.persistent_swarm.agents:
-        agents.append({
-            "name": agent.name,
-            "comm_targets": agent.comm_targets,
-            "enable_entrypoint": agent.enable_entrypoint,
-            "can_complete_tasks": agent.can_complete_tasks,
-            "enable_interswarm": agent.enable_interswarm,
-        })
+        agents.append(
+            {
+                "name": agent.name,
+                "comm_targets": agent.comm_targets,
+                "enable_entrypoint": agent.enable_entrypoint,
+                "can_complete_tasks": agent.can_complete_tasks,
+                "enable_interswarm": agent.enable_interswarm,
+            }
+        )
 
     return {
         "agents": agents,
@@ -683,9 +688,7 @@ async def ui_message(request: Request):
                 status_code=400, detail=f"invalid message type: {msg_type}"
             )
 
-        logger.info(
-            f"{_log_prelude(app)} [UI-DEV] received message: '{subject}'"
-        )
+        logger.info(f"{_log_prelude(app)} [UI-DEV] received message: '{subject}'")
     except Exception as e:
         if isinstance(e, HTTPException):
             raise e
@@ -721,9 +724,7 @@ async def ui_message(request: Request):
                 resume_from=resume_from,
             )
         else:
-            logger.info(
-                f"{_log_prelude(app)} [UI-DEV] submitting message and waiting"
-            )
+            logger.info(f"{_log_prelude(app)} [UI-DEV] submitting message and waiting")
             result = await api_swarm.post_message(
                 subject=subject,
                 body=body,
@@ -744,9 +745,7 @@ async def ui_message(request: Request):
             )
 
     except Exception as e:
-        logger.error(
-            f"{_log_prelude(app)} [UI-DEV] error processing message: {e}"
-        )
+        logger.error(f"{_log_prelude(app)} [UI-DEV] error processing message: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"error processing message: {e.with_traceback(None)}",
@@ -777,19 +776,23 @@ async def ui_dump_events():
                 except Exception:
                     pass
 
-            all_events.append({
-                "task_id": task_id,
-                "event_type": event.event,
-                "event_id": event.id,
-                "data": event_data,
-            })
+            all_events.append(
+                {
+                    "task_id": task_id,
+                    "event_type": event.event,
+                    "event_id": event.id,
+                    "data": event_data,
+                }
+            )
 
     # Write to file
     with open("events_dump.jsonl", "w") as f:
         for event in all_events:
             f.write(ujson.dumps(event) + "\n")
 
-    logger.info(f"{_log_prelude(app)} [UI-DEV] dumped {len(all_events)} events to events_dump.jsonl")
+    logger.info(
+        f"{_log_prelude(app)} [UI-DEV] dumped {len(all_events)} events to events_dump.jsonl"
+    )
 
     return {
         "message": f"Dumped {len(all_events)} events to events_dump.jsonl",
@@ -875,33 +878,43 @@ async def ui_get_task_summary(task_id: str, force_regen: bool = False):
 
         # User message: sender.address_type == "user"
         if sender.get("address_type") == "user":
-            chat_messages.append({
-                "role": "user",
-                "content": message.get("body", ""),
-            })
+            chat_messages.append(
+                {
+                    "role": "user",
+                    "content": message.get("body", ""),
+                }
+            )
 
         # Assistant response: msg_type == "broadcast_complete"
         if msg_type == "broadcast_complete":
-            chat_messages.append({
-                "role": "assistant",
-                "content": message.get("body", ""),
-            })
+            chat_messages.append(
+                {
+                    "role": "assistant",
+                    "content": message.get("body", ""),
+                }
+            )
 
     if not chat_messages:
         task.title = "<no messages>"
-        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
+        await _persist_task_title(
+            api_swarm, task_id, task.title, caller_role, caller_id
+        )
         return {"task_id": task_id, "title": task.title}
 
     # Generate title using summarizer (creates fresh swarm per request)
     try:
         title = await summarize_task(chat_messages)
         task.title = title if title else "<title failed>"
-        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
+        await _persist_task_title(
+            api_swarm, task_id, task.title, caller_role, caller_id
+        )
         return {"task_id": task_id, "title": task.title}
     except Exception as e:
         logger.warning(f"Failed to generate title for task {task_id}: {e}")
         task.title = "<title failed>"
-        await _persist_task_title(api_swarm, task_id, task.title, caller_role, caller_id)
+        await _persist_task_title(
+            api_swarm, task_id, task.title, caller_role, caller_id
+        )
         return {"task_id": task_id, "title": task.title}
 
 
@@ -917,15 +930,17 @@ async def ui_get_tasks():
 
     result = []
     for task in tasks.values():
-        result.append({
-            "task_id": task.task_id,
-            "task_owner": task.task_owner,
-            "is_running": task.is_running,
-            "completed": task.completed,
-            "start_time": task.start_time.isoformat(),
-            "event_count": len(task.events),
-            "title": task.title,
-        })
+        result.append(
+            {
+                "task_id": task.task_id,
+                "task_owner": task.task_owner,
+                "is_running": task.is_running,
+                "completed": task.completed,
+                "start_time": task.start_time.isoformat(),
+                "event_count": len(task.events),
+                "title": task.title,
+            }
+        )
 
     # Sort by start_time descending (newest first)
     result.sort(key=lambda t: t["start_time"], reverse=True)
@@ -956,11 +971,13 @@ async def ui_get_task(task_id: str):
             except Exception:
                 pass  # Keep as string if parse fails
 
-        events.append({
-            "event": e.event,
-            "data": event_data,  # Now a proper dict
-            "id": e.id,
-        })
+        events.append(
+            {
+                "event": e.event,
+                "data": event_data,  # Now a proper dict
+                "id": e.id,
+            }
+        )
 
     return {
         "task_id": task.task_id,
@@ -1222,7 +1239,9 @@ async def post_interswarm_message(request: Request):
         caller_id = caller_info["id"]
         caller_role = caller_info["role"]
         if caller_role not in ["admin", "user"]:
-            raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
+            raise HTTPException(
+                status_code=403, detail=f"role '{caller_role}' is not allowed"
+            )
 
         # parse request
         data = await request.json()
@@ -1449,7 +1468,9 @@ async def responses(request: Request):
     caller_id = caller_info["id"]
     caller_role = caller_info["role"]
     if caller_role not in ["admin", "user"]:
-        raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
+        raise HTTPException(
+            status_code=403, detail=f"role '{caller_role}' is not allowed"
+        )
 
     # ensure the caller's MAIL instance is ready
     caller_mail_instance = await get_or_create_mail_instance(
@@ -1496,7 +1517,9 @@ async def get_tasks(request: Request):
     caller_id = caller_info["id"]
     caller_role = caller_info["role"]
     if caller_role not in ["admin", "user"]:
-        raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
+        raise HTTPException(
+            status_code=403, detail=f"role '{caller_role}' is not allowed"
+        )
 
     mail_instance = await get_or_create_mail_instance(
         caller_role, caller_id, caller_info["api_key"]
@@ -1521,7 +1544,9 @@ async def get_task(request: Request):
     caller_id = caller_info["id"]
     caller_role = caller_info["role"]
     if caller_role not in ["admin", "user"]:
-        raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
+        raise HTTPException(
+            status_code=403, detail=f"role '{caller_role}' is not allowed"
+        )
 
     body = await request.json()
     task_id = body.get("task_id")

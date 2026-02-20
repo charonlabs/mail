@@ -45,7 +45,10 @@ async def test_websearch_basic():
     )
 
     messages = [
-        {"role": "user", "content": "What is the current weather in San Francisco? Search the web for it."}
+        {
+            "role": "user",
+            "content": "What is the current weather in San Francisco? Search the web for it.",
+        }
     ]
 
     try:
@@ -75,6 +78,7 @@ async def test_websearch_basic():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -106,9 +110,7 @@ async def test_websearch_with_mail_tools():
         _debug_include_mail_tools=True,  # Include MAIL tools
     )
 
-    messages = [
-        {"role": "user", "content": "Search the web for current AI news."}
-    ]
+    messages = [{"role": "user", "content": "Search the web for current AI news."}]
 
     try:
         content, tool_calls = await agent(messages, tool_choice="auto")
@@ -127,6 +129,7 @@ async def test_websearch_with_mail_tools():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -157,7 +160,10 @@ async def test_websearch_streaming():
     )
 
     messages = [
-        {"role": "user", "content": "What is the current weather in San Francisco? Search the web."}
+        {
+            "role": "user",
+            "content": "What is the current weather in San Francisco? Search the web.",
+        }
     ]
 
     try:
@@ -180,6 +186,7 @@ async def test_websearch_streaming():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -211,7 +218,10 @@ async def test_extended_thinking_with_interleaved():
     )
 
     messages = [
-        {"role": "user", "content": "Search for the latest news about AI safety and summarize it briefly."}
+        {
+            "role": "user",
+            "content": "Search for the latest news about AI safety and summarize it briefly.",
+        }
     ]
 
     try:
@@ -256,6 +266,7 @@ async def test_extended_thinking_with_interleaved():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -286,9 +297,7 @@ async def test_tool_choice_required_with_thinking():
         _debug_include_mail_tools=False,
     )
 
-    messages = [
-        {"role": "user", "content": "Search for today's date."}
-    ]
+    messages = [{"role": "user", "content": "Search for today's date."}]
 
     try:
         # This should NOT error - should fall back to "auto"
@@ -311,6 +320,7 @@ async def test_tool_choice_required_with_thinking():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -341,9 +351,7 @@ async def test_thinking_blocks_structure():
         _debug_include_mail_tools=False,
     )
 
-    messages = [
-        {"role": "user", "content": "What day is it today? Search if needed."}
-    ]
+    messages = [{"role": "user", "content": "What day is it today? Search if needed."}]
 
     try:
         content, tool_calls = await agent(messages, tool_choice="auto")
@@ -397,6 +405,7 @@ async def test_thinking_blocks_structure():
     except Exception as e:
         print(f"\n❌ ERROR: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
 
 

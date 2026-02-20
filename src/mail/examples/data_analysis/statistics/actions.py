@@ -35,7 +35,11 @@ def _extract_numeric_values(data: list[Any]) -> list[float]:
     """Extract numeric values from data, filtering out non-numeric items."""
     values = []
     for item in data:
-        if isinstance(item, int | float) and not math.isnan(item) and not math.isinf(item):
+        if (
+            isinstance(item, int | float)
+            and not math.isnan(item)
+            and not math.isinf(item)
+        ):
             values.append(float(item))
     return values
 
@@ -150,47 +154,48 @@ async def calculate_statistics(args: dict[str, Any]) -> str:
 
     for metric in metrics:
         if metric not in AVAILABLE_METRICS:
-            results["metrics"][metric] = {"error": f"Unknown metric: {metric}"} # type: ignore
+            results["metrics"][metric] = {"error": f"Unknown metric: {metric}"}  # type: ignore
             continue
 
         try:
             if metric == "count":
-                results["metrics"][metric] = len(values) # type: ignore
+                results["metrics"][metric] = len(values)  # type: ignore
             elif metric == "mean":
-                results["metrics"][metric] = round(mean, 4) # type: ignore
+                results["metrics"][metric] = round(mean, 4)  # type: ignore
             elif metric == "median":
-                results["metrics"][metric] = round(_calculate_median(values), 4) # type: ignore
+                results["metrics"][metric] = round(_calculate_median(values), 4)  # type: ignore
             elif metric == "mode":
                 mode = _calculate_mode(values)
-                results["metrics"][metric] = ( # type: ignore
+                results["metrics"][metric] = (  # type: ignore
                     round(mode, 4) if mode is not None else "multimodal"
                 )
             elif metric == "std":
-                results["metrics"][metric] = round(_calculate_std(values, mean), 4) # type: ignore
+                results["metrics"][metric] = round(_calculate_std(values, mean), 4)  # type: ignore
             elif metric == "variance":
-                results["metrics"][metric] = round(_calculate_variance(values, mean), 4) # type: ignore
+                results["metrics"][metric] = round(_calculate_variance(values, mean), 4)  # type: ignore
             elif metric == "min":
-                results["metrics"][metric] = round(min(values), 4) # type: ignore
+                results["metrics"][metric] = round(min(values), 4)  # type: ignore
             elif metric == "max":
-                results["metrics"][metric] = round(max(values), 4) # type: ignore
+                results["metrics"][metric] = round(max(values), 4)  # type: ignore
             elif metric == "range":
-                results["metrics"][metric] = round(max(values) - min(values), 4) # type: ignore
+                results["metrics"][metric] = round(max(values) - min(values), 4)  # type: ignore
             elif metric == "sum":
-                results["metrics"][metric] = round(sum(values), 4) # type: ignore
+                results["metrics"][metric] = round(sum(values), 4)  # type: ignore
             elif metric == "percentile_25":
-                results["metrics"][metric] = round(_calculate_percentile(values, 25), 4) # type: ignore
+                results["metrics"][metric] = round(_calculate_percentile(values, 25), 4)  # type: ignore
             elif metric == "percentile_75":
-                results["metrics"][metric] = round(_calculate_percentile(values, 75), 4) # type: ignore
+                results["metrics"][metric] = round(_calculate_percentile(values, 75), 4)  # type: ignore
             elif metric == "iqr":
                 q1 = _calculate_percentile(values, 25)
                 q3 = _calculate_percentile(values, 75)
-                results["metrics"][metric] = round(q3 - q1, 4) # type: ignore
+                results["metrics"][metric] = round(q3 - q1, 4)  # type: ignore
         except Exception as e:
-            results["metrics"][metric] = {"error": str(e)} # type: ignore
+            results["metrics"][metric] = {"error": str(e)}  # type: ignore
 
     # Add interpretation
     results["interpretation"] = _generate_interpretation(
-        results["metrics"], len(values) # type: ignore
+        results["metrics"],
+        len(values),  # type: ignore
     )
 
     return json.dumps(results)

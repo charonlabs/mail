@@ -11,7 +11,12 @@ from collections.abc import Awaitable
 from typing import Any, Literal, cast
 
 import anthropic
-from anthropic.types import ContentBlockDeltaEvent, ContentBlockStartEvent, TextDelta, ThinkingDelta
+from anthropic.types import (
+    ContentBlockDeltaEvent,
+    ContentBlockStartEvent,
+    TextDelta,
+    ThinkingDelta,
+)
 import langsmith as ls
 import litellm
 import rich
@@ -581,9 +586,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     await asyncio.sleep(retries)
 
         if last_error is not None and retries == 0:
-            raise RuntimeError(
-                f"completion failed after 5 retries"
-            ) from last_error
+            raise RuntimeError(f"completion failed after 5 retries") from last_error
 
         msg = res.choices[0].message  # type: ignore
         tool_calls: list[AgentToolCall] = []
@@ -964,7 +967,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
                     if event_type == "content_block_start":
                         if not isinstance(event, ContentBlockStartEvent):
-                            logger.warning(f"expected ContentBlockStartEvent, got {type(event).__name__}")
+                            logger.warning(
+                                f"expected ContentBlockStartEvent, got {type(event).__name__}"
+                            )
                             continue
                         block = event.content_block
                         block_type = block.type
@@ -1006,7 +1011,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
                     elif event_type == "content_block_delta":
                         if not isinstance(event, ContentBlockDeltaEvent):
-                            logger.warning(f"expected ContentBlockDeltaEvent, got {type(event).__name__}")
+                            logger.warning(
+                                f"expected ContentBlockDeltaEvent, got {type(event).__name__}"
+                            )
                             continue
                         delta = event.delta
                         delta_type = delta.type
@@ -1230,7 +1237,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         final_completion = litellm.stream_chunk_builder(chunks, messages=messages)
         if not isinstance(final_completion, ModelResponse):
-            raise TypeError(f"expected ModelResponse from stream_chunk_builder, got {type(final_completion).__name__}")
+            raise TypeError(
+                f"expected ModelResponse from stream_chunk_builder, got {type(final_completion).__name__}"
+            )
         return final_completion
 
     async def _run_responses(
@@ -1383,7 +1392,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     arguments = output["arguments"]
                 else:
                     if not isinstance(output, ResponseFunctionToolCall):
-                        raise TypeError(f"expected ResponseFunctionToolCall, got {type(output).__name__}")
+                        raise TypeError(
+                            f"expected ResponseFunctionToolCall, got {type(output).__name__}"
+                        )
                     call_id = output.call_id
                     name = output.name
                     arguments = output.arguments
@@ -1627,7 +1638,11 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     final_response = event.response
 
         if final_response is None:
-            raise RuntimeError("streaming completed without receiving a response.completed event")
+            raise RuntimeError(
+                "streaming completed without receiving a response.completed event"
+            )
         if not isinstance(final_response, ResponsesAPIResponse):
-            raise TypeError(f"expected ResponsesAPIResponse, got {type(final_response).__name__}")
+            raise TypeError(
+                f"expected ResponsesAPIResponse, got {type(final_response).__name__}"
+            )
         return final_response, tool_reasoning_map, pending_reasoning_parts

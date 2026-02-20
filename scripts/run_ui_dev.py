@@ -166,10 +166,14 @@ def main():
         log_file = open(mail_log_file, "w")
         mail_proc = subprocess.Popen(
             [
-                "uv", "run", "uvicorn",
+                "uv",
+                "run",
+                "uvicorn",
                 "mail.server:app",
-                "--host", "0.0.0.0",
-                "--port", "8000",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
             ],
             stdout=log_file,
             stderr=subprocess.STDOUT,

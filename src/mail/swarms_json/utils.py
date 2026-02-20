@@ -184,8 +184,7 @@ def _cross_validate_swarm(swarm_candidate: dict[str, Any]) -> None:
             if target not in agent_names:
                 raise ValueError(
                     f"agent '{agent_name}' has comm_target '{target}' "
-                    "which is not a defined agent."
-                    + _suggest(target, agent_names)
+                    "which is not a defined agent." + _suggest(target, agent_names)
                 )
 
     # Check 5: at least one agent has can_complete_tasks: true
