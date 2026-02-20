@@ -261,8 +261,8 @@ async def _server_shutdown(app: FastAPI) -> None:
     if app.state._http_session is not None:
         try:
             await app.state._http_session.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"error closing HTTP session during shutdown: {e}")
         app.state._http_session = None
 
     # Close the database connection pool
@@ -316,8 +316,8 @@ async def get_or_create_mail_instance(
         try:
             if not existing_instance.done():
                 existing_instance.cancel()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"error cancelling orphaned task for {role} '{id}': {e}")
         mail_instances.pop(id, None)
         mail_tasks.pop(id, None)
 
@@ -542,7 +542,8 @@ async def message(request: Request):
         show_events = data.get("show_events", False)
         stream = data.get("stream", False)
 
-        assert isinstance(msg_type, str)
+        if not isinstance(msg_type, str):
+            raise HTTPException(status_code=400, detail=f"msg_type must be a string, got {type(msg_type).__name__}")
         if msg_type not in MAIL_MESSAGE_TYPES:
             raise HTTPException(
                 status_code=400, detail=f"invalid message type: {msg_type}"
@@ -565,7 +566,8 @@ async def message(request: Request):
 
     # MAIL process
     try:
-        assert app.state.persistent_swarm is not None
+        if app.state.persistent_swarm is None:
+            raise HTTPException(status_code=503, detail="no swarm loaded")
 
         api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
 
@@ -696,7 +698,8 @@ async def ui_message(request: Request):
         raise HTTPException(status_code=400, detail="no message provided")
 
     try:
-        assert app.state.persistent_swarm is not None
+        if app.state.persistent_swarm is None:
+            raise HTTPException(status_code=503, detail="no swarm loaded")
 
         # Get or create a dev user MAIL instance
         api_swarm = await get_or_create_mail_instance(caller_role, caller_id, api_key)
@@ -1046,7 +1049,8 @@ async def dump_swarm(request: Request):
     """
     Dump the persistent swarm to the console.
     """
-    assert app.state.persistent_swarm is not None
+    if app.state.persistent_swarm is None:
+        raise HTTPException(status_code=503, detail="no swarm loaded")
 
     # log da swarm
     logger.info(
@@ -1217,7 +1221,8 @@ async def post_interswarm_message(request: Request):
         caller_info = await utils.extract_token_info(request)
         caller_id = caller_info["id"]
         caller_role = caller_info["role"]
-        assert caller_role in ["admin", "user"]
+        if caller_role not in ["admin", "user"]:
+            raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
 
         # parse request
         data = await request.json()
@@ -1443,13 +1448,15 @@ async def responses(request: Request):
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
     caller_role = caller_info["role"]
-    assert caller_role in ["admin", "user"]
+    if caller_role not in ["admin", "user"]:
+        raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
 
     # ensure the caller's MAIL instance is ready
     caller_mail_instance = await get_or_create_mail_instance(
         caller_role, caller_id, caller_info["api_key"]
     )
-    assert caller_mail_instance is not None
+    if caller_mail_instance is None:
+        raise HTTPException(status_code=500, detail="failed to create MAIL instance")
 
     # fetch the client and run the response
     client = app.state.openai_clients.get(caller_info["api_key"])
@@ -1488,12 +1495,14 @@ async def get_tasks(request: Request):
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
     caller_role = caller_info["role"]
-    assert caller_role in ["admin", "user"]
+    if caller_role not in ["admin", "user"]:
+        raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
 
     mail_instance = await get_or_create_mail_instance(
         caller_role, caller_id, caller_info["api_key"]
     )
-    assert mail_instance is not None
+    if mail_instance is None:
+        raise HTTPException(status_code=500, detail="failed to create MAIL instance")
 
     tasks = mail_instance.get_all_tasks()
 
@@ -1511,7 +1520,8 @@ async def get_task(request: Request):
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
     caller_role = caller_info["role"]
-    assert caller_role in ["admin", "user"]
+    if caller_role not in ["admin", "user"]:
+        raise HTTPException(status_code=403, detail=f"role '{caller_role}' is not allowed")
 
     body = await request.json()
     task_id = body.get("task_id")
@@ -1524,7 +1534,8 @@ async def get_task(request: Request):
     mail_instance = await get_or_create_mail_instance(
         caller_role, caller_id, caller_info["api_key"]
     )
-    assert mail_instance is not None
+    if mail_instance is None:
+        raise HTTPException(status_code=500, detail="failed to create MAIL instance")
 
     task = mail_instance.get_task_by_id(task_id)
     if task is None:
@@ -1597,7 +1608,8 @@ def run_server_with_template(
         # Use run_server() to ensure _server_config and env vars are set properly
         # IMPORTANT: reload=False in cfg enforces single-process mode.
         # Template injection via globals does NOT work with reload or workers.
-        assert cfg.reload is False, "reload must be False for template injection"
+        if cfg.reload is not False:
+            raise ValueError("reload must be False for template injection")
         run_server(cfg)
     finally:
         # Clear globals even if server errors

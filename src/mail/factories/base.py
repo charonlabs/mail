@@ -540,6 +540,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             #     )
 
         retries = 5
+        last_error: Exception | None = None
 
         with ls.trace(
             name=f"{self.name}_completions",
@@ -573,10 +574,16 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     rt.end(outputs={"output": res})
                     break
                 except Exception as e:
+                    last_error = e
                     retries -= 1
                     logger.warning(f"Error running completion: {e}")
                     logger.warning(f"Retrying {retries} more times")
                     await asyncio.sleep(retries)
+
+        if last_error is not None and retries == 0:
+            raise RuntimeError(
+                f"completion failed after 5 retries"
+            ) from last_error
 
         msg = res.choices[0].message  # type: ignore
         tool_calls: list[AgentToolCall] = []
@@ -956,7 +963,9 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     event_type = event.type
 
                     if event_type == "content_block_start":
-                        assert isinstance(event, ContentBlockStartEvent)
+                        if not isinstance(event, ContentBlockStartEvent):
+                            logger.warning(f"expected ContentBlockStartEvent, got {type(event).__name__}")
+                            continue
                         block = event.content_block
                         block_type = block.type
 
@@ -996,16 +1005,20 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                                 is_response = True
 
                     elif event_type == "content_block_delta":
-                        assert isinstance(event, ContentBlockDeltaEvent)
+                        if not isinstance(event, ContentBlockDeltaEvent):
+                            logger.warning(f"expected ContentBlockDeltaEvent, got {type(event).__name__}")
+                            continue
                         delta = event.delta
                         delta_type = delta.type
 
                         if delta_type == "thinking_delta":
-                            assert isinstance(delta, ThinkingDelta)
+                            if not isinstance(delta, ThinkingDelta):
+                                continue
                             if self.print_llm_streams:
                                 print(delta.thinking, end="", flush=True)
                         elif delta_type == "text_delta":
-                            assert isinstance(delta, TextDelta)
+                            if not isinstance(delta, TextDelta):
+                                continue
                             if self.print_llm_streams:
                                 print(delta.text, end="", flush=True)
 
@@ -1216,7 +1229,8 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             chunks.append(chunk)
 
         final_completion = litellm.stream_chunk_builder(chunks, messages=messages)
-        assert isinstance(final_completion, ModelResponse)
+        if not isinstance(final_completion, ModelResponse):
+            raise TypeError(f"expected ModelResponse from stream_chunk_builder, got {type(final_completion).__name__}")
         return final_completion
 
     async def _run_responses(
@@ -1256,6 +1270,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
             tool_reasoning_map: dict[int, list[str]] | None = None
             streaming_pending_reasoning: list[str] | None = None
 
+            last_error: Exception | None = None
             while retries > 0:
                 try:
                     if self.stream_tokens:
@@ -1281,10 +1296,16 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     rt.end(outputs={"output": res})
                     break
                 except Exception as e:
+                    last_error = e
                     retries -= 1
                     logger.warning(f"Error running responses: {e}")
                     logger.warning(f"Retrying {retries} more times")
                     await asyncio.sleep(retries)
+
+        if last_error is not None and retries == 0:
+            raise RuntimeError(
+                f"responses API call failed after 5 retries"
+            ) from last_error
 
         # Single-pass collection preserving original order with reasoning attachment
         agent_tool_calls: list[AgentToolCall] = []
@@ -1361,7 +1382,8 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     name = output["name"]
                     arguments = output["arguments"]
                 else:
-                    assert isinstance(output, ResponseFunctionToolCall)
+                    if not isinstance(output, ResponseFunctionToolCall):
+                        raise TypeError(f"expected ResponseFunctionToolCall, got {type(output).__name__}")
                     call_id = output.call_id
                     name = output.name
                     arguments = output.arguments
@@ -1604,6 +1626,8 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                         current_reasoning_text = []
                     final_response = event.response
 
-        assert final_response is not None
-        assert isinstance(final_response, ResponsesAPIResponse)
+        if final_response is None:
+            raise RuntimeError("streaming completed without receiving a response.completed event")
+        if not isinstance(final_response, ResponsesAPIResponse):
+            raise TypeError(f"expected ResponsesAPIResponse, got {type(final_response).__name__}")
         return final_response, tool_reasoning_map, pending_reasoning_parts
