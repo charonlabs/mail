@@ -100,7 +100,7 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ### 5.2 `MAILMessage`
 
-- **5.2.1** Required fields: `id` (uuid), `timestamp` (date-time[^rfc3339]), `msg_type` (enum: `direct|broadcast|interrupt|task_complete`), `recipients` (array), `subject` (string), `body` (string).
+- **5.2.1** Required fields: `id` (uuid), `timestamp` (date-time[^rfc3339]), `msg_type` (enum: `direct|broadcast|interrupt|task_complete`), `sender` (string), `recipients` (array), `subject` (string), `body` (string).
 
 ### 5.3 `MAILInterswarmMessage` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
 

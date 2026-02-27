@@ -17,7 +17,7 @@
   "properties": {
     "message_id": { 
       "type": "string", 
-      "minLength": 1 
+      "format": "uuid"
     },
     "source_swarm": { 
       "type": "string", 
@@ -31,38 +31,46 @@
       "type": "string", 
       "format": "date-time" 
     },
-    "task_owner": { 
-      "type": "string", 
-      "minLength": 1 
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "task_owner", "task_contributors", "start_time", "completed", "metadata"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "task_owner": {
+          "$ref": "#/$defs/MAILInstance"
+        },
+        "task_contributors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { 
+            "$ref": "#/$defs/MAILInstance" 
+          },
+          "additionalItems": false
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
     },
-    "task_contributors": { 
-      "type": "array", 
-      "items": { "type": "string" } 
+    "payload": { 
+      "$ref": "#/$defs/MAILMessage" 
     },
-    "payload": { "type": "object" },
-    "msg_type": {
-      "type": "string",
-      "enum": ["request", "response", "broadcast", "interrupt"]
-    },
-    "auth_token": { "type": "string" },
-    "metadata": { "type": "object" }
-  },
-  "allOf": [
-    {
-      "if": { "properties": { "msg_type": { "const": "request" } }, "required": ["msg_type"] },
-      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILRequest" } } }
-    },
-    {
-      "if": { "properties": { "msg_type": { "const": "response" } }, "required": ["msg_type"] },
-      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILResponse" } } }
-    },
-    {
-      "if": { "properties": { "msg_type": { "const": "broadcast" } }, "required": ["msg_type"] },
-      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILBroadcast" } } }
-    },
-    {
-      "if": { "properties": { "msg_type": { "const": "interrupt" } }, "required": ["msg_type"] },
-      "then": { "properties": { "payload": { "$ref": "MAIL-core.schema.json#/$defs/MAILInterrupt" } } }
+    "metadata": { 
+      "type": "object",
+      "additionalProperties": true
     }
-  ]
+  }
 }

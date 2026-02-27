@@ -10,9 +10,9 @@
     "MAILAddress": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["address_type", "address"],
+      "required": ["addr_type", "address"],
       "properties": {
-        "address_type": {
+        "addr_type": {
           "type": "string",
           "enum": ["admin","agent", "user", "system"]
         },
@@ -22,109 +22,10 @@
         }
       }
     },
-    "MAILRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["task_id", "request_id", "sender", "recipient", "subject", "body"],
-      "properties": {
-        "task_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "request_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "sender": { "$ref": "#/$defs/MAILAddress" },
-        "recipient": { "$ref": "#/$defs/MAILAddress" },
-        "subject": { "type": "string" },
-        "body": { "type": "string" },
-        "sender_swarm": { "type": "string" },
-        "recipient_swarm": { "type": "string" },
-        "routing_info": { "type": "object" }
-      }
-    },
-    "MAILResponse": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["task_id", "request_id", "sender", "recipient", "subject", "body"],
-      "properties": {
-        "task_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "request_id": { "type": "string" },
-        "sender": { "$ref": "#/$defs/MAILAddress" },
-        "recipient": { "$ref": "#/$defs/MAILAddress" },
-        "subject": { "type": "string" },
-        "body": { "type": "string" },
-        "sender_swarm": { "type": "string" },
-        "recipient_swarm": { "type": "string" },
-        "routing_info": { "type": "object" }
-      }
-    },
-    "MAILBroadcast": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["task_id", "broadcast_id", "sender", "recipients", "subject", "body"],
-      "properties": {
-        "task_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "broadcast_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "sender": { "$ref": "#/$defs/MAILAddress" },
-        "recipients": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/MAILAddress" }
-        },
-        "subject": { "type": "string" },
-        "body": { "type": "string" },
-        "sender_swarm": { "type": "string" },
-        "recipient_swarms": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "routing_info": { "type": "object" }
-      }
-    },
-    "MAILInterrupt": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["task_id", "interrupt_id", "sender", "recipients", "subject", "body"],
-      "properties": {
-        "task_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "interrupt_id": { 
-          "type": "string", 
-          "format": "uuid" 
-        },
-        "sender": { "$ref": "#/$defs/MAILAddress" },
-        "recipients": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/MAILAddress" }
-        },
-        "subject": { "type": "string" },
-        "body": { "type": "string" },
-        "sender_swarm": { "type": "string" },
-        "recipient_swarms": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "routing_info": { "type": "object" }
-      }
-    },
     "MAILMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "timestamp", "message", "msg_type"],
+      "required": ["id", "timestamp", "msg_type", "sender", "recipients", "subject", "body", "metadata"],
       "properties": {
         "id": { 
           "type": "string", 
@@ -134,34 +35,147 @@
           "type": "string", 
           "format": "date-time" 
         },
-        "message": { "type": "object" },
         "msg_type": {
           "type": "string",
-          "enum": ["request", "response", "broadcast", "interrupt", "broadcast_complete"]
+          "enum": ["direct", "broadcast", "interrupt", "task_complete"]
+        },
+        "sender": {
+          "$ref": "#/$defs/MAILAddress"
+        },
+        "recipients": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/MAILAddress"
+          },
+          "additionalItems": false
+        },
+        "subject": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
         }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "msg_type": { "const": "request" } }, "required": ["msg_type"] },
-          "then": { "properties": { "message": { "$ref": "#/$defs/MAILRequest" } } }
+      }
+    },
+    "MAILTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "task_owner", "task_contributors", "start_time", "completed", "messages", "metadata"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "format": "uuid"
         },
-        {
-          "if": { "properties": { "msg_type": { "const": "response" } }, "required": ["msg_type"] },
-          "then": { "properties": { "message": { "$ref": "#/$defs/MAILResponse" } } }
+        "task_owner": {
+          "$ref": "#/$defs/MAILInstance"
         },
-        {
-          "if": { "properties": { "msg_type": { "const": "broadcast" } }, "required": ["msg_type"] },
-          "then": { "properties": { "message": { "$ref": "#/$defs/MAILBroadcast" } } }
+        "task_contributors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/MAILInstance"
+          },
+          "additionalItems": false
         },
-        {
-          "if": { "properties": { "msg_type": { "const": "interrupt" } }, "required": ["msg_type"] },
-          "then": { "properties": { "message": { "$ref": "#/$defs/MAILInterrupt" } } }
+        "start_time": {
+          "type": "string",
+          "format": "date-time"
         },
-        {
-          "if": { "properties": { "msg_type": { "const": "broadcast_complete" } }, "required": ["msg_type"] },
-          "then": { "properties": { "message": { "$ref": "#/$defs/MAILBroadcast" } } }
+        "completed": {
+          "type": "boolean"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MAILMessage"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
         }
-      ]
+      }
+    },
+    "MAILInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instance_type", "instance_client_id", "swarm_name"],
+      "properties": {
+        "instance_type": {
+          "type": "string",
+          "enum": ["admin", "user", "swarm"]
+        },
+        "instance_client_id": {
+          "type": "string"
+        },
+        "swarm_name": {
+          "type": "string"
+        }
+      }
+    },
+    "MAILServerSentEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "data"],
+      "properties": {
+        "event": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "MAILRemoteSwarm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "base_url", "protocol_version", "active", "last_seen", "description", "keywords", "metadata"],
+      "properties": {
+        "name": { 
+          "type": "string",
+          "minLength": 1
+        },
+        "base_url": { 
+          "type": "string",
+          "format": "uri" 
+        },
+        "protocol_version": { 
+          "type": "string",
+          "enum": ["2.0"]
+        },
+        "active": { 
+          "type": "boolean" 
+        },
+        "last_seen": { 
+          "type": "string", 
+          "format": "date-time", 
+          "nullable": true 
+        },
+        "description": { 
+          "type": "string", 
+          "nullable": true 
+        },
+        "keywords": { 
+          "type": "array", 
+          "items": { 
+            "type": "string" 
+          }, 
+          "nullable": true 
+        },
+        "metadata": { 
+          "type": "object", 
+          "additionalProperties": true, 
+          "nullable": true 
+        }
+      }
     }
   }
 }
