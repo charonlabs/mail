@@ -25,7 +25,7 @@
     "MAILMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "timestamp", "msg_type", "sender", "recipients", "subject", "body", "metadata"],
+      "required": ["id", "timestamp", "msg_type", "sender", "recipients", "subject", "body", "task_id", "metadata"],
       "properties": {
         "id": { 
           "type": "string", 
@@ -56,6 +56,10 @@
         },
         "body": {
           "type": "string"
+        },
+        "task_id": {
+          "type": "string",
+          "format": "uuid"
         },
         "metadata": {
           "type": "object",

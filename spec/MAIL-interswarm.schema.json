@@ -10,9 +10,8 @@
     "target_swarm",
     "timestamp",
     "payload",
-    "msg_type",
-    "task_owner",
-    "task_contributors"
+    "task",
+    "metadata"
   ],
   "properties": {
     "message_id": { 
@@ -41,14 +40,14 @@
           "format": "uuid"
         },
         "task_owner": {
-          "$ref": "#/$defs/MAILInstance"
+          "$ref": "MAIL-core.schema.json#/$defs/MAILInstance"
         },
         "task_contributors": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": { 
-            "$ref": "#/$defs/MAILInstance" 
+            "$ref": "MAIL-core.schema.json#/$defs/MAILInstance" 
           },
           "additionalItems": false
         },
@@ -66,7 +65,7 @@
       }
     },
     "payload": { 
-      "$ref": "#/$defs/MAILMessage" 
+      "$ref": "MAIL-core.schema.json#/$defs/MAILMessage" 
     },
     "metadata": { 
       "type": "object",

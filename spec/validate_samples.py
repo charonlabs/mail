@@ -29,51 +29,49 @@ def iso_now():
     return datetime.now(UTC).isoformat()
 
 
-def sample_mail_request_message():
+def sample_mail_direct_message():
     task_id = make_uuid()
     return {
         "id": make_uuid(),
         "timestamp": iso_now(),
-        "message": {
-            "task_id": task_id,
-            "request_id": make_uuid(),
-            "sender": {
-                "address_type": "user",
-                "address": "user_123",
-            },
-            "recipient": {
-                "address_type": "agent",
-                "address": "supervisor",
-            },
-            "subject": "New Message",
-            "body": "What is the weather today?",
+        "msg_type": "direct",
+        "sender": {
+            "addr_type": "user",
+            "address": "user_123",
         },
-        "msg_type": "request",
+        "recipients": [
+            {
+                "addr_type": "agent",
+                "address": "supervisor",
+            }
+        ],
+        "subject": "New Message",
+        "body": "What is the weather today?",
+        "metadata": {},
+        "task_id": task_id,
     }
 
 
-def sample_broadcast_complete_message():
+def sample_task_complete_message():
     task_id = make_uuid()
     return {
         "id": make_uuid(),
         "timestamp": iso_now(),
-        "message": {
-            "task_id": task_id,
-            "broadcast_id": make_uuid(),
-            "sender": {
-                "address_type": "agent",
-                "address": "supervisor",
-            },
-            "recipients": [
-                {
-                    "address_type": "agent",
-                    "address": "all",
-                }
-            ],
-            "subject": "Task complete",
-            "body": "Done.",
+        "msg_type": "task_complete",
+        "sender": {
+            "addr_type": "agent",
+            "address": "supervisor",
         },
-        "msg_type": "broadcast_complete",
+        "recipients": [
+            {
+                "addr_type": "agent",
+                "address": "all",
+            }
+        ],
+        "subject": "Task complete",
+        "body": "Done.",
+        "metadata": {},
+        "task_id": task_id,
     }
 
 
@@ -81,54 +79,50 @@ def sample_interswarm_request_wrapper():
     # payload is a MAILRequest (not the outer MAILMessage)
     task_id = make_uuid()
     payload = {
-        "task_id": task_id,
-        "request_id": make_uuid(),
-        "sender": {
-            "address_type": "agent",
-            "address": "supervisor@swarm-a",
-        },
-        "recipient": {
-            "address_type": "agent",
-            "address": "weather@swarm-b",
-        },
-        "subject": "Interswarm Message",
-        "body": "Forecast please",
-        "sender_swarm": "swarm-a",
-        "recipient_swarm": "swarm-b",
-    }
-    return {
-        "message_id": make_uuid(),
-        "source_swarm": "swarm-a",
-        "target_swarm": "swarm-b",
-        "timestamp": iso_now(),
-        "payload": payload,
-        "msg_type": "request",
-        "task_owner": "user:123@swarm-a",
-        "task_contributors": ["user:123@swarm-a"],
-        "metadata": {"expect_response": True},
-    }
-
-
-def sample_mail_response_message():
-    task_id = make_uuid()
-    return {
         "id": make_uuid(),
         "timestamp": iso_now(),
-        "message": {
-            "task_id": task_id,
-            "request_id": make_uuid(),
-            "sender": {
-                "address_type": "agent",
-                "address": "weather",
-            },
-            "recipient": {
-                "address_type": "agent",
-                "address": "supervisor",
-            },
-            "subject": "Re: Forecast",
-            "body": "Sunny with light winds.",
+        "msg_type": "direct",
+        "sender": {
+            "addr_type": "agent",
+            "address": "supervisor@swarm-a",
         },
-        "msg_type": "response",
+        "recipients": [
+            {
+                "addr_type": "agent",
+                "address": "weather@swarm-b",
+            }
+        ],
+        "subject": "Interswarm Message",
+        "body": "Forecast please",
+        "metadata": {},
+        "task_id": task_id,
+    }
+    task = {
+        "task_id": task_id,
+        "task_owner": {
+          "instance_type": "user",
+          "instance_client_id": "123",
+          "swarm_name": "swarm-a"
+        },
+        "task_contributors": [
+          {
+            "instance_type": "user",
+            "instance_client_id": "123",
+            "swarm_name": "swarm-a"
+          }
+        ],
+        "start_time": iso_now(),
+        "completed": False,
+        "metadata": {},
+    }
+    return {
+        "message_id": make_uuid(), 
+        "source_swarm": "swarm-a",
+        "target_swarm": "swarm-b",
+        "timestamp": iso_now(), 
+        "task": task,
+        "payload": payload,
+        "metadata": {},
     }
 
 
@@ -137,27 +131,25 @@ def sample_mail_broadcast_message():
     return {
         "id": make_uuid(),
         "timestamp": iso_now(),
-        "message": {
-            "task_id": task_id,
-            "broadcast_id": make_uuid(),
-            "sender": {
-                "address_type": "system",
-                "address": "system",
-            },
-            "recipients": [
-                {
-                    "address_type": "agent",
-                    "address": "supervisor",
-                },
-                {
-                    "address_type": "agent",
-                    "address": "weather",
-                },
-            ],
-            "subject": "Action Complete: get_weather_forecast",
-            "body": "The action result payload...",
-        },
         "msg_type": "broadcast",
+        "sender": {
+            "addr_type": "system",
+            "address": "system",
+        },
+        "recipients": [
+            {
+                "addr_type": "agent",
+                "address": "supervisor",
+            },
+            {
+                "addr_type": "agent",
+                "address": "weather",
+            }
+        ],
+        "subject": "Action Complete: get_weather_forecast",
+        "body": "The action result payload...",
+        "metadata": {},
+        "task_id": task_id,
     }
 
 
@@ -166,62 +158,22 @@ def sample_mail_interrupt_message():
     return {
         "id": make_uuid(),
         "timestamp": iso_now(),
-        "message": {
-            "task_id": task_id,
-            "interrupt_id": make_uuid(),
-            "sender": {
-                "address_type": "agent",
-                "address": "supervisor",
-            },
-            "recipients": [
-                {
-                    "address_type": "agent",
-                    "address": "weather",
-                }
-            ],
-            "subject": "Pause",
-            "body": "Stop processing current task.",
-        },
         "msg_type": "interrupt",
-    }
-
-
-def sample_interswarm_response_wrapper():
-    task_id = make_uuid()
-    payload = {
-        "task_id": task_id,
-        "request_id": make_uuid(),
         "sender": {
-            "address_type": "agent",
-            "address": "weather@swarm-b",
+            "addr_type": "agent",
+            "address": "supervisor",
         },
-        "recipient": {
-            "address_type": "agent",
-            "address": "supervisor@swarm-a",
-        },
-        "subject": "Re: Interswarm Message",
-        "body": "Sunny on remote swarm.",
-        "sender_swarm": "swarm-b",
-        "recipient_swarm": "swarm-a",
+        "recipients": [
+            {
+                "addr_type": "agent",
+                "address": "weather",
+            }
+        ],
+        "subject": "Pause",
+        "body": "Stop processing current task.",
+        "metadata": {},
+        "task_id": task_id,
     }
-    return {
-        "message_id": make_uuid(),
-        "source_swarm": "swarm-b",
-        "target_swarm": "swarm-a",
-        "timestamp": iso_now(),
-        "payload": payload,
-        "msg_type": "response",
-        "task_owner": "user:123@swarm-a",
-        "task_contributors": ["user:123@swarm-a", "swarm:swarm-a@swarm-b"],
-        "metadata": {"expect_response": False},
-    }
-
-
-def sample_invalid_mismatch_message():
-    # msg_type says response but content is a request
-    obj = sample_mail_request_message()
-    obj["msg_type"] = "response"
-    return obj
 
 
 def main():
@@ -231,25 +183,13 @@ def main():
 
     jsonschema = try_import_jsonschema()
     samples = [
-        ("MAILMessage request", sample_mail_request_message(), core_schema, True),
-        ("MAILMessage response", sample_mail_response_message(), core_schema, True),
+        ("MAILMessage direct", sample_mail_direct_message(), core_schema, True),
+        ("MAILMessage task complete", sample_task_complete_message(), core_schema, True),
         ("MAILMessage broadcast", sample_mail_broadcast_message(), core_schema, True),
         ("MAILMessage interrupt", sample_mail_interrupt_message(), core_schema, True),
         (
-            "MAILMessage broadcast_complete",
-            sample_broadcast_complete_message(),
-            core_schema,
-            True,
-        ),
-        (
-            "MAILInterswarm request wrapper",
+            "MAILInterswarm request",
             sample_interswarm_request_wrapper(),
-            inter_schema,
-            True,
-        ),
-        (
-            "MAILInterswarm response wrapper",
-            sample_interswarm_response_wrapper(),
             inter_schema,
             True,
         ),
@@ -260,11 +200,11 @@ def main():
         # Basic checks: required keys exist
         for name, obj, _schema, _expect_valid in samples:
             ok = (
-                all(k in obj for k in ("id", "timestamp", "message"))
+                all(k in obj for k in ("id", "timestamp", "msg_type"))
                 if name.startswith("MAILMessage")
                 else all(
                     k in obj
-                    for k in ("message_id", "source_swarm", "target_swarm", "payload")
+                    for k in ("message_id", "source_swarm", "target_swarm", "payload", "msg_type")
                 )
             )
             print(f"[BASIC] {name}: {'OK' if ok else 'MISSING KEYS'}")
