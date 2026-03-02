@@ -100,16 +100,16 @@ def sample_interswarm_request_wrapper():
     task = {
         "task_id": task_id,
         "task_owner": {
-          "instance_type": "user",
-          "instance_client_id": "123",
-          "swarm_name": "swarm-a"
-        },
-        "task_contributors": [
-          {
             "instance_type": "user",
             "instance_client_id": "123",
             "swarm_name": "swarm-a"
-          }
+        },
+        "task_contributors": [
+            {
+                "instance_type": "user",
+                "instance_client_id": "123",
+                "swarm_name": "swarm-a"
+            }
         ],
         "start_time": iso_now(),
         "completed": False,
