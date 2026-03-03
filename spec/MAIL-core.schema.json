@@ -25,7 +25,17 @@
     "MAILMessage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "timestamp", "msg_type", "sender", "recipients", "subject", "body", "task_id", "metadata"],
+      "required": [
+        "id", 
+        "timestamp", 
+        "msg_type", 
+        "sender", 
+        "recipients", 
+        "subject", 
+        "body", 
+        "task_id", 
+        "metadata"
+      ],
       "properties": {
         "id": { 
           "type": "string", 
@@ -135,49 +145,6 @@
         "data": {
           "type": "object",
           "additionalProperties": true
-        }
-      }
-    },
-    "MAILRemoteSwarm": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["name", "base_url", "protocol_version", "active", "last_seen", "description", "keywords", "metadata"],
-      "properties": {
-        "name": { 
-          "type": "string",
-          "minLength": 1
-        },
-        "base_url": { 
-          "type": "string",
-          "format": "uri" 
-        },
-        "protocol_version": { 
-          "type": "string",
-          "enum": ["2.0"]
-        },
-        "active": { 
-          "type": "boolean" 
-        },
-        "last_seen": { 
-          "type": "string", 
-          "format": "date-time", 
-          "nullable": true 
-        },
-        "description": { 
-          "type": "string", 
-          "nullable": true 
-        },
-        "keywords": { 
-          "type": "array", 
-          "items": { 
-            "type": "string" 
-          }, 
-          "nullable": true 
-        },
-        "metadata": { 
-          "type": "object", 
-          "additionalProperties": true, 
-          "nullable": true 
         }
       }
     }

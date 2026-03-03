@@ -1,10 +1,10 @@
 # Multi-Agent Interface Layer (MAIL) — Specification
 
-- **Version**: 2.0-pre1
-- **Date**: February 26, 2026
+- **Version**: 2.0-pre2
+- **Date**: March 3, 2026
 - **Status**: Open to feedback
 - **Scope**: Defines the data model, addressing, routing semantics, and REST transport for interoperable communication among autonomous agents within and across swarms.
-- **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
+- **Authors**: Addison Kline (GitHub: [@addisonkline](https://github.com/addisonkline)), Ryan Heaton (GitHub: [@rheaton64](https://github.com/rheaton64)), Will Hahn (GitHub: [@wsfhahn](https://github.com/wsfhahn)), Jacob Hahn (GitHub: [@jacobtohahn](https://github.com/jacobtohahn))
 
 ## Table of Contents
 - [Multi-Agent Interface Layer (MAIL) — Specification](#multi-agent-interface-layer-mail--specification)
@@ -16,7 +16,13 @@
   - [5. Data Model](#5-data-model)
     - [5.1 `MAILAddress`](#51-mailaddress)
     - [5.2 `MAILMessage`](#52-mailmessage)
-    - [5.3 `MAILInterswarmMessage` (spec/MAIL-interswarm.schema.json)](#53-mailinterswarmmessage-specmail-interswarmschemajson)
+    - [5.3 `MAILTask`](#53-mailtask)
+    - [5.4 `MAILInstance`](#54-mailinstance)
+    - [5.5 `MAILServerSentEvent`](#55-mailserversentevent)
+    - [5.6 `MAILInterswarmMessage` (spec/MAIL-interswarm.schema.json)](#56-mailinterswarmmessage-specmail-interswarmschemajson)
+    - [5.7 `MAILInterswarmTask` (spec/MAIL-interswarm.schema.json)](#57-mailinterswarmtask-specmail-interswarmschemajson)
+    - [5.8 `MAILRemoteSwarm` (spec/MAIL-interswarm.schema.json)](#58-mailremoteswarm-specmail-interswarmschemajson)
+    - [5.9 `MAILInterswarmAttachment` (spec/MAIL-interswarm.schema.json)](#59-mailinterswarmattachment-specmail-interswarmschemajson)
   - [6. Addressing](#6-addressing)
     - [6.1 Type `admin`](#61-type-admin)
     - [6.2 Type `agent`](#62-type-agent)
@@ -100,13 +106,43 @@ All types are defined in [spec/MAIL-core.schema.json](/spec/MAIL-core.schema.jso
 
 ### 5.2 `MAILMessage`
 
-- **5.2.1** Required fields: `id` (uuid), `timestamp` (date-time[^rfc3339]), `msg_type` (enum: `direct|broadcast|interrupt|task_complete`), `sender` (string), `recipients` (array), `subject` (string), `body` (string).
+- **5.2.1** Required fields: `id` (uuid), `timestamp` (date-time[^rfc3339]), `msg_type` (enum: `direct|broadcast|interrupt|task_complete`), `sender` (MAILAddress), `recipients` (array), `subject` (string), `body` (string), `task_id` (uuid), `metadata` (object).
+- **5.2.2** No `additionalProperties`.
 
-### 5.3 `MAILInterswarmMessage` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
+### 5.3 `MAILTask`
 
-- **5.3.1** Required fields: `message_id` (string), `source_swarm` (string), `target_swarm` (string), `timestamp` (date-time), `payload` (object), `task_owner` (string), `task_contributors` (array).
-- **5.3.2** Optional fields: `auth_token` (string), `metadata` (object).
-- **5.3.3** Payload binding mirrors `MAILMessage` (payload is a core MAIL payload, not the outer wrapper).
+- **5.3.1** Required fields: `task_id` (uuid), `task_owner` (MAILInstance), `task_contributors` (array), `start_time` (date-time), `completed` (bool), `messages` (array), `metadata` (object).
+- **5.3.2** No `additionalProperties`.
+
+### 5.4 `MAILInstance`
+
+- **5.4.1** Required fields: `instance_type` (enum: `admin|user|swarm`), `instance_client_id` (string), `swarm_name` (string).
+- **5.4.2** No `additionalProperties`.
+
+### 5.5 `MAILServerSentEvent`
+
+- **5.5.1** Required fields: `event` (string), `data` (object).
+- **5.5.2** No `additionalProperties`.
+
+### 5.6 `MAILInterswarmMessage` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
+
+- **5.6.1** Required fields: `interswarm_message_id` (uuid), `source_swarm` (string), `target_swarm` (string), `timestamp` (date-time), `payload` (MAILMessage), `task` (MAILInterswarmTask), `attachments` (array), `metadata` (object).
+- **5.6.2** No `additionalProperties`.
+
+### 5.7 `MAILInterswarmTask` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
+
+- **5.7.1** Required fields: `task_id` (uuid), `task_owner` (MAILInstance), `task_contributors` (array), `start_time` (date-time), `completed` (bool), `metadata` (object).
+- **5.7.2** No `additionalProperties`.
+
+### 5.8 `MAILRemoteSwarm` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
+
+- **5.8.1** Required fields: `name` (string), `url` (uri), `protocol_version` (enum: `2.0`), `active` (bool), `last_seen` (nullable date-time), `description` (nullable string), `keywords` (nullable array), `metadata` (object).
+- **5.8.2** No `additionalProperties`.
+
+### 5.9 `MAILInterswarmAttachment` ([spec/MAIL-interswarm.schema.json](/spec/MAIL-interswarm.schema.json))
+
+- **5.9.1** Required fields: `attachment_name` (string), `attachment_type` (mime-type), `attachment_data` (base64), `metadata` (object).
+- **5.9.2** No `additionalProperties`.
 
 ## 6. Addressing
 
