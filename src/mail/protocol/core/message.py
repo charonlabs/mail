@@ -9,6 +9,8 @@ from pydantic import AfterValidator, BaseModel
 
 from mail.protocol.core.address import MAILAddress
 
+MAILMessageType = Literal["direct", "broadcast", "interrupt", "task_complete"]
+
 
 def validate_uuid4(uuid4: str) -> str:
     """
@@ -38,7 +40,7 @@ class MAILMessage(BaseModel):
     """
     id: Annotated[str, AfterValidator(validate_uuid4)]
     timestamp: Annotated[str, AfterValidator(validate_timestamp)]
-    msg_type: Literal["direct", "broadcast", "interrupt", "task_complete"]
+    msg_type: MAILMessageType
     sender: MAILAddress
     recipients: list[MAILAddress]
     subject: str

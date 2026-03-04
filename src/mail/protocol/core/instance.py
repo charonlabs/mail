@@ -5,6 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel
 
+MAILInstanceType = Literal["admin", "user", "swarm"]
+
 
 def validate_instance_client_id(instance_client_id: str) -> str:
     """
@@ -28,6 +30,6 @@ class MAILInstance(BaseModel):
     """
     A MAIL instance.
     """
-    instance_type: Literal["admin", "user", "swarm"]
+    instance_type: MAILInstanceType
     instance_client_id: Annotated[str, AfterValidator(validate_instance_client_id)]
     swarm_name: Annotated[str, AfterValidator(validate_swarm_name)]

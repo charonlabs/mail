@@ -1247,6 +1247,7 @@ requires-dist = [
     { name = "ujson", specifier = ">=5.8.0" },
     { name = "uvicorn", specifier = ">=0.24.0" },
 ]
+provides-extras = ["legacy", "protocol", "server", "client"]
 
 [package.metadata.requires-dev]
 dev = [
