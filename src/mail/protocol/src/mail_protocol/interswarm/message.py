@@ -7,9 +7,9 @@ from typing import Annotated, Any
 
 from pydantic import AfterValidator, BaseModel
 
-from mail.protocol.core.message import MAILMessage
-from mail.protocol.interswarm.attachment import MAILInterswarmAttachment
-from mail.protocol.interswarm.task import MAILInterswarmTask
+from mail_protocol.core.message import MAILMessage
+from mail_protocol.interswarm.attachment import MAILInterswarmAttachment
+from mail_protocol.interswarm.task import MAILInterswarmTask
 
 
 def validate_uuid4(uuid4: str) -> str:

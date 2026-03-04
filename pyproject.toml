@@ -39,9 +39,9 @@ mail = "mail.cli:main"
 
 [project.optional-dependencies]
 legacy = []
-protocol = []
-server = []
-client = []
+protocol = ["mail-protocol>=2.0.0"]
+server = ["mail-server>=2.0.0", "mail-protocol>=2.0.0"]
+client = ["mail-client>=2.0.0", "mail-protocol>=2.0.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -90,3 +90,15 @@ indent-style = "space"
 
 [tool.ruff.lint]
 extend-select = ["TID252", "I", "UP"]
+
+[tool.uv.sources]
+mail-protocol = { workspace = true }
+mail-server = { workspace = true }
+mail-client = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "src/mail/client",
+    "src/mail/protocol",
+    "src/mail/server",
+]

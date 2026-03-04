@@ -4,7 +4,7 @@
 from fastapi import HTTPException, Request
 from pydantic import ValidationError
 
-from mail.server.types import (
+from mail_server.types import (
     PostInterswarmMessageRequest,
     PostMessageRequest,
 )

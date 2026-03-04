@@ -12,16 +12,16 @@ from fastapi import (
     FastAPI,
     Response,
 )
+from mail_protocol.constants import MAIL_DEFAULT_PORT
+from mail_protocol.core.address import MAILAddress
+from mail_protocol.core.message import MAILMessage
 
-from mail.protocol.constants import MAIL_DEFAULT_PORT
-from mail.protocol.core.address import MAILAddress
-from mail.protocol.core.message import MAILMessage
-from mail.server.auth import (
+from mail_server.auth import (
     TokenInfo,
     get_current_admin_or_user,
     get_current_swarm,
 )
-from mail.server.types import (
+from mail_server.types import (
     EndpointFunction,
     PostInterswarmMessageHandler,
     PostInterswarmMessageRequest,
@@ -30,7 +30,7 @@ from mail.server.types import (
     PostMessageRequest,
     PostMessageResponse,
 )
-from mail.server.validators import (
+from mail_server.validators import (
     ensure_swarm_names_match,
     validate_post_interswarm_message_request,
     validate_post_message_request,

@@ -5,11 +5,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import Response
+from mail_protocol.core.address import MAILAddress
+from mail_protocol.core.message import MAILMessage, MAILMessageType
+from mail_protocol.interswarm.message import MAILInterswarmMessage
 from pydantic import BaseModel
-
-from mail.protocol.core.address import MAILAddress
-from mail.protocol.core.message import MAILMessage, MAILMessageType
-from mail.protocol.interswarm.message import MAILInterswarmMessage
 
 EndpointFunction = Callable[..., Awaitable[Response]]
 Metadata = dict[str, Any]

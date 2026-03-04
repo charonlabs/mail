@@ -7,7 +7,7 @@ from typing import Annotated, Any
 
 from pydantic import AfterValidator, BaseModel
 
-from mail.protocol.core.instance import MAILInstance
+from mail_protocol.core.instance import MAILInstance
 
 
 def validate_uuid4(uuid4: str) -> str:

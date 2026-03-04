@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel
 
-from mail.protocol.core.address import MAILAddress
+from mail_protocol.core.address import MAILAddress
 
 MAILMessageType = Literal["direct", "broadcast", "interrupt", "task_complete"]
 

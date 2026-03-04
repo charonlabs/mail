@@ -2,6 +2,14 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 
+[manifest]
+members = [
+    "mail-client",
+    "mail-protocol",
+    "mail-server",
+    "mail-swarms",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -1183,6 +1191,41 @@ wheels = [
 ]
 
 [[package]]
+name = "mail-client"
+version = "2.0.0"
+source = { editable = "src/mail/client" }
+
+[[package]]
+name = "mail-protocol"
+version = "2.0.0"
+source = { editable = "src/mail/protocol" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.11.7" }]
+
+[[package]]
+name = "mail-server"
+version = "2.0.0"
+source = { editable = "src/mail/server" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "mail-protocol" },
+    { name = "pydantic" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "mail-protocol", editable = "src/mail/protocol" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "uvicorn", specifier = ">=0.35.0" },
+]
+
+[[package]]
 name = "mail-swarms"
 version = "1.3.6"
 source = { editable = "." }
@@ -1211,6 +1254,19 @@ dependencies = [
     { name = "uvicorn" },
 ]
 
+[package.optional-dependencies]
+client = [
+    { name = "mail-client" },
+    { name = "mail-protocol" },
+]
+protocol = [
+    { name = "mail-protocol" },
+]
+server = [
+    { name = "mail-protocol" },
+    { name = "mail-server" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -1234,6 +1290,11 @@ requires-dist = [
     { name = "langgraph", specifier = ">=0.6.3" },
     { name = "langmem", specifier = ">=0.0.29" },
     { name = "litellm", specifier = ">=1.76.2" },
+    { name = "mail-client", marker = "extra == 'client'", editable = "src/mail/client" },
+    { name = "mail-protocol", marker = "extra == 'client'", editable = "src/mail/protocol" },
+    { name = "mail-protocol", marker = "extra == 'protocol'", editable = "src/mail/protocol" },
+    { name = "mail-protocol", marker = "extra == 'server'", editable = "src/mail/protocol" },
+    { name = "mail-server", marker = "extra == 'server'", editable = "src/mail/server" },
     { name = "numpydoc", specifier = ">=1.9.0" },
     { name = "openai", specifier = ">=1.106.1" },
     { name = "pydantic", specifier = ">=2.11.7" },

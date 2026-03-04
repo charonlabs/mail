@@ -8,9 +8,8 @@ import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
+from mail_protocol.core.instance import MAILInstanceType
 from pydantic import BaseModel
-
-from mail.protocol.core.instance import MAILInstanceType
 
 load_dotenv()
 JWT_SECRET = getenv("MAIL_SERVER_JWT_SECRET")
