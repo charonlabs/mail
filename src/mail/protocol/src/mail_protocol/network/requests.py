@@ -49,6 +49,7 @@ class PostRegistryRequest(BaseModel):
     A request body to the endpoint `POST /registry`.
     """
     base_url: Annotated[str, AfterValidator(validate_base_url)]
+    api_key_ref: str
     public: bool
     volatile: bool
     metadata: Metadata

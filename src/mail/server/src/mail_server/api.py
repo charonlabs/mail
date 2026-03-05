@@ -2,6 +2,7 @@
 # Copyright (c) 2025 Addison Kline
 
 import json
+import os
 import time
 import uuid
 from datetime import datetime
@@ -36,6 +37,7 @@ from mail_protocol.network.responses import (
 
 from mail_server.auth import (
     TokenInfo,
+    get_current_admin,
     get_current_admin_or_user,
     get_current_swarm,
 )
@@ -45,6 +47,7 @@ from mail_server.types import (
     PostMessageHandler,
     SwarmRegistry,
 )
+from mail_server.utils import get_user_agent
 from mail_server.validators import (
     ensure_swarm_names_match,
     validate_get_swarm_response,
@@ -73,8 +76,6 @@ class MAILServer:
 
         app = FastAPI(
             title=swarm.name,
-            description=swarm.description,
-            keywords=swarm.keywords,
         )
         self.app = app
         self._register_endpoints()
@@ -157,12 +158,12 @@ class MAILServer:
             message_to_send = request.message
             ensure_swarm_names_match(client_id, message_to_send.source_swarm)
 
-            status, new_task, metadata = await func(message_to_send)
+            response_obj = await func(message_to_send)
 
             response_body = PostInterswarmMessageResponse(
-                status=status,
-                new_task=new_task,
-                metadata=metadata,
+                status=response_obj.status,
+                new_task=response_obj.new_task,
+                metadata=response_obj.metadata,
             ).model_dump()
 
             return Response(
@@ -196,6 +197,7 @@ class MAILServer:
         """
         return GetSwarmResponse(
             swarm=self.swarm,
+            protocol_version="2.0",
             status="running",
             metadata={},
         )
@@ -206,21 +208,38 @@ class MAILServer:
         """
         Handle the MAIL server's `GET /registry` endpoint.
         """
+        public_registry: dict[str, MAILRemoteSwarm] = {
+            s_name: s_item.swarm for s_name, s_item in self.registry.items() 
+            if s_item.public
+        }
         return GetRegistryResponse(
-            swarms=self.registry,
+            swarms=public_registry,
             metadata={},
         )
 
     async def _on_post_registry(
         self,
+        admin: Annotated[TokenInfo, Depends(get_current_admin)],
         request: PostRegistryRequest,
     ) -> PostRegistryResponse:
         """
         Handle the MAIL server's `POST /registry` endpoint.
         """
+        api_key = os.getenv(request.api_key_ref)
+        if api_key is None:
+            raise HTTPException(
+                status_code=400,
+                detail="invalid API key reference"
+            )
+
         base_url = request.base_url.rstrip("/")
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{base_url}/swarm") as response:
+            async with session.get(
+                url=f"{base_url}/swarm",
+                headers={
+                    "User-Agent": get_user_agent(),
+                }
+            ) as response:
                 if response.status != 200:
                     raise HTTPException(
                         status_code=504,

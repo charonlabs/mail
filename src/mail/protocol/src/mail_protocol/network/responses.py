@@ -36,7 +36,7 @@ class GetSwarmResponse(BaseModel):
     A response body to the endpoint `GET /swarm`.
     """
     swarm: MAILSwarm
-    protocol_version: Literal["2.0"]
+    protocol_version: str
     status: Literal["running"]
     metadata: Metadata
 

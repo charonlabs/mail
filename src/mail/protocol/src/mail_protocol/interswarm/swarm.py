@@ -54,7 +54,7 @@ class MAILRemoteSwarm(BaseModel):
     """
     name: Annotated[str, AfterValidator(validate_swarm_name)]
     base_url: Annotated[str, AfterValidator(validate_uri)]
-    protocol_version: Literal["2.0"]
+    protocol_version: str
     active: bool
     last_seen: Annotated[str | None, AfterValidator(validate_optional_timestamp)]
     description: Annotated[str | None, AfterValidator(validate_description)]
