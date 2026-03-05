@@ -1211,6 +1211,7 @@ name = "mail-server"
 version = "2.0.0"
 source = { editable = "src/mail/server" }
 dependencies = [
+    { name = "aiohttp" },
     { name = "fastapi" },
     { name = "mail-protocol" },
     { name = "pydantic" },
@@ -1219,6 +1220,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.12.15" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "mail-protocol", editable = "src/mail/protocol" },
     { name = "pydantic", specifier = ">=2.11.7" },

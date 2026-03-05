@@ -1,13 +1,45 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
+from aiohttp import ClientResponse
 from fastapi import HTTPException, Request
-from pydantic import ValidationError
-
-from mail_server.types import (
+from mail_protocol.network.requests import (
     PostInterswarmMessageRequest,
     PostMessageRequest,
 )
+from mail_protocol.network.responses import (
+    GetSwarmResponse,
+    PostRegistryResponse,
+)
+from pydantic import ValidationError
+
+
+async def validate_get_swarm_response(response: ClientResponse) -> GetSwarmResponse:
+    """
+    Validate a response body to the endpoint `GET /swarm`.
+    """
+    try:
+        body_json = await response.json()
+        return GetSwarmResponse.model_validate(body_json)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"failed to validate response body: {e}"
+        )
+
+
+async def validate_post_registry_response(response: ClientResponse) -> PostRegistryResponse:
+    """
+    Validate a response body to the endpoint `POST /registry`.
+    """
+    try:
+        body_json = await response.json()
+        return PostRegistryResponse.model_validate(body_json)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"failed to validate response body: {e}"
+        )
 
 
 async def validate_post_message_request(request: Request) -> PostMessageRequest:

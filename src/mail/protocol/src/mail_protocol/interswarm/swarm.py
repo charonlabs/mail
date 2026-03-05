@@ -3,9 +3,12 @@
 
 import urllib.parse
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel
+
+from mail_protocol.core.swarm import validate_description, validate_keywords
+from mail_protocol.metadata import Metadata
 
 
 def validate_swarm_name(swarm_name: str) -> str:
@@ -54,6 +57,6 @@ class MAILRemoteSwarm(BaseModel):
     protocol_version: Literal["2.0"]
     active: bool
     last_seen: Annotated[str | None, AfterValidator(validate_optional_timestamp)]
-    description: str | None
-    keywords: list[str] | None
-    metadata: dict[str, Any]
+    description: Annotated[str | None, AfterValidator(validate_description)]
+    keywords: Annotated[list[str], AfterValidator(validate_keywords)]
+    metadata: Metadata

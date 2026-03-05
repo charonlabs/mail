@@ -5,6 +5,7 @@ from .address import MAILAddress
 from .instance import MAILInstance
 from .message import MAILMessage
 from .server import MAILServerSentEvent
+from .swarm import MAILSwarm
 from .task import MAILTask
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "MAILTask",
     "MAILInstance",
     "MAILServerSentEvent",
+    "MAILSwarm",
 ]

@@ -2,19 +2,37 @@
 # Copyright (c) 2025 Addison Kline
 
 import json
+import time
 import uuid
 from datetime import datetime
 from typing import Annotated
 
+import aiohttp
 import uvicorn
 from fastapi import (
     Depends,
     FastAPI,
+    HTTPException,
     Response,
 )
 from mail_protocol.constants import MAIL_DEFAULT_PORT
 from mail_protocol.core.address import MAILAddress
 from mail_protocol.core.message import MAILMessage
+from mail_protocol.core.swarm import MAILSwarm
+from mail_protocol.interswarm import MAILRemoteSwarm
+from mail_protocol.network.requests import (
+    PostInterswarmMessageRequest,
+    PostMessageRequest,
+    PostRegistryRequest,
+)
+from mail_protocol.network.responses import (
+    GetRegistryResponse,
+    GetRootResponse,
+    GetSwarmResponse,
+    PostInterswarmMessageResponse,
+    PostMessageResponse,
+    PostRegistryResponse,
+)
 
 from mail_server.auth import (
     TokenInfo,
@@ -24,14 +42,12 @@ from mail_server.auth import (
 from mail_server.types import (
     EndpointFunction,
     PostInterswarmMessageHandler,
-    PostInterswarmMessageRequest,
-    PostInterswarmMessageResponse,
     PostMessageHandler,
-    PostMessageRequest,
-    PostMessageResponse,
+    SwarmRegistry,
 )
 from mail_server.validators import (
     ensure_swarm_names_match,
+    validate_get_swarm_response,
     validate_post_interswarm_message_request,
     validate_post_message_request,
 )
@@ -43,27 +59,37 @@ class MAILServer:
     """
     def __init__(
         self,
-        name: str,
+        swarm: MAILSwarm,
         host: str = "127.0.0.1",
         port: int = MAIL_DEFAULT_PORT,
         reload: bool = False,
-        description: str = "A MAIL HTTP server.",
-        keywords: list[str] = [],
     ) -> None:
-        self.name = name
+        self.swarm = swarm
         self.host = host
         self.port = port
         self.reload = reload
-        self.description = description
-        self.keywords = keywords
+
+        self.registry: SwarmRegistry = {}
 
         app = FastAPI(
-            title=name,
-            description=description,
-            keywords=keywords,
+            title=swarm.name,
+            description=swarm.description,
+            keywords=swarm.keywords,
         )
-        app.post
         self.app = app
+        self._register_endpoints()
+
+    def _register_endpoints(
+        self,
+    ) -> None:
+        """
+        Register server endpoints that need not be implemented by the user.
+        """
+        self.app.get("/")(self._on_get_root)
+        self.app.get("/swarm")(self._on_get_swarm)
+        self.app.get("/registry")(self._on_get_registry)
+        self.app.post("/registry")(self._on_post_registry)
+        raise NotImplementedError
 
     def run(
         self,
@@ -131,10 +157,11 @@ class MAILServer:
             message_to_send = request.message
             ensure_swarm_names_match(client_id, message_to_send.source_swarm)
 
-            message_received, metadata = await func(message_to_send)
+            status, new_task, metadata = await func(message_to_send)
 
             response_body = PostInterswarmMessageResponse(
-                message=message_received,
+                status=status,
+                new_task=new_task,
                 metadata=metadata,
             ).model_dump()
 
@@ -144,3 +171,74 @@ class MAILServer:
             )
         
         return wrapper
+
+    async def _on_get_root(
+        self,
+    ) -> GetRootResponse:
+        """
+        Handle the MAIL server's `GET /` endpoint.
+        """
+        uptime = time.time() - self.app.state.time_startup
+
+        return GetRootResponse(
+            protocol_name="mail",
+            protocol_version="2.0",
+            status="running",
+            uptime=uptime,
+            metadata={},
+        )
+
+    async def _on_get_swarm(
+        self,
+    ) -> GetSwarmResponse:
+        """
+        Handle the MAIL server's `GET /swarm` endpoint.
+        """
+        return GetSwarmResponse(
+            swarm=self.swarm,
+            status="running",
+            metadata={},
+        )
+
+    async def _on_get_registry(
+        self,
+    ) -> GetRegistryResponse:
+        """
+        Handle the MAIL server's `GET /registry` endpoint.
+        """
+        return GetRegistryResponse(
+            swarms=self.registry,
+            metadata={},
+        )
+
+    async def _on_post_registry(
+        self,
+        request: PostRegistryRequest,
+    ) -> PostRegistryResponse:
+        """
+        Handle the MAIL server's `POST /registry` endpoint.
+        """
+        base_url = request.base_url.rstrip("/")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{base_url}/swarm") as response:
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=504,
+                        detail="failed to get swarm info from remote swarm",
+                    )
+                response_obj = await validate_get_swarm_response(response)
+                remote_swarm = MAILRemoteSwarm(
+                    name=response_obj.swarm.name,
+                    base_url=base_url,
+                    protocol_version=response_obj.protocol_version,
+                    active=True if response_obj.status == "running" else False,
+                    last_seen=str(datetime.now()),
+                    description=response_obj.swarm.description,
+                    keywords=response_obj.swarm.keywords,
+                    metadata=response_obj.swarm.metadata,
+                )
+                return PostRegistryResponse(
+                    status="success",
+                    swarm=remote_swarm,
+                    metadata={},
+                )

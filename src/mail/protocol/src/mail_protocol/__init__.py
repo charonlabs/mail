@@ -14,6 +14,7 @@ from .interswarm import (
     MAILInterswarmTask,
     MAILRemoteSwarm,
 )
+from .metadata import Metadata
 
 __all__ = [
     "MAILAddress",
@@ -25,4 +26,5 @@ __all__ = [
     "MAILInterswarmMessage",
     "MAILInterswarmTask",
     "MAILRemoteSwarm",
+    "Metadata",
 ]
