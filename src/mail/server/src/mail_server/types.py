@@ -1,31 +1,45 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
-from collections.abc import Awaitable, Callable
+from __future__ import annotations
 
-from fastapi import Response
-from mail_protocol.core.address import MAILAddress
-from mail_protocol.core.message import MAILMessage, MAILMessageType
+from collections.abc import Awaitable, Callable
+from typing import Any, Literal
+
+from mail_protocol.core.message import MAILMessage
 from mail_protocol.interswarm import MAILRemoteSwarm
 from mail_protocol.interswarm.message import MAILInterswarmMessage
 from mail_protocol.metadata import Metadata
 from mail_protocol.network.responses import PostInterswarmMessageResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-EndpointFunction = Callable[..., Awaitable[Response]]
+EndpointFunction = Callable[..., Any]
 PostMessageHandler = Callable[[MAILMessage], Awaitable[tuple[MAILMessage, Metadata]]]
-PostInterswarmMessageHandler = Callable[[MAILInterswarmMessage], Awaitable[PostInterswarmMessageResponse]]
+PostInterswarmMessageHandler = Callable[
+    [MAILInterswarmMessage],
+    Awaitable[PostInterswarmMessageResponse],
+]
+LifecycleHandler = Callable[..., Awaitable[None] | None]
 
 
 class SwarmRegistryEntry(BaseModel):
     """
     A given entry in the registry of remote swarms.
     """
+
     swarm: MAILRemoteSwarm
     api_key_ref: str
     public: bool
     volatile: bool
 
 
-SwarmRegistry = dict[str, SwarmRegistryEntry]
+class PersistedSwarmRegistry(BaseModel):
+    """
+    JSON representation for persisted MAIL server registry entries.
+    """
 
+    version: Literal[1] = 1
+    entries: dict[str, SwarmRegistryEntry] = Field(default_factory=dict)
+
+
+SwarmRegistry = dict[str, SwarmRegistryEntry]

@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
+from __future__ import annotations
+
+from functools import lru_cache
 from os import getenv
 from typing import Annotated
 
@@ -11,28 +14,50 @@ from fastapi.security import OAuth2PasswordBearer
 from mail_protocol.core.instance import MAILInstanceType
 from pydantic import BaseModel
 
-load_dotenv()
-JWT_SECRET = getenv("MAIL_SERVER_JWT_SECRET")
-JWT_ALGORITHM = getenv("MAIL_SERVER_JWT_ALGORITHM")
-jwt_lifetime_minutes = getenv("MAIL_SERVER_JWT_LIFETIME_MINUTES")
-if not JWT_SECRET:
-    raise ValueError("MAIL_SERVER_JWT_SECRET is not set")
-if not JWT_ALGORITHM:
-    raise ValueError("MAIL_SERVER_JWT_ALGORITHM is not set")
-if not jwt_lifetime_minutes:
-    raise ValueError("MAIL_SERVER_JWT_LIFETIME_MINUTES is not set")
-JWT_LIFETIME_MINUTES = int(jwt_lifetime_minutes)
-
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+
+class AuthSettings(BaseModel):
+    secret: str
+    algorithm: str
+    lifetime_minutes: int
+
 
 class TokenInfo(BaseModel):
     role: MAILInstanceType
     id: str
 
 
+@lru_cache
+def get_auth_settings() -> AuthSettings:
+    load_dotenv()
+
+    secret = getenv("MAIL_SERVER_JWT_SECRET")
+    algorithm = getenv("MAIL_SERVER_JWT_ALGORITHM")
+    lifetime_minutes_raw = getenv("MAIL_SERVER_JWT_LIFETIME_MINUTES")
+
+    missing = [
+        env_var
+        for env_var, value in [
+            ("MAIL_SERVER_JWT_SECRET", secret),
+            ("MAIL_SERVER_JWT_ALGORITHM", algorithm),
+            ("MAIL_SERVER_JWT_LIFETIME_MINUTES", lifetime_minutes_raw),
+        ]
+        if not value
+    ]
+    if missing:
+        missing_joined = ", ".join(missing)
+        raise RuntimeError(f"missing MAIL server auth environment variables: {missing_joined}")
+
+    return AuthSettings(
+        secret=secret,
+        algorithm=algorithm,
+        lifetime_minutes=int(lifetime_minutes_raw),
+    )
+
+
 async def get_current_admin(
-    token: Annotated[str, Depends(oauth2_scheme)]
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> TokenInfo:
     """
     Get the current client if they are an `admin`.
@@ -42,13 +67,13 @@ async def get_current_admin(
         raise HTTPException(
             status_code=401,
             detail="invalid role",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return token_info
 
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)]
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> TokenInfo:
     """
     Get the current client if they are a `user`.
@@ -58,13 +83,13 @@ async def get_current_user(
         raise HTTPException(
             status_code=401,
             detail="invalid role",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return token_info
 
 
 async def get_current_swarm(
-    token: Annotated[str, Depends(oauth2_scheme)]
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> TokenInfo:
     """
     Get the current client if they are a `swarm`.
@@ -74,13 +99,13 @@ async def get_current_swarm(
         raise HTTPException(
             status_code=401,
             detail="invalid role",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return token_info
 
 
 async def get_current_admin_or_user(
-    token: Annotated[str, Depends(oauth2_scheme)]
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> TokenInfo:
     """
     Get the current client if they are an `admin` or `user`.
@@ -90,13 +115,13 @@ async def get_current_admin_or_user(
         raise HTTPException(
             status_code=401,
             detail="invalid role",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return token_info
 
 
 async def get_current_client(
-    token: Annotated[str, Depends(oauth2_scheme)]
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> TokenInfo:
     """
     Get the current client.
@@ -104,15 +129,20 @@ async def get_current_client(
     credentials_exception = HTTPException(
         status_code=401,
         detail="invalid token",
-        headers={"WWW-Authenticate": "Bearer"}
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM]) # type: ignore
-        id = payload.get("id")
+        settings = get_auth_settings()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    try:
+        payload = jwt.decode(token, settings.secret, algorithms=[settings.algorithm])  # type: ignore[arg-type]
+        client_id = payload.get("id")
         role = payload.get("role")
-        if (not id) or (not role):
+        if (not client_id) or (not role):
             raise credentials_exception
-        return TokenInfo(id=id, role=role)
-    except jwt.InvalidTokenError:
-        raise credentials_exception
+        return TokenInfo(id=client_id, role=role)
+    except jwt.InvalidTokenError as exc:
+        raise credentials_exception from exc

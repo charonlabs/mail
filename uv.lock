@@ -1215,6 +1215,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "mail-protocol" },
     { name = "pydantic" },
+    { name = "pyjwt" },
+    { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
 
@@ -1224,6 +1226,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "mail-protocol", editable = "src/mail/protocol" },
     { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pyjwt", specifier = ">=2.10.1" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 

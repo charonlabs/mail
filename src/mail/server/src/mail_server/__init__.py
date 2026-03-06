@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from server!")
+from mail_server.api import MAILServer
+
+__all__ = ["MAILServer"]

@@ -58,6 +58,15 @@ class PostRegistryResponse(BaseModel):
     metadata: Metadata
 
 
+class DeleteRegistryResponse(BaseModel):
+    """
+    A response body to the endpoint `DELETE /registry/{swarm_name}`.
+    """
+    status: Literal["success", "error"]
+    swarm: MAILRemoteSwarm
+    metadata: Metadata
+
+
 class PostMessageResponse(BaseModel):
     """
     A response body to the endpoint `POST /message`.
