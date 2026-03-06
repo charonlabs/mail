@@ -7,10 +7,14 @@ authors = [
     { name = "Addison Kline", email = "77369109+addisonkline@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.11.7",
+    "mail-protocol>=2.0.0",
+]
 
 [project.scripts]
-client = "mail_client:main"
+mail-client = "mail_client.cli:main"
 
 [build-system]
 requires = ["hatchling"]

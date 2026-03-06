@@ -37,7 +37,7 @@ async def handle_message(message):
     return message, {}
 
 
-@server.on_interswarm_message
+@server.on_interswarm
 async def handle_interswarm_message(message):
     return message, {}
 

@@ -1194,6 +1194,18 @@ wheels = [
 name = "mail-client"
 version = "2.0.0"
 source = { editable = "src/mail/client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "mail-protocol" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mail-protocol", editable = "src/mail/protocol" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+]
 
 [[package]]
 name = "mail-protocol"
