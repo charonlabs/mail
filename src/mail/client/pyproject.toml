@@ -11,10 +11,11 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.11.7",
     "mail-protocol>=2.0.0",
+    "rich>=14.1.0",
 ]
 
 [project.scripts]
-mail-client = "mail_client.cli:main"
+newman = "mail_client.cli:main"
 
 [build-system]
 requires = ["hatchling"]

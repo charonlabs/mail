@@ -7,6 +7,7 @@ from mail_protocol.core.address import MAILAddress
 from mail_protocol.core.message import MAILMessageType
 from mail_protocol.interswarm import MAILInterswarmMessage
 from mail_protocol.network.requests import (
+    LoginRequest,
     PostInterswarmMessageRequest,
     PostMessageRequest,
     PostRegistryRequest,
@@ -16,6 +17,7 @@ from mail_protocol.network.responses import (
     GetRegistryResponse,
     GetRootResponse,
     GetSwarmResponse,
+    LoginResponse,
     PostInterswarmMessageResponse,
     PostMessageResponse,
     PostRegistryResponse,
@@ -62,7 +64,24 @@ class MAILClient:
             )
 
         try:
-            return GetRootResponse.model_validate_json(response.json())
+            return GetRootResponse.model_validate(response.json())
+        except ValidationError as e:
+            raise MAILResponseError(detail=f"failed to validate response body: {e}")
+
+    def login(self, api_key: str) -> LoginResponse:
+        """
+        Login to the MAIL server.
+        """
+        response = self.client.post("/login", json=LoginRequest(api_key=api_key).model_dump())
+        if response.status_code != 200:
+            raise MAILRequestError(
+                status_code=response.status_code,
+                detail=response.text,
+                request=response.request,
+                response=response,
+            )
+        try:
+            return LoginResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -81,7 +100,7 @@ class MAILClient:
             )
         
         try:
-            return GetSwarmResponse.model_validate_json(response.json())
+            return GetSwarmResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -100,7 +119,7 @@ class MAILClient:
             )
             
         try:
-            return GetRegistryResponse.model_validate_json(response.json())
+            return GetRegistryResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -133,7 +152,7 @@ class MAILClient:
             )
             
         try:
-            return PostRegistryResponse.model_validate_json(response.json())
+            return PostRegistryResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -155,7 +174,7 @@ class MAILClient:
             )
             
         try:
-            return DeleteRegistryResponse.model_validate_json(response.json())
+            return DeleteRegistryResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -189,7 +208,7 @@ class MAILClient:
             )
             
         try:
-            return PostMessageResponse.model_validate_json(response.json())
+            return PostMessageResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -215,7 +234,7 @@ class MAILClient:
             )
         
         try:
-            return PostInterswarmMessageResponse.model_validate_json(response.json())
+            return PostInterswarmMessageResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -256,7 +275,7 @@ class MAILAsyncClient:
             )
 
         try:
-            return GetRootResponse.model_validate_json(await response.json())
+            return GetRootResponse.model_validate(await response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -275,7 +294,7 @@ class MAILAsyncClient:
             )
             
         try:
-            return GetSwarmResponse.model_validate_json(await response.json())
+            return GetSwarmResponse.model_validate(await response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -294,7 +313,7 @@ class MAILAsyncClient:
             )
             
         try:
-            return GetRegistryResponse.model_validate_json(await response.json())
+            return GetRegistryResponse.model_validate(await response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -326,7 +345,7 @@ class MAILAsyncClient:
                 response=response,
             )
         try:
-            return PostRegistryResponse.model_validate_json(await response.json())
+            return PostRegistryResponse.model_validate(await response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -348,7 +367,7 @@ class MAILAsyncClient:
             )
             
         try:
-            return DeleteRegistryResponse.model_validate(await response.json())
+            return DeleteRegistryResponse.model_validate_json(await response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -382,7 +401,7 @@ class MAILAsyncClient:
             )
             
         try:
-            return PostMessageResponse.model_validate(await response.json())
+            return PostMessageResponse.model_validate_json(await response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 

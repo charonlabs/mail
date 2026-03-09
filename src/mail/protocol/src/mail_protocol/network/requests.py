@@ -12,6 +12,13 @@ from mail_protocol.interswarm.message import MAILInterswarmMessage
 from mail_protocol.metadata import Metadata
 
 
+class LoginRequest(BaseModel):
+    """
+    A request body to the endpoint `POST /login`.
+    """
+    api_key: str
+
+
 class PostMessageRequest(BaseModel):
     """
     A request body to the endpoint `POST /message`.

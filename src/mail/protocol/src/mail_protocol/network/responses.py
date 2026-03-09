@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel
 
+from mail_protocol.core.instance import MAILInstanceType
 from mail_protocol.core.message import MAILMessage
 from mail_protocol.core.swarm import MAILSwarm
 from mail_protocol.interswarm import MAILRemoteSwarm
@@ -28,6 +29,15 @@ class GetRootResponse(BaseModel):
     protocol_version: Literal["2.0"]
     status: Literal["running"]
     uptime: Annotated[float, AfterValidator(validate_uptime)]
+    metadata: Metadata
+
+
+class LoginResponse(BaseModel):
+    """
+    A response body to the endpoint `POST /login`.
+    """
+    user: MAILInstanceType
+    id: str
     metadata: Metadata
 
 
