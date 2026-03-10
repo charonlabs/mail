@@ -8,8 +8,10 @@ def get_version() -> str:
     """
     Get the current version of mail-server.
     """
-    version = metadata.version("mail-server")
-    return version
+    try:
+        return metadata.version("mail-server")
+    except metadata.PackageNotFoundError:
+        return "0.0.0"
 
 
 def get_user_agent() -> str:

@@ -106,6 +106,7 @@ class Newman:
         exit_parser = subparsers.add_parser(
             "exit",
             aliases=["quit"],
+            usage="/exit",
             help=exit_desc,
             description=exit_desc,
         )
@@ -116,6 +117,7 @@ class Newman:
         help_parser = subparsers.add_parser(
             "help", 
             aliases=["?"], 
+            usage="/help",
             help=help_desc,
             description=help_desc,
         )
@@ -125,6 +127,7 @@ class Newman:
         ping_desc = "Ping the MAIL server"
         ping_parser = subparsers.add_parser(
             "ping",
+            usage="/ping [options]",
             help=ping_desc,
             description=ping_desc,
         )
@@ -140,6 +143,7 @@ class Newman:
         login_desc = "Login to the MAIL server"
         login_parser = subparsers.add_parser(
             "login",
+            usage="/login [options]",
             help=login_desc,
             description=login_desc,
         )
@@ -151,10 +155,27 @@ class Newman:
         )
         login_parser.set_defaults(func=self._cmd_login)
 
+        # command `whoami`
+        whoami_desc = "(admin|user) Get the client's identity"
+        whoami_parser = subparsers.add_parser(
+            "whoami",
+            usage="/whoami [options]",
+            help=whoami_desc,
+            description=whoami_desc,
+        )
+        whoami_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `GET /whoami`",
+        )
+        whoami_parser.set_defaults(func=self._cmd_whoami)
+
         # command `swarm`
         swarm_desc = "Get the swarm of the MAIL server"
         swarm_parser = subparsers.add_parser(
             "swarm",
+            usage="/swarm [options]",
             help=swarm_desc,
             description=swarm_desc,
         )
@@ -170,6 +191,7 @@ class Newman:
         registry_desc = "Get the registry of the MAIL server"
         registry_parser = subparsers.add_parser(
             "registry",
+            usage="/registry [options]",
             help=registry_desc,
             description=registry_desc,
         )
@@ -182,11 +204,40 @@ class Newman:
         registry_parser.set_defaults(func=self._cmd_registry)
 
         # command `register`
-        register_desc = "Register a remote swarm with the MAIL server"
+        register_desc = "(admin|user) Register a remote swarm with the MAIL server"
         register_parser = subparsers.add_parser(
             "register",
+            usage="/register <base_url> <api_key_ref> [options]",
             help=register_desc,
             description=register_desc,
+        )
+        register_parser.add_argument(
+            "base_url",
+            type=str,
+            help="the base URL of the remote swarm",
+        )
+        register_parser.add_argument(
+            "api_key_ref",
+            type=str,
+            help="the API key reference of the remote swarm",
+        )
+        register_parser.add_argument(
+            "-p",
+            "--public",
+            action="store_true",
+            help="make the remote swarm public",
+        )
+        register_parser.add_argument(
+            "-V",
+            "--volatile",
+            action="store_true",
+            help="make the remote swarm volatile",
+        )
+        register_parser.add_argument(
+            "-m",
+            "--metadata",
+            type=str,
+            help="the metadata of the remote swarm",
         )
         register_parser.add_argument(
             "-v",
@@ -197,11 +248,17 @@ class Newman:
         register_parser.set_defaults(func=self._cmd_register)
 
         # command `deregister`
-        deregister_desc = "Deregister a remote swarm from the MAIL server"
+        deregister_desc = "(admin|user) Deregister a remote swarm from the MAIL server"
         deregister_parser = subparsers.add_parser(
             "deregister",
+            usage="/deregister <swarm_name> [options]",
             help=deregister_desc,
             description=deregister_desc,
+        )
+        deregister_parser.add_argument(
+            "swarm_name",
+            type=str,
+            help="the name of the remote swarm to deregister",
         )
         deregister_parser.add_argument(
             "-v",
@@ -210,6 +267,56 @@ class Newman:
             help="view the full JSON response for `DELETE /registry/{swarm_name}`",
         )
         deregister_parser.set_defaults(func=self._cmd_deregister)
+
+        # command `message`
+        message_desc = "(admin|user) Send a message to the MAIL server"
+        message_parser = subparsers.add_parser(
+            "message",
+            usage="/message <body> [options]",
+            help=message_desc,
+            description=message_desc,
+        )
+        message_parser.add_argument(
+            "body",
+            type=str,
+            help="the message to send",
+        )
+        message_parser.add_argument(
+            "-s",
+            "--subject",
+            default="New Message",
+            type=str,
+            help="the subject of the message",
+        )
+        message_parser.add_argument(
+            "-t",
+            "--msg-type",
+            default="request",
+            type=str,
+            choices=["direct", "broadcast", "interrupt"],
+            help="the type of the message",
+        )
+        message_parser.add_argument(
+            "-tid",
+            "--task-id",
+            type=str,
+            help="the task ID of the message",
+        )
+        message_parser.add_argument(
+            "-r",
+            "--recipients",
+            type=str,
+            nargs="+",
+            default=[],
+            help="the recipients of the message",
+        )
+        message_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `POST /message`",
+        )
+        message_parser.set_defaults(func=self._cmd_message)
 
         return parser
 
@@ -233,10 +340,26 @@ class Newman:
         api_key = self._console.input("enter API key: ", password=True)
         try:
             response = self._client.login(api_key)
+            self._api_key = response.access_token
+            self._user_id = response.id
+            self._user_role = response.role
             if args.verbose:
                 self._console.print(json.dumps(response.model_dump(), indent=2))
             else:
-                self._console.print(f"logged in as [green]{response.user.role}:{response.user.name}[/green]")
+                self._console.print(f"logged in as [green]{response.role}:{response.id}[/green]")
+        except Exception as exc:
+            self._console.print(f"[bold red]error[/bold red]: {exc}")
+
+    def _cmd_whoami(self, args: Namespace) -> None:
+        """
+        Get the client's identity.
+        """
+        try:
+            response = self._client.whoami()
+            if args.verbose:
+                self._console.print(json.dumps(response.model_dump(), indent=2))
+            else:
+                self._console.print(f"role [green]{response.role}[/green] with ID [green]{response.id}[/green]")
         except Exception as exc:
             self._console.print(f"[bold red]error[/bold red]: {exc}")
 
@@ -284,7 +407,13 @@ class Newman:
         Register a remote swarm with the MAIL server.
         """
         try:
-            response = self._client.register_swarm()
+            response = self._client.register_swarm(
+                base_url=args.base_url,
+                api_key_ref=args.api_key_ref,
+                public=args.public,
+                volatile=args.volatile,
+                metadata=args.metadata,
+            )
             if args.verbose:
                 self._console.print(json.dumps(response.model_dump(), indent=2))
             else:
@@ -297,7 +426,7 @@ class Newman:
         Deregister a remote swarm from the MAIL server.
         """
         try:
-            response = self._client.deregister_swarm()
+            response = self._client.deregister_swarm(args.swarm_name)
             if args.verbose:
                 self._console.print(json.dumps(response.model_dump(), indent=2))
             else:
@@ -305,6 +434,26 @@ class Newman:
         except Exception as exc:
             self._console.print(f"[bold red]error[/bold red]: {exc}")
 
+    def _cmd_message(self, args: Namespace) -> None:
+        """
+        Send a message to the MAIL server.
+        """
+        try:
+            response = self._client.post_message(
+                body=args.body,
+                subject=args.subject,
+                msg_type=args.msg_type,
+                task_id=args.task_id,
+                recipients=args.recipients,
+                metadata=args.metadata,
+            )
+            if args.verbose:
+                self._console.print(json.dumps(response.model_dump(), indent=2))
+            else:
+                self._console.print(response.message)
+        except Exception as exc:
+            self._console.print(f"[bold red]error[/bold red]: {exc}")
+        
 def _verify_url(url: str) -> None:
     """
     Verify the given URL value is valid.

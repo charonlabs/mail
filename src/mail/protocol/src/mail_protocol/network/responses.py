@@ -36,8 +36,19 @@ class LoginResponse(BaseModel):
     """
     A response body to the endpoint `POST /login`.
     """
-    user: MAILInstanceType
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    role: MAILInstanceType
     id: str
+    metadata: Metadata
+
+
+class WhoamiResponse(BaseModel):
+    """
+    A response body to the endpoint `GET /whoami`.
+    """
+    id: str
+    role: MAILInstanceType
     metadata: Metadata
 
 

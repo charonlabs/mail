@@ -24,6 +24,7 @@ from mail_protocol.core.message import MAILMessage
 from mail_protocol.core.swarm import MAILSwarm
 from mail_protocol.interswarm import MAILRemoteSwarm
 from mail_protocol.network.requests import (
+    LoginRequest,
     PostInterswarmMessageRequest,
     PostMessageRequest,
     PostRegistryRequest,
@@ -33,13 +34,19 @@ from mail_protocol.network.responses import (
     GetRegistryResponse,
     GetRootResponse,
     GetSwarmResponse,
+    LoginResponse,
     PostInterswarmMessageResponse,
     PostMessageResponse,
     PostRegistryResponse,
+    WhoamiResponse,
 )
 
 from mail_server.auth import (
+    APIKeyAuthBackend,
+    JWTSettings,
+    MAILServerAuth,
     TokenInfo,
+    get_auth_settings,
     get_current_admin,
     get_current_admin_or_user,
     get_current_swarm,
@@ -73,12 +80,18 @@ class MAILServer:
         port: int = MAIL_DEFAULT_PORT,
         reload: bool = False,
         registry_path: str | os.PathLike[str] | None = None,
+        auth_backend: APIKeyAuthBackend | None = None,
+        auth_settings: JWTSettings | None = None,
     ) -> None:
         self.swarm = swarm
         self.host = host
         self.port = port
         self.reload = reload
         self.registry_path = Path(registry_path) if registry_path is not None else None
+        self.auth = self._build_auth(
+            auth_backend=auth_backend,
+            auth_settings=auth_settings,
+        )
 
         self.registry: SwarmRegistry = {}
         self._http_session: aiohttp.ClientSession | None = None
@@ -105,6 +118,7 @@ class MAILServer:
 
     async def _initialize_state(self, app: FastAPI) -> None:
         app.state.mail_server = self
+        app.state.mail_server_auth = self.auth
         app.state.time_startup = time.time()
         self._http_session = aiohttp.ClientSession(
             headers={"User-Agent": get_user_agent()}
@@ -123,6 +137,7 @@ class MAILServer:
 
         self._http_session = None
         app.state.http_session = None
+        app.state.mail_server_auth = None
 
     def _register_endpoints(self) -> None:
         """
@@ -131,10 +146,27 @@ class MAILServer:
         self.app.get("/")(self._on_get_root)
         self.app.get("/swarm")(self._on_get_swarm)
         self.app.get("/registry")(self._on_get_registry)
+        self.app.post("/login")(self._on_post_login)
+        self.app.get("/whoami")(self._on_get_whoami)
         self.app.post("/registry")(self._on_post_registry)
         self.app.delete("/registry/{swarm_name}")(self._on_delete_registry)
         self.app.post("/message")(self._handle_post_message)
         self.app.post("/interswarm/message")(self._handle_post_interswarm_message)
+
+    @staticmethod
+    def _build_auth(
+        *,
+        auth_backend: APIKeyAuthBackend | None,
+        auth_settings: JWTSettings | None,
+    ) -> MAILServerAuth | None:
+        if auth_backend is None and auth_settings is None:
+            return None
+
+        resolved_auth_settings = auth_settings or get_auth_settings()
+        return MAILServerAuth(
+            settings=resolved_auth_settings,
+            api_key_backend=auth_backend,
+        )
 
     def run(self) -> None:
         """
@@ -326,6 +358,43 @@ class MAILServer:
         }
         return GetRegistryResponse(
             swarms=public_registry,
+            metadata={},
+        )
+
+    async def _on_post_login(
+        self,
+        request: LoginRequest,
+    ) -> LoginResponse:
+        """
+        Handle the MAIL server's `POST /login` endpoint.
+        """
+        if self.auth is None:
+            raise HTTPException(
+                status_code=501,
+                detail="MAIL server auth is not configured",
+            )
+
+        client = await self.auth.authenticate_api_key(request.api_key)
+        access_token = self.auth.create_access_token(client)
+
+        return LoginResponse(
+            access_token=access_token,
+            token_type="bearer",
+            role=client.role,
+            id=client.id,
+            metadata={},
+        )
+
+    async def _on_get_whoami(
+        self,
+        client: Annotated[TokenInfo, Depends(get_current_admin_or_user)],
+    ) -> WhoamiResponse:
+        """
+        Handle the MAIL server's `GET /whoami` endpoint.
+        """
+        return WhoamiResponse(
+            id=client.id,
+            role=client.role,
             metadata={},
         )
 

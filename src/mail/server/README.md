@@ -7,7 +7,7 @@ MAIL swarm over HTTP.
 
 ```python
 from mail_protocol.core.swarm import MAILSwarm
-from mail_server import MAILServer
+from mail_server import JWTSettings, MAILServer, StaticAPIKeyAuthBackend, TokenInfo
 
 server = MAILServer(
     swarm=MAILSwarm(
@@ -19,6 +19,18 @@ server = MAILServer(
         metadata={},
     ),
     registry_path="./registry.json",
+    auth_backend=StaticAPIKeyAuthBackend(
+        {
+            "admin-key": TokenInfo(role="admin", id="admin-1"),
+            "user-key": TokenInfo(role="user", id="user-1"),
+            "swarm-key": TokenInfo(role="swarm", id="remote-swarm"),
+        }
+    ),
+    auth_settings=JWTSettings(
+        secret="change-me",
+        algorithm="HS256",
+        lifetime_minutes=60,
+    ),
 )
 
 
@@ -44,6 +56,15 @@ async def handle_interswarm_message(message):
 
 server.run()
 ```
+
+`POST /login` accepts `{"api_key": "..."}` and returns a JWT access token. That
+token is then used as `Authorization: Bearer <token>` for protected endpoints
+such as `POST /message`, `POST /registry`, and `DELETE /registry/{swarm_name}`.
+
+For production, replace `StaticAPIKeyAuthBackend` with your own backend object
+that implements `authenticate_api_key(api_key) -> TokenInfo | None`. That
+lookup can come from a database, external auth service, or any custom user
+management system.
 
 ## Registry persistence
 

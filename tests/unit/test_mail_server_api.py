@@ -3,26 +3,33 @@
 
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import jwt
-import pytest
 from fastapi.testclient import TestClient
 from mail_protocol.core.swarm import MAILSwarm
 from mail_protocol.interswarm import MAILRemoteSwarm
 
-import mail_server.auth as mail_server_auth
-from mail_server import MAILServer
+from mail_server import JWTSettings, MAILServer, StaticAPIKeyAuthBackend, TokenInfo
 from mail_server.types import PersistedSwarmRegistry, SwarmRegistryEntry
 
 
-@pytest.fixture
-def auth_env(monkeypatch):
-    monkeypatch.setenv("MAIL_SERVER_JWT_SECRET", "test-secret")
-    monkeypatch.setenv("MAIL_SERVER_JWT_ALGORITHM", "HS256")
-    monkeypatch.setenv("MAIL_SERVER_JWT_LIFETIME_MINUTES", "60")
-    mail_server_auth.get_auth_settings.cache_clear()
-    yield
-    mail_server_auth.get_auth_settings.cache_clear()
+def build_auth_settings() -> JWTSettings:
+    return JWTSettings(
+        secret="test-secret",
+        algorithm="HS256",
+        lifetime_minutes=60,
+    )
+
+
+def build_auth_backend() -> StaticAPIKeyAuthBackend:
+    return StaticAPIKeyAuthBackend(
+        {
+            "user-api-key": TokenInfo(role="user", id="user-123"),
+            "admin-api-key": TokenInfo(role="admin", id="admin-123"),
+            "swarm-api-key": TokenInfo(role="swarm", id="remote-swarm"),
+        }
+    )
 
 
 def build_swarm(name: str = "local-swarm") -> MAILSwarm:
@@ -65,15 +72,21 @@ def build_registry_entry(
 
 
 def auth_headers(role: str, client_id: str) -> dict[str, str]:
+    now = datetime.now(UTC)
     token = jwt.encode(
-        {"role": role, "id": client_id},
+        {
+            "role": role,
+            "id": client_id,
+            "iat": int(now.timestamp()),
+            "exp": int((now + timedelta(hours=1)).timestamp()),
+        },
         "test-secret",
         algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_lifecycle_hooks_and_registry_persistence(tmp_path, auth_env):
+def test_lifecycle_hooks_and_registry_persistence(tmp_path):
     registry_path = tmp_path / "registry.json"
     persisted_registry = PersistedSwarmRegistry(
         entries={
@@ -89,6 +102,7 @@ def test_lifecycle_hooks_and_registry_persistence(tmp_path, auth_env):
     server = MAILServer(
         swarm=build_swarm(),
         registry_path=registry_path,
+        auth_settings=build_auth_settings(),
     )
     events: list[str] = []
 
@@ -135,16 +149,59 @@ def test_lifecycle_hooks_and_registry_persistence(tmp_path, auth_env):
     reloaded_server = MAILServer(
         swarm=build_swarm(name="reloaded-swarm"),
         registry_path=registry_path,
+        auth_settings=build_auth_settings(),
     )
     with TestClient(reloaded_server.app):
         assert set(reloaded_server.registry) == {"loaded", "persisted"}
 
 
-def test_registry_writes_and_message_handler(tmp_path, monkeypatch, auth_env):
+def test_login_returns_jwt_and_allows_protected_endpoint(tmp_path):
+    server = MAILServer(
+        swarm=build_swarm(),
+        registry_path=tmp_path / "registry.json",
+        auth_backend=build_auth_backend(),
+        auth_settings=build_auth_settings(),
+    )
+
+    @server.on_message
+    async def handle_message(message):
+        return message, {"handled": True}
+
+    with TestClient(server.app) as client:
+        login_response = client.post(
+            "/login",
+            json={"api_key": "user-api-key"},
+        )
+        assert login_response.status_code == 200
+        login_body = login_response.json()
+        assert login_body["role"] == "user"
+        assert login_body["id"] == "user-123"
+        assert login_body["token_type"] == "bearer"
+
+        message_response = client.post(
+            "/message",
+            headers={"Authorization": f"Bearer {login_body['access_token']}"},
+            json={
+                "task_id": str(uuid.uuid4()),
+                "msg_type": "direct",
+                "subject": "Hello",
+                "body": "Test body",
+                "recipients": [{"addr_type": "agent", "address": "supervisor"}],
+                "metadata": {},
+            },
+        )
+        assert message_response.status_code == 200
+        assert message_response.json()["message"]["sender"]["addr_type"] == "user"
+        assert message_response.json()["message"]["sender"]["address"] == "user-123"
+
+
+def test_registry_writes_and_message_handler(tmp_path, monkeypatch):
     registry_path = tmp_path / "registry.json"
     server = MAILServer(
         swarm=build_swarm(),
         registry_path=registry_path,
+        auth_backend=build_auth_backend(),
+        auth_settings=build_auth_settings(),
     )
 
     @server.on_message

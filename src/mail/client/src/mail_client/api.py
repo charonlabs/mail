@@ -21,6 +21,7 @@ from mail_protocol.network.responses import (
     PostInterswarmMessageResponse,
     PostMessageResponse,
     PostRegistryResponse,
+    WhoamiResponse,
 )
 from pydantic import ValidationError
 
@@ -47,6 +48,9 @@ class MAILClient:
         )
         if self.api_key:
             self.client.headers["Authorization"] = f"Bearer {self.api_key}"
+
+    def set_access_token(self, access_token: str) -> None:
+        self.client.headers["Authorization"] = f"Bearer {access_token}"
 
     def ping(self) -> GetRootResponse:
         """
@@ -81,7 +85,26 @@ class MAILClient:
                 response=response,
             )
         try:
-            return LoginResponse.model_validate(response.json())
+            login_response = LoginResponse.model_validate(response.json())
+        except ValidationError as e:
+            raise MAILResponseError(detail=f"failed to validate response body: {e}")
+        self.set_access_token(login_response.access_token)
+        return login_response
+
+    def whoami(self) -> WhoamiResponse:
+        """
+        Get the user's information.
+        """
+        response = self.client.get("/whoami")
+        if response.status_code != 200:
+            raise MAILRequestError(
+                status_code=response.status_code,
+                detail=response.text,
+                request=response.request,
+                response=response,
+            )
+        try:
+            return WhoamiResponse.model_validate(response.json())
         except ValidationError as e:
             raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
@@ -258,6 +281,48 @@ class MAILAsyncClient:
         )
         if self.api_key:
             self.client.headers["Authorization"] = f"Bearer {self.api_key}"
+
+    def set_access_token(self, access_token: str) -> None:
+        self.client.headers["Authorization"] = f"Bearer {access_token}"
+
+    async def login(self, api_key: str) -> LoginResponse:
+        """
+        Login to the MAIL server.
+        """
+        response = await self.client.post(
+            "/login",
+            json=LoginRequest(api_key=api_key).model_dump(),
+        )
+        if response.status_code != 200:
+            raise MAILRequestError(
+                status_code=response.status_code,
+                detail=response.text,
+                request=response.request,
+                response=response,
+            )
+        try:
+            login_response = LoginResponse.model_validate(response.json())
+        except ValidationError as e:
+            raise MAILResponseError(detail=f"failed to validate response body: {e}")
+        self.set_access_token(login_response.access_token)
+        return login_response
+
+    async def whoami(self) -> WhoamiResponse:
+        """
+        Get the user's information.
+        """
+        response = await self.client.get("/whoami")
+        if response.status_code != 200:
+            raise MAILRequestError(
+                status_code=response.status_code,
+                detail=response.text,
+                request=response.request,
+                response=response,
+            )
+        try:
+            return WhoamiResponse.model_validate(await response.json())
+        except ValidationError as e:
+            raise MAILResponseError(detail=f"failed to validate response body: {e}")
 
     async def ping(self) -> GetRootResponse:
         """
