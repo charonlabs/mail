@@ -5,13 +5,14 @@ import json
 import os
 import shlex
 from argparse import ArgumentParser, Namespace
-from re import L
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
+from mail_protocol import Metadata
+from mail_protocol.interswarm import MAILInterswarmMessage
 from rich import print as rprint
 from rich.console import Console
-from rich.prompt import Prompt
 
 from .api import MAILClient
 
@@ -172,7 +173,7 @@ class Newman:
         login_parser.set_defaults(func=self._cmd_login)
 
         # command `logout`
-        logout_desc = "(admin|user) Logout from the MAIL server"
+        logout_desc = "(admin|user|swarm) Logout from the MAIL server"
         logout_parser = subparsers.add_parser(
             "logout",
             usage="/logout",
@@ -182,7 +183,7 @@ class Newman:
         logout_parser.set_defaults(func=self._cmd_logout)
 
         # command `whoami`
-        whoami_desc = "(admin|user) Get the client's identity"
+        whoami_desc = "(admin|user|swarm) Get the client's identity"
         whoami_parser = subparsers.add_parser(
             "whoami",
             usage="/whoami [options]",
@@ -230,7 +231,7 @@ class Newman:
         registry_parser.set_defaults(func=self._cmd_registry)
 
         # command `register`
-        register_desc = "(admin|user) Register a remote swarm with the MAIL server"
+        register_desc = "(admin) Register a remote swarm with the MAIL server"
         register_parser = subparsers.add_parser(
             "register",
             usage="/register <base_url> <api_key_ref> [options]",
@@ -274,7 +275,7 @@ class Newman:
         register_parser.set_defaults(func=self._cmd_register)
 
         # command `deregister`
-        deregister_desc = "(admin|user) Deregister a remote swarm from the MAIL server"
+        deregister_desc = "(admin) Deregister a remote swarm from the MAIL server"
         deregister_parser = subparsers.add_parser(
             "deregister",
             usage="/deregister <swarm_name> [options]",
@@ -344,7 +345,67 @@ class Newman:
         )
         message_parser.set_defaults(func=self._cmd_message)
 
+        # command `interswarm`
+        interswarm_desc = "(swarm) Post a MAIL interswarm message to the MAIL server"
+        interswarm_parser = subparsers.add_parser(
+            "interswarm",
+            usage="/interswarm <message_json> [options]",
+            help=interswarm_desc,
+            description=interswarm_desc,
+        )
+        interswarm_parser.add_argument(
+            "message_json",
+            nargs="?",
+            type=str,
+            help="a JSON string that matches the MAILInterswarmMessage schema",
+        )
+        interswarm_parser.add_argument(
+            "-f",
+            "--file",
+            type=str,
+            help="a path to a JSON file containing a MAILInterswarmMessage payload",
+        )
+        interswarm_parser.add_argument(
+            "-m",
+            "--metadata",
+            default="{}",
+            type=str,
+            help="a JSON object for the request metadata wrapper",
+        )
+        interswarm_parser.add_argument(
+            "-v",
+            "--verbose",
+            action="store_true",
+            help="view the full JSON response for `POST /interswarm/message`",
+        )
+        interswarm_parser.set_defaults(func=self._cmd_interswarm)
+        
         return parser
+
+    @staticmethod
+    def _parse_json_object(raw_json: str, *, field_name: str) -> Metadata:
+        parsed = json.loads(raw_json)
+        if not isinstance(parsed, dict):
+            raise ValueError(f"{field_name} must be a JSON object")
+        return parsed
+
+    @staticmethod
+    def _load_interswarm_message(
+        *,
+        message_json: str | None,
+        file_path: str | None,
+    ) -> MAILInterswarmMessage:
+        if bool(message_json) == bool(file_path):
+            raise ValueError("provide exactly one of `message_json` or `--file`")
+
+        raw_json = message_json
+        if file_path is not None:
+            raw_json = Path(file_path).read_text()
+
+        if raw_json is None:
+            raise ValueError("missing interswarm message payload")
+
+        return MAILInterswarmMessage.model_validate_json(raw_json)
 
     def _cmd_help(self, _args: Namespace) -> None:
         """
@@ -381,7 +442,7 @@ class Newman:
         Logout from the MAIL server.
         """
         try:
-            if (self._user_role not in ["admin", "user"]) or (self._api_key is None) or (self._user_id is None):
+            if (self._user_role not in ["admin", "user", "swarm"]) or (self._api_key is None) or (self._user_id is None):
                 raise ValueError("not logged in")
             self._api_key = None
             self._user_id = None
@@ -491,6 +552,36 @@ class Newman:
                 self._console.print(json.dumps(response.model_dump(), indent=2))
             else:
                 self._console.print(response.message)
+        except Exception as exc:
+            self._console.print(f"[bold red]error[/bold red]: {exc}")
+
+    def _cmd_interswarm(self, args: Namespace) -> None:
+        """
+        Post an interswarm message to the MAIL server.
+        """
+        try:
+            if self._user_role != "swarm" or self._api_key is None:
+                raise ValueError("interswarm command requires a logged-in `swarm` client")
+
+            message = self._load_interswarm_message(
+                message_json=args.message_json,
+                file_path=args.file,
+            )
+            metadata = self._parse_json_object(
+                args.metadata,
+                field_name="metadata",
+            )
+            response = self._client.post_interswarm_message(
+                message=message,
+                metadata=metadata,
+            )
+            if args.verbose:
+                self._console.print(json.dumps(response.model_dump(), indent=2))
+            else:
+                self._console.print(
+                    f"interswarm message result: [green]{response.status}[/green]"
+                    f" (new_task={response.new_task})"
+                )
         except Exception as exc:
             self._console.print(f"[bold red]error[/bold red]: {exc}")
         

@@ -49,6 +49,7 @@ from mail_server.auth import (
     get_auth_settings,
     get_current_admin,
     get_current_admin_or_user,
+    get_current_client,
     get_current_swarm,
 )
 from mail_server.types import (
@@ -387,7 +388,7 @@ class MAILServer:
 
     async def _on_get_whoami(
         self,
-        client: Annotated[TokenInfo, Depends(get_current_admin_or_user)],
+        client: Annotated[TokenInfo, Depends(get_current_client)],
     ) -> WhoamiResponse:
         """
         Handle the MAIL server's `GET /whoami` endpoint.

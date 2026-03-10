@@ -76,9 +76,9 @@ def get_auth_settings() -> JWTSettings:
         raise RuntimeError(f"missing MAIL server auth environment variables: {missing_joined}")
 
     return JWTSettings(
-        secret=secret,
-        algorithm=algorithm,
-        lifetime_minutes=int(lifetime_minutes_raw),
+        secret=secret, # type: ignore
+        algorithm=algorithm, # type: ignore
+        lifetime_minutes=int(lifetime_minutes_raw), # type: ignore
     )
 
 
