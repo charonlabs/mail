@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.11.7",
     "mail-protocol>=2.0.0",
     "rich>=14.1.0",
+    "dotenv>=0.9.9",
 ]
 
 [project.scripts]

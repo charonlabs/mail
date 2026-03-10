@@ -32,6 +32,12 @@ def main() -> None:
         type=str,
         help="The URL of the MAIL server to connect to",
     )
+    connect_p.add_argument(
+        "-nl",
+        "--no-login",
+        action="store_true",
+        help="Do not login to the MAIL server after connecting",
+    )
     connect_p.set_defaults(func=run_client)
 
     # command `version` (print the version of NEWMAN and the MAIL protocol)

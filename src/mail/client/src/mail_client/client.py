@@ -2,15 +2,20 @@
 # Copyright (c) 2025 Addison Kline
 
 import json
+import os
 import shlex
 from argparse import ArgumentParser, Namespace
+from re import L
 from urllib.parse import urlsplit
 
+from dotenv import load_dotenv
 from rich import print as rprint
 from rich.console import Console
 from rich.prompt import Prompt
 
 from .api import MAILClient
+
+load_dotenv()
 
 
 class Newman:
@@ -20,16 +25,22 @@ class Newman:
     def __init__(
         self,
         url: str,
+        api_key: str | None = None,
     ) -> None:
         self.url = url
-        self._api_key = None
-        self._user_id = None
-        self._user_role = None
-
-        self._client = MAILClient(self.url, self._api_key)
-
+        self._client = MAILClient(self.url)
         self._console = Console()
         self._parser = self._build_parser()
+
+        if api_key is None:
+            self._api_key = api_key
+            self._user_id = None
+            self._user_role = None
+        else:
+            response = self._client.login(api_key=api_key)
+            self._api_key = response.access_token
+            self._user_id = response.id
+            self._user_role = response.role
 
     def run_repl(self) -> None:
         """
@@ -74,6 +85,11 @@ class Newman:
         rprint("[bold]NEWMAN[/bold] - A CLI-based REPL client for the MAIL protocol")
         rprint("For help: [cyan]/help[/cyan], [cyan]/?[/cyan]")
         rprint("To quit: [cyan]/exit[/cyan], [cyan]/quit[/cyan]")
+        if not self._api_key:
+            rprint("[bold yellow]warning[/bold yellow]: you are not currently logged in")
+            rprint("[bold yellow]warning[/bold yellow]: you can login with [cyan]/login[/cyan]")
+        else:
+            rprint(f"logged in as [green]{self._user_role}:{self._user_id}[/green]")
         rprint("=" * 80)
 
     def _repl_prompt(self) -> str:
@@ -154,6 +170,16 @@ class Newman:
             help="view the full JSON response for `POST /login`",
         )
         login_parser.set_defaults(func=self._cmd_login)
+
+        # command `logout`
+        logout_desc = "(admin|user) Logout from the MAIL server"
+        logout_parser = subparsers.add_parser(
+            "logout",
+            usage="/logout",
+            help=logout_desc,
+            description=logout_desc,
+        )
+        logout_parser.set_defaults(func=self._cmd_logout)
 
         # command `whoami`
         whoami_desc = "(admin|user) Get the client's identity"
@@ -308,7 +334,7 @@ class Newman:
             type=str,
             nargs="+",
             default=[],
-            help="the recipients of the message",
+            help="the recipient agent(s) of the message",
         )
         message_parser.add_argument(
             "-v",
@@ -347,6 +373,20 @@ class Newman:
                 self._console.print(json.dumps(response.model_dump(), indent=2))
             else:
                 self._console.print(f"logged in as [green]{response.role}:{response.id}[/green]")
+        except Exception as exc:
+            self._console.print(f"[bold red]error[/bold red]: {exc}")
+
+    def _cmd_logout(self, _args: Namespace) -> None:
+        """
+        Logout from the MAIL server.
+        """
+        try:
+            if (self._user_role not in ["admin", "user"]) or (self._api_key is None) or (self._user_id is None):
+                raise ValueError("not logged in")
+            self._api_key = None
+            self._user_id = None
+            self._user_role = None
+            self._console.print(f"logged out from [bold green]{self.url}[/bold green]")
         except Exception as exc:
             self._console.print(f"[bold red]error[/bold red]: {exc}")
 
@@ -471,10 +511,11 @@ def run_client(args: Namespace) -> None:
     Run the MAIL client.
     """
     url = args.url
+    api_key = os.getenv("MAIL_API_KEY") if not args.no_login else None
 
     _verify_url(url)
-
+    
     print(f"connecting to {url}...")
-    newman = Newman(url)
+    newman = Newman(url, api_key)
     newman.run_repl()
     print(f"disconnected from {url}")
