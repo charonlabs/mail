@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 [manifest]
 members = [
     "mail-client",
+    "mail-daemon",
     "mail-protocol",
     "mail-server",
     "mail-swarms",
@@ -1223,6 +1224,11 @@ requires-dist = [
 ]
 
 [[package]]
+name = "mail-daemon"
+version = "2.0.0"
+source = { editable = "src/mail/daemon" }
+
+[[package]]
 name = "mail-protocol"
 version = "2.0.0"
 source = { editable = "src/mail/protocol" }
@@ -1292,6 +1298,10 @@ client = [
     { name = "mail-client" },
     { name = "mail-protocol" },
 ]
+daemon = [
+    { name = "mail-daemon" },
+    { name = "mail-protocol" },
+]
 protocol = [
     { name = "mail-protocol" },
 ]
@@ -1324,7 +1334,9 @@ requires-dist = [
     { name = "langmem", specifier = ">=0.0.29" },
     { name = "litellm", specifier = ">=1.76.2" },
     { name = "mail-client", marker = "extra == 'client'", editable = "src/mail/client" },
+    { name = "mail-daemon", marker = "extra == 'daemon'", editable = "src/mail/daemon" },
     { name = "mail-protocol", marker = "extra == 'client'", editable = "src/mail/protocol" },
+    { name = "mail-protocol", marker = "extra == 'daemon'", editable = "src/mail/protocol" },
     { name = "mail-protocol", marker = "extra == 'protocol'", editable = "src/mail/protocol" },
     { name = "mail-protocol", marker = "extra == 'server'", editable = "src/mail/protocol" },
     { name = "mail-server", marker = "extra == 'server'", editable = "src/mail/server" },
@@ -1341,7 +1353,7 @@ requires-dist = [
     { name = "ujson", specifier = ">=5.8.0" },
     { name = "uvicorn", specifier = ">=0.24.0" },
 ]
-provides-extras = ["legacy", "protocol", "server", "client"]
+provides-extras = ["legacy", "protocol", "server", "client", "daemon"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -35,13 +35,16 @@ classifiers = [
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 
 [project.scripts]
-mail = "mail.cli:main"
+mail = "mail_client.cli:main"
+mail-server = "mail_server.cli:main"
+mail-daemon = "mail_daemon.cli:main"
 
 [project.optional-dependencies]
 legacy = []
 protocol = ["mail-protocol>=2.0.0"]
 server = ["mail-server>=2.0.0", "mail-protocol>=2.0.0"]
 client = ["mail-client>=2.0.0", "mail-protocol>=2.0.0"]
+daemon = ["mail-daemon>=2.0.0", "mail-protocol>=2.0.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -95,10 +98,12 @@ extend-select = ["TID252", "I", "UP"]
 mail-protocol = { workspace = true }
 mail-server = { workspace = true }
 mail-client = { workspace = true }
+mail-daemon = { workspace = true }
 
 [tool.uv.workspace]
 members = [
     "src/mail/client",
     "src/mail/protocol",
     "src/mail/server",
+    "src/mail/daemon",
 ]
