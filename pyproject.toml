@@ -38,6 +38,7 @@ license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 mail = "mail_client.cli:main"
 mail-server = "mail_server.cli:main"
 mail-daemon = "mail_daemon.cli:main"
+mail-protocol = "mail_protocol.cli:main"
 
 [project.optional-dependencies]
 legacy = []
