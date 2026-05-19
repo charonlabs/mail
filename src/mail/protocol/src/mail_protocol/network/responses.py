@@ -1,105 +1,278 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2025 Addison Kline
+# Copyright (c) 2025-26 Addison Kline
 
-from typing import Annotated, Literal
+from typing import Any, Literal
 
-from pydantic import AfterValidator, BaseModel
+from pydantic import BaseModel
 
-from mail_protocol.core.instance import MAILInstanceType
-from mail_protocol.core.message import MAILMessage
-from mail_protocol.core.swarm import MAILSwarm
-from mail_protocol.interswarm import MAILRemoteSwarm
-from mail_protocol.metadata import Metadata
-
-
-def validate_uptime(uptime: float) -> float:
-    """
-    Validate the uptime (must be a positive number).
-    """
-    if uptime < 0:
-        raise ValueError(f"Invalid uptime: {uptime}")
-    return uptime
+from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
+from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
+from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
+from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
+from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
+from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
+from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
+from mail_protocol.core.user_agents import MAILUserAgent
 
 
+#
+# Top-level endpoints
+#
 class GetRootResponse(BaseModel):
     """
-    A response body to the endpoint `GET /`.
+    Corresponds to `GET /`.
+    Contains basic MAIL server information and metadata.
     """
+
     protocol_name: Literal["mail"]
     protocol_version: Literal["2.0"]
-    status: Literal["running"]
-    uptime: Annotated[float, AfterValidator(validate_uptime)]
-    metadata: Metadata
+    uptime: float
 
 
-class LoginResponse(BaseModel):
+class GetHealthResponse(BaseModel):
     """
-    A response body to the endpoint `POST /login`.
+    Corresponds to `GET /health`.
+    Contains a basic health status message (should be ok).
     """
-    access_token: str
-    token_type: Literal["bearer"] = "bearer"
-    role: MAILInstanceType
-    id: str
-    metadata: Metadata
+
+    status: Literal["ok"]
 
 
-class WhoamiResponse(BaseModel):
+#
+# Authentication endpoints
+#
+class PostAuthTokenResponse(BaseModel):
     """
-    A response body to the endpoint `GET /whoami`.
+    Corresponds to `POST /auth/token`.
+    Contains a temporary JWT and associated metadata.
     """
-    id: str
-    role: MAILInstanceType
-    metadata: Metadata
+
+    token: str
+    metadata: dict[str, Any]
+
+
+class GetAuthWhoamiResponse(BaseModel):
+    """
+    Corresponds to `GET /auth/whoami`.
+    Contains current user information and metadata.
+    """
+
+    user_agent: MAILUserAgent
+    metadata: dict[str, Any]
+
+
+#
+# Swarm endpoints
+#
+class GetSwarmsResponse(BaseModel):
+    """
+    Corresponds to `GET /swarms`.
+    Contains the list of swarms exposed by this server.
+    """
+
+    swarms: list[MAILSwarmSummary]
+    metadata: dict[str, Any]
 
 
 class GetSwarmResponse(BaseModel):
     """
-    A response body to the endpoint `GET /swarm`.
+    Corresponds to `GET /swarms/{swarm_name}`.
+    Contains information about the specified existing + exposed MAIL swarm.
     """
+
     swarm: MAILSwarm
-    protocol_version: str
-    status: Literal["running"]
-    metadata: Metadata
+    metadata: dict[str, Any]
 
 
-class GetRegistryResponse(BaseModel):
+class GetSwarmHealthResponse(BaseModel):
     """
-    A response body to the endpoint `GET /registry`.
+    Corresponds to `GET /swarms/{swarm_name}/health`.
+    Contains up-to-date, swarm-specific health information.
     """
-    swarms: dict[str, MAILRemoteSwarm]
-    metadata: Metadata
+
+    status: Literal["ok"]
 
 
-class PostRegistryResponse(BaseModel):
+#
+# Inbox endpoints
+#
+class GetInboxResponse(BaseModel):
     """
-    A response body to the endpoint `POST /registry`.
+    Corresponds to `GET /inbox`.
+    Contains a list of entries in the user-agent's inbox.
     """
-    status: Literal["success", "error"]
-    swarm: MAILRemoteSwarm
-    metadata: Metadata
+
+    inbox: list[MAILInboxEntrySummary]
+    metadata: dict[str, Any]
 
 
-class DeleteRegistryResponse(BaseModel):
+class GetInboxMessageResponse(BaseModel):
     """
-    A response body to the endpoint `DELETE /registry/{swarm_name}`.
+    Corresponds to `GET /inbox/{message_id}`.
+    Contains a specific entry by message ID inside the user-agent's inbox.
     """
-    status: Literal["success", "error"]
-    swarm: MAILRemoteSwarm
-    metadata: Metadata
+
+    message: MAILInboxEntry
+    metadata: dict[str, Any]
 
 
-class PostMessageResponse(BaseModel):
+#
+# Outbox endpoints
+#
+class GetOutboxResponse(BaseModel):
     """
-    A response body to the endpoint `POST /message`.
+    Corresponds to `GET /outbox`.
+    Contains a list of entries in the user-agent's outbox.
     """
+
+    outbox: list[MAILOutboxEntrySummary]
+    metadata: dict[str, Any]
+
+
+class GetOutboxMessageResponse(BaseModel):
+    """
+    Corresponds to `GET /outbox/{message_id}`.
+    Contains a specific entry by message ID inside the user-agent's outbox.
+    """
+
+    message: MAILOutboxEntry
+    metadata: dict[str, Any]
+
+
+#
+# Draft endpoints
+#
+class GetDraftsResponse(BaseModel):
+    """
+    Corresponds to `GET /drafts`.
+    Contains a list of entries in the user-agent's drafts box.
+    """
+
+    drafts: list[MAILDraftsEntrySummary]
+    metadata: dict[str, Any]
+
+
+class GetDraftResponse(BaseModel):
+    """
+    Corresponds to `GET /drafts/{draft_id}`.
+    Contains a specific message draft inside the user-agent's drafts box.
+    """
+
+    draft: MAILDraftsEntry
+    metadata: dict[str, Any]
+
+
+class DeleteDraftResponse(BaseModel):
+    """
+    Corresponds to `DELETE /drafts/{draft_id}`.
+    Contains the specific message draft deleted from the user-agent's drafts box.
+    """
+
+    draft: MAILDraftsEntry
+    metadata: dict[str, Any]
+
+
+class PostDraftSendResponse(BaseModel):
+    """
+    Corresponds to `POST /drafts/{draft_id}/send`.
+    Contains the assembled MAIL message to be delivered.
+    """
+
     message: MAILMessage
-    metadata: Metadata
+    metadata: dict[str, Any]
 
 
-class PostInterswarmMessageResponse(BaseModel):
+#
+# Trash endpoints
+#
+class GetTrashResponse(BaseModel):
     """
-    A response body to the endpoint `POST /interswarm/message`.
+    Corresponds to `GET /trash`.
+    Contains a list of messages in the user-agent's trash box.
     """
-    status: Literal["success", "error"]
-    new_task: bool
-    metadata: Metadata
+
+    trash: list[MAILTrashEntrySummary]
+    metadata: dict[str, Any]
+
+
+class GetTrashMessageResponse(BaseModel):
+    """
+    Corresponds to `GET /trash/{message_id}`.
+    Contains the specific trashed message by ID from the user-agent's trash box.
+    """
+
+    message: MAILTrashEntry
+    metadata: dict[str, Any]
+
+
+class DeleteTrashMessageResponse(BaseModel):
+    """
+    Corresponds to `DELETE /trash/{message_id}`.
+    Contains the specific message deleted from the user-agent's trash box.
+    """
+
+    message: MAILTrashEntry
+    metadata: dict[str, Any]
+
+
+class PostTrashClearResponse(BaseModel):
+    """
+    Corresponds to `POST /trash/clear`.
+    Contains the list of messages deleted from the user-agent's trash box.
+    """
+
+    trash: list[MAILTrashEntrySummary]
+    metadata: dict[str, Any]
+
+
+#
+# Daemon endpoints
+#
+class GetDaemonQueueResponse(BaseModel):
+    """
+    Corresponds to `GET /daemon/queue`.
+    Contains the list of messages currently in the delivery queue.
+    """
+
+    queue: list[MAILQueueEntrySummary]
+    metadata: dict[str, Any]
+
+
+class GetDaemonQueueMessageResponse(BaseModel):
+    """
+    Corresponds to `GET /daemon/queue/{message_id}`.
+    Contains a specific queued message by ID that is not yet delivered.
+    """
+
+    message: MAILQueueEntry
+    metadata: dict[str, Any]
+
+
+class DeleteDaemonQueueMessageResponse(BaseModel):
+    """
+    Corresponds to `DELETE /daemon/queue/{message_id}`.
+    Contains the specific message entry by ID removed from the delivery queue.
+    """
+
+    message: MAILQueueEntry
+    metadata: dict[str, Any]
+
+
+class PostDaemonDeliverLocalResponse(BaseModel):
+    """
+    Corresponds to `POST /daemon/deliver/local`.
+    Contains the list of messages successfully delivered to server-local user-agents.
+    """
+
+    messages: list[MAILMessageSummary]
+    metadata: dict[str, Any]
+
+
+class PostDaemonDeliverRemoteResponse(BaseModel):
+    """
+    Corresponds to `POST /daemon/deliver/remote`.
+    Contains the list of messages successfully delivered to server-local user-agents.
+    """
+
+    messages: list[MAILMessageSummary]
+    metadata: dict[str, Any]
