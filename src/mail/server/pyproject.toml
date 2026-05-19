@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-example = "mail_server.example:main"
+mail-server = "mail_server.cli:main"
 
 [build-system]
 requires = ["hatchling"]
