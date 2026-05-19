@@ -116,6 +116,16 @@ class GetInboxMessageResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class DeleteInboxMessageResponse(BaseModel):
+    """
+    Corresponds to `DELETE /inbox/{message_id}`.
+    Contains a specific entry by message ID that was moved from the user-agent's inbox to trash.
+    """
+
+    message: MAILInboxEntry
+    metadata: dict[str, Any]
+
+
 #
 # Outbox endpoints
 #
@@ -149,6 +159,16 @@ class GetDraftsResponse(BaseModel):
     """
 
     drafts: list[MAILDraftsEntrySummary]
+    metadata: dict[str, Any]
+
+
+class PostDraftResponse(BaseModel):
+    """
+    Corresponds to `POST /drafts`.
+    Contains the new entry in the user-agent's drafts box.
+    """
+
+    draft: MAILDraftsEntry
     metadata: dict[str, Any]
 
 
