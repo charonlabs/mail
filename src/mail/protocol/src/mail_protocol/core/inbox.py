@@ -2,10 +2,16 @@
 # Copyright (c) 2026 Addison Kline
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel
 
 from mail_protocol.core.messages import MAILMessage
+from mail_protocol.core.validators import (
+    validate_mail_address,
+    validate_message_subject,
+    validate_uuid,
+)
 
 
 class MAILInboxEntrySummary(BaseModel):
@@ -13,9 +19,9 @@ class MAILInboxEntrySummary(BaseModel):
     A summarized MAIL inbox entry to be included in lists.
     """
 
-    message_id: str
-    sender: str
-    subject: str
+    message_id: Annotated[str, AfterValidator(validate_uuid)]
+    sender: Annotated[str, AfterValidator(validate_mail_address)]
+    subject: Annotated[str, AfterValidator(validate_message_subject)]
     body_size: int
     received_at: datetime
     opened: bool

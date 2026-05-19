@@ -2,8 +2,15 @@
 # Copyright (c) 2026 Addison Kline
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel
+
+from mail_protocol.core.validators import (
+    validate_message_body,
+    validate_message_subject,
+    validate_uuid,
+)
 
 
 class MAILDraft(BaseModel):
@@ -12,9 +19,9 @@ class MAILDraft(BaseModel):
     Does not yet account for intended recipients.
     """
 
-    draft_id: str
-    subject: str
-    body: str
+    draft_id: Annotated[str, AfterValidator(validate_uuid)]
+    subject: Annotated[str, AfterValidator(validate_message_subject)]
+    body: Annotated[str, AfterValidator(validate_message_body)]
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -24,8 +31,8 @@ class MAILDraftsEntrySummary(BaseModel):
     A summarized MAIL draft entry to be included in lists.
     """
 
-    draft_id: str
-    subject: str
+    draft_id: Annotated[str, AfterValidator(validate_uuid)]
+    subject: Annotated[str, AfterValidator(validate_message_subject)]
     body_size: int
     created_at: datetime
     updated_at: datetime | None = None

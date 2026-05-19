@@ -2,9 +2,17 @@
 # Copyright (c) 2025-26 Addison Kline
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel
+
+from mail_protocol.core.validators import (
+    validate_mail_address,
+    validate_mail_addresses,
+    validate_message_body,
+    validate_message_subject,
+    validate_uuid,
+)
 
 
 class MAILMessageSummary(BaseModel):
@@ -12,10 +20,10 @@ class MAILMessageSummary(BaseModel):
     A summarized MAIL message to be included in lists.
     """
 
-    message_id: str
-    sender: str
-    recipients: list[str]
-    subject: str
+    message_id: Annotated[str, AfterValidator(validate_uuid)]
+    sender: Annotated[str, AfterValidator(validate_mail_address)]
+    recipients: Annotated[list[str], AfterValidator(validate_mail_addresses)]
+    subject: Annotated[str, AfterValidator(validate_message_subject)]
     body_size: int
     sent_at: datetime
 
@@ -25,11 +33,11 @@ class MAILMessage(BaseModel):
     A constructed message to be delivered via MAIL.
     """
 
-    message_id: str
-    sender: str
-    recipients: list[str]
-    subject: str
-    body: str
+    message_id: Annotated[str, AfterValidator(validate_uuid)]
+    sender: Annotated[str, AfterValidator(validate_mail_address)]
+    recipients: Annotated[list[str], AfterValidator(validate_mail_addresses)]
+    subject: Annotated[str, AfterValidator(validate_message_subject)]
+    body: Annotated[str, AfterValidator(validate_message_body)]
     sent_at: datetime
     metadata: dict[str, Any]
 

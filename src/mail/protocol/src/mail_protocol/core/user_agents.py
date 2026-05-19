@@ -1,34 +1,42 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
-from typing import Literal, Union
+from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
+
+from mail_protocol.core.validators import (
+    validate_agent_name,
+    validate_daemon_worker_name,
+    validate_host,
+    validate_swarm_name,
+    validate_uuid,
+)
 
 
 class MAILAgent(BaseModel):
     ua_type: Literal["agent"]
-    name: str
-    swarm: str
-    host: str
+    name: Annotated[str, AfterValidator(validate_agent_name)]
+    swarm: Annotated[str, AfterValidator(validate_swarm_name)]
+    host: Annotated[str, AfterValidator(validate_host)]
 
 
 class MAILUser(BaseModel):
     ua_type: Literal["user"]
-    user_id: str
-    host: str
+    user_id: Annotated[str, AfterValidator(validate_uuid)]
+    host: Annotated[str, AfterValidator(validate_host)]
 
 
 class MAILAdmin(BaseModel):
     ua_type: Literal["admin"]
-    admin_id: str
-    host: str
+    admin_id: Annotated[str, AfterValidator(validate_uuid)]
+    host: Annotated[str, AfterValidator(validate_host)]
 
 
 class MAILDaemon(BaseModel):
     ua_type: Literal["daemon"]
-    worker_name: str
-    host: str
+    worker_name: Annotated[str, AfterValidator(validate_daemon_worker_name)]
+    host: Annotated[str, AfterValidator(validate_host)]
 
 
 class MAILUserAgent(BaseModel):
