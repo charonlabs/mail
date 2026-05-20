@@ -12,6 +12,12 @@ from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import MAILUserAgent
+from mail_protocol.network.requests import (
+    PostDaemonDeliverLocalRequest,
+    PostDaemonDeliverRemoteRequest,
+    PostDraftRequest,
+    PostDraftSendRequest,
+)
 
 
 class MAILServerBackend(Protocol):
