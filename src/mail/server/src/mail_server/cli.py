@@ -27,6 +27,13 @@ def main() -> None:
         default=MAIL_DEFAULT_PORT,
         help="the port for the server to listen on (default: %(default)s)",
     )
+    parser.add_argument(
+        "-b",
+        "--backend",
+        choices=["memory"],
+        default="memory",
+        help="the MAIL server backend to use (default: %(default)s)",
+    )
 
     # parse and handle args
     args = parser.parse_args()
