@@ -71,3 +71,7 @@ class MAILUserAgent(BaseModel):
                 worker_name = self.user_agent.worker_name
                 host = self.user_agent.host
                 return f"daemon:{worker_name}@{host}"
+
+
+class MAILUserAgentInBackend(MAILUserAgent):
+    hashed_password: str

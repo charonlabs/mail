@@ -11,7 +11,7 @@ from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
-from mail_protocol.core.user_agents import MAILUserAgent
+from mail_protocol.core.user_agents import MAILUserAgent, MAILUserAgentInBackend
 from mail_protocol.network.requests import (
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
@@ -40,6 +40,25 @@ class MAILServerBackend(Protocol):
     async def on_server_shutdown(self, **kwargs: Any) -> None:
         """
         Handle backend events on server shutdown.
+        """
+
+        pass
+
+    #
+    # User-agent handlers
+    #
+    @abstractmethod
+    async def get_user_agent(self, username: str) -> MAILUserAgentInBackend:
+        """
+        Get the existing user-agent by username in the server backend.
+        """
+
+        pass
+
+    @abstractmethod
+    async def user_agent_exists(self, username: str) -> bool:
+        """
+        Return True if the user-agent exists in the backend, otherwise False.
         """
 
         pass
