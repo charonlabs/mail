@@ -37,6 +37,17 @@ def validate_uuid(string: str) -> str:
     return string
 
 
+def validate_uuids(strings: list[str]) -> list[str]:
+    """
+    Ensure that the given list of strings is a valid list of UUIDs.
+    """
+
+    for string in strings:
+        validate_uuid(string)
+
+    return strings
+
+
 def validate_message_subject(subject: str) -> str:
     """
     Ensure that the given string is a valid MAIL message subject.

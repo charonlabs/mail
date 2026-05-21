@@ -13,7 +13,6 @@ from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import (
-    MAILAgent,
     MAILUserAgent,
     MAILUserAgentInBackend,
 )
@@ -26,7 +25,6 @@ from mail_protocol.network.requests import (
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.fs import (
-    load_agents,
     load_delivery_queue,
     load_draft_entries,
     load_drafts,
@@ -39,7 +37,6 @@ from mail_server.backends.memory.fs import (
     load_trash_entries,
     load_trashes,
     load_user_agents,
-    save_agents,
     save_delivery_queue,
     save_draft_entries,
     save_drafts,
@@ -80,13 +77,6 @@ class MemoryBackend(MAILServerBackend):
         A dict of all exposed MAIL swarms.
         Keys: swarm names
         Values: MAILSwarm instances
-        """
-
-        self.agents: dict[str, MAILAgent] = await load_agents()
-        """
-        A dict of all local MAIL agents.
-        Keys: agent addresses
-        Values: MAILAgent instances
         """
 
         self.messages: dict[str, MAILMessage] = await load_messages()
@@ -172,7 +162,6 @@ class MemoryBackend(MAILServerBackend):
 
         await save_user_agents(self.user_agents)
         await save_swarms(self.swarms)
-        await save_agents(self.agents)
         await save_messages(self.messages)
         await save_inbox_entries(self.inbox_entries)
         await save_inboxes(self.inboxes)
