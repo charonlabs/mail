@@ -84,7 +84,11 @@ async def validate_user_agent(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(jwt=token, key=SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore
+        token = request.headers.get("Authorization")
+        if token is None:
+            raise credentials_exception
+        jwt = token.removeprefix("Bearer ")
+        payload = jwt.decode(jwt=jwt, key=SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore
         address = payload.get("sub")
         if address is None:
             raise credentials_exception

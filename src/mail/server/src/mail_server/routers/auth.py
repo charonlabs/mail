@@ -7,12 +7,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
+from mail_protocol.network.responses import PostAuthTokenResponse
 
 from mail_server.auth import Token, authenticate_user_agent, create_access_token
 
 ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("MAIL_JWT_EXPIRE_MINUTES")
 if ACCESS_TOKEN_EXPIRE_MINUTES is None:
     raise RuntimeError("env var MAIL_JWT_EXPIRE_MINUTES must be set")
+default_token_limit = int(ACCESS_TOKEN_EXPIRE_MINUTES)
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 async def create_auth_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-) -> Token:
+) -> PostAuthTokenResponse:
     backend = request.app.state.backend
     user_agent = await authenticate_user_agent(
         backend=backend, address=form_data.username, password=form_data.password
@@ -32,11 +34,15 @@ async def create_auth_token(
             detail="incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # type: ignore
+    access_token_expires = timedelta(minutes=default_token_limit)  # type: ignore
     access_token = create_access_token(
         data={"sub": user_agent.get_address()}, expires_delta=access_token_expires
     )
-    return Token(access_token=access_token, token_type="bearer")
+    return PostAuthTokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        metadata={},
+    )
 
 
 @router.get("/whoami")

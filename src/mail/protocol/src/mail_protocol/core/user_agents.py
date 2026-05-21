@@ -10,7 +10,7 @@ from mail_protocol.core.validators import (
     validate_daemon_worker_name,
     validate_host,
     validate_swarm_name,
-    validate_uuid,
+    validate_user_name,
 )
 
 
@@ -23,13 +23,13 @@ class MAILAgent(BaseModel):
 
 class MAILUser(BaseModel):
     ua_type: Literal["user"]
-    user_id: Annotated[str, AfterValidator(validate_uuid)]
+    user_id: Annotated[str, AfterValidator(validate_user_name)]
     host: Annotated[str, AfterValidator(validate_host)]
 
 
 class MAILAdmin(BaseModel):
     ua_type: Literal["admin"]
-    admin_id: Annotated[str, AfterValidator(validate_uuid)]
+    admin_id: Annotated[str, AfterValidator(validate_user_name)]
     host: Annotated[str, AfterValidator(validate_host)]
 
 

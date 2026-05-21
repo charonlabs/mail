@@ -21,6 +21,8 @@ from mail_protocol.core.constants import (
     SWARM_KEYWORD_LEN_MIN,
     SWARM_NAME_LEN_MAX,
     SWARM_NAME_LEN_MIN,
+    USER_NAME_LEN_MAX,
+    USER_NAME_LEN_MIN,
 )
 
 
@@ -107,7 +109,7 @@ def validate_mail_address(address: str) -> str:
         prefix, ua_id = colon_split
         match prefix:
             case "user" | "admin":
-                validate_uuid(ua_id)
+                validate_user_name(ua_id)
             case "daemon":
                 validate_daemon_worker_name(ua_id)
             case _:
@@ -160,6 +162,26 @@ def validate_agent_names(names: list[str]) -> list[str]:
         validate_agent_name(name)
 
     return names
+
+
+def validate_user_name(name: str) -> str:
+    """
+    Ensure that the string provided is a valid MAIL user/admin name.
+    """
+
+    name_len = len(name)
+    if name_len < USER_NAME_LEN_MIN:
+        raise ValueError(
+            f"user name must be at least {USER_NAME_LEN_MIN} characters long"
+        )
+    if name_len > USER_NAME_LEN_MAX:
+        raise ValueError(
+            f"user name must be no longer than {USER_NAME_LEN_MAX} characters"
+        )
+    if not string_is_slug(name):
+        raise ValueError(f"invalid slug string: {name}")
+
+    return name
 
 
 def validate_swarm_name(name: str) -> str:

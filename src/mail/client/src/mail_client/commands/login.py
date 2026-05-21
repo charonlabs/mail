@@ -5,6 +5,7 @@ import os
 from argparse import Namespace
 
 import httpx
+from fastapi.security import OAuth2PasswordBearer
 from mail_protocol.network.responses import PostAuthTokenResponse
 from pydantic import ValidationError
 
@@ -31,16 +32,17 @@ def cmd_login(args: Namespace) -> None:
         "username": MAIL_ADDRESS,
         "password": MAIL_PASSWORD,
         "scope": "",
-        "client_id": MAIL_ADDRESS,
-        "client_secret": MAIL_PASSWORD,
+        "client_id": "string",
+        "client_secret": "$password",
     }
     response = httpx.post(
         url=f"{MAIL_SERVER}/auth/token",
         headers={
+            "accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
         },
-        json=payload,
+        data=payload,
     )
 
     # 3. Parse and validate server response
@@ -56,5 +58,5 @@ def cmd_login(args: Namespace) -> None:
         raise RuntimeError(f"response validation failed: {e}")
 
     # 4. Print the JWT
-    print(f"got access token: {response_obj.token}")
+    print(f"got access token: {response_obj.access_token}")
     print("set MAIL_TOKEN={token} in subsequent operations")

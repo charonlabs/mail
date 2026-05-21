@@ -47,7 +47,8 @@ class PostAuthTokenResponse(BaseModel):
     Contains a temporary JWT and associated metadata.
     """
 
-    token: str
+    access_token: str
+    token_type: Literal["bearer"]
     metadata: dict[str, Any]
 
 

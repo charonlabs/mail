@@ -42,14 +42,16 @@ async def load_user_agents() -> dict[str, MAILUserAgentInBackend]:
             if entry.is_file():
                 try:
                     validate_mail_address(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.info(f"failed to validate MAIL address: {e}")
                     continue
 
                 with open(entry) as ua_file:
                     content = ua_file.read()
                     try:
                         ua_model = MAILUserAgentInBackend.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.info(f"model validation failed: {e}")
                         continue
 
                     user_agents.update({ua_model.get_address(): ua_model})
