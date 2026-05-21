@@ -38,13 +38,19 @@ async def _server_startup(app: FastAPI):
     await _backend.on_server_startup()
     app.state.backend = _backend
 
+    logger.info("server startup complete")
+
 
 async def _server_shutdown(app: FastAPI):
     """
     Handle server shutdown events.
     """
 
+    logger.info("server shutting down...")
+
     await app.state.backend.on_server_shutdown()
+
+    logger.info("server shutdown complete")
 
 
 @asynccontextmanager

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -51,6 +52,8 @@ from mail_server.backends.memory.fs import (
     save_user_agents,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class MemoryBackend(MAILServerBackend):
     """
@@ -64,6 +67,8 @@ class MemoryBackend(MAILServerBackend):
         """
         Handle backend events on server startup.
         """
+
+        logger.info("initializing backend...")
 
         self.user_agents: dict[str, MAILUserAgentInBackend] = await load_user_agents()
         """
@@ -155,10 +160,14 @@ class MemoryBackend(MAILServerBackend):
         Values: MAILQueueEntrySummary instances
         """
 
+        logger.info("backend initialization complete")
+
     async def on_server_shutdown(self, **kwargs: Any) -> None:
         """
         Handle backend events on server shutdown.
         """
+
+        logger.info("shutting down backend...")
 
         await save_user_agents(self.user_agents)
         await save_swarms(self.swarms)
@@ -172,6 +181,8 @@ class MemoryBackend(MAILServerBackend):
         await save_trash_entries(self.trash_entries)
         await save_trashes(self.trashes)
         await save_delivery_queue(self.delivery_queue)
+
+        logger.info("backend shutdown complete")
 
     #
     # User-agent handlers
