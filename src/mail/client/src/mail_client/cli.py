@@ -12,6 +12,8 @@ from mail_client.commands.login import cmd_login
 from mail_client.commands.outbox import cmd_outbox
 from mail_client.commands.outbox_open import cmd_outbox_open
 from mail_client.commands.send import cmd_send
+from mail_client.commands.trash import cmd_trash
+from mail_client.commands.trash_open import cmd_trash_open
 
 
 def main() -> None:
@@ -29,6 +31,34 @@ def main() -> None:
         "login", aliases=["l"], prog="mail login", help=login_d, description=login_d
     )
     login_p.set_defaults(func=cmd_login, cmd="login")
+
+    # command `compose`
+    compose_d = "draft a new MAIL message prior to sending"
+    compose_p = subparsers.add_parser(
+        "compose",
+        aliases=["c"],
+        prog="mail compose",
+        help=compose_d,
+        description=compose_d,
+    )
+    compose_p.add_argument("subject", help="the subject line of the message to draft")
+    compose_p.add_argument("body", help="the body of the message to draft")
+    compose_p.set_defaults(func=cmd_compose, cmd="compose")
+
+    # command `send`
+    send_d = "send a drafted MAIL message to the specified address(es)"
+    send_p = subparsers.add_parser(
+        "send",
+        aliases=["s"],
+        prog="mail send",
+        help=send_d,
+        description=send_d,
+    )
+    send_p.add_argument("draft_id", help="the ID of the existing draft to send")
+    send_p.add_argument(
+        "to", nargs="+", help="the address(es) to deliver this message to"
+    )
+    send_p.set_defaults(func=cmd_send, cmd="send")
 
     # command `inbox`
     inbox_d = "open your MAIL inbox"
@@ -91,33 +121,26 @@ def main() -> None:
     drafts_open_p.add_argument("draft_id", help="the ID of the drafted message to open")
     drafts_open_p.set_defaults(func=cmd_drafts_open, cmd="drafts-open")
 
-    # command `compose`
-    compose_d = "draft a new MAIL message prior to sending"
-    compose_p = subparsers.add_parser(
-        "compose",
-        aliases=["c"],
-        prog="mail compose",
-        help=compose_d,
-        description=compose_d,
+    # command `trash`
+    trash_d = "list your existing trashed messages"
+    trash_p = subparsers.add_parser(
+        "trash", aliases=["t"], prog="mail trash", help=trash_d, description=trash_d
     )
-    compose_p.add_argument("subject", help="the subject line of the message to draft")
-    compose_p.add_argument("body", help="the body of the message to draft")
-    compose_p.set_defaults(func=cmd_compose, cmd="compose")
+    trash_p.set_defaults(func=cmd_trash, cmd="trash")
 
-    # command `send`
-    send_d = "send a drafted MAIL message to the specified address(es)"
-    send_p = subparsers.add_parser(
-        "send",
-        aliases=["s"],
-        prog="mail send",
-        help=send_d,
-        description=send_d,
+    # command `trash-open`
+    trash_open_d = "open a specific message in trash by ID"
+    trash_open_p = subparsers.add_parser(
+        "trash-open",
+        aliases=["to"],
+        prog="mail trash-open",
+        help=trash_open_d,
+        description=trash_open_d,
     )
-    send_p.add_argument("draft_id", help="the ID of the existing draft to send")
-    send_p.add_argument(
-        "to", nargs="+", help="the address(es) to deliver this message to"
+    trash_open_p.add_argument(
+        "message_id", help="the ID of the message in trash to open"
     )
-    send_p.set_defaults(func=cmd_send, cmd="send")
+    trash_open_p.set_defaults(func=cmd_trash_open, cmd="trash-open")
 
     # parse and handle args
     args = parser.parse_args()

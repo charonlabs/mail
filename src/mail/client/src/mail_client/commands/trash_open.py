@@ -5,13 +5,13 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.responses import GetDraftsResponse
+from mail_protocol.network.responses import GetTrashResponse
 from pydantic import ValidationError
 
 
-def cmd_drafts(args: Namespace) -> None:
+def cmd_trash_open(args: Namespace) -> None:
     """
-    Open the current MAIL user's drafted messages.
+    Open a specific message by ID in the user-agent's trash box.
     """
 
     # 1. check that the required env vars are provided
@@ -22,9 +22,10 @@ def cmd_drafts(args: Namespace) -> None:
     if MAIL_TOKEN is None:
         raise ValueError("env var MAIL_TOKEN is required")
 
-    # 2. hit the server endpoint `GET /drafts`
+    # 2. hit the server endpoint `GET /trash`
+    raise NotImplementedError
     response = httpx.get(
-        url=f"{MAIL_SERVER}/drafts/",
+        url=f"{MAIL_SERVER}/trash/",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
@@ -34,14 +35,14 @@ def cmd_drafts(args: Namespace) -> None:
     # 3. parse and validate server response
     if response.status_code != 200:
         raise RuntimeError(
-            f"get draft request to {MAIL_SERVER} failed with status code {response.status_code}"
+            f"get trash request to {MAIL_SERVER} failed with status code {response.status_code}"
         )
 
     response_json = response.json()
     try:
-        response_obj = GetDraftsResponse.model_validate(response_json)
+        response_obj = GetTrashResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
-    # 4. print the user's inbox
+    # 4. print the user's trash box
     print(response_obj.model_dump_json())
