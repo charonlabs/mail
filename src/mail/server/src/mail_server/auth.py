@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
-from datetime import UTC, datetime, timedelta
 import os
+from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, Request
 import jwt
+from fastapi import HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from mail_protocol.core.user_agents import MAILUserAgent
@@ -20,7 +20,6 @@ if SECRET_KEY is None:
 ALGORITHM = os.getenv("MAIL_JWT_ALGORITHM")
 if ALGORITHM is None:
     raise RuntimeError("env var MAIL_JWT_ALGORITHM must be set")
-
 
 
 class Token(BaseModel):
@@ -50,6 +49,7 @@ def get_password_hash(plain_password: str) -> str:
 async def get_user_agent(backend: MAILServerBackend, address: str):
     if await backend.user_agent_exists(address):
         user_agent = await backend.get_user_agent(address)
+        return user_agent
 
 
 async def authenticate_user_agent(
@@ -59,7 +59,7 @@ async def authenticate_user_agent(
     if not user_agent:
         verify_password(password, DUMMY_HASH)
         return False
-    if not verify_password(password, user_agent.hashed_password)
+    if not verify_password(password, user_agent.hashed_password):
         return False
     return user_agent
 
@@ -71,18 +71,20 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     else:
         expire = datetime.now(UTC) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(payload=to_encode, key=SECRET_KEY, algorithm=ALGORITHM) # type: ignore
+    encoded_jwt = jwt.encode(payload=to_encode, key=SECRET_KEY, algorithm=ALGORITHM)  # type: ignore
     return encoded_jwt
 
 
-async def validate_user_agent(backend: MAILServerBackend, request: Request) -> MAILUserAgent:
+async def validate_user_agent(
+    backend: MAILServerBackend, request: Request
+) -> MAILUserAgent:
     credentials_exception = HTTPException(
         status_code=401,
         detail="could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"}
+        headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(jwt=token, key=SECRET_KEY, algorithms=[ALGORITHM]) # type: ignore
+        payload = jwt.decode(jwt=token, key=SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore
         address = payload.get("sub")
         if address is None:
             raise credentials_exception

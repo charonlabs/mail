@@ -12,7 +12,11 @@ from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
-from mail_protocol.core.user_agents import MAILAgent, MAILUserAgent
+from mail_protocol.core.user_agents import (
+    MAILAgent,
+    MAILUserAgent,
+    MAILUserAgentInBackend,
+)
 from mail_protocol.network.requests import (
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
@@ -21,6 +25,34 @@ from mail_protocol.network.requests import (
 )
 
 from mail_server.backends.base import MAILServerBackend
+from mail_server.backends.memory.fs import (
+    load_agents,
+    load_delivery_queue,
+    load_draft_entries,
+    load_drafts,
+    load_inbox_entries,
+    load_inboxes,
+    load_messages,
+    load_outbox_entries,
+    load_outboxes,
+    load_swarms,
+    load_trash_entries,
+    load_trashes,
+    load_user_agents,
+    save_agents,
+    save_delivery_queue,
+    save_draft_entries,
+    save_drafts,
+    save_inbox_entries,
+    save_inboxes,
+    save_messages,
+    save_outbox_entries,
+    save_outboxes,
+    save_swarms,
+    save_trash_entries,
+    save_trashes,
+    save_user_agents,
+)
 
 
 class MemoryBackend(MAILServerBackend):
@@ -36,84 +68,97 @@ class MemoryBackend(MAILServerBackend):
         Handle backend events on server startup.
         """
 
-        self.swarms: dict[str, MAILSwarm] = {}
+        self.user_agents: dict[str, MAILUserAgentInBackend] = await load_user_agents()
+        """
+        A dict of all user-agents known to this MAIL server.
+        Keys: user-agent addresses
+        Values: MAILUserAgentInBackend instances
+        """
+
+        self.swarms: dict[str, MAILSwarm] = await load_swarms()
         """
         A dict of all exposed MAIL swarms.
         Keys: swarm names
         Values: MAILSwarm instances
         """
 
-        self.agents: dict[str, MAILAgent] = {}
+        self.agents: dict[str, MAILAgent] = await load_agents()
         """
         A dict of all local MAIL agents.
         Keys: agent addresses
         Values: MAILAgent instances
         """
 
-        self.messages: dict[str, MAILMessage] = {}
+        self.messages: dict[str, MAILMessage] = await load_messages()
         """
         A dict of all MAIL messages known to this server.
         Keys: message IDs
         Values: MAILMessage instances
         """
 
-        self.inbox_entries: dict[str, MAILInboxEntrySummary] = {}
+        self.inbox_entries: dict[
+            str, MAILInboxEntrySummary
+        ] = await load_inbox_entries()
         """
         A dict of all MAIL inbox entries on this server.
         Keys: message IDs
         Values: MAILInboxEntrySummary instances
         """
 
-        self.inboxes: dict[str, list[str]] = {}
+        self.inboxes: dict[str, list[str]] = await load_inboxes()
         """
         A dict of all local MAIL inboxes by user-agent.
         Keys: user-agent addresses
         Values: list of inbox entry message IDs
         """
 
-        self.outbox_entries: dict[str, MAILOutboxEntrySummary] = {}
+        self.outbox_entries: dict[
+            str, MAILOutboxEntrySummary
+        ] = await load_outbox_entries()
         """
         A dict of all MAIL outbox entries on this server.
         Keys: message IDs
         Values: MAILOutboxEntrySummary instances
         """
 
-        self.outboxes: dict[str, list[str]] = {}
+        self.outboxes: dict[str, list[str]] = await load_outboxes()
         """
         A dict of all local MAIL outboxes by user-agent.
         Keys: user-agent addresses
         Values: list of outbox entry message IDs
         """
 
-        self.draft_entries: dict[str, MAILDraftsEntry] = {}
+        self.draft_entries: dict[str, MAILDraftsEntry] = await load_draft_entries()
         """
         A dict of all MAIL draft entries on this server.
         Keys: draft IDs
         Values: MAILDraftsEntry instances
         """
 
-        self.drafts: dict[str, list[str]] = {}
+        self.drafts: dict[str, list[str]] = await load_drafts()
         """
         A dict of all local MAIL draft boxes by user-agent.
         Keys: user-agent addresses
         Values: list of draft entry draft IDs
         """
 
-        self.trash_entries: dict[str, MAILTrashEntry] = {}
+        self.trash_entries: dict[str, MAILTrashEntry] = await load_trash_entries()
         """
         A dict of all MAIL trash entries on this server.
         Keys: message IDs
         Values: MAILTrashEntry instances
         """
 
-        self.trashes: dict[str, list[str]] = {}
+        self.trashes: dict[str, list[str]] = await load_trashes()
         """
         A dict of all local MAIL trash boxes by user-agent.
         Keys: user-agent addresses
         Values: list of trash entry message IDs
         """
 
-        self.delivery_queue: dict[str, MAILQueueEntrySummary] = {}
+        self.delivery_queue: dict[
+            str, MAILQueueEntrySummary
+        ] = await load_delivery_queue()
         """
         A dict of all MAIL messages in the delivery queue.
         Keys: message IDs
@@ -125,26 +170,39 @@ class MemoryBackend(MAILServerBackend):
         Handle backend events on server shutdown.
         """
 
-        pass
+        await save_user_agents(self.user_agents)
+        await save_swarms(self.swarms)
+        await save_agents(self.agents)
+        await save_messages(self.messages)
+        await save_inbox_entries(self.inbox_entries)
+        await save_inboxes(self.inboxes)
+        await save_outbox_entries(self.outbox_entries)
+        await save_outboxes(self.outboxes)
+        await save_draft_entries(self.draft_entries)
+        await save_drafts(self.drafts)
+        await save_trash_entries(self.trash_entries)
+        await save_trashes(self.trashes)
+        await save_delivery_queue(self.delivery_queue)
 
-     #
-     # User-agent handlers
-     #
-     @abstractmethod
-     async def get_user_agent(self, address: str) -> MAILUserAgentInBackend:
-         """
-         Get the existing user-agent by MAIL address in the server backend.
-         """
+    #
+    # User-agent handlers
+    #
+    async def get_user_agent(self, address: str) -> MAILUserAgentInBackend:
+        """
+        Get the existing user-agent by MAIL address in the server backend.
+        """
 
-         pass
+        user_agent = self.user_agents.get(address)
+        if user_agent is None:
+            raise ValueError(f"user-agent with address {address} not found")
+        return user_agent
 
-     @abstractmethod
-     async def user_agent_exists(self, address: str) -> bool:
-         """
-         Return True if the user-agent exists in the backend, otherwise False.
-         """
+    async def user_agent_exists(self, address: str) -> bool:
+        """
+        Return True if the user-agent exists in the backend, otherwise False.
+        """
 
-         pass
+        return address in self.user_agents
 
     #
     # Swarm endpoint handlers

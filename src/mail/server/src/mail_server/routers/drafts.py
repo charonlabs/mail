@@ -10,6 +10,12 @@ from mail_protocol.network.responses import (
     PostDraftSendResponse,
 )
 
+from mail_server.auth import validate_user_agent
+from mail_server.validators import (
+    validate_post_draft_request,
+    validate_post_draft_send_request,
+)
+
 router = APIRouter(prefix="/drafts", tags=["drafts"])
 
 
@@ -18,14 +24,15 @@ router = APIRouter(prefix="/drafts", tags=["drafts"])
 )
 async def get_drafts(request: Request) -> GetDraftsResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(request)
+    user_agent = await validate_user_agent(backend=backend, request=request)
     try:
         result = await backend.get_drafts(user_agent=user_agent)
-        return GetDraftsResponse(drafts=result, metadata={})
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"draft box not found for address {user_agent}"
         )
+
+    return GetDraftsResponse(drafts=result, metadata={})
 
 
 @router.post(
@@ -33,9 +40,10 @@ async def get_drafts(request: Request) -> GetDraftsResponse:
 )
 async def post_draft(request: Request) -> PostDraftResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(request)
+    user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_post_draft_request(request)
     result = await backend.post_draft(user_agent=user_agent, payload=payload)
+
     return PostDraftResponse(
         draft=result,
         metadata={},
@@ -49,18 +57,19 @@ async def post_draft(request: Request) -> PostDraftResponse:
 )
 async def get_draft(request: Request) -> GetDraftResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(request)
+    user_agent = await validate_user_agent(backend=backend, request=request)
     draft_id = request.path_params.get("draft_id")
     try:
         result = await backend.get_draft(user_agent=user_agent, draft_id=draft_id)
-        return GetDraftResponse(
-            draft=result,
-            metadata={},
-        )
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"draft with ID {draft_id} not found"
         )
+
+    return GetDraftResponse(
+        draft=result,
+        metadata={},
+    )
 
 
 @router.delete(
@@ -79,7 +88,7 @@ async def delete_draft(request: Request) -> DeleteDraftResponse:
 )
 async def post_draft_send(request: Request) -> PostDraftSendResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(request)
+    user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_post_draft_send_request(request)
     draft_id = request.path_params.get("draft_id")
     result = await backend.send_draft(

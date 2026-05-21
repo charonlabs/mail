@@ -8,6 +8,7 @@ from mail_client.commands.drafts import cmd_drafts
 from mail_client.commands.drafts_open import cmd_drafts_open
 from mail_client.commands.inbox import cmd_inbox
 from mail_client.commands.inbox_open import cmd_inbox_open
+from mail_client.commands.login import cmd_login
 from mail_client.commands.outbox import cmd_outbox
 from mail_client.commands.outbox_open import cmd_outbox_open
 from mail_client.commands.send import cmd_send
@@ -21,6 +22,13 @@ def main() -> None:
         epilog="Copyright (c) 2026 Addison Kline",
     )
     subparsers = parser.add_subparsers(title="commands")
+
+    # command `login`
+    login_d = "log into a MAIL server"
+    login_p = subparsers.add_parser(
+        "login", aliases=["l"], prog="mail login", help=login_d, description=login_d
+    )
+    login_p.set_defaults(func=cmd_login, cmd="login")
 
     # command `inbox`
     inbox_d = "open your MAIL inbox"

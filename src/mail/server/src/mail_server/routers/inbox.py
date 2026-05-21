@@ -8,6 +8,8 @@ from mail_protocol.network.responses import (
     GetInboxResponse,
 )
 
+from mail_server.auth import validate_user_agent
+
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
 
@@ -18,18 +20,19 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
 )
 async def get_inbox(request: Request) -> GetInboxResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(request)
+    user_agent = await validate_user_agent(backend=backend, request=request)
     try:
         result = await backend.get_inbox(user_agent)
-        result = GetInboxResponse(
-            inbox=result,
-            metadata={},
-        )
     except ValueError:
         raise HTTPException(
             status_code=404,
             detail=f"inbox for address {user_agent.get_address()} not found",
         )
+
+    return GetInboxResponse(
+        inbox=result,
+        metadata={},
+    )
 
 
 @router.get(
@@ -39,20 +42,21 @@ async def get_inbox(request: Request) -> GetInboxResponse:
 )
 async def open_inbox_message(request: Request) -> GetInboxMessageResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(request)
+    user_agent = await validate_user_agent(backend=backend, request=request)
     message_id = request.path_params.get("message_id")
     try:
         result = await backend.get_inbox_message(
             user_agent=user_agent, message_id=message_id
         )
-        return GetInboxMessageResponse(
-            message=result,
-            metadata={},
-        )
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"message with ID {message_id} not found in inbox"
         )
+
+    return GetInboxMessageResponse(
+        message=result,
+        metadata={},
+    )
 
 
 @router.delete(

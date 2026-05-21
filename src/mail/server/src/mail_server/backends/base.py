@@ -162,7 +162,7 @@ class MAILServerBackend(Protocol):
         self,
         user_agent: MAILUserAgent,
         payload: PostDraftRequest,
-    ) -> MAILDraft:
+    ) -> MAILDraftsEntry:
         """
         Post a new draft for this user-agent.
         """
@@ -193,6 +193,7 @@ class MAILServerBackend(Protocol):
     async def send_draft(
         self,
         user_agent: MAILUserAgent,
+        draft_id: str,
         payload: PostDraftSendRequest,
     ) -> MAILMessage:
         """

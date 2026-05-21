@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
+import os
 from datetime import timedelta
 from typing import Annotated
 
@@ -23,7 +24,7 @@ async def create_auth_token(
 ) -> Token:
     backend = request.app.state.backend
     user_agent = await authenticate_user_agent(
-        backend=backend, username=form_data.username, password=form_data.password
+        backend=backend, address=form_data.username, password=form_data.password
     )
     if not user_agent:
         raise HTTPException(
@@ -31,9 +32,9 @@ async def create_auth_token(
             detail="incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)  # type: ignore
     access_token = create_access_token(
-        data={"sub": user_agent.username}, expires_delta=access_token_expires
+        data={"sub": user_agent.get_address()}, expires_delta=access_token_expires
     )
     return Token(access_token=access_token, token_type="bearer")
 
