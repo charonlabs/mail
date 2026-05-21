@@ -25,6 +25,7 @@ def main() -> None:
         "-p",
         "--port",
         default=MAIL_DEFAULT_PORT,
+        type=int,
         help="the port for the server to listen on (default: %(default)s)",
     )
     parser.add_argument(

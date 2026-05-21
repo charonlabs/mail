@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
+import logging
 from argparse import Namespace
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from fastapi import FastAPI
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.api import MemoryBackend
+from mail_server.logging import init_logger
 from mail_server.routers import (
     admin,
     auth,
@@ -20,6 +22,8 @@ from mail_server.routers import (
     trash,
 )
 
+logger = logging.getLogger(__name__)
+
 _backend: MAILServerBackend = None  # type: ignore
 
 
@@ -27,6 +31,8 @@ async def _server_startup(app: FastAPI):
     """
     Handle server startup events.
     """
+
+    logger.info("server starting up...")
 
     global _backend
     await _backend.on_server_startup()
@@ -98,4 +104,6 @@ def run_server(args: Namespace) -> None:
         case _:
             raise ValueError(f"invalid backend type: {args.backend}")
 
-    uvicorn.run(app, host=args.host, port=args.port)
+    init_logger()
+
+    uvicorn.run(app, host=args.host, port=args.port, log_config=None)
