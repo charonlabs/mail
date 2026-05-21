@@ -359,7 +359,12 @@ async def save_user_agents(user_agents: dict[str, MAILUserAgentInBackend]) -> No
     Save user-agents from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    user_agents_path = DEPLOYMENT_PATH.joinpath("user_agents")
+    for address, user_agent in user_agents.items():
+        ua_path = user_agents_path.joinpath(address)
+        with open(ua_path, "w") as ua_file:
+            content = user_agent.model_dump_json()
+            ua_file.write(content)
 
 
 async def save_swarms(swarms: dict[str, MAILSwarm]) -> None:
@@ -367,15 +372,12 @@ async def save_swarms(swarms: dict[str, MAILSwarm]) -> None:
     Save MAIL swarms from memory to the local filesystem.
     """
 
-    raise NotImplementedError
-
-
-async def save_agents(agents: dict[str, MAILAgent]) -> None:
-    """
-    Save MAIL agents from memory to the local filesystem.
-    """
-
-    raise NotImplementedError
+    swarms_path = DEPLOYMENT_PATH.joinpath("swarms")
+    for name, swarm in swarms.items():
+        swarm_path = swarms_path.joinpath(name)
+        with open(swarm_path, "w") as swarm_file:
+            content = swarm.model_dump_json()
+            swarm_file.write(content)
 
 
 async def save_messages(messages: dict[str, MAILMessage]) -> None:
@@ -383,7 +385,12 @@ async def save_messages(messages: dict[str, MAILMessage]) -> None:
     Save MAIL messages from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    messages_path = DEPLOYMENT_PATH.joinpath("messages")
+    for msg_id, message in messages.items():
+        msg_path = messages_path.joinpath(msg_id)
+        with open(msg_path, "w") as msg_file:
+            content = message.model_dump_json()
+            msg_file.write(content)
 
 
 async def save_inbox_entries(inbox_entries: dict[str, MAILInboxEntrySummary]) -> None:
@@ -391,7 +398,12 @@ async def save_inbox_entries(inbox_entries: dict[str, MAILInboxEntrySummary]) ->
     Save inbox entries from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    inbox_entries_path = DEPLOYMENT_PATH.joinpath("inbox_entries")
+    for msg_id, inbox_entry in inbox_entries.items():
+        ie_path = inbox_entries_path.joinpath(msg_id)
+        with open(ie_path, "w") as ie_file:
+            content = inbox_entry.model_dump_json()
+            ie_file.write(content)
 
 
 async def save_inboxes(inboxes: dict[str, list[str]]) -> None:
@@ -399,7 +411,12 @@ async def save_inboxes(inboxes: dict[str, list[str]]) -> None:
     Save user-agent inboxes from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    inboxes_path = DEPLOYMENT_PATH.joinpath("inboxes")
+    for address, ie_ids in inboxes.items():
+        inbox_path = inboxes_path.joinpath(address)
+        with open(inbox_path, "w") as inbox_file:
+            content = "\n".join(ie_ids)
+            inbox_file.write(content)
 
 
 async def save_outbox_entries(
@@ -409,7 +426,12 @@ async def save_outbox_entries(
     Save outbox entries from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    outbox_entries_path = DEPLOYMENT_PATH.joinpath("outbox_entries")
+    for msg_id, outbox_entry in outbox_entries.items():
+        oe_path = outbox_entries_path.joinpath(msg_id)
+        with open(oe_path, "w") as oe_file:
+            content = outbox_entry.model_dump_json()
+            oe_file.write(content)
 
 
 async def save_outboxes(outboxes: dict[str, list[str]]) -> None:
@@ -417,7 +439,12 @@ async def save_outboxes(outboxes: dict[str, list[str]]) -> None:
     Save user-agent outboxes from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    outboxes_path = DEPLOYMENT_PATH.joinpath("outboxes")
+    for address, oe_ids in outboxes.items():
+        outbox_path = outboxes_path.joinpath(address)
+        with open(outbox_path, "w") as outbox_file:
+            content = "\n".join(oe_ids)
+            outbox_file.write(content)
 
 
 async def save_draft_entries(
@@ -427,7 +454,12 @@ async def save_draft_entries(
     Save draft entries from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    draft_entries_path = DEPLOYMENT_PATH.joinpath("draft_entries")
+    for draft_id, draft_entry in draft_entries.items():
+        de_path = draft_entries_path.joinpath(draft_id)
+        with open(de_path, "w") as de_file:
+            content = draft_entry.model_dump_json()
+            de_file.write(content)
 
 
 async def save_drafts(drafts: dict[str, list[str]]) -> None:
@@ -435,7 +467,12 @@ async def save_drafts(drafts: dict[str, list[str]]) -> None:
     Save user-agent draft boxes from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    draft_boxes_path = DEPLOYMENT_PATH.joinpath("drafts")
+    for address, draft_ids in drafts.items():
+        drafts_path = draft_boxes_path.joinpath(address)
+        with open(drafts_path, "w") as drafts_file:
+            content = "\n".join(draft_ids)
+            drafts_file.write(content)
 
 
 async def save_trash_entries(trash_entries: dict[str, MAILTrashEntry]) -> None:
@@ -443,7 +480,12 @@ async def save_trash_entries(trash_entries: dict[str, MAILTrashEntry]) -> None:
     Save trash entries from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    trash_entries_path = DEPLOYMENT_PATH.joinpath("trash_entries")
+    for msg_id, trash_entry in trash_entries.items():
+        te_path = trash_entries_path.joinpath(msg_id)
+        with open(te_path, "w") as te_file:
+            content = trash_entry.model_dump_json()
+            te_file.write(content)
 
 
 async def save_trashes(trashes: dict[str, list[str]]) -> None:
@@ -451,7 +493,12 @@ async def save_trashes(trashes: dict[str, list[str]]) -> None:
     Save user-agent trash boxes from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    trash_boxes_path = DEPLOYMENT_PATH.joinpath("trashes")
+    for address, te_ids in trashes.items():
+        trash_path = trash_boxes_path.joinpath(address)
+        with open(trash_path, "w") as trash_file:
+            content = "\n".join(te_ids)
+            trash_file.write(content)
 
 
 async def save_delivery_queue(delivery_queue: dict[str, MAILQueueEntrySummary]) -> None:
@@ -459,4 +506,9 @@ async def save_delivery_queue(delivery_queue: dict[str, MAILQueueEntrySummary]) 
     Save message delivery queue from memory to the local filesystem.
     """
 
-    raise NotImplementedError
+    queue_entries_path = DEPLOYMENT_PATH.joinpath("queue_entries")
+    for msg_id, queue_entry in delivery_queue.items():
+        qe_path = queue_entries_path.joinpath(msg_id)
+        with open(qe_path, "w") as qe_file:
+            content = queue_entry.model_dump_json()
+            qe_file.write(content)
