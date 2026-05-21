@@ -5,7 +5,6 @@ import os
 from argparse import Namespace
 
 import httpx
-from fastapi.security import OAuth2PasswordBearer
 from mail_protocol.network.responses import PostAuthTokenResponse
 from pydantic import ValidationError
 
