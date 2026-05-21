@@ -29,7 +29,7 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    username: str | None = None
+    address: str | None = None
 
 
 password_hash = PasswordHash.recommended()
@@ -47,15 +47,15 @@ def get_password_hash(plain_password: str) -> str:
     return password_hash.hash(plain_password)
 
 
-async def get_user_agent(backend: MAILServerBackend, username: str):
-    if await backend.user_agent_exists(username):
-        user_agent = await backend.get_user_agent(username)
+async def get_user_agent(backend: MAILServerBackend, address: str):
+    if await backend.user_agent_exists(address):
+        user_agent = await backend.get_user_agent(address)
 
 
 async def authenticate_user_agent(
-    backend: MAILServerBackend, username: str, password: str
+    backend: MAILServerBackend, address: str, password: str
 ):
-    user_agent = await get_user_agent(backend=backend, username=username)
+    user_agent = await get_user_agent(backend=backend, address=address)
     if not user_agent:
         verify_password(password, DUMMY_HASH)
         return False
@@ -83,13 +83,13 @@ async def validate_user_agent(backend: MAILServerBackend, request: Request) -> M
     )
     try:
         payload = jwt.decode(jwt=token, key=SECRET_KEY, algorithms=[ALGORITHM]) # type: ignore
-        username = payload.get("sub")
-        if username is None:
+        address = payload.get("sub")
+        if address is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
+        token_data = TokenData(address=address)
     except InvalidTokenError:
         raise credentials_exception
-    user_agent = await backend.get_user_agent(username)
+    user_agent = await backend.get_user_agent(address)
     if user_agent is None:
         raise credentials_exception
 

@@ -127,6 +127,25 @@ class MemoryBackend(MAILServerBackend):
 
         pass
 
+     #
+     # User-agent handlers
+     #
+     @abstractmethod
+     async def get_user_agent(self, address: str) -> MAILUserAgentInBackend:
+         """
+         Get the existing user-agent by MAIL address in the server backend.
+         """
+
+         pass
+
+     @abstractmethod
+     async def user_agent_exists(self, address: str) -> bool:
+         """
+         Return True if the user-agent exists in the backend, otherwise False.
+         """
+
+         pass
+
     #
     # Swarm endpoint handlers
     #
