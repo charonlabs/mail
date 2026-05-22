@@ -102,18 +102,18 @@ def validate_mail_address(address: str) -> str:
 
     elif len(at_split) == 2:
         # TODO: handle admin/user/daemon addresses
-        address, host = at_split
-        colon_split = address.split(":")
+        prefix, host = at_split
+        colon_split = prefix.split(":")
         if len(colon_split) != 2:
             raise ValueError("invalid MAIL address structure")
-        prefix, ua_id = colon_split
-        match prefix:
+        ua_type, ua_id = colon_split
+        match ua_type:
             case "user" | "admin":
                 validate_user_name(ua_id)
             case "daemon":
                 validate_daemon_worker_name(ua_id)
             case _:
-                raise ValueError(f"invalid MAIL address prefix: {prefix}")
+                raise ValueError(f"invalid MAIL user-agent type: {ua_type}")
         validate_host(host)
 
     else:

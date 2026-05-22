@@ -50,4 +50,26 @@ def cmd_send(args: Namespace) -> None:
         raise RuntimeError(f"response validation failed: {e}")
 
     # 4. print the new draft
+    match args.output:
+        case "json":
+            _print_json(response_obj)
+        case "text":
+            _print_text(response_obj)
+
+
+def _print_json(response_obj: PostDraftSendResponse) -> None:
     print(response_obj.model_dump_json())
+
+
+def _print_text(response_obj: PostDraftSendResponse) -> None:
+    message = response_obj.message
+
+    print("=== Message ===")
+    print(f"Message ID: {message.message_id}")
+    print(f"Sent At: {message.sent_at}")
+    print(f"Sender: {message.sender}")
+    print("Recipient(s):")
+    for recipient in message.recipients:
+        print(f"- {recipient}")
+    print(f"Subject: {message.subject}")
+    print(f"Body:\n{message.body}\n")
