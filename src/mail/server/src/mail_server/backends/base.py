@@ -8,7 +8,6 @@ from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntr
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
-from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import MAILUserAgent, MAILUserAgentInBackend
@@ -249,23 +248,12 @@ class MAILServerBackend(Protocol):
     # Daemon-only endpoints
     #
     @abstractmethod
-    async def get_daemon_queue(
-        self, user_agent: MAILUserAgent
-    ) -> list[MAILQueueEntrySummary]:
-        """
-        Get the current message delivery queue.
-        """
-
-        pass
-
-    @abstractmethod
-    async def get_daemon_queue_entry(
+    async def daemon_clear_message_buffer(
         self,
         user_agent: MAILUserAgent,
-        message_id: str,
-    ) -> MAILQueueEntry:
+    ) -> list[MAILMessage]:
         """
-        Get a specific queued message by ID.
+        Obtain all messages to be delivered on the server and clear the buffer.
         """
 
         pass

@@ -9,7 +9,6 @@ from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
-from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import MAILUserAgent
@@ -249,34 +248,14 @@ class PostTrashClearResponse(BaseModel):
 #
 # Daemon endpoints
 #
-class GetDaemonQueueResponse(BaseModel):
+class PostDaemonMessageBufferClearResponse(BaseModel):
     """
-    Corresponds to `GET /daemon/queue`.
-    Contains the list of messages currently in the delivery queue.
-    """
-
-    queue: list[MAILQueueEntrySummary]
-    metadata: dict[str, Any]
-
-
-class GetDaemonQueueMessageResponse(BaseModel):
-    """
-    Corresponds to `GET /daemon/queue/{message_id}`.
-    Contains a specific queued message by ID that is not yet delivered.
+    Corresponds to `POST /daemon/message-buffer/clear`.
+    Contains all MAIL messages on the server to be delivered by the daemon.
     """
 
-    message: MAILQueueEntry
-    metadata: dict[str, Any]
-
-
-class DeleteDaemonQueueMessageResponse(BaseModel):
-    """
-    Corresponds to `DELETE /daemon/queue/{message_id}`.
-    Contains the specific message entry by ID removed from the delivery queue.
-    """
-
-    message: MAILQueueEntry
-    metadata: dict[str, Any]
+    messages: list[MAILMessage]
+    metadat: dict[str, Any]
 
 
 class PostDaemonDeliverLocalResponse(BaseModel):

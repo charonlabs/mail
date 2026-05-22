@@ -10,7 +10,6 @@ from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntr
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
-from mail_protocol.core.queues import MAILQueueEntry, MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import (
@@ -26,11 +25,11 @@ from mail_protocol.network.requests import (
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.fs import (
-    load_delivery_queue,
     load_draft_entries,
     load_drafts,
     load_inbox_entries,
     load_inboxes,
+    load_message_buffer,
     load_messages,
     load_outbox_entries,
     load_outboxes,
@@ -38,11 +37,11 @@ from mail_server.backends.memory.fs import (
     load_trash_entries,
     load_trashes,
     load_user_agents,
-    save_delivery_queue,
     save_draft_entries,
     save_drafts,
     save_inbox_entries,
     save_inboxes,
+    save_message_buffer,
     save_messages,
     save_outbox_entries,
     save_outboxes,
@@ -151,13 +150,10 @@ class MemoryBackend(MAILServerBackend):
         Values: list of trash entry message IDs
         """
 
-        self.delivery_queue: dict[
-            str, MAILQueueEntrySummary
-        ] = await load_delivery_queue()
+        self.message_buffer: list[str] = await load_message_buffer()
         """
-        A dict of all MAIL messages in the delivery queue.
-        Keys: message IDs
-        Values: MAILQueueEntrySummary instances
+        A list of all MAIL messages in the delivery buffer.
+        Items: message IDs
         """
 
         logger.info("backend initialization complete")
@@ -180,7 +176,7 @@ class MemoryBackend(MAILServerBackend):
         await save_drafts(self.drafts)
         await save_trash_entries(self.trash_entries)
         await save_trashes(self.trashes)
-        await save_delivery_queue(self.delivery_queue)
+        await save_message_buffer(self.message_buffer)
 
         logger.info("backend shutdown complete")
 
@@ -470,11 +466,7 @@ class MemoryBackend(MAILServerBackend):
         )
         self.messages.update({message.message_id: message})
 
-        queue_entry = MAILQueueEntry(
-            message=message,
-            queued_at=datetime.now(UTC),
-        )
-        self.delivery_queue.update({message.message_id: queue_entry.summarize()})
+        self.message_buffer.append(message.message_id)
 
         return message
 
@@ -545,22 +537,12 @@ class MemoryBackend(MAILServerBackend):
     #
     # Daemon-only endpoints
     #
-    async def get_daemon_queue(
-        self, user_agent: MAILUserAgent
-    ) -> list[MAILQueueEntrySummary]:
-        """
-        Get the current message delivery queue.
-        """
-
-        raise NotImplementedError
-
-    async def get_daemon_queue_entry(
+    async def daemon_clear_message_buffer(
         self,
         user_agent: MAILUserAgent,
-        message_id: str,
-    ) -> MAILQueueEntry:
+    ) -> list[MAILMessage]:
         """
-        Get a specific queued message by ID.
+        Obtain all messages to be delivered on the server and clear the buffer.
         """
 
         raise NotImplementedError

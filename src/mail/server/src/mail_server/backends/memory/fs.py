@@ -9,7 +9,6 @@ from mail_protocol.core.drafts import MAILDraftsEntry
 from mail_protocol.core.inbox import MAILInboxEntrySummary
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.outbox import MAILOutboxEntrySummary
-from mail_protocol.core.queues import MAILQueueEntrySummary
 from mail_protocol.core.swarms import MAILSwarm
 from mail_protocol.core.trash import MAILTrashEntry
 from mail_protocol.core.user_agents import MAILAgent, MAILUserAgentInBackend
@@ -361,34 +360,25 @@ async def load_trashes() -> dict[str, list[str]]:
     return trashes
 
 
-async def load_delivery_queue() -> dict[str, MAILQueueEntrySummary]:
+async def load_message_buffer() -> list[str]:
     """
-    Load saved message delivery queue from the local filesystem.
+    Load saved message delivery buffer from the local filesystem.
     """
 
-    delivery_queue_path = DEPLOYMENT_PATH.joinpath("delivery_queue")
-    logger.info(f"loading message delivery queue: {delivery_queue_path}...")
-    delivery_queue: dict[str, MAILQueueEntrySummary] = {}
-    with scandir(delivery_queue_path) as entries:
-        for entry in entries:
-            if entry.is_file():
-                try:
-                    validate_uuid(entry.name)
-                except ValueError:
-                    continue
+    msg_buf_path = DEPLOYMENT_PATH.joinpath("message_buffer.lock")
+    logger.info(f"loading message_buffer: {msg_buf_path}...")
+    msg_buf: list[str] = []
+    with open(msg_buf_path) as msg_buf_file:
+        content = msg_buf_file.readlines()
+        for line in content:
+            try:
+                validate_uuid(line)
+            except ValueError:
+                continue
 
-                with open(entry) as dq_file:
-                    content = dq_file.read()
-                    try:
-                        dq_model = MAILQueueEntrySummary.model_validate_json(content)
-                    except Exception:
-                        continue
+            msg_buf.append(line)
 
-                    delivery_queue.update({dq_model.message_id: dq_model})
-
-    logger.info(f"found {len(delivery_queue)} queue entries")
-
-    return delivery_queue
+    return msg_buf
 
 
 #
@@ -564,16 +554,14 @@ async def save_trashes(trashes: dict[str, list[str]]) -> None:
             trash_file.write(content)
 
 
-async def save_delivery_queue(delivery_queue: dict[str, MAILQueueEntrySummary]) -> None:
+async def save_message_buffer(message_buffer: list[str]) -> None:
     """
     Save message delivery queue from memory to the local filesystem.
     """
 
-    logger.info(f"saving {len(delivery_queue)} messages to delivery queue...")
+    logger.info(f"saving {len(message_buffer)} messages to buffer...")
 
-    queue_entries_path = DEPLOYMENT_PATH.joinpath("queue_entries")
-    for msg_id, queue_entry in delivery_queue.items():
-        qe_path = queue_entries_path.joinpath(msg_id)
-        with open(qe_path, "w") as qe_file:
-            content = queue_entry.model_dump_json()
-            qe_file.write(content)
+    msg_buf_path = DEPLOYMENT_PATH.joinpath("message_buffer.lock")
+    with open(msg_buf_path, "w") as msg_buf_file:
+        content = "\n".join(message_buffer)
+        msg_buf_file.write(content)

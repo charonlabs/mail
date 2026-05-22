@@ -3,40 +3,20 @@
 
 from fastapi import APIRouter
 from mail_protocol.network.responses import (
-    DeleteDaemonQueueMessageResponse,
-    GetDaemonQueueMessageResponse,
-    GetDaemonQueueResponse,
     PostDaemonDeliverLocalResponse,
     PostDaemonDeliverRemoteResponse,
+    PostDaemonMessageBufferClearResponse,
 )
 
 router = APIRouter(prefix="/daemon", tags=["daemon"])
 
 
-@router.get(
-    "/queue",
-    summary="Get a list of messages in the delivery queue",
-    response_model=GetDaemonQueueResponse,
+@router.post(
+    "/message-buffer/clear",
+    summary="Obtain all messages in need of delivery",
+    response_model=PostDaemonMessageBufferClearResponse,
 )
-async def get_message_queue() -> GetDaemonQueueResponse:
-    raise NotImplementedError
-
-
-@router.get(
-    "/queue/{message_id}",
-    summary="Get a specific queued message by ID",
-    response_model=GetDaemonQueueMessageResponse,
-)
-async def get_message_in_queue(message_id: str) -> GetDaemonQueueMessageResponse:
-    raise NotImplementedError
-
-
-@router.delete(
-    "/queue/{message_id}",
-    summary="Delete a specific queued message by ID",
-    response_model=DeleteDaemonQueueMessageResponse,
-)
-async def delete_message_in_queue(message_id: str) -> DeleteDaemonQueueMessageResponse:
+async def clear_message_buffer() -> PostDaemonMessageBufferClearResponse:
     raise NotImplementedError
 
 
