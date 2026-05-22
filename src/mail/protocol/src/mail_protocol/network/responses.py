@@ -102,7 +102,7 @@ class GetInboxResponse(BaseModel):
     Contains a list of entries in the user-agent's inbox.
     """
 
-    inbox: list[MAILInboxEntrySummary]
+    entries: list[MAILInboxEntrySummary]
     metadata: dict[str, Any]
 
 
@@ -112,7 +112,7 @@ class GetInboxMessageResponse(BaseModel):
     Contains a specific entry by message ID inside the user-agent's inbox.
     """
 
-    message: MAILInboxEntry
+    entry: MAILInboxEntry
     metadata: dict[str, Any]
 
 
@@ -122,7 +122,7 @@ class DeleteInboxMessageResponse(BaseModel):
     Contains a specific entry by message ID that was moved from the user-agent's inbox to trash.
     """
 
-    message: MAILInboxEntry
+    entry: MAILInboxEntry
     metadata: dict[str, Any]
 
 
@@ -135,7 +135,7 @@ class GetOutboxResponse(BaseModel):
     Contains a list of entries in the user-agent's outbox.
     """
 
-    outbox: list[MAILOutboxEntrySummary]
+    entries: list[MAILOutboxEntrySummary]
     metadata: dict[str, Any]
 
 
@@ -145,7 +145,7 @@ class GetOutboxMessageResponse(BaseModel):
     Contains a specific entry by message ID inside the user-agent's outbox.
     """
 
-    message: MAILOutboxEntry
+    entry: MAILOutboxEntry
     metadata: dict[str, Any]
 
 
@@ -158,7 +158,7 @@ class GetDraftsResponse(BaseModel):
     Contains a list of entries in the user-agent's drafts box.
     """
 
-    drafts: list[MAILDraftsEntrySummary]
+    entries: list[MAILDraftsEntrySummary]
     metadata: dict[str, Any]
 
 
@@ -168,7 +168,7 @@ class PostDraftResponse(BaseModel):
     Contains the new entry in the user-agent's drafts box.
     """
 
-    draft: MAILDraftsEntry
+    entry: MAILDraftsEntry
     metadata: dict[str, Any]
 
 
@@ -178,7 +178,7 @@ class GetDraftResponse(BaseModel):
     Contains a specific message draft inside the user-agent's drafts box.
     """
 
-    draft: MAILDraftsEntry
+    entry: MAILDraftsEntry
     metadata: dict[str, Any]
 
 
@@ -188,7 +188,7 @@ class DeleteDraftResponse(BaseModel):
     Contains the specific message draft deleted from the user-agent's drafts box.
     """
 
-    draft: MAILDraftsEntry
+    entry: MAILDraftsEntry
     metadata: dict[str, Any]
 
 
@@ -211,7 +211,7 @@ class GetTrashResponse(BaseModel):
     Contains a list of messages in the user-agent's trash box.
     """
 
-    trash: list[MAILTrashEntrySummary]
+    entries: list[MAILTrashEntrySummary]
     metadata: dict[str, Any]
 
 
@@ -221,7 +221,7 @@ class GetTrashMessageResponse(BaseModel):
     Contains the specific trashed message by ID from the user-agent's trash box.
     """
 
-    message: MAILTrashEntry
+    entry: MAILTrashEntry
     metadata: dict[str, Any]
 
 
@@ -231,7 +231,7 @@ class DeleteTrashMessageResponse(BaseModel):
     Contains the specific message deleted from the user-agent's trash box.
     """
 
-    message: MAILTrashEntry
+    entry: MAILTrashEntry
     metadata: dict[str, Any]
 
 
@@ -241,7 +241,7 @@ class PostTrashClearResponse(BaseModel):
     Contains the list of messages deleted from the user-agent's trash box.
     """
 
-    trash: list[MAILTrashEntrySummary]
+    entries: list[MAILTrashEntrySummary]
     metadata: dict[str, Any]
 
 
@@ -255,7 +255,7 @@ class PostDaemonMessageBufferClearResponse(BaseModel):
     """
 
     messages: list[MAILMessage]
-    metadat: dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class PostDaemonDeliverLocalResponse(BaseModel):

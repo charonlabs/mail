@@ -29,7 +29,7 @@ async def get_trashed_messages(request: Request) -> GetTrashResponse:
         )
 
     return GetTrashResponse(
-        trash=result,
+        entries=result,
         metadata={},
     )
 
@@ -54,7 +54,7 @@ async def get_trashed_message(request: Request) -> GetTrashMessageResponse:
         )
 
     return GetTrashMessageResponse(
-        message=result,
+        entry=result,
         metadata={},
     )
 

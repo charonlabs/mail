@@ -32,7 +32,7 @@ async def get_drafts(request: Request) -> GetDraftsResponse:
             status_code=404, detail=f"draft box not found for address {user_agent}"
         )
 
-    return GetDraftsResponse(drafts=result, metadata={})
+    return GetDraftsResponse(entries=result, metadata={})
 
 
 @router.post(
@@ -45,7 +45,7 @@ async def post_draft(request: Request) -> PostDraftResponse:
     result = await backend.post_draft(user_agent=user_agent, payload=payload)
 
     return PostDraftResponse(
-        draft=result,
+        entry=result,
         metadata={},
     )
 
@@ -67,7 +67,7 @@ async def get_draft(request: Request) -> GetDraftResponse:
         )
 
     return GetDraftResponse(
-        draft=result,
+        entry=result,
         metadata={},
     )
 

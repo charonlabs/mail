@@ -24,7 +24,7 @@ async def get_outbox(request: Request) -> GetOutboxResponse:
         )
 
     return GetOutboxResponse(
-        outbox=result,
+        entries=result,
         metadata={},
     )
 
@@ -48,6 +48,6 @@ async def get_outbox_message(request: Request) -> GetOutboxMessageResponse:
         )
 
     return GetOutboxMessageResponse(
-        message=result,
+        entry=result,
         metadata={},
     )

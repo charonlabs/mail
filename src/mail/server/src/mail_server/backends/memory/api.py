@@ -393,7 +393,7 @@ class MemoryBackend(MAILServerBackend):
             created_at=datetime.now(UTC),
             updated_at=None,
         )
-        draft_entry = MAILDraftsEntry(draft=draft, sent_at=datetime.now(UTC))
+        draft_entry = MAILDraftsEntry(draft=draft, sent_at=None)
 
         self.draft_entries.update({draft_id: draft_entry})
         self.drafts[ua_address].append(draft_id)

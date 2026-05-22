@@ -30,7 +30,7 @@ async def get_inbox(request: Request) -> GetInboxResponse:
         )
 
     return GetInboxResponse(
-        inbox=result,
+        entries=result,
         metadata={},
     )
 
@@ -54,7 +54,7 @@ async def open_inbox_message(request: Request) -> GetInboxMessageResponse:
         )
 
     return GetInboxMessageResponse(
-        message=result,
+        entry=result,
         metadata={},
     )
 
