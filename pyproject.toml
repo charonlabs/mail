@@ -27,6 +27,10 @@ dependencies = [
     "openai>=1.106.1",
     "fastmcp>=2.12.5",
     "asyncpg>=0.31.0",
+    "mail-client>=2.0.0",
+    "mail-server>=2.0.0",
+    "mail-daemon>=2.0.0",
+    "mail-protocol>=2.0.0",
 ]
 license = "Apache-2.0"
 classifiers = [
