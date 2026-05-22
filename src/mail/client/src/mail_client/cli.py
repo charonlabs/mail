@@ -23,6 +23,13 @@ def main() -> None:
         description="The Python CLI client for the Multi-Agent Interface Layer (MAIL)",
         epilog="Copyright (c) 2026 Addison Kline",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        choices=["text", "json"],
+        default="text",
+        help="the output style for this CLI command (default: %(default)s)",
+    )
     subparsers = parser.add_subparsers(title="commands")
 
     # command `login`

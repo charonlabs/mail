@@ -44,4 +44,21 @@ def cmd_trash(args: Namespace) -> None:
         raise RuntimeError(f"response validation failed: {e}")
 
     # 4. print the user's trash box
+    match args.output:
+        case "json":
+            _print_json(response_obj)
+        case "text":
+            _print_text(response_obj)
+
+
+def _print_json(response_obj: GetTrashResponse) -> None:
     print(response_obj.model_dump_json())
+
+
+def _print_text(response_obj: GetTrashResponse) -> None:
+    entries = response_obj.entries
+    print("=== Trash ===")
+    for entry in entries:
+        print(
+            f"{entry.trashed_at} | {entry.message_id} | {entry.subject} ({entry.body_size} characters)"
+        )

@@ -455,8 +455,9 @@ class MemoryBackend(MAILServerBackend):
             raise ValueError(f"draft with ID {draft_id} not found in draft box entries")
         draft = draft_entry.draft
 
+        message_id = str(uuid.uuid4())  # make this different from draft_id
         message = MAILMessage(
-            message_id=draft_id,
+            message_id=message_id,
             sender=ua_address,
             recipients=payload.recipients,
             subject=draft.subject,
@@ -464,8 +465,22 @@ class MemoryBackend(MAILServerBackend):
             sent_at=datetime.now(UTC),
             metadata={},
         )
-        self.messages.update({message.message_id: message})
+        outbox_entry = MAILOutboxEntrySummary(
+            message_id=message_id,
+            recipients=message.recipients,
+            subject=message.subject,
+            body_size=len(message.body),
+            sent_at=datetime.now(UTC),
+            delivered_at=None,
+        )
 
+        # add to server messages
+        self.messages.update({message.message_id: message})
+        # add to server outbox_entries
+        self.outbox_entries.update({outbox_entry.message_id: outbox_entry})
+        # add to user-agent's outbox
+        self.outboxes[ua_address].append(outbox_entry.message_id)
+        # add to message delivery buffer
         self.message_buffer.append(message.message_id)
 
         return message

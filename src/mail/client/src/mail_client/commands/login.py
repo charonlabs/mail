@@ -57,5 +57,19 @@ def cmd_login(args: Namespace) -> None:
         raise RuntimeError(f"response validation failed: {e}")
 
     # 4. Print the JWT
-    print(f"got access token: {response_obj.access_token}")
-    print("set MAIL_TOKEN={token} in subsequent operations")
+    match args.output:
+        case "json":
+            _print_json(response_obj)
+        case "text":
+            _print_text(response_obj)
+
+
+def _print_json(response_obj: PostAuthTokenResponse) -> None:
+    print(response_obj.model_dump_json())
+
+
+def _print_text(response_obj: PostAuthTokenResponse) -> None:
+    print("Got token:")
+    print(response_obj.access_token)
+    print()
+    print("Run subsequent commands with `MAIL_TOKEN={token}`")

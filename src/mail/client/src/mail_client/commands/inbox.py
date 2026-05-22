@@ -44,4 +44,21 @@ def cmd_inbox(args: Namespace) -> None:
         raise RuntimeError(f"response validation failed: {e}")
 
     # 4. print the user's inbox
+    match args.output:
+        case "json":
+            _print_json(response_obj)
+        case "text":
+            _print_text(response_obj)
+
+
+def _print_json(response_obj: GetInboxResponse) -> None:
     print(response_obj.model_dump_json())
+
+
+def _print_text(response_obj: GetInboxResponse) -> None:
+    entries = response_obj.entries
+    print("=== Outbox ===")
+    for entry in entries:
+        print(
+            f"{entry.received_at} | {entry.message_id} | [{entry.sender}] {entry.subject} ({entry.body_size} characters)"
+        )

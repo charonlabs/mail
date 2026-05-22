@@ -51,4 +51,25 @@ def cmd_compose(args: Namespace) -> None:
         raise RuntimeError(f"response validation failed: {e}")
 
     # 4. print the new draft
+    match args.output:
+        case "json":
+            _print_json(response_obj)
+        case "text":
+            _print_text(response_obj)
+
+
+def _print_json(response_obj: PostDraftResponse) -> None:
     print(response_obj.model_dump_json())
+
+
+def _print_text(response_obj: PostDraftResponse) -> None:
+    entry = response_obj.entry
+    draft = entry.draft
+
+    print("=== Draft ===")
+    print(f"Draft ID: {draft.draft_id}")
+    print(f"Created At: {draft.created_at}")
+    print(f"Subject: {draft.subject}")
+    print(f"Body:\n{draft.body}\n")
+    print("=== Entry Data ===")
+    print(f"Sent At: {entry.sent_at}")
