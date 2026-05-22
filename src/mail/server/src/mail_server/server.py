@@ -2,11 +2,13 @@
 # Copyright (c) 2025-26 Addison Kline
 
 import logging
+import time
 from argparse import Namespace
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from mail_protocol.network.responses import GetHealthResponse, GetRootResponse
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.api import MemoryBackend
@@ -37,6 +39,8 @@ async def _server_startup(app: FastAPI):
     global _backend
     await _backend.on_server_startup()
     app.state.backend = _backend
+
+    app.state.time_start = time.time()
 
     logger.info("server startup complete")
 
@@ -83,14 +87,27 @@ app.include_router(daemon.router)
 #
 # Server endpoints
 #
-@app.get("/")
-async def get_root():
-    return {"message": "Hello, world!"}
+@app.get(
+    "/",
+    summary="Get basic server information and metadata",
+    response_model=GetRootResponse,
+)
+async def get_root() -> GetRootResponse:
+    uptime = time.time() - app.state.time_start
+    return GetRootResponse(
+        protocol_name="mail",
+        protocol_version="2.0",
+        uptime=uptime,
+    )
 
 
-@app.get("/health")
-async def get_health():
-    return {"status": "ok"}
+@app.get(
+    "/health",
+    summary="Get the current MAIL server health",
+    response_model=GetHealthResponse,
+)
+async def get_health() -> GetHealthResponse:
+    return GetHealthResponse(status="ok")
 
 
 #

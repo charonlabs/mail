@@ -251,10 +251,10 @@ class PostTrashClearResponse(BaseModel):
 class PostDaemonMessageBufferClearResponse(BaseModel):
     """
     Corresponds to `POST /daemon/message-buffer/clear`.
-    Contains all MAIL messages on the server to be delivered by the daemon.
+    Contains the IDs of all MAIL messages on the server to be delivered by the daemon.
     """
 
-    messages: list[MAILMessage]
+    message_ids: list[str]
     metadata: dict[str, Any]
 
 

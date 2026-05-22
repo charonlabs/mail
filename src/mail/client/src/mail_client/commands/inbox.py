@@ -57,7 +57,7 @@ def _print_json(response_obj: GetInboxResponse) -> None:
 
 def _print_text(response_obj: GetInboxResponse) -> None:
     entries = response_obj.entries
-    print("=== Outbox ===")
+    print("=== Inbox ===")
     for entry in entries:
         print(
             f"{entry.received_at} | {entry.message_id} | [{entry.sender}] {entry.subject} ({entry.body_size} characters)"

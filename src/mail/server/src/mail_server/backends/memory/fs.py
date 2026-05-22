@@ -370,13 +370,17 @@ async def load_message_buffer() -> list[str]:
     msg_buf: list[str] = []
     with open(msg_buf_path) as msg_buf_file:
         content = msg_buf_file.readlines()
-        for line in content:
+        for ln in content:
+            line = ln.strip()
             try:
                 validate_uuid(line)
-            except ValueError:
+            except ValueError as e:
+                logger.warning(f"invalid message ID in buffer: {e}")
                 continue
 
             msg_buf.append(line)
+
+    logger.info(f"found {len(msg_buf)} messages in delivery buffer")
 
     return msg_buf
 

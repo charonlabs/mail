@@ -3,6 +3,7 @@
 
 import logging
 import uuid
+from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 
@@ -13,6 +14,7 @@ from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import (
+    MAILDaemon,
     MAILUserAgent,
     MAILUserAgentInBackend,
 )
@@ -554,28 +556,65 @@ class MemoryBackend(MAILServerBackend):
     #
     async def daemon_clear_message_buffer(
         self,
-        user_agent: MAILUserAgent,
-    ) -> list[MAILMessage]:
+        daemon: MAILDaemon,
+    ) -> list[str]:
         """
         Obtain all messages to be delivered on the server and clear the buffer.
         """
 
-        raise NotImplementedError
+        message_buffer = deepcopy(self.message_buffer)
+        self.message_buffer.clear()
+
+        return message_buffer
 
     async def daemon_deliver_local(
         self,
-        user_agent: MAILUserAgent,
+        daemon: MAILDaemon,
         payload: PostDaemonDeliverLocalRequest,
     ) -> list[MAILMessageSummary]:
         """
         Deliver MAIL message(s) to local agents sent by other local agents.
         """
 
-        raise NotImplementedError
+        message_ids = payload.message_ids
+        messages: list[MAILMessageSummary] = []
+        for msg_id in message_ids:
+            try:
+                message = await self.get_message(msg_id)
+            except Exception:
+                logger.warning(f"failed to get message by ID {msg_id}")
+                continue
+
+            # 1. create shared inbox entry
+            inbox_entry = MAILInboxEntrySummary(
+                message_id=message.message_id,
+                sender=message.sender,
+                subject=message.subject,
+                body_size=len(message.body),
+                received_at=datetime.now(UTC),
+                opened=False,
+            )
+            self.inbox_entries.update({inbox_entry.message_id: inbox_entry})
+
+            # 2. update the inbox of each recipient
+            recipients = message.recipients
+            for rec in recipients:
+                try:
+                    user_agent = await self.get_user_agent(rec)
+                    ua_address = user_agent.get_address()
+                except Exception:
+                    logger.warning(f"failed to validate recipient address {rec}")
+                    continue
+
+                self.inboxes[ua_address].append(inbox_entry.message_id)
+
+            messages.append(message.summarize())
+
+        return messages
 
     async def daemon_deliver_remote(
         self,
-        user_agent: MAILUserAgent,
+        daemon: MAILDaemon,
         payload: PostDaemonDeliverRemoteRequest,
     ) -> list[MAILMessageSummary]:
         """
@@ -583,3 +622,17 @@ class MemoryBackend(MAILServerBackend):
         """
 
         raise NotImplementedError
+
+    #
+    # Message endpoints
+    #
+    async def get_message(self, message_id: str) -> MAILMessage:
+        """
+        Attempt to get a locally-defined MAIL message by ID.
+        """
+
+        message = self.messages.get(message_id)
+        if message is None:
+            raise ValueError(f"undefined message ID: {message_id}")
+
+        return message

@@ -33,8 +33,8 @@ def validate_uuid(string: str) -> str:
 
     try:
         _result = uuid.UUID(string)
-    except Exception:
-        raise ValueError(f"{string} is not a valid UUID")
+    except Exception as e:
+        raise ValueError(f"UUID parsing failed for {string}: {e}")
 
     return string
 

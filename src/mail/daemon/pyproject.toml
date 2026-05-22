@@ -7,7 +7,10 @@ authors = [
     { name = "Addison Kline", email = "77369109+addisonkline@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+    "pydantic>=2.11.7",
+]
 
 [project.scripts]
 daemon = "mail_daemon.cli:main"

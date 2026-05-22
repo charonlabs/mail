@@ -10,7 +10,11 @@ from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
-from mail_protocol.core.user_agents import MAILUserAgent, MAILUserAgentInBackend
+from mail_protocol.core.user_agents import (
+    MAILDaemon,
+    MAILUserAgent,
+    MAILUserAgentInBackend,
+)
 from mail_protocol.network.requests import (
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
@@ -250,10 +254,10 @@ class MAILServerBackend(Protocol):
     @abstractmethod
     async def daemon_clear_message_buffer(
         self,
-        user_agent: MAILUserAgent,
-    ) -> list[MAILMessage]:
+        daemon: MAILDaemon,
+    ) -> list[str]:
         """
-        Obtain all messages to be delivered on the server and clear the buffer.
+        Obtain all messages by ID to be delivered on the server and clear the buffer.
         """
 
         pass
@@ -261,7 +265,7 @@ class MAILServerBackend(Protocol):
     @abstractmethod
     async def daemon_deliver_local(
         self,
-        user_agent: MAILUserAgent,
+        daemon: MAILDaemon,
         payload: PostDaemonDeliverLocalRequest,
     ) -> list[MAILMessageSummary]:
         """
@@ -273,7 +277,7 @@ class MAILServerBackend(Protocol):
     @abstractmethod
     async def daemon_deliver_remote(
         self,
-        user_agent: MAILUserAgent,
+        daemon: MAILDaemon,
         payload: PostDaemonDeliverRemoteRequest,
     ) -> list[MAILMessageSummary]:
         """

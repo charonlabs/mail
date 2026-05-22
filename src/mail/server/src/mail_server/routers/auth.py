@@ -7,9 +7,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
-from mail_protocol.network.responses import PostAuthTokenResponse
+from mail_protocol.network.responses import GetAuthWhoamiResponse, PostAuthTokenResponse
 
-from mail_server.auth import Token, authenticate_user_agent, create_access_token
+from mail_server.auth import (
+    authenticate_user_agent,
+    create_access_token,
+    validate_user_agent,
+)
 
 ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("MAIL_JWT_EXPIRE_MINUTES")
 if ACCESS_TOKEN_EXPIRE_MINUTES is None:
@@ -19,7 +23,11 @@ default_token_limit = int(ACCESS_TOKEN_EXPIRE_MINUTES)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
-@router.post("/token")
+@router.post(
+    "/token",
+    summary="Log in with an address and password to obtain an access token",
+    response_model=PostAuthTokenResponse,
+)
 async def create_auth_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -45,6 +53,13 @@ async def create_auth_token(
     )
 
 
-@router.get("/whoami")
-async def get_token_info():
-    return {"message": "Hello from GET /auth/whoami!"}
+@router.get(
+    "/whoami", summary="Get MAIL user-agent info", response_model=GetAuthWhoamiResponse
+)
+async def get_token_info(request: Request) -> GetAuthWhoamiResponse:
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    return GetAuthWhoamiResponse(
+        user_agent=user_agent,
+        metadata={},
+    )
