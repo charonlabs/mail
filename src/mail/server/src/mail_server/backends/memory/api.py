@@ -283,7 +283,7 @@ class MemoryBackend(MAILServerBackend):
         return MAILInboxEntry(
             message=message,
             received_at=inbox_entry.received_at,
-            opened=inbox_entry.opened,
+            delivered_by=inbox_entry.delivered_by,
         )
 
     async def delete_inbox_message(
@@ -474,6 +474,7 @@ class MemoryBackend(MAILServerBackend):
             body_size=len(message.body),
             sent_at=datetime.now(UTC),
             delivered_at=None,
+            delivered_by=None,
         )
 
         # add to server messages
@@ -592,7 +593,7 @@ class MemoryBackend(MAILServerBackend):
                 subject=message.subject,
                 body_size=len(message.body),
                 received_at=datetime.now(UTC),
-                opened=False,
+                delivered_by=daemon.get_address(),
             )
             self.inbox_entries.update({inbox_entry.message_id: inbox_entry})
 

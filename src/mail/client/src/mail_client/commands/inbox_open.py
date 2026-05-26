@@ -70,3 +70,4 @@ def _print_text(response_obj: GetInboxMessageResponse) -> None:
     print(f"Body:\n{message.body}\n")
     print("=== Inbox Entry Data ===")
     print(f"Received At: {entry.received_at}")
+    print(f"Delivered By: {entry.delivered_by}")

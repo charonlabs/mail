@@ -8,6 +8,7 @@ from pydantic import AfterValidator, BaseModel
 
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.validators import (
+    validate_mail_address,
     validate_mail_addresses,
     validate_message_subject,
     validate_uuid,
@@ -25,6 +26,7 @@ class MAILOutboxEntrySummary(BaseModel):
     body_size: int
     sent_at: datetime
     delivered_at: datetime | None = None
+    delivered_by: Annotated[str, AfterValidator(validate_mail_address)] | None = None
 
 
 class MAILOutboxEntry(BaseModel):
@@ -34,6 +36,7 @@ class MAILOutboxEntry(BaseModel):
 
     message: MAILMessage
     delivered_at: datetime | None = None
+    delivered_by: Annotated[str, AfterValidator(validate_mail_address)] | None = None
 
     def summarize(self) -> MAILOutboxEntrySummary:
         """
@@ -48,4 +51,5 @@ class MAILOutboxEntry(BaseModel):
             body_size=body_size,
             sent_at=self.message.sent_at,
             delivered_at=self.delivered_at,
+            delivered_by=self.delivered_by,
         )

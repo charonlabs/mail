@@ -38,6 +38,13 @@ class MAILDaemon(BaseModel):
     worker_name: Annotated[str, AfterValidator(validate_daemon_worker_name)]
     host: Annotated[str, AfterValidator(validate_host)]
 
+    def get_address(self) -> str:
+        """
+        Dump the daemon user-agent to a MAIL address string.
+        """
+
+        return f"daemon:{self.worker_name}@{self.host}"
+
 
 class MAILUserAgent(BaseModel):
     """

@@ -24,7 +24,7 @@ class MAILInboxEntrySummary(BaseModel):
     subject: Annotated[str, AfterValidator(validate_message_subject)]
     body_size: int
     received_at: datetime
-    opened: bool
+    delivered_by: Annotated[str, AfterValidator(validate_mail_address)]
 
 
 class MAILInboxEntry(BaseModel):
@@ -34,7 +34,7 @@ class MAILInboxEntry(BaseModel):
 
     message: MAILMessage
     received_at: datetime
-    opened: bool
+    delivered_by: Annotated[str, AfterValidator(validate_mail_address)]
 
     def summarize(self) -> MAILInboxEntrySummary:
         """
@@ -48,5 +48,5 @@ class MAILInboxEntry(BaseModel):
             subject=self.message.subject,
             body_size=body_size,
             received_at=self.received_at,
-            opened=self.opened,
+            delivered_by=self.delivered_by,
         )
