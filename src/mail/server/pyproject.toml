@@ -20,6 +20,7 @@ dependencies = [
 
 [project.scripts]
 mail-server = "mail_server.cli:main"
+backend-init = "mail_server.backend_init:main"
 
 [build-system]
 requires = ["hatchling"]

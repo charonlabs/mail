@@ -184,6 +184,17 @@ def validate_user_name(name: str) -> str:
     return name
 
 
+def validate_user_names(names: list[str]) -> list[str]:
+    """
+    Ensure all strings provided are valid MAIL user/admin names.
+    """
+
+    for name in names:
+        validate_user_name(name)
+
+    return names
+
+
 def validate_swarm_name(name: str) -> str:
     """
     Ensure that the given string is a valid swarm name.
@@ -286,6 +297,17 @@ def validate_daemon_worker_name(name: str) -> str:
         raise ValueError(f"invalid slug string: {name}")
 
     return name
+
+
+def validate_daemon_worker_names(names: list[str]) -> list[str]:
+    """
+    Ensure that all given strings are valid MAIL daemon worker names.
+    """
+
+    for name in names:
+        validate_daemon_worker_name(name)
+
+    return names
 
 
 def string_is_slug(string: str) -> bool:

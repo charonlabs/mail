@@ -20,17 +20,38 @@ class MAILAgent(BaseModel):
     swarm: Annotated[str, AfterValidator(validate_swarm_name)]
     host: Annotated[str, AfterValidator(validate_host)]
 
+    def get_address(self) -> str:
+        """
+        Dump the agent user-agent to a MAIL address string.
+        """
+
+        return f"{self.name}@{self.swarm}@{self.host}"
+
 
 class MAILUser(BaseModel):
     ua_type: Literal["user"]
     user_id: Annotated[str, AfterValidator(validate_user_name)]
     host: Annotated[str, AfterValidator(validate_host)]
 
+    def get_address(self) -> str:
+        """
+        Dump the user user-agent to a MAIL address string.
+        """
+
+        return f"user:{self.user_id}@{self.host}"
+
 
 class MAILAdmin(BaseModel):
     ua_type: Literal["admin"]
     admin_id: Annotated[str, AfterValidator(validate_user_name)]
     host: Annotated[str, AfterValidator(validate_host)]
+
+    def get_address(self) -> str:
+        """
+        Dump the admin user-agent to a MAIL address string.
+        """
+
+        return f"admin:{self.admin_id}@{self.host}"
 
 
 class MAILDaemon(BaseModel):
