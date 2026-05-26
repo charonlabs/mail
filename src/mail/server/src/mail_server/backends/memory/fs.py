@@ -73,14 +73,16 @@ async def load_swarms() -> dict[str, MAILSwarm]:
             if entry.is_file():
                 try:
                     validate_swarm_name(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL swarm name validation failed: {e}")
                     continue
 
                 with open(entry) as swarm_file:
                     content = swarm_file.read()
                     try:
                         swarm_model = MAILSwarm.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"MAILSwarm model validation failed: {e}")
                         continue
 
                     swarms.update({swarm_model.name: swarm_model})
@@ -103,14 +105,16 @@ async def load_messages() -> dict[str, MAILMessage]:
             if entry.is_file():
                 try:
                     validate_uuid(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL message ID validation failed: {e}")
                     continue
 
                 with open(entry) as message_file:
                     content = message_file.read()
                     try:
                         message_model = MAILMessage.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"MAILMessage model validation failed: {e}")
                         continue
 
                     messages.update({message_model.message_id: message_model})
@@ -133,14 +137,18 @@ async def load_inbox_entries() -> dict[str, MAILInboxEntrySummary]:
             if entry.is_file():
                 try:
                     validate_uuid(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL message ID validation failed: {e}")
                     continue
 
                 with open(entry) as ie_file:
                     content = ie_file.read()
                     try:
                         ie_model = MAILInboxEntrySummary.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(
+                            f"MAILInboxEntrySummary model validation failed: {e}"
+                        )
                         continue
 
                     inbox_entries.update({ie_model.message_id: ie_model})
@@ -163,15 +171,22 @@ async def load_inboxes() -> dict[str, list[str]]:
             if entry.is_file():
                 try:
                     validate_mail_address(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL address validation failed: {e}")
                     continue
 
                 with open(entry) as inbox_file:
-                    ie_ids = inbox_file.readlines()
-                    try:
-                        validate_uuids(ie_ids)
-                    except ValueError:
-                        continue
+                    content = inbox_file.readlines()
+                    ie_ids: list[str] = []
+                    for ln in content:
+                        ie_id = ln.strip()
+                        if not ie_id:
+                            continue
+                        try:
+                            validate_uuid(ie_id)
+                        except ValueError as e:
+                            logger.warning(f"Message ID validation failed: {e}")
+                            continue
 
                     inboxes.update({entry.name: ie_ids})
 
@@ -193,14 +208,16 @@ async def load_outbox_entries() -> dict[str, MAILOutboxEntrySummary]:
             if entry.is_file():
                 try:
                     validate_uuid(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"Message ID validation failed: {e}")
                     continue
 
                 with open(entry) as oe_file:
                     content = oe_file.read()
                     try:
                         oe_model = MAILOutboxEntrySummary.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"MAILOutboxEntrySummary validation failed: {e}")
                         continue
 
                     outbox_entries.update({oe_model.message_id: oe_model})
@@ -223,15 +240,22 @@ async def load_outboxes() -> dict[str, list[str]]:
             if entry.is_file():
                 try:
                     validate_mail_address(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL address validation failed: {e}")
                     continue
 
                 with open(entry) as outbox_file:
-                    oe_ids = outbox_file.readlines()
-                    try:
-                        validate_uuids(oe_ids)
-                    except ValueError:
-                        continue
+                    content = outbox_file.readlines()
+                    oe_ids: list[str] = []
+                    for ln in content:
+                        oe_id = ln.strip()
+                        if not oe_id:
+                            continue
+                        try:
+                            validate_uuid(oe_id)
+                        except ValueError as e:
+                            logger.warning(f"Message ID validation failed: {e}")
+                            continue
 
                     outboxes.update({entry.name: oe_ids})
 
@@ -253,14 +277,16 @@ async def load_draft_entries() -> dict[str, MAILDraftsEntry]:
             if entry.is_file():
                 try:
                     validate_uuid(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"Message ID validation failed: {e}")
                     continue
 
                 with open(entry) as de_file:
                     content = de_file.read()
                     try:
                         de_model = MAILDraftsEntry.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"MAILDraftsEntry model validation failed: {e}")
                         continue
 
                     draft_entries.update({de_model.draft.draft_id: de_model})
@@ -283,15 +309,22 @@ async def load_drafts() -> dict[str, list[str]]:
             if entry.is_file():
                 try:
                     validate_mail_address(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL address validation failed: {e}")
                     continue
 
                 with open(entry) as drafts_file:
-                    draft_ids = drafts_file.readlines()
-                    try:
-                        validate_uuids(draft_ids)
-                    except ValueError:
-                        continue
+                    content = drafts_file.readlines()
+                    draft_ids: list[str] = []
+                    for ln in content:
+                        draft_id = ln.strip()
+                        if not draft_id:
+                            continue
+                        try:
+                            validate_uuid(draft_id)
+                        except ValueError as e:
+                            logger.warning(f"Draft ID validation failed: {e}")
+                            continue
 
                     drafts.update({entry.name: draft_ids})
 
@@ -313,14 +346,16 @@ async def load_trash_entries() -> dict[str, MAILTrashEntry]:
             if entry.is_file():
                 try:
                     validate_uuid(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"Message ID validation failed: {e}")
                     continue
 
                 with open(entry) as te_file:
                     content = te_file.read()
                     try:
                         te_model = MAILTrashEntry.model_validate_json(content)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"MAILTrashEntry model validation failed: {e}")
                         continue
 
                     trash_entries.update({te_model.message.message_id: te_model})
@@ -343,15 +378,22 @@ async def load_trashes() -> dict[str, list[str]]:
             if entry.is_file():
                 try:
                     validate_mail_address(entry.name)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning(f"MAIL address validation failed: {e}")
                     continue
 
                 with open(entry) as trash_file:
-                    trash_ids = trash_file.readlines()
-                    try:
-                        validate_uuids(trash_ids)
-                    except ValueError:
-                        continue
+                    content = trash_file.readlines()
+                    trash_ids: list[str] = []
+                    for ln in content:
+                        trash_id = ln.strip()
+                        if not trash_id:
+                            continue
+                        try:
+                            validate_uuid(trash_id)
+                        except ValueError as e:
+                            logger.warning(f"Message ID validation failed: {e}")
+                            continue
 
                     trashes.update({entry.name: trash_ids})
 

@@ -586,18 +586,26 @@ class MemoryBackend(MAILServerBackend):
                 logger.warning(f"failed to get message by ID {msg_id}")
                 continue
 
-            # 1. create shared inbox entry
+            delivered_time = datetime.now(UTC)
+
+            # 1. update shared outbox entry
+            outbox_entry = self.outbox_entries[message.message_id]
+            outbox_entry.delivered_at = delivered_time
+            outbox_entry.delivered_by = daemon.get_address()
+            self.outbox_entries.update({message.message_id: outbox_entry})
+
+            # 2. create shared inbox entry
             inbox_entry = MAILInboxEntrySummary(
                 message_id=message.message_id,
                 sender=message.sender,
                 subject=message.subject,
                 body_size=len(message.body),
-                received_at=datetime.now(UTC),
+                received_at=delivered_time,
                 delivered_by=daemon.get_address(),
             )
             self.inbox_entries.update({inbox_entry.message_id: inbox_entry})
 
-            # 2. update the inbox of each recipient
+            # 3. update the inbox of each recipient
             recipients = message.recipients
             for rec in recipients:
                 try:

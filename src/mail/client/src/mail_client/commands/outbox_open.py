@@ -70,3 +70,4 @@ def _print_text(response_obj: GetOutboxMessageResponse) -> None:
     print(f"Body:\n{message.body}\n")
     print("=== Outbox Entry Data ===")
     print(f"Delivered At: {entry.delivered_at}")
+    print(f"Delivered By: {entry.delivered_by}")
