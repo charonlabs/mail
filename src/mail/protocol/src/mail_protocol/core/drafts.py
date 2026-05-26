@@ -7,6 +7,7 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel
 
 from mail_protocol.core.validators import (
+    validate_mail_address,
     validate_message_body,
     validate_message_subject,
     validate_uuid,
@@ -45,6 +46,7 @@ class MAILDraftsEntry(BaseModel):
 
     draft: MAILDraft
     sent_at: datetime | None = None
+    sent_by: Annotated[str, AfterValidator(validate_mail_address)] | None = None
 
     def summarize(self) -> MAILDraftsEntrySummary:
         """

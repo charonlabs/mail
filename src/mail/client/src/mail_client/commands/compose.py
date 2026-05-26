@@ -73,3 +73,4 @@ def _print_text(response_obj: PostDraftResponse) -> None:
     print(f"Body:\n{draft.body}\n")
     print("=== Entry Data ===")
     print(f"Sent At: {entry.sent_at}")
+    print(f"Sent By: {entry.sent_by}")
