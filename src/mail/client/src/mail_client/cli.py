@@ -11,9 +11,11 @@ from mail_client.commands.inbox_open import cmd_inbox_open
 from mail_client.commands.login import cmd_login
 from mail_client.commands.outbox import cmd_outbox
 from mail_client.commands.outbox_open import cmd_outbox_open
+from mail_client.commands.ping import cmd_ping
 from mail_client.commands.send import cmd_send
 from mail_client.commands.trash import cmd_trash
 from mail_client.commands.trash_open import cmd_trash_open
+from mail_client.commands.whoami import cmd_whoami
 
 
 def main() -> None:
@@ -32,12 +34,34 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(title="commands")
 
+    # command `ping`
+    ping_d = "ping a MAIL server"
+    ping_p = subparsers.add_parser(
+        "ping",
+        aliases=["p"],
+        prog="mail ping",
+        help=ping_d,
+        description=ping_d,
+    )
+    ping_p.set_defaults(func=cmd_ping, cmd="ping")
+
     # command `login`
     login_d = "log into a MAIL server"
     login_p = subparsers.add_parser(
         "login", aliases=["l"], prog="mail login", help=login_d, description=login_d
     )
     login_p.set_defaults(func=cmd_login, cmd="login")
+
+    # command `whoami`
+    whoami_d = "get authenticated user-agent info from a MAIL server"
+    whoami_p = subparsers.add_parser(
+        "whoami",
+        aliases=["me", "id"],
+        prog="mail whoami",
+        help=whoami_d,
+        description=whoami_d,
+    )
+    whoami_p.set_defaults(func=cmd_whoami, cmd="whoami")
 
     # command `compose`
     compose_d = "draft a new MAIL message prior to sending"
