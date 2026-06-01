@@ -7,6 +7,10 @@ from mail_client.commands.agent_delete import cmd_agent_delete
 from mail_client.commands.agent_get import cmd_agent_get
 from mail_client.commands.agent_list import cmd_agent_list
 from mail_client.commands.agent_post import cmd_agent_post
+from mail_client.commands.daemon_delete import cmd_daemon_delete
+from mail_client.commands.daemon_get import cmd_daemon_get
+from mail_client.commands.daemon_list import cmd_daemon_list
+from mail_client.commands.daemon_post import cmd_daemon_post
 from mail_client.commands.login import cmd_login
 from mail_client.commands.ping import cmd_ping
 from mail_client.commands.whoami import cmd_whoami
@@ -114,6 +118,60 @@ def main() -> None:
         "local_address", help="the local address of the agent to delete (agent@swarm)"
     )
     agent_delete_p.set_defaults(func=cmd_agent_delete, cmd="agent-delete")
+
+    #
+    # Daemon helpers
+    #
+    # command `daemon-list`
+    daemon_list_d = "get a list of daemons on the MAIL server"
+    daemon_list_p = subparsers.add_parser(
+        "daemon-list",
+        aliases=["dl"],
+        prog="mail-admin daemon-list",
+        help=daemon_list_d,
+        description=daemon_list_d,
+    )
+    daemon_list_p.set_defaults(func=cmd_daemon_list, cmd="daemon-list")
+
+    # command `daemon-get`
+    daemon_get_d = "get a specific daemon by local address on the MAIL server"
+    daemon_get_p = subparsers.add_parser(
+        "daemon-get",
+        aliases=["dg"],
+        prog="mail-admin daemon-get",
+        help=daemon_get_d,
+        description=daemon_get_d,
+    )
+    daemon_get_p.add_argument(
+        "local_address", help="the local address of the daemon to get (daemon@swarm)"
+    )
+    daemon_get_p.set_defaults(func=cmd_daemon_get, cmd="daemon-get")
+
+    # command `daemon-post`
+    daemon_post_d = (
+        "create a new daemon on the MAIL server with the specified credentials"
+    )
+    daemon_post_p = subparsers.add_parser(
+        "daemon-post",
+        aliases=["dp"],
+        prog="mail-admin daemon-post",
+        help=daemon_post_d,
+        description=daemon_post_d,
+    )
+    daemon_post_p.add_argument("worker_name", help="the name to use for the new daemon")
+    daemon_post_p.set_defaults(func=cmd_daemon_post, cmd="daemon-post")
+
+    # command `daemon-delete`
+    daemon_delete_d = "delete an existing daemon by local address on the MAIL server"
+    daemon_delete_p = subparsers.add_parser(
+        "daemon-delete",
+        aliases=["dd"],
+        prog="mail-admin daemon-delete",
+        help=daemon_delete_d,
+        description=daemon_delete_d,
+    )
+    daemon_delete_p.add_argument("worker_name", help="the name of the daemon to delete")
+    daemon_delete_p.set_defaults(func=cmd_daemon_delete, cmd="daemon-delete")
 
     # parse and handle args
     args = parser.parse_args()

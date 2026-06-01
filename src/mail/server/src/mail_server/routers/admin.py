@@ -171,7 +171,7 @@ async def post_daemon(
 @router.delete(
     "/daemons/{worker_name}",
     summary="Delete an existing MAIL daemon on this server",
-    response_model=DeleteAdminAgentResponse,
+    response_model=DeleteAdminDaemonResponse,
 )
 async def delete_daemon(
     request: Request,
