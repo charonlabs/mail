@@ -103,3 +103,6 @@ async def validate_admin_post_user_request(
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
+
+
+async def validate_auth_password_reset_request()

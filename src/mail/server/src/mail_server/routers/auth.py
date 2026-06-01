@@ -7,7 +7,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
-from mail_protocol.network.responses import GetAuthWhoamiResponse, PostAuthTokenResponse
+from mail_protocol.network.responses import (
+    GetAuthWhoamiResponse,
+    PostAuthPasswordResetResponse,
+    PostAuthTokenResponse,
+)
 
 from mail_server.auth import (
     authenticate_user_agent,
@@ -63,3 +67,14 @@ async def get_token_info(request: Request) -> GetAuthWhoamiResponse:
         user_agent=user_agent,
         metadata={},
     )
+
+
+@router.post(
+    "/password/reset",
+    summary="Reset the user-agent's password",
+    response_model=PostAuthPasswordResetResponse,
+)
+async def post_password_reset(request: Request) -> PostAuthPasswordResetResponse:
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    payload = await validate_auth_password_reset_request(request=request)

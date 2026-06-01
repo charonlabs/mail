@@ -24,6 +24,7 @@ from mail_server.routers import (
     swarms,
     trash,
 )
+from mail_server.utils import get_mail_protocol_version
 
 HOST = os.getenv("MAIL_HOST")
 if HOST is None:
@@ -76,6 +77,7 @@ app = FastAPI(
     summary="Multi-Agent Interface Layer",
     description="An email system for humans and agents alike",
     lifespan=lifespan,
+    version=get_mail_protocol_version(),
 )
 
 # Routers for sub-endpoint groups

@@ -71,6 +71,16 @@ class GetAuthWhoamiResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class PostAuthPasswordResetResponse(BaseModel):
+    """
+    Corresponds to `POST /auth/password/reset`.
+    Contains user's current password and desired new password.
+    """
+
+    current_password: str
+    new_password: str
+
+
 #
 # Swarm endpoints
 #
