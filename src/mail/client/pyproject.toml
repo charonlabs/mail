@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-newman = "mail_client.cli:main"
+mail-admin = "mail_client.admin_panel:main"
 
 [build-system]
 requires = ["hatchling"]
