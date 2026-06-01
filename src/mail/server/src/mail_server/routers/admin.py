@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
+    DeleteAdminAgentResponse,
+    DeleteAdminDaemonResponse,
+    DeleteAdminUserResponse,
     GetAdminAgentResponse,
     GetAdminAgentsResponse,
     GetAdminDaemonResponse,
@@ -52,7 +55,10 @@ async def get_agent(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     agent_address = request.path_params.get("agent_address")
-    result = await backend.admin_get_agent(admin=admin, agent_address=agent_address)
+    try:
+        result = await backend.admin_get_agent(admin=admin, agent_address=agent_address)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="agent not found")
     return GetAdminAgentResponse(
         agent=result,
         metadata={},
@@ -70,8 +76,34 @@ async def post_agent(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_agent_request(request=request)
-    result = await backend.admin_post_agent(admin=admin, payload=payload)
+    try:
+        result = await backend.admin_post_agent(admin=admin, payload=payload)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="agent address already taken")
     return PostAdminAgentResponse(
+        agent=result,
+        metadata={},
+    )
+
+
+@router.delete(
+    "/agents/{agent_address}",
+    summary="Delete an existing MAIL agent on this server",
+    response_model=DeleteAdminAgentResponse,
+)
+async def delete_agent(
+    request: Request,
+) -> DeleteAdminAgentResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    agent_address = request.path_params.get("agent_address")
+    try:
+        result = await backend.admin_delete_agent(
+            admin=admin, agent_address=agent_address
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="agent not found")
+    return DeleteAdminAgentResponse(
         agent=result,
         metadata={},
     )
@@ -105,7 +137,10 @@ async def get_daemon(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     worker_name = request.path_params.get("worker_name")
-    result = await backend.admin_get_daemon(admin=admin, worker_name=worker_name)
+    try:
+        result = await backend.admin_get_daemon(admin=admin, worker_name=worker_name)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="daemon not found")
     return GetAdminDaemonResponse(
         daemon=result,
         metadata={},
@@ -123,8 +158,32 @@ async def post_daemon(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_daemon_request(request=request)
-    result = await backend.admin_post_daemon(admin=admin, payload=payload)
+    try:
+        result = await backend.admin_post_daemon(admin=admin, payload=payload)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="daemon address already taken")
     return PostAdminDaemonResponse(
+        daemon=result,
+        metadata={},
+    )
+
+
+@router.delete(
+    "/daemons/{worker_name}",
+    summary="Delete an existing MAIL daemon on this server",
+    response_model=DeleteAdminAgentResponse,
+)
+async def delete_daemon(
+    request: Request,
+) -> DeleteAdminDaemonResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    worker_name = request.path_params.get("worker_name")
+    try:
+        result = await backend.admin_delete_daemon(admin=admin, worker_name=worker_name)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="daemon not found")
+    return DeleteAdminDaemonResponse(
         daemon=result,
         metadata={},
     )
@@ -158,7 +217,10 @@ async def get_user(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     user_id = request.path_params.get("user_id")
-    result = await backend.admin_get_user(admin=admin, user_id=user_id)
+    try:
+        result = await backend.admin_get_user(admin=admin, user_id=user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="user not found")
     return GetAdminUserResponse(
         user=result,
         metadata={},
@@ -176,8 +238,32 @@ async def post_user(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_user_request(request=request)
-    result = await backend.admin_post_user(admin=admin, payload=payload)
+    try:
+        result = await backend.admin_post_user(admin=admin, payload=payload)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="user address already taken")
     return PostAdminUserResponse(
+        user=result,
+        metadata={},
+    )
+
+
+@router.delete(
+    "/users/{user_id}",
+    summary="Delete an existing MAIL user on this server",
+    response_model=DeleteAdminUserResponse,
+)
+async def delete_user(
+    request: Request,
+) -> DeleteAdminUserResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    user_id = request.path_params.get("user_id")
+    try:
+        result = await backend.admin_delete_user(admin=admin, user_id=user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="user not found")
+    return DeleteAdminUserResponse(
         user=result,
         metadata={},
     )

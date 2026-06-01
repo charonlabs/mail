@@ -331,6 +331,18 @@ class MAILServerBackend(Protocol):
         pass
 
     @abstractmethod
+    async def admin_delete_agent(
+        self,
+        admin: MAILAdmin,
+        agent_address: str,
+    ) -> MAILAgent:
+        """
+        Delete an existing MAIL agent by local address (agent@swarm).
+        """
+
+        pass
+
+    @abstractmethod
     async def admin_get_daemons(
         self,
         admin: MAILAdmin,
@@ -366,6 +378,18 @@ class MAILServerBackend(Protocol):
         pass
 
     @abstractmethod
+    async def admin_delete_daemon(
+        self,
+        admin: MAILAdmin,
+        worker_name: str,
+    ) -> MAILDaemon:
+        """
+        Delete an existing MAIL daemon by worker name.
+        """
+
+        pass
+
+    @abstractmethod
     async def admin_get_users(
         self,
         admin: MAILAdmin,
@@ -396,6 +420,18 @@ class MAILServerBackend(Protocol):
     ) -> MAILUser:
         """
         Create a new MAIL user with the specified credentials.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_delete_user(
+        self,
+        admin: MAILAdmin,
+        user_id: str,
+    ) -> MAILUser:
+        """
+        Delete an existing MAIL user by user ID.
         """
 
         pass

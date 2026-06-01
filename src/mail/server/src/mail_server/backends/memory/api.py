@@ -712,6 +712,29 @@ class MemoryBackend(MAILServerBackend):
 
         return agent
 
+    async def admin_delete_agent(
+        self, admin: MAILAdmin, agent_address: str
+    ) -> MAILAgent:
+        """
+        Delete an existing MAIL agent by local address (agent@swarm).
+        """
+
+        full_address = f"{agent_address}@{self.host}"
+        user_agent = self.user_agents.get(full_address)
+        if user_agent is None:
+            raise ValueError(f"agent not found: {agent_address}")
+        if user_agent.user_agent.ua_type != "agent":
+            raise ValueError(f"invalid agent address: {agent_address}")
+
+        agent = self.user_agents.pop(full_address)
+        if not isinstance(agent.user_agent, MAILAgent):
+            self.user_agents.update(
+                {full_address: agent}
+            )  # re-add if invalid this far in
+            raise ValueError(f"invalid agent address: {agent_address}")
+
+        return agent.user_agent
+
     async def admin_get_daemons(
         self,
         admin: MAILAdmin,
@@ -778,6 +801,29 @@ class MemoryBackend(MAILServerBackend):
 
         return daemon
 
+    async def admin_delete_daemon(
+        self, admin: MAILAdmin, worker_name: str
+    ) -> MAILDaemon:
+        """
+        Delete an existing MAIL daemon by worker name.
+        """
+
+        full_address = f"daemon:{worker_name}@{self.host}"
+        user_agent = self.user_agents.get(full_address)
+        if user_agent is None:
+            raise ValueError(f"daemon not found: {worker_name}")
+        if user_agent.user_agent.ua_type != "daemon":
+            raise ValueError(f"invalid daemon worker name: {worker_name}")
+
+        daemon = self.user_agents.pop(full_address)
+        if not isinstance(daemon.user_agent, MAILDaemon):
+            self.user_agents.update(
+                {full_address: daemon}
+            )  # re-add if invalid this far in
+            raise ValueError(f"invalid daemon worker name: {worker_name}")
+
+        return daemon.user_agent
+
     async def admin_get_users(
         self,
         admin: MAILAdmin,
@@ -843,6 +889,27 @@ class MemoryBackend(MAILServerBackend):
         self.user_agents.update({full_address: ua_in_be})
 
         return user
+
+    async def admin_delete_user(self, admin: MAILAdmin, user_id: str) -> MAILUser:
+        """
+        Delete an existing MAIL user by user ID.
+        """
+
+        full_address = f"user:{user_id}@{self.host}"
+        user_agent = self.user_agents.get(full_address)
+        if user_agent is None:
+            raise ValueError(f"user not found: {user_id}")
+        if user_agent.user_agent.ua_type != "user":
+            raise ValueError(f"invalid user ID: {user_id}")
+
+        user = self.user_agents.pop(full_address)
+        if not isinstance(user.user_agent, MAILUser):
+            self.user_agents.update(
+                {full_address: user}
+            )  # re-add if invalid this far in
+            raise ValueError(f"invalid user ID: {user_id}")
+
+        return user.user_agent
 
     #
     # Message endpoints

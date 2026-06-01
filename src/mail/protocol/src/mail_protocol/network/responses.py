@@ -303,7 +303,7 @@ class GetAdminAgentsResponse(BaseModel):
 
 class GetAdminAgentResponse(BaseModel):
     """
-    Corresponds to `GET /admin/agents/{agent_id}`.
+    Corresponds to `GET /admin/agents/{agent_address}`.
     Contains a specific MAIL agent registered on this server.
     """
 
@@ -315,6 +315,16 @@ class PostAdminAgentResponse(BaseModel):
     """
     Corresponds to `POST /admin/agent`.
     Contains the new MAIL agent registered on this server.
+    """
+
+    agent: MAILAgent
+    metadata: dict[str, Any]
+
+
+class DeleteAdminAgentResponse(BaseModel):
+    """
+    Corresponds to `DELETE /admin/agent/{agent_address}`.
+    Contains a newly-deleted MAIL agent registered on this server.
     """
 
     agent: MAILAgent
@@ -351,6 +361,16 @@ class PostAdminDaemonResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class DeleteAdminDaemonResponse(BaseModel):
+    """
+    Corresponds to `DELETE /admin/daemons/{worker_name}`.
+    Contains a newly-deleted MAIL daemon registered on this server.
+    """
+
+    daemon: MAILDaemon
+    metadata: dict[str, Any]
+
+
 class GetAdminUsersResponse(BaseModel):
     """
     Corresponds to `GET /admin/users`.
@@ -375,6 +395,16 @@ class PostAdminUserResponse(BaseModel):
     """
     Corresponds to `POST /admin/users`.
     Contains the new MAIL user registered on this server.
+    """
+
+    user: MAILUser
+    metadata: dict[str, Any]
+
+
+class DeleteAdminUserResponse(BaseModel):
+    """
+    Corresponds to `DELETE /admin/users/{user_id}`.
+    Contains a newly-deleted MAIL user registered on this server.
     """
 
     user: MAILUser
