@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel
 
 from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
@@ -16,6 +16,11 @@ from mail_protocol.core.user_agents import (
     MAILDaemon,
     MAILUser,
     MAILUserAgent,
+)
+from mail_protocol.core.validators import (
+    validate_daemon_worker_names,
+    validate_local_addresses,
+    validate_user_names,
 )
 
 
@@ -292,7 +297,7 @@ class GetAdminAgentsResponse(BaseModel):
     Contains the list of agents by local address (name@swarm) registered on this MAIL server.
     """
 
-    agents: list[str]
+    agents: Annotated[list[str], AfterValidator(validate_local_addresses)]
     metadata: dict[str, Any]
 
 
@@ -306,13 +311,23 @@ class GetAdminAgentResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class PostAdminAgentResponse(BaseModel):
+    """
+    Corresponds to `POST /admin/agent`.
+    Contains the new MAIL agent registered on this server.
+    """
+
+    agent: MAILAgent
+    metadata: dict[str, Any]
+
+
 class GetAdminDaemonsResponse(BaseModel):
     """
     Corresponds to `GET /admin/daemons`.
     Contains the list of daemons by worker name registered on this MAIL server.
     """
 
-    daemons: list[str]
+    daemons: Annotated[list[str], AfterValidator(validate_daemon_worker_names)]
     metadata: dict[str, Any]
 
 
@@ -326,13 +341,23 @@ class GetAdminDaemonResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class PostAdminDaemonResponse(BaseModel):
+    """
+    Corresponds to `POST /admin/daemons`.
+    Contains the new MAIL daemon registered on this server.
+    """
+
+    daemon: MAILDaemon
+    metadata: dict[str, Any]
+
+
 class GetAdminUsersResponse(BaseModel):
     """
     Corresponds to `GET /admin/users`.
     Contains a list of users by username registered on this MAIL server.
     """
 
-    users: list[str]
+    users: Annotated[list[str], AfterValidator(validate_user_names)]
     metadata: dict[str, Any]
 
 
@@ -340,6 +365,16 @@ class GetAdminUserResponse(BaseModel):
     """
     Corresponds to `GET /admin/users/{user_id}`.
     Contains a specific MAIL user registered on this server.
+    """
+
+    user: MAILUser
+    metadata: dict[str, Any]
+
+
+class PostAdminUserResponse(BaseModel):
+    """
+    Corresponds to `POST /admin/users`.
+    Contains the new MAIL user registered on this server.
     """
 
     user: MAILUser

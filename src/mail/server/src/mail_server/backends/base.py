@@ -19,6 +19,9 @@ from mail_protocol.core.user_agents import (
     MAILUserAgentInBackend,
 )
 from mail_protocol.network.requests import (
+    PostAdminAgentRequest,
+    PostAdminDaemonRequest,
+    PostAdminUserRequest,
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
     PostDraftRequest,
@@ -316,6 +319,18 @@ class MAILServerBackend(Protocol):
         pass
 
     @abstractmethod
+    async def admin_post_agent(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminAgentRequest,
+    ) -> MAILAgent:
+        """
+        Create a new MAIL agent with the specified credentials.
+        """
+
+        pass
+
+    @abstractmethod
     async def admin_get_daemons(
         self,
         admin: MAILAdmin,
@@ -339,6 +354,18 @@ class MAILServerBackend(Protocol):
         pass
 
     @abstractmethod
+    async def admin_post_daemon(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminDaemonRequest,
+    ) -> MAILDaemon:
+        """
+        Cerate a new MAIL daemon with the specified credentials.
+        """
+
+        pass
+
+    @abstractmethod
     async def admin_get_users(
         self,
         admin: MAILAdmin,
@@ -357,6 +384,18 @@ class MAILServerBackend(Protocol):
     ) -> MAILUser:
         """
         Get a specific registered user by user ID.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_post_user(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminUserRequest,
+    ) -> MAILUser:
+        """
+        Create a new MAIL user with the specified credentials.
         """
 
         pass

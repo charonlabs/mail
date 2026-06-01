@@ -9,9 +9,17 @@ from mail_protocol.network.responses import (
     GetAdminDaemonsResponse,
     GetAdminUserResponse,
     GetAdminUsersResponse,
+    PostAdminAgentResponse,
+    PostAdminDaemonResponse,
+    PostAdminUserResponse,
 )
 
 from mail_server.auth import validate_admin
+from mail_server.validators import (
+    validate_admin_post_agent_request,
+    validate_admin_post_daemon_request,
+    validate_admin_post_user_request,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -46,6 +54,24 @@ async def get_agent(
     agent_address = request.path_params.get("agent_address")
     result = await backend.admin_get_agent(admin=admin, agent_address=agent_address)
     return GetAdminAgentResponse(
+        agent=result,
+        metadata={},
+    )
+
+
+@router.post(
+    "/agents",
+    summary="Create a new MAIL agent on this server",
+    response_model=PostAdminAgentResponse,
+)
+async def post_agent(
+    request: Request,
+) -> PostAdminAgentResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    payload = await validate_admin_post_agent_request(request=request)
+    result = await backend.admin_post_agent(admin=admin, payload=payload)
+    return PostAdminAgentResponse(
         agent=result,
         metadata={},
     )
@@ -86,6 +112,24 @@ async def get_daemon(
     )
 
 
+@router.post(
+    "/daemons",
+    summary="Create a new MAIL daemon on this server",
+    response_model=PostAdminDaemonResponse,
+)
+async def post_daemon(
+    request: Request,
+) -> PostAdminDaemonResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    payload = await validate_admin_post_daemon_request(request=request)
+    result = await backend.admin_post_daemon(admin=admin, payload=payload)
+    return PostAdminDaemonResponse(
+        daemon=result,
+        metadata={},
+    )
+
+
 @router.get(
     "/users",
     summary="Get a list of users registered on this server",
@@ -116,6 +160,24 @@ async def get_user(
     user_id = request.path_params.get("user_id")
     result = await backend.admin_get_user(admin=admin, user_id=user_id)
     return GetAdminUserResponse(
+        user=result,
+        metadata={},
+    )
+
+
+@router.post(
+    "/users",
+    summary="Create a new MAIL user on this server",
+    response_model=PostAdminUserResponse,
+)
+async def post_user(
+    request: Request,
+) -> PostAdminUserResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    payload = await validate_admin_post_user_request(request=request)
+    result = await backend.admin_post_user(admin=admin, payload=payload)
+    return PostAdminUserResponse(
         user=result,
         metadata={},
     )

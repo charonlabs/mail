@@ -3,6 +3,9 @@
 
 from fastapi import HTTPException, Request
 from mail_protocol.network.requests import (
+    PostAdminAgentRequest,
+    PostAdminDaemonRequest,
+    PostAdminUserRequest,
     PostDaemonDeliverLocalRequest,
     PostDraftRequest,
     PostDraftSendRequest,
@@ -48,6 +51,54 @@ async def validate_deliver_local_request(
     try:
         body = await request.json()
         return PostDaemonDeliverLocalRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_post_agent_request(
+    request: Request,
+) -> PostAdminAgentRequest:
+    """
+    Ensure that the request payload is valid for `POST /admin/agents`.
+    """
+
+    try:
+        body = await request.json()
+        return PostAdminAgentRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_post_daemon_request(
+    request: Request,
+) -> PostAdminDaemonRequest:
+    """
+    Ensure that the request payload is valid for `POST /admin/daemons`.
+    """
+
+    try:
+        body = await request.json()
+        return PostAdminDaemonRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_post_user_request(
+    request: Request,
+) -> PostAdminUserRequest:
+    """
+    Ensure that the request payload is valid for `POST /admin/users`.
+    """
+
+    try:
+        body = await request.json()
+        return PostAdminUserRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"

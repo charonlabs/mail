@@ -22,12 +22,16 @@ from mail_protocol.core.user_agents import (
     MAILUserAgentInBackend,
 )
 from mail_protocol.network.requests import (
+    PostAdminAgentRequest,
+    PostAdminDaemonRequest,
+    PostAdminUserRequest,
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
     PostDraftRequest,
     PostDraftSendRequest,
 )
 
+from mail_server.auth import get_password_hash
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.fs import (
     load_draft_entries,
@@ -681,6 +685,33 @@ class MemoryBackend(MAILServerBackend):
 
         return agent.user_agent
 
+    async def admin_post_agent(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminAgentRequest,
+    ) -> MAILAgent:
+        """
+        Create a new MAIL agent with the specified credentials.
+        """
+
+        full_address = f"{payload.agent_name}@{payload.swarm_name}@{self.host}"
+        if self.user_agents.get(full_address):
+            raise ValueError(f"agent address already taken: {full_address}")
+
+        agent = MAILAgent(
+            ua_type="agent",
+            name=payload.agent_name,
+            swarm=payload.swarm_name,
+            host=self.host,
+        )
+
+        ua_in_be = MAILUserAgentInBackend(
+            user_agent=agent, hashed_password=get_password_hash(payload.agent_password)
+        )
+        self.user_agents.update({full_address: ua_in_be})
+
+        return agent
+
     async def admin_get_daemons(
         self,
         admin: MAILAdmin,
@@ -720,6 +751,33 @@ class MemoryBackend(MAILServerBackend):
 
         return daemon.user_agent
 
+    async def admin_post_daemon(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminDaemonRequest,
+    ) -> MAILDaemon:
+        """
+        Create a new MAIL daemon with the specified credentials.
+        """
+
+        full_address = f"daemon:{payload.worker_name}@{self.host}"
+        if self.user_agents.get(full_address):
+            raise ValueError(f"daemon address already taken: {full_address}")
+
+        daemon = MAILDaemon(
+            ua_type="daemon",
+            worker_name=payload.worker_name,
+            host=self.host,
+        )
+
+        ua_in_be = MAILUserAgentInBackend(
+            user_agent=daemon,
+            hashed_password=get_password_hash(payload.daemon_password),
+        )
+        self.user_agents.update({full_address: ua_in_be})
+
+        return daemon
+
     async def admin_get_users(
         self,
         admin: MAILAdmin,
@@ -758,6 +816,33 @@ class MemoryBackend(MAILServerBackend):
             raise ValueError(f"invalid user ID: {user_id}")
 
         return user.user_agent
+
+    async def admin_post_user(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminUserRequest,
+    ) -> MAILUser:
+        """
+        Create a new MAIL user with the specified credentials.
+        """
+
+        full_address = f"user:{payload.user_id}@{self.host}"
+        if self.user_agents.get(full_address):
+            raise ValueError(f"user address already taken: {full_address}")
+
+        user = MAILUser(
+            ua_type="user",
+            user_id=payload.user_id,
+            host=self.host,
+        )
+
+        ua_in_be = MAILUserAgentInBackend(
+            user_agent=user,
+            hashed_password=get_password_hash(payload.user_password),
+        )
+        self.user_agents.update({full_address: ua_in_be})
+
+        return user
 
     #
     # Message endpoints

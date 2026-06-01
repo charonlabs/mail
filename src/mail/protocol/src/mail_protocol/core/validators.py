@@ -105,7 +105,7 @@ def validate_mail_address(address: str) -> str:
         prefix, host = at_split
         colon_split = prefix.split(":")
         if len(colon_split) != 2:
-            raise ValueError("invalid MAIL address structure")
+            raise ValueError(f"invalid MAIL address structure: {address}")
         ua_type, ua_id = colon_split
         match ua_type:
             case "user" | "admin":
@@ -117,7 +117,7 @@ def validate_mail_address(address: str) -> str:
         validate_host(host)
 
     else:
-        raise ValueError("invalid MAIL address structure")
+        raise ValueError(f"invalid MAIL address structure: {address}")
 
     return address
 
@@ -129,6 +129,33 @@ def validate_mail_addresses(addresses: list[str]) -> list[str]:
 
     for addr in addresses:
         validate_mail_address(addr)
+
+    return addresses
+
+
+def validate_local_address(address: str) -> str:
+    """
+    Ensure that the given string is a valid MAIL local agent address (agent@swarm).
+    """
+
+    at_split = address.split("@")
+    if len(at_split) != 2:
+        raise ValueError(f"invalid local address structure: {address}")
+
+    agent, swarm = at_split
+    validate_agent_name(agent)
+    validate_swarm_name(swarm)
+
+    return address
+
+
+def validate_local_addresses(addresses: list[str]) -> list[str]:
+    """
+    Ensure that all strings provided are valid local addresses (agent@swarm).
+    """
+
+    for addr in addresses:
+        validate_local_address(addr)
 
     return addresses
 
