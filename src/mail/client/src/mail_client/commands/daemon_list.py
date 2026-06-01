@@ -45,7 +45,7 @@ def cmd_daemon_list(args: Namespace) -> None:
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
-    # 4. Print the JWT
+    # 4. Print the list of daemons
     match args.output:
         case "json":
             _print_json(response_obj)

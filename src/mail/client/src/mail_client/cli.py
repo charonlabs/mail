@@ -3,19 +3,21 @@
 
 import argparse
 
-from mail_client.commands.compose import cmd_compose
-from mail_client.commands.drafts import cmd_drafts
-from mail_client.commands.drafts_open import cmd_drafts_open
-from mail_client.commands.inbox import cmd_inbox
-from mail_client.commands.inbox_open import cmd_inbox_open
-from mail_client.commands.login import cmd_login
-from mail_client.commands.outbox import cmd_outbox
-from mail_client.commands.outbox_open import cmd_outbox_open
-from mail_client.commands.ping import cmd_ping
-from mail_client.commands.send import cmd_send
-from mail_client.commands.trash import cmd_trash
-from mail_client.commands.trash_open import cmd_trash_open
-from mail_client.commands.whoami import cmd_whoami
+from mail_client.commands import (
+    cmd_compose,
+    cmd_drafts,
+    cmd_drafts_open,
+    cmd_inbox,
+    cmd_inbox_open,
+    cmd_login,
+    cmd_outbox,
+    cmd_outbox_open,
+    cmd_ping,
+    cmd_send,
+    cmd_trash,
+    cmd_trash_open,
+    cmd_whoami,
+)
 
 
 def main() -> None:

@@ -6,14 +6,14 @@ from argparse import Namespace
 
 import httpx
 from mail_protocol.network.responses import (
-    GetAdminAgentsResponse,
+    DeleteAdminUserResponse,
 )
 from pydantic import ValidationError
 
 
-def cmd_agent_list(args: Namespace) -> None:
+def cmd_user_delete(args: Namespace) -> None:
     """
-    Log into a MAIL server with provided credentials.
+    Delete a specific user by local address on the MAIL server.
     """
 
     # 1. check that required env vars are provided
@@ -24,9 +24,9 @@ def cmd_agent_list(args: Namespace) -> None:
     if MAIL_TOKEN is None:
         raise ValueError("environment variable MAIL_TOKEN is required")
 
-    # 2. Attempt to get the list of agents on the MAIL server
-    response = httpx.get(
-        url=f"{MAIL_SERVER}/admin/agents",
+    # 2. Attempt to get the specific user by local address on the MAIL server
+    response = httpx.delete(
+        url=f"{MAIL_SERVER}/admin/users/{args.worker_name}",
         headers={
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
             "Authorization": f"Bearer {MAIL_TOKEN}",
@@ -36,16 +36,16 @@ def cmd_agent_list(args: Namespace) -> None:
     # 3. Parse and validate server response
     if response.status_code != 200:
         raise RuntimeError(
-            f"get agents request to {MAIL_SERVER} failed with status code {response.status_code}"
+            f"delete user request to {MAIL_SERVER} failed with status code {response.status_code}"
         )
 
     response_json = response.json()
     try:
-        response_obj = GetAdminAgentsResponse.model_validate(response_json)
+        response_obj = DeleteAdminUserResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
-    # 4. Print the list of agents
+    # 4. Print the specified user
     match args.output:
         case "json":
             _print_json(response_obj)
@@ -53,12 +53,12 @@ def cmd_agent_list(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: GetAdminAgentsResponse) -> None:
+def _print_json(response_obj: DeleteAdminUserResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: GetAdminAgentsResponse) -> None:
-    agent_addresses = response_obj.agents
-    print("=== Local Agents ===")
-    for addr in agent_addresses:
-        print(addr)
+def _print_text(response_obj: DeleteAdminUserResponse) -> None:
+    user = response_obj.user
+    print("=== User ===")
+    print(f"User ID: {user.user_id}")
+    print(f"Host: {user.host}")

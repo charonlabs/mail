@@ -3,17 +3,23 @@
 
 import argparse
 
-from mail_client.commands.agent_delete import cmd_agent_delete
-from mail_client.commands.agent_get import cmd_agent_get
-from mail_client.commands.agent_list import cmd_agent_list
-from mail_client.commands.agent_post import cmd_agent_post
-from mail_client.commands.daemon_delete import cmd_daemon_delete
-from mail_client.commands.daemon_get import cmd_daemon_get
-from mail_client.commands.daemon_list import cmd_daemon_list
-from mail_client.commands.daemon_post import cmd_daemon_post
-from mail_client.commands.login import cmd_login
-from mail_client.commands.ping import cmd_ping
-from mail_client.commands.whoami import cmd_whoami
+from mail_client.commands import (
+    cmd_agent_delete,
+    cmd_agent_get,
+    cmd_agent_list,
+    cmd_agent_post,
+    cmd_daemon_delete,
+    cmd_daemon_get,
+    cmd_daemon_list,
+    cmd_daemon_post,
+    cmd_login,
+    cmd_ping,
+    cmd_user_delete,
+    cmd_user_get,
+    cmd_user_list,
+    cmd_user_post,
+    cmd_whoami,
+)
 
 
 def main() -> None:
@@ -172,6 +178,56 @@ def main() -> None:
     )
     daemon_delete_p.add_argument("worker_name", help="the name of the daemon to delete")
     daemon_delete_p.set_defaults(func=cmd_daemon_delete, cmd="daemon-delete")
+
+    #
+    # User helpers
+    #
+    # command `user-list`
+    user_list_d = "get a list of users on the MAIL server"
+    user_list_p = subparsers.add_parser(
+        "user-list",
+        aliases=["ul"],
+        prog="mail-admin user-list",
+        help=user_list_d,
+        description=user_list_d,
+    )
+    user_list_p.set_defaults(func=cmd_user_list, cmd="user-list")
+
+    # command `user-get`
+    user_get_d = "get a specific user by local address on the MAIL server"
+    user_get_p = subparsers.add_parser(
+        "user-get",
+        aliases=["ug"],
+        prog="mail-admin user-get",
+        help=user_get_d,
+        description=user_get_d,
+    )
+    user_get_p.add_argument("user_id", help="the ID of the user to get")
+    user_get_p.set_defaults(func=cmd_user_get, cmd="user-get")
+
+    # command `user-post`
+    user_post_d = "create a new user on the MAIL server with the specified credentials"
+    user_post_p = subparsers.add_parser(
+        "user-post",
+        aliases=["up"],
+        prog="mail-admin user-post",
+        help=user_post_d,
+        description=user_post_d,
+    )
+    user_post_p.add_argument("user_id", help="the ID to use for the new user")
+    user_post_p.set_defaults(func=cmd_user_post, cmd="user-post")
+
+    # command `user-delete`
+    user_delete_d = "delete an existing user by local address on the MAIL server"
+    user_delete_p = subparsers.add_parser(
+        "user-delete",
+        aliases=["ud"],
+        prog="mail-admin user-delete",
+        help=user_delete_d,
+        description=user_delete_d,
+    )
+    user_delete_p.add_argument("worker_name", help="the name of the user to delete")
+    user_delete_p.set_defaults(func=cmd_user_delete, cmd="user-delete")
 
     # parse and handle args
     args = parser.parse_args()
