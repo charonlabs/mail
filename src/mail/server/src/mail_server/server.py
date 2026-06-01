@@ -2,6 +2,7 @@
 # Copyright (c) 2025-26 Addison Kline
 
 import logging
+import os
 import time
 from argparse import Namespace
 from contextlib import asynccontextmanager
@@ -24,6 +25,10 @@ from mail_server.routers import (
     trash,
 )
 
+HOST = os.getenv("MAIL_HOST")
+if HOST is None:
+    raise RuntimeError("env var MAIL_HOST must be set")
+
 logger = logging.getLogger(__name__)
 
 _backend: MAILServerBackend = None  # type: ignore
@@ -37,7 +42,7 @@ async def _server_startup(app: FastAPI):
     logger.info("server starting up...")
 
     global _backend
-    await _backend.on_server_startup()
+    await _backend.on_server_startup(host=HOST)
     app.state.backend = _backend
 
     app.state.time_start = time.time()
@@ -80,8 +85,8 @@ app.include_router(inbox.router)
 app.include_router(outbox.router)
 app.include_router(drafts.router)
 app.include_router(trash.router)
-app.include_router(admin.router)
 app.include_router(daemon.router)
+app.include_router(admin.router)
 
 
 #

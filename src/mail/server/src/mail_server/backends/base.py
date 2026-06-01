@@ -11,7 +11,10 @@ from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import (
+    MAILAdmin,
+    MAILAgent,
     MAILDaemon,
+    MAILUser,
     MAILUserAgent,
     MAILUserAgentInBackend,
 )
@@ -282,6 +285,78 @@ class MAILServerBackend(Protocol):
     ) -> list[MAILMessageSummary]:
         """
         Deliver MAIL message(s) to local agents sent by remote agents.
+        """
+
+        pass
+
+    #
+    # Admin-only endpoints
+    #
+    @abstractmethod
+    async def admin_get_agents(
+        self,
+        admin: MAILAdmin,
+    ) -> list[str]:
+        """
+        Get a list of agents by local address (agent@swarm) registered on this server.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_get_agent(
+        self,
+        admin: MAILAdmin,
+        agent_address: str,
+    ) -> MAILAgent:
+        """
+        Get a specific registered agent by local address (agent@swarm).
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_get_daemons(
+        self,
+        admin: MAILAdmin,
+    ) -> list[str]:
+        """
+        Get a list of daemons by worker name registered on this server.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_get_daemon(
+        self,
+        admin: MAILAdmin,
+        worker_name: str,
+    ) -> MAILDaemon:
+        """
+        Get a specific registered daemon by worker name.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_get_users(
+        self,
+        admin: MAILAdmin,
+    ) -> list[str]:
+        """
+        Get a list of users by user ID registered on this server.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_get_user(
+        self,
+        admin: MAILAdmin,
+        user_id: str,
+    ) -> MAILUser:
+        """
+        Get a specific registered user by user ID.
         """
 
         pass

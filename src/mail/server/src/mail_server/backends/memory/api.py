@@ -14,7 +14,10 @@ from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import (
+    MAILAdmin,
+    MAILAgent,
     MAILDaemon,
+    MAILUser,
     MAILUserAgent,
     MAILUserAgentInBackend,
 )
@@ -157,6 +160,11 @@ class MemoryBackend(MAILServerBackend):
         A list of all MAIL messages in the delivery buffer.
         Items: message IDs
         """
+
+        host = kwargs.get("host")
+        if host is not None:
+            if isinstance(host, str):
+                self.host = host
 
         logger.info("backend initialization complete")
 
@@ -631,6 +639,125 @@ class MemoryBackend(MAILServerBackend):
         """
 
         raise NotImplementedError
+
+    #
+    # Administrator endpoints
+    #
+    async def admin_get_agents(
+        self,
+        admin: MAILAdmin,
+    ) -> list[str]:
+        """
+        Get a list of agents by local address (agent@swarm) registered on this server.
+        """
+
+        agents = [
+            addr
+            for addr, ua in self.user_agents.items()
+            if ua.user_agent.ua_type == "agent"
+        ]
+        local_addrs: list[str] = []
+        for agent in agents:
+            name, swarm, _host = agent.split("@")
+            local_addrs.append(f"{name}@{swarm}")
+
+        return local_addrs
+
+    async def admin_get_agent(
+        self,
+        admin: MAILAdmin,
+        agent_address: str,
+    ) -> MAILAgent:
+        """
+        Get a specific registered agent by local address (agent@swarm).
+        """
+
+        full_address = f"{agent_address}@{self.host}"
+        agent = self.user_agents.get(full_address)
+        if agent is None:
+            raise ValueError(f"no agent found with address {agent_address}")
+        if agent.user_agent.ua_type != "agent":
+            raise ValueError(f"invalid agent address: {agent_address}")
+
+        return agent.user_agent
+
+    async def admin_get_daemons(
+        self,
+        admin: MAILAdmin,
+    ) -> list[str]:
+        """
+        Get a list of daemons by worker name registered on this server.
+        """
+
+        daemons = [
+            addr
+            for addr, ua in self.user_agents.items()
+            if ua.user_agent.ua_type == "daemon"
+        ]
+        worker_names: list[str] = []
+        for daemon in daemons:
+            name, _host = daemon.split("@")
+            worker_name = name.removeprefix("daemon:")
+            worker_names.append(worker_name)
+
+        return worker_names
+
+    async def admin_get_daemon(
+        self,
+        admin: MAILAdmin,
+        worker_name: str,
+    ) -> MAILDaemon:
+        """
+        Get a specific registered daemon by worker name.
+        """
+
+        full_address = f"daemon:{worker_name}@{self.host}"
+        daemon = self.user_agents.get(full_address)
+        if daemon is None:
+            raise ValueError(f"no daemon found with worker name {worker_name}")
+        if daemon.user_agent.ua_type != "daemon":
+            raise ValueError(f"invalid worker name: {worker_name}")
+
+        return daemon.user_agent
+
+    async def admin_get_users(
+        self,
+        admin: MAILAdmin,
+    ) -> list[str]:
+        """
+        Get a list of users by user ID registed on this server.
+        """
+
+        users = [
+            addr
+            for addr, ua in self.user_agents.items()
+            if ua.user_agent.ua_type == "user"
+        ]
+        user_ids: list[str] = []
+        for user in users:
+            name, _host = user.split("@")
+            user_id = name.removeprefix("user:")
+            user_ids.append(user_id)
+
+        return user_ids
+
+    async def admin_get_user(
+        self,
+        admin: MAILAdmin,
+        user_id: str,
+    ) -> MAILUser:
+        """
+        Get a specific registered user by user ID.
+        """
+
+        full_address = f"user:{user_id}@{self.host}"
+        user = self.user_agents.get(full_address)
+        if user is None:
+            raise ValueError(f"no user found with ID {user_id}")
+        if user.user_agent.ua_type != "user":
+            raise ValueError(f"invalid user ID: {user_id}")
+
+        return user.user_agent
 
     #
     # Message endpoints

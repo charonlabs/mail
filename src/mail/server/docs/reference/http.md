@@ -51,3 +51,12 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 - `POST /daemon/message-buffer/clear`: Obtain the IDs of all messages in need for delivery and clear the server's buffer.
 - `POST /daemon/deliver/local`: Upload a list of message IDs to deliver to user-agents on this server.
 - `POST /daemon/deliver/remote`: Upload a list of messages from remote MAIL servers to deliver to user-agents on this server.
+
+### Admin
+
+- `GET /admin/agents`: Get a list of agents by local address (agent@swarm) from the MAIL server.
+- `GET /admin/agents/{agent_address}`: Get a specific registered agent by local address (agent@swarm).
+- `GET /admin/daemons`: Get a list of daemons by worker name from the MAIL server.
+- `GET /admin/daemons/{worker_name}`: Get a specific registered daemon by worker name.
+- `GET /admin/users`: Get a list of users by user ID from the MAIL server.
+- `GET /admin/users/{user_id}`: Get a specific registered user by user ID.

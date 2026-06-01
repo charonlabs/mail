@@ -8,7 +8,7 @@ import jwt
 from fastapi import HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
-from mail_protocol.core.user_agents import MAILDaemon, MAILUserAgent
+from mail_protocol.core.user_agents import MAILAdmin, MAILDaemon, MAILUserAgent
 from pwdlib import PasswordHash
 from pydantic import BaseModel
 
@@ -110,6 +110,23 @@ async def validate_daemon(backend: MAILServerBackend, request: Request) -> MAILD
     user_agent = await validate_user_agent(backend=backend, request=request)
 
     if not isinstance(user_agent.user_agent, MAILDaemon):
+        raise HTTPException(
+            status_code=401,
+            detail="could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user_agent.user_agent
+
+
+async def validate_admin(backend: MAILServerBackend, request: Request) -> MAILAdmin:
+    """
+    Ensure that the request user-agent is a valid MAIL admin.
+    """
+
+    user_agent = await validate_user_agent(backend=backend, request=request)
+
+    if not isinstance(user_agent.user_agent, MAILAdmin):
         raise HTTPException(
             status_code=401,
             detail="could not validate credentials",

@@ -11,7 +11,12 @@ from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
 from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
-from mail_protocol.core.user_agents import MAILUserAgent
+from mail_protocol.core.user_agents import (
+    MAILAgent,
+    MAILDaemon,
+    MAILUser,
+    MAILUserAgent,
+)
 
 
 #
@@ -275,4 +280,67 @@ class PostDaemonDeliverRemoteResponse(BaseModel):
     """
 
     messages: list[MAILMessageSummary]
+    metadata: dict[str, Any]
+
+
+#
+# Administrator endpoints
+#
+class GetAdminAgentsResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/agents`.
+    Contains the list of agents by local address (name@swarm) registered on this MAIL server.
+    """
+
+    agents: list[str]
+    metadata: dict[str, Any]
+
+
+class GetAdminAgentResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/agents/{agent_id}`.
+    Contains a specific MAIL agent registered on this server.
+    """
+
+    agent: MAILAgent
+    metadata: dict[str, Any]
+
+
+class GetAdminDaemonsResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/daemons`.
+    Contains the list of daemons by worker name registered on this MAIL server.
+    """
+
+    daemons: list[str]
+    metadata: dict[str, Any]
+
+
+class GetAdminDaemonResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/daemons/{worker_name}`.
+    Contains a specific MAIL daemon registered on this server.
+    """
+
+    daemon: MAILDaemon
+    metadata: dict[str, Any]
+
+
+class GetAdminUsersResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/users`.
+    Contains a list of users by username registered on this MAIL server.
+    """
+
+    users: list[str]
+    metadata: dict[str, Any]
+
+
+class GetAdminUserResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/users/{user_id}`.
+    Contains a specific MAIL user registered on this server.
+    """
+
+    user: MAILUser
     metadata: dict[str, Any]
