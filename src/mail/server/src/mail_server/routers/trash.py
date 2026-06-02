@@ -3,10 +3,10 @@
 
 from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
-    DeleteTrashMessageResponse,
-    GetTrashMessageResponse,
-    GetTrashResponse,
-    PostTrashClearResponse,
+    TrashClearPostResponse,
+    TrashGetResponse,
+    TrashMessageDeleteResponse,
+    TrashMessageGetResponse,
 )
 
 from mail.server.src.mail_server.auth import validate_user_agent
@@ -15,9 +15,9 @@ router = APIRouter(prefix="/trash", tags=["trash"])
 
 
 @router.get(
-    "/", summary="Get a list of messages in trash", response_model=GetTrashResponse
+    "/", summary="Get a list of messages in trash", response_model=TrashGetResponse
 )
-async def get_trashed_messages(request: Request) -> GetTrashResponse:
+async def get_trashed_messages(request: Request) -> TrashGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     try:
@@ -28,7 +28,7 @@ async def get_trashed_messages(request: Request) -> GetTrashResponse:
             detail=f"trash box not found for address {user_agent.get_address()}",
         )
 
-    return GetTrashResponse(
+    return TrashGetResponse(
         entries=result,
         metadata={},
     )
@@ -37,9 +37,9 @@ async def get_trashed_messages(request: Request) -> GetTrashResponse:
 @router.get(
     "/{message_id}",
     summary="Get a specific trashed message by ID",
-    response_model=GetTrashMessageResponse,
+    response_model=TrashMessageGetResponse,
 )
-async def get_trashed_message(request: Request) -> GetTrashMessageResponse:
+async def get_trashed_message(request: Request) -> TrashMessageGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     message_id = request.path_params.get("message_id")
@@ -53,7 +53,7 @@ async def get_trashed_message(request: Request) -> GetTrashMessageResponse:
             detail=f"no message with ID {message_id} found in trash box",
         )
 
-    return GetTrashMessageResponse(
+    return TrashMessageGetResponse(
         entry=result,
         metadata={},
     )
@@ -62,16 +62,16 @@ async def get_trashed_message(request: Request) -> GetTrashMessageResponse:
 @router.delete(
     "/{message_id}",
     summary="Delete a specific trashed message by ID",
-    response_model=DeleteTrashMessageResponse,
+    response_model=TrashMessageDeleteResponse,
 )
-async def delete_trashed_message(message_id: str) -> DeleteTrashMessageResponse:
+async def delete_trashed_message(message_id: str) -> TrashMessageDeleteResponse:
     raise NotImplementedError
 
 
 @router.post(
     "/clear",
     summary="Remove all exisisting messages from trash",
-    response_model=PostTrashClearResponse,
+    response_model=TrashClearPostResponse,
 )
-async def post_trash_clear() -> PostTrashClearResponse:
+async def post_trash_clear() -> TrashClearPostResponse:
     raise NotImplementedError

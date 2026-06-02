@@ -27,7 +27,7 @@ from mail_protocol.core.validators import (
 #
 # Top-level endpoints
 #
-class GetRootResponse(BaseModel):
+class RootGetResponse(BaseModel):
     """
     Corresponds to `GET /`.
     Contains basic MAIL server information and metadata.
@@ -38,7 +38,7 @@ class GetRootResponse(BaseModel):
     uptime: float
 
 
-class GetHealthResponse(BaseModel):
+class HealthGetResponse(BaseModel):
     """
     Corresponds to `GET /health`.
     Contains a basic health status message (should be ok).
@@ -50,7 +50,7 @@ class GetHealthResponse(BaseModel):
 #
 # Authentication endpoints
 #
-class PostAuthTokenResponse(BaseModel):
+class AuthTokenPostResponse(BaseModel):
     """
     Corresponds to `POST /auth/token`.
     Contains a temporary JWT and associated metadata.
@@ -61,7 +61,7 @@ class PostAuthTokenResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetAuthWhoamiResponse(BaseModel):
+class AuthWhoamiGetResponse(BaseModel):
     """
     Corresponds to `GET /auth/whoami`.
     Contains current user information and metadata.
@@ -71,7 +71,7 @@ class GetAuthWhoamiResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostAuthPasswordResetResponse(BaseModel):
+class AuthPasswordResetResponse(BaseModel):
     """
     Corresponds to `POST /auth/password/reset`.
     Contains a message indicating operation success.
@@ -83,7 +83,7 @@ class PostAuthPasswordResetResponse(BaseModel):
 #
 # Swarm endpoints
 #
-class GetSwarmsResponse(BaseModel):
+class SwarmsGetResponse(BaseModel):
     """
     Corresponds to `GET /swarms`.
     Contains the list of swarms exposed by this server.
@@ -93,7 +93,7 @@ class GetSwarmsResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetSwarmResponse(BaseModel):
+class SwarmGetResponse(BaseModel):
     """
     Corresponds to `GET /swarms/{swarm_name}`.
     Contains information about the specified existing + exposed MAIL swarm.
@@ -103,7 +103,7 @@ class GetSwarmResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetSwarmHealthResponse(BaseModel):
+class SwarmHealthGetResponse(BaseModel):
     """
     Corresponds to `GET /swarms/{swarm_name}/health`.
     Contains up-to-date, swarm-specific health information.
@@ -112,20 +112,10 @@ class GetSwarmHealthResponse(BaseModel):
     status: Literal["ok"]
 
 
-class GetSwarmReadmeResponse(BaseModel):
-    """
-    Corresponds to `GET /swarms/{swarm_name}/README`.
-    Contains the swarm-specific README file content.
-    """
-
-    readme: str
-    metadata: dict[str, Any]
-
-
 #
 # Inbox endpoints
 #
-class GetInboxResponse(BaseModel):
+class InboxGetResponse(BaseModel):
     """
     Corresponds to `GET /inbox`.
     Contains a list of entries in the user-agent's inbox.
@@ -135,7 +125,7 @@ class GetInboxResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetInboxMessageResponse(BaseModel):
+class InboxMessageGetResponse(BaseModel):
     """
     Corresponds to `GET /inbox/{message_id}`.
     Contains a specific entry by message ID inside the user-agent's inbox.
@@ -145,7 +135,7 @@ class GetInboxMessageResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteInboxMessageResponse(BaseModel):
+class InboxMessageDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /inbox/{message_id}`.
     Contains a specific entry by message ID that was moved from the user-agent's inbox to trash.
@@ -158,7 +148,7 @@ class DeleteInboxMessageResponse(BaseModel):
 #
 # Outbox endpoints
 #
-class GetOutboxResponse(BaseModel):
+class OutboxGetResponse(BaseModel):
     """
     Corresponds to `GET /outbox`.
     Contains a list of entries in the user-agent's outbox.
@@ -168,7 +158,7 @@ class GetOutboxResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetOutboxMessageResponse(BaseModel):
+class OutboxMessageGetResponse(BaseModel):
     """
     Corresponds to `GET /outbox/{message_id}`.
     Contains a specific entry by message ID inside the user-agent's outbox.
@@ -181,7 +171,7 @@ class GetOutboxMessageResponse(BaseModel):
 #
 # Draft endpoints
 #
-class GetDraftsResponse(BaseModel):
+class DraftsGetResponse(BaseModel):
     """
     Corresponds to `GET /drafts`.
     Contains a list of entries in the user-agent's drafts box.
@@ -191,7 +181,7 @@ class GetDraftsResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostDraftResponse(BaseModel):
+class DraftPostResponse(BaseModel):
     """
     Corresponds to `POST /drafts`.
     Contains the new entry in the user-agent's drafts box.
@@ -201,7 +191,7 @@ class PostDraftResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetDraftResponse(BaseModel):
+class DraftGetResponse(BaseModel):
     """
     Corresponds to `GET /drafts/{draft_id}`.
     Contains a specific message draft inside the user-agent's drafts box.
@@ -211,7 +201,7 @@ class GetDraftResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteDraftResponse(BaseModel):
+class DraftDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /drafts/{draft_id}`.
     Contains the specific message draft deleted from the user-agent's drafts box.
@@ -221,7 +211,7 @@ class DeleteDraftResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostDraftSendResponse(BaseModel):
+class DraftSendPostResponse(BaseModel):
     """
     Corresponds to `POST /drafts/{draft_id}/send`.
     Contains the assembled MAIL message to be delivered.
@@ -234,7 +224,7 @@ class PostDraftSendResponse(BaseModel):
 #
 # Trash endpoints
 #
-class GetTrashResponse(BaseModel):
+class TrashGetResponse(BaseModel):
     """
     Corresponds to `GET /trash`.
     Contains a list of messages in the user-agent's trash box.
@@ -244,7 +234,7 @@ class GetTrashResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetTrashMessageResponse(BaseModel):
+class TrashMessageGetResponse(BaseModel):
     """
     Corresponds to `GET /trash/{message_id}`.
     Contains the specific trashed message by ID from the user-agent's trash box.
@@ -254,7 +244,7 @@ class GetTrashMessageResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteTrashMessageResponse(BaseModel):
+class TrashMessageDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /trash/{message_id}`.
     Contains the specific message deleted from the user-agent's trash box.
@@ -264,7 +254,7 @@ class DeleteTrashMessageResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostTrashClearResponse(BaseModel):
+class TrashClearPostResponse(BaseModel):
     """
     Corresponds to `POST /trash/clear`.
     Contains the list of messages deleted from the user-agent's trash box.
@@ -277,7 +267,7 @@ class PostTrashClearResponse(BaseModel):
 #
 # Daemon endpoints
 #
-class PostDaemonMessageBufferClearResponse(BaseModel):
+class DaemonMessageBufferClearResponse(BaseModel):
     """
     Corresponds to `POST /daemon/message-buffer/clear`.
     Contains the IDs of all MAIL messages on the server to be delivered by the daemon.
@@ -287,7 +277,7 @@ class PostDaemonMessageBufferClearResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostDaemonDeliverLocalResponse(BaseModel):
+class DaemonDeliverLocalResponse(BaseModel):
     """
     Corresponds to `POST /daemon/deliver/local`.
     Contains the list of messages successfully delivered to server-local user-agents.
@@ -297,7 +287,7 @@ class PostDaemonDeliverLocalResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostDaemonDeliverRemoteResponse(BaseModel):
+class DaemonDeliverRemoteResponse(BaseModel):
     """
     Corresponds to `POST /daemon/deliver/remote`.
     Contains the list of messages successfully delivered to server-local user-agents.
@@ -310,7 +300,7 @@ class PostDaemonDeliverRemoteResponse(BaseModel):
 #
 # Administrator endpoints
 #
-class GetAdminAgentsResponse(BaseModel):
+class AdminAgentsGetResponse(BaseModel):
     """
     Corresponds to `GET /admin/agents`.
     Contains the list of agents by local address (name@swarm) registered on this MAIL server.
@@ -320,7 +310,7 @@ class GetAdminAgentsResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetAdminAgentResponse(BaseModel):
+class AdminAgentGetResponse(BaseModel):
     """
     Corresponds to `GET /admin/agents/{agent_address}`.
     Contains a specific MAIL agent registered on this server.
@@ -330,7 +320,7 @@ class GetAdminAgentResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostAdminAgentResponse(BaseModel):
+class AdminAgentPostResponse(BaseModel):
     """
     Corresponds to `POST /admin/agent`.
     Contains the new MAIL agent registered on this server.
@@ -340,7 +330,7 @@ class PostAdminAgentResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteAdminAgentResponse(BaseModel):
+class AdminAgentDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /admin/agent/{agent_address}`.
     Contains a newly-deleted MAIL agent registered on this server.
@@ -350,7 +340,7 @@ class DeleteAdminAgentResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetAdminDaemonsResponse(BaseModel):
+class AdminDaemonsGetResponse(BaseModel):
     """
     Corresponds to `GET /admin/daemons`.
     Contains the list of daemons by worker name registered on this MAIL server.
@@ -360,7 +350,7 @@ class GetAdminDaemonsResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetAdminDaemonResponse(BaseModel):
+class AdminDaemonGetResponse(BaseModel):
     """
     Corresponds to `GET /admin/daemons/{worker_name}`.
     Contains a specific MAIL daemon registered on this server.
@@ -370,7 +360,7 @@ class GetAdminDaemonResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostAdminDaemonResponse(BaseModel):
+class AdminDaemonPostResponse(BaseModel):
     """
     Corresponds to `POST /admin/daemons`.
     Contains the new MAIL daemon registered on this server.
@@ -380,7 +370,7 @@ class PostAdminDaemonResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteAdminDaemonResponse(BaseModel):
+class AdminDaemonDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /admin/daemons/{worker_name}`.
     Contains a newly-deleted MAIL daemon registered on this server.
@@ -390,7 +380,7 @@ class DeleteAdminDaemonResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetAdminUsersResponse(BaseModel):
+class AdminUsersGetResponse(BaseModel):
     """
     Corresponds to `GET /admin/users`.
     Contains a list of users by username registered on this MAIL server.
@@ -400,7 +390,7 @@ class GetAdminUsersResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class GetAdminUserResponse(BaseModel):
+class AdminUserGetResponse(BaseModel):
     """
     Corresponds to `GET /admin/users/{user_id}`.
     Contains a specific MAIL user registered on this server.
@@ -410,7 +400,7 @@ class GetAdminUserResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostAdminUserResponse(BaseModel):
+class AdminUserPostResponse(BaseModel):
     """
     Corresponds to `POST /admin/users`.
     Contains the new MAIL user registered on this server.
@@ -420,7 +410,7 @@ class PostAdminUserResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteAdminUserResponse(BaseModel):
+class AdminUserDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /admin/users/{user_id}`.
     Contains a newly-deleted MAIL user registered on this server.
@@ -430,7 +420,7 @@ class DeleteAdminUserResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class PostAdminSwarmResponse(BaseModel):
+class AdminSwarmPostResponse(BaseModel):
     """
     Corresponds to `POST /admin/swarms`.
     Contains info on the newly-created MAIL swarm on this server.
@@ -440,7 +430,7 @@ class PostAdminSwarmResponse(BaseModel):
     metadata: dict[str, Any]
 
 
-class DeleteAdminSwarmResponse(BaseModel):
+class AdminSwarmDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /admin/swarms/{swarm_name}`.
     Contains info on the newly-deleted MAIL swarm on this server.

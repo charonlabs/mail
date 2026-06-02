@@ -3,14 +3,14 @@
 
 from fastapi import HTTPException, Request
 from mail_protocol.network.requests import (
-    PostAdminAgentRequest,
-    PostAdminDaemonRequest,
-    PostAdminSwarmRequest,
-    PostAdminUserRequest,
-    PostAuthPasswordResetRequest,
-    PostDaemonDeliverLocalRequest,
-    PostDraftRequest,
-    PostDraftSendRequest,
+    AdminAgentPostRequest,
+    AdminDaemonPostRequest,
+    AdminSwarmPostRequest,
+    AdminUserPostRequest,
+    AuthPasswordResetRequest,
+    DaemonDeliverLocalRequest,
+    DraftPostRequest,
+    DraftSendPostRequest,
 )
 from pydantic import ValidationError
 
@@ -18,28 +18,28 @@ from pydantic import ValidationError
 #
 # Draft endpoint validators
 #
-async def validate_post_draft_request(request: Request) -> PostDraftRequest:
+async def validate_post_draft_request(request: Request) -> DraftPostRequest:
     """
     Ensure the request payload is valid for `POST /drafts`.
     """
 
     try:
         body = await request.json()
-        return PostDraftRequest.model_validate(body)
+        return DraftPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
 
 
-async def validate_post_draft_send_request(request: Request) -> PostDraftSendRequest:
+async def validate_post_draft_send_request(request: Request) -> DraftSendPostRequest:
     """
     Ensure the request payload is valid for `POST /drafts/{draft_id}/send`.
     """
 
     try:
         body = await request.json()
-        return PostDraftSendRequest.model_validate(body)
+        return DraftSendPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
@@ -51,14 +51,14 @@ async def validate_post_draft_send_request(request: Request) -> PostDraftSendReq
 #
 async def validate_deliver_local_request(
     request: Request,
-) -> PostDaemonDeliverLocalRequest:
+) -> DaemonDeliverLocalRequest:
     """
     Ensure that the request payload is valid for `POST /daemon/deliver/local`.
     """
 
     try:
         body = await request.json()
-        return PostDaemonDeliverLocalRequest.model_validate(body)
+        return DaemonDeliverLocalRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
@@ -70,14 +70,14 @@ async def validate_deliver_local_request(
 #
 async def validate_admin_post_agent_request(
     request: Request,
-) -> PostAdminAgentRequest:
+) -> AdminAgentPostRequest:
     """
     Ensure that the request payload is valid for `POST /admin/agents`.
     """
 
     try:
         body = await request.json()
-        return PostAdminAgentRequest.model_validate(body)
+        return AdminAgentPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
@@ -86,14 +86,14 @@ async def validate_admin_post_agent_request(
 
 async def validate_admin_post_daemon_request(
     request: Request,
-) -> PostAdminDaemonRequest:
+) -> AdminDaemonPostRequest:
     """
     Ensure that the request payload is valid for `POST /admin/daemons`.
     """
 
     try:
         body = await request.json()
-        return PostAdminDaemonRequest.model_validate(body)
+        return AdminDaemonPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
@@ -102,14 +102,14 @@ async def validate_admin_post_daemon_request(
 
 async def validate_admin_post_user_request(
     request: Request,
-) -> PostAdminUserRequest:
+) -> AdminUserPostRequest:
     """
     Ensure that the request payload is valid for `POST /admin/users`.
     """
 
     try:
         body = await request.json()
-        return PostAdminUserRequest.model_validate(body)
+        return AdminUserPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
@@ -118,14 +118,14 @@ async def validate_admin_post_user_request(
 
 async def validate_admin_post_swarm_request(
     request: Request,
-) -> PostAdminSwarmRequest:
+) -> AdminSwarmPostRequest:
     """
     Ensure that the request payload is valid for `POST /admin/swarms`.
     """
 
     try:
         body = await request.json()
-        return PostAdminSwarmRequest.model_validate(body)
+        return AdminSwarmPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
@@ -137,14 +137,14 @@ async def validate_admin_post_swarm_request(
 #
 async def validate_auth_password_reset_request(
     request: Request,
-) -> PostAuthPasswordResetRequest:
+) -> AuthPasswordResetRequest:
     """
     Ensure that the request payload is valid for `POST /auth/password/reset`.
     """
 
     try:
         body = await request.json()
-        return PostAuthPasswordResetRequest.model_validate(body)
+        return AuthPasswordResetRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"

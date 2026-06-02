@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-from mail_protocol.network.responses import GetHealthResponse, GetRootResponse
+from mail_protocol.network.responses import HealthGetResponse, RootGetResponse
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.api import MemoryBackend
@@ -97,11 +97,11 @@ app.include_router(admin.router)
 @app.get(
     "/",
     summary="Get basic server information and metadata",
-    response_model=GetRootResponse,
+    response_model=RootGetResponse,
 )
-async def get_root() -> GetRootResponse:
+async def get_root() -> RootGetResponse:
     uptime = time.time() - app.state.time_start
-    return GetRootResponse(
+    return RootGetResponse(
         protocol_name="mail",
         protocol_version="2.0",
         uptime=uptime,
@@ -111,10 +111,10 @@ async def get_root() -> GetRootResponse:
 @app.get(
     "/health",
     summary="Get the current MAIL server health",
-    response_model=GetHealthResponse,
+    response_model=HealthGetResponse,
 )
-async def get_health() -> GetHealthResponse:
-    return GetHealthResponse(status="ok")
+async def get_health() -> HealthGetResponse:
+    return HealthGetResponse(status="ok")
 
 
 #

@@ -3,10 +3,9 @@
 
 from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
-    GetSwarmHealthResponse,
-    GetSwarmReadmeResponse,
-    GetSwarmResponse,
-    GetSwarmsResponse,
+    SwarmGetResponse,
+    SwarmHealthGetResponse,
+    SwarmsGetResponse,
 )
 
 router = APIRouter(prefix="/swarms", tags=["swarms"])
@@ -15,13 +14,13 @@ router = APIRouter(prefix="/swarms", tags=["swarms"])
 @router.get(
     "/",
     summary="Get basic server information and metadata",
-    response_model=GetSwarmsResponse,
+    response_model=SwarmsGetResponse,
 )
-async def get_swarms(request: Request) -> GetSwarmsResponse:
+async def get_swarms(request: Request) -> SwarmsGetResponse:
     backend = request.app.state.backend
     result = await backend.get_swarms()
 
-    return GetSwarmsResponse(
+    return SwarmsGetResponse(
         swarms=result,
         metadata={},
     )
@@ -30,9 +29,9 @@ async def get_swarms(request: Request) -> GetSwarmsResponse:
 @router.get(
     "/{swarm_name}",
     summary="Get information on a specific swarm by name",
-    response_model=GetSwarmResponse,
+    response_model=SwarmGetResponse,
 )
-async def get_swarm(request: Request) -> GetSwarmResponse:
+async def get_swarm(request: Request) -> SwarmGetResponse:
     backend = request.app.state.backend
     swarm_name = request.path_params.get("swarm_name")
     try:
@@ -42,7 +41,7 @@ async def get_swarm(request: Request) -> GetSwarmResponse:
             status_code=404, detail=f"swarm with name {swarm_name} not found"
         )
 
-    return GetSwarmResponse(
+    return SwarmGetResponse(
         swarm=result,
         metadata={},
     )
@@ -51,9 +50,9 @@ async def get_swarm(request: Request) -> GetSwarmResponse:
 @router.get(
     "/{swarm_name}/health",
     summary="Get health information on a specific swarm by name",
-    response_model=GetSwarmHealthResponse,
+    response_model=SwarmHealthGetResponse,
 )
-async def get_swarm_health(request: Request) -> GetSwarmHealthResponse:
+async def get_swarm_health(request: Request) -> SwarmHealthGetResponse:
     backend = request.app.state.backend
     swarm_name = request.path_params.get("swarm_name")
     try:
@@ -63,4 +62,4 @@ async def get_swarm_health(request: Request) -> GetSwarmHealthResponse:
             status_code=404, detail=f"swarm with name {swarm_name} not found"
         )
 
-    return GetSwarmHealthResponse(status="ok")
+    return SwarmHealthGetResponse(status="ok")

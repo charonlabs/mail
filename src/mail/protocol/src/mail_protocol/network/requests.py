@@ -23,7 +23,7 @@ from mail_protocol.core.validators import (
 #
 # Authentication endpoints
 #
-class PostAuthTokenRequest(BaseModel):
+class AuthTokenPostRequest(BaseModel):
     """
     Submit valid credentials to obtain a JWT for subsequent use.
     """
@@ -31,7 +31,7 @@ class PostAuthTokenRequest(BaseModel):
     pass
 
 
-class PostAuthPasswordResetRequest(BaseModel):
+class AuthPasswordResetRequest(BaseModel):
     """
     Corresponds to `POST /auth/password/reset`.
     Contains user's current password and desired new password.
@@ -44,7 +44,7 @@ class PostAuthPasswordResetRequest(BaseModel):
 #
 # Draft endpoints
 #
-class PostDraftRequest(BaseModel):
+class DraftPostRequest(BaseModel):
     """
     Corresponds to `POST /drafts/`.
     Contains relevant information for creating a new MAIL message draft.
@@ -54,7 +54,7 @@ class PostDraftRequest(BaseModel):
     body: Annotated[str, AfterValidator(validate_message_body)]
 
 
-class PostDraftSendRequest(BaseModel):
+class DraftSendPostRequest(BaseModel):
     """
     Corresponds to `POST /drafts/{draft_id}/send`.
     Contains relevant information for sending an existing draft as a MAIL message.
@@ -66,7 +66,7 @@ class PostDraftSendRequest(BaseModel):
 #
 # Trash endpoints
 #
-class PostTrashClearRequest(BaseModel):
+class TrashClearPostRequest(BaseModel):
     """
     Corresponds to `POST /trash/clear`.
     No body for this endpoint.
@@ -78,7 +78,7 @@ class PostTrashClearRequest(BaseModel):
 #
 # Daemon endpoints
 #
-class PostDaemonDeliverLocalRequest(BaseModel):
+class DaemonDeliverLocalRequest(BaseModel):
     """
     Corresponds to `POST /daemon/deliver/local`.
     Contains a list of local message IDs to deliver to their intended local targets.
@@ -87,7 +87,7 @@ class PostDaemonDeliverLocalRequest(BaseModel):
     message_ids: Annotated[list[str], AfterValidator(validate_uuids)]
 
 
-class PostDaemonDeliverRemoteRequest(BaseModel):
+class DaemonDeliverRemoteRequest(BaseModel):
     """
     Corresponds to `POST /daemon/deliver/remote`.
     Contains a list of remote MAIL messages to deliver to their intended local targets.
@@ -99,7 +99,7 @@ class PostDaemonDeliverRemoteRequest(BaseModel):
 #
 # Administrator endpoints
 #
-class PostAdminAgentRequest(BaseModel):
+class AdminAgentPostRequest(BaseModel):
     """
     Corresponds to `POST /admin/agents`.
     Contains an agent name, swarm, and password to register with.
@@ -110,7 +110,7 @@ class PostAdminAgentRequest(BaseModel):
     agent_password: str
 
 
-class PostAdminDaemonRequest(BaseModel):
+class AdminDaemonPostRequest(BaseModel):
     """
     Corresponds to `POST /admin/daemons`.
     Contains a worker name and password to register with.
@@ -120,7 +120,7 @@ class PostAdminDaemonRequest(BaseModel):
     daemon_password: str
 
 
-class PostAdminUserRequest(BaseModel):
+class AdminUserPostRequest(BaseModel):
     """
     Corresponds to `POST /admin/users`.
     Contains a user ID and password to register with.
@@ -130,9 +130,9 @@ class PostAdminUserRequest(BaseModel):
     user_password: str
 
 
-class PostAdminSwarmRequest(BaseModel):
+class AdminSwarmPostRequest(BaseModel):
     """
-    Corresponds to `DELETE /admin/swarms`.
+    Corresponds to `POST /admin/swarms`.
     Contains basic info necessary for new MAIL swarm creation.
     """
 

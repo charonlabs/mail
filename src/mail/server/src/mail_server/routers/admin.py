@@ -3,20 +3,20 @@
 
 from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
-    DeleteAdminAgentResponse,
-    DeleteAdminDaemonResponse,
-    DeleteAdminSwarmResponse,
-    DeleteAdminUserResponse,
-    GetAdminAgentResponse,
-    GetAdminAgentsResponse,
-    GetAdminDaemonResponse,
-    GetAdminDaemonsResponse,
-    GetAdminUserResponse,
-    GetAdminUsersResponse,
-    PostAdminAgentResponse,
-    PostAdminDaemonResponse,
-    PostAdminSwarmResponse,
-    PostAdminUserResponse,
+    AdminAgentDeleteResponse,
+    AdminAgentGetResponse,
+    AdminAgentPostResponse,
+    AdminAgentsGetResponse,
+    AdminDaemonDeleteResponse,
+    AdminDaemonGetResponse,
+    AdminDaemonPostResponse,
+    AdminDaemonsGetResponse,
+    AdminSwarmDeleteResponse,
+    AdminSwarmPostResponse,
+    AdminUserDeleteResponse,
+    AdminUserGetResponse,
+    AdminUserPostResponse,
+    AdminUsersGetResponse,
 )
 
 from mail_server.auth import validate_admin
@@ -36,16 +36,16 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 @router.get(
     "/agents",
     summary="Get a list of agents registered on this server",
-    response_model=GetAdminAgentsResponse,
+    response_model=AdminAgentsGetResponse,
 )
 async def get_agents(
     request: Request,
-) -> GetAdminAgentsResponse:
+) -> AdminAgentsGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     result = await backend.admin_get_agents(admin=admin)
 
-    return GetAdminAgentsResponse(
+    return AdminAgentsGetResponse(
         agents=result,
         metadata={},
     )
@@ -54,11 +54,11 @@ async def get_agents(
 @router.get(
     "/agents/{agent_address}",
     summary="Get a specific registered agent by local address (name@swarm)",
-    response_model=GetAdminAgentResponse,
+    response_model=AdminAgentGetResponse,
 )
 async def get_agent(
     request: Request,
-) -> GetAdminAgentResponse:
+) -> AdminAgentGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     agent_address = request.path_params.get("agent_address")
@@ -67,7 +67,7 @@ async def get_agent(
     except ValueError:
         raise HTTPException(status_code=404, detail="agent not found")
 
-    return GetAdminAgentResponse(
+    return AdminAgentGetResponse(
         agent=result,
         metadata={},
     )
@@ -76,11 +76,11 @@ async def get_agent(
 @router.post(
     "/agents",
     summary="Create a new MAIL agent on this server",
-    response_model=PostAdminAgentResponse,
+    response_model=AdminAgentPostResponse,
 )
 async def post_agent(
     request: Request,
-) -> PostAdminAgentResponse:
+) -> AdminAgentPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_agent_request(request=request)
@@ -89,7 +89,7 @@ async def post_agent(
     except ValueError:
         raise HTTPException(status_code=409, detail="agent address already taken")
 
-    return PostAdminAgentResponse(
+    return AdminAgentPostResponse(
         agent=result,
         metadata={},
     )
@@ -98,11 +98,11 @@ async def post_agent(
 @router.delete(
     "/agents/{agent_address}",
     summary="Delete an existing MAIL agent on this server",
-    response_model=DeleteAdminAgentResponse,
+    response_model=AdminAgentDeleteResponse,
 )
 async def delete_agent(
     request: Request,
-) -> DeleteAdminAgentResponse:
+) -> AdminAgentDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     agent_address = request.path_params.get("agent_address")
@@ -113,7 +113,7 @@ async def delete_agent(
     except ValueError:
         raise HTTPException(status_code=404, detail="agent not found")
 
-    return DeleteAdminAgentResponse(
+    return AdminAgentDeleteResponse(
         agent=result,
         metadata={},
     )
@@ -125,16 +125,16 @@ async def delete_agent(
 @router.get(
     "/daemons",
     summary="Get a list of daemons registered on this server",
-    response_model=GetAdminDaemonsResponse,
+    response_model=AdminDaemonsGetResponse,
 )
 async def get_daemons(
     request: Request,
-) -> GetAdminDaemonsResponse:
+) -> AdminDaemonsGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     result = await backend.admin_get_daemons(admin=admin)
 
-    return GetAdminDaemonsResponse(
+    return AdminDaemonsGetResponse(
         daemons=result,
         metadata={},
     )
@@ -143,11 +143,11 @@ async def get_daemons(
 @router.get(
     "/daemons/{worker_name}",
     summary="Get a specific registered daemon by worker name",
-    response_model=GetAdminDaemonResponse,
+    response_model=AdminDaemonGetResponse,
 )
 async def get_daemon(
     request: Request,
-) -> GetAdminDaemonResponse:
+) -> AdminDaemonGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     worker_name = request.path_params.get("worker_name")
@@ -156,7 +156,7 @@ async def get_daemon(
     except ValueError:
         raise HTTPException(status_code=404, detail="daemon not found")
 
-    return GetAdminDaemonResponse(
+    return AdminDaemonGetResponse(
         daemon=result,
         metadata={},
     )
@@ -165,11 +165,11 @@ async def get_daemon(
 @router.post(
     "/daemons",
     summary="Create a new MAIL daemon on this server",
-    response_model=PostAdminDaemonResponse,
+    response_model=AdminDaemonPostResponse,
 )
 async def post_daemon(
     request: Request,
-) -> PostAdminDaemonResponse:
+) -> AdminDaemonPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_daemon_request(request=request)
@@ -178,7 +178,7 @@ async def post_daemon(
     except ValueError:
         raise HTTPException(status_code=409, detail="daemon address already taken")
 
-    return PostAdminDaemonResponse(
+    return AdminDaemonPostResponse(
         daemon=result,
         metadata={},
     )
@@ -187,11 +187,11 @@ async def post_daemon(
 @router.delete(
     "/daemons/{worker_name}",
     summary="Delete an existing MAIL daemon on this server",
-    response_model=DeleteAdminDaemonResponse,
+    response_model=AdminDaemonDeleteResponse,
 )
 async def delete_daemon(
     request: Request,
-) -> DeleteAdminDaemonResponse:
+) -> AdminDaemonDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     worker_name = request.path_params.get("worker_name")
@@ -200,7 +200,7 @@ async def delete_daemon(
     except ValueError:
         raise HTTPException(status_code=404, detail="daemon not found")
 
-    return DeleteAdminDaemonResponse(
+    return AdminDaemonDeleteResponse(
         daemon=result,
         metadata={},
     )
@@ -212,16 +212,16 @@ async def delete_daemon(
 @router.get(
     "/users",
     summary="Get a list of users registered on this server",
-    response_model=GetAdminUsersResponse,
+    response_model=AdminUsersGetResponse,
 )
 async def get_users(
     request: Request,
-) -> GetAdminUsersResponse:
+) -> AdminUsersGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     result = await backend.admin_get_users(admin=admin)
 
-    return GetAdminUsersResponse(
+    return AdminUsersGetResponse(
         users=result,
         metadata={},
     )
@@ -230,11 +230,11 @@ async def get_users(
 @router.get(
     "/users/{user_id}",
     summary="Get a specific registered user by ID",
-    response_model=GetAdminUserResponse,
+    response_model=AdminUserGetResponse,
 )
 async def get_user(
     request: Request,
-) -> GetAdminUserResponse:
+) -> AdminUserGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     user_id = request.path_params.get("user_id")
@@ -243,7 +243,7 @@ async def get_user(
     except ValueError:
         raise HTTPException(status_code=404, detail="user not found")
 
-    return GetAdminUserResponse(
+    return AdminUserGetResponse(
         user=result,
         metadata={},
     )
@@ -252,11 +252,11 @@ async def get_user(
 @router.post(
     "/users",
     summary="Create a new MAIL user on this server",
-    response_model=PostAdminUserResponse,
+    response_model=AdminUserPostResponse,
 )
 async def post_user(
     request: Request,
-) -> PostAdminUserResponse:
+) -> AdminUserPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_user_request(request=request)
@@ -265,7 +265,7 @@ async def post_user(
     except ValueError:
         raise HTTPException(status_code=409, detail="user address already taken")
 
-    return PostAdminUserResponse(
+    return AdminUserPostResponse(
         user=result,
         metadata={},
     )
@@ -274,11 +274,11 @@ async def post_user(
 @router.delete(
     "/users/{user_id}",
     summary="Delete an existing MAIL user on this server",
-    response_model=DeleteAdminUserResponse,
+    response_model=AdminUserDeleteResponse,
 )
 async def delete_user(
     request: Request,
-) -> DeleteAdminUserResponse:
+) -> AdminUserDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     user_id = request.path_params.get("user_id")
@@ -287,7 +287,7 @@ async def delete_user(
     except ValueError:
         raise HTTPException(status_code=404, detail="user not found")
 
-    return DeleteAdminUserResponse(
+    return AdminUserDeleteResponse(
         user=result,
         metadata={},
     )
@@ -299,9 +299,9 @@ async def delete_user(
 @router.post(
     "/swarms",
     summary="Create a new MAIL swarm on this server",
-    response_model=PostAdminSwarmResponse,
+    response_model=AdminSwarmPostResponse,
 )
-async def post_swarm(request: Request) -> PostAdminSwarmResponse:
+async def post_swarm(request: Request) -> AdminSwarmPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_post_swarm_request(request=request)
@@ -310,7 +310,7 @@ async def post_swarm(request: Request) -> PostAdminSwarmResponse:
     except ValueError:
         raise HTTPException(status_code=409, detail="swarm name already taken")
 
-    return PostAdminSwarmResponse(
+    return AdminSwarmPostResponse(
         swarm=result,
         metadata={},
     )
@@ -319,9 +319,9 @@ async def post_swarm(request: Request) -> PostAdminSwarmResponse:
 @router.delete(
     "/swarms/{swarm_name}",
     summary="Delete an existing MAIL swarm on this server by name",
-    response_model=DeleteAdminSwarmResponse,
+    response_model=AdminSwarmDeleteResponse,
 )
-async def delete_swarm(request: Request) -> DeleteAdminSwarmResponse:
+async def delete_swarm(request: Request) -> AdminSwarmDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     swarm_name = request.path_params.get("swarm_name")
@@ -330,7 +330,7 @@ async def delete_swarm(request: Request) -> DeleteAdminSwarmResponse:
     except ValueError:
         raise HTTPException(status_code=404, detail="swarm not found")
 
-    return DeleteAdminSwarmResponse(
+    return AdminSwarmDeleteResponse(
         swarm=result,
         metadata={},
     )

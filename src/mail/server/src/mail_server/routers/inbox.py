@@ -3,9 +3,9 @@
 
 from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
-    DeleteInboxMessageResponse,
-    GetInboxMessageResponse,
-    GetInboxResponse,
+    InboxGetResponse,
+    InboxMessageDeleteResponse,
+    InboxMessageGetResponse,
 )
 
 from mail_server.auth import validate_user_agent
@@ -16,9 +16,9 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
 @router.get(
     "/",
     summary="Get a list of inbox messages",
-    response_model=GetInboxResponse,
+    response_model=InboxGetResponse,
 )
-async def get_inbox(request: Request) -> GetInboxResponse:
+async def get_inbox(request: Request) -> InboxGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     try:
@@ -29,7 +29,7 @@ async def get_inbox(request: Request) -> GetInboxResponse:
             detail=f"inbox for address {user_agent.get_address()} not found",
         )
 
-    return GetInboxResponse(
+    return InboxGetResponse(
         entries=result,
         metadata={},
     )
@@ -38,9 +38,9 @@ async def get_inbox(request: Request) -> GetInboxResponse:
 @router.get(
     "/{message_id}",
     summary="Get a specific inbox message by ID",
-    response_model=GetInboxMessageResponse,
+    response_model=InboxMessageGetResponse,
 )
-async def open_inbox_message(request: Request) -> GetInboxMessageResponse:
+async def open_inbox_message(request: Request) -> InboxMessageGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     message_id = request.path_params.get("message_id")
@@ -53,7 +53,7 @@ async def open_inbox_message(request: Request) -> GetInboxMessageResponse:
             status_code=404, detail=f"message with ID {message_id} not found in inbox"
         )
 
-    return GetInboxMessageResponse(
+    return InboxMessageGetResponse(
         entry=result,
         metadata={},
     )
@@ -62,7 +62,7 @@ async def open_inbox_message(request: Request) -> GetInboxMessageResponse:
 @router.delete(
     "/{message_id}",
     summary="Move a specific inbox message by ID to trash",
-    response_model=DeleteInboxMessageResponse,
+    response_model=InboxMessageDeleteResponse,
 )
-async def delete_inbox_message(request: Request) -> DeleteInboxMessageResponse:
+async def delete_inbox_message(request: Request) -> InboxMessageDeleteResponse:
     raise NotImplementedError

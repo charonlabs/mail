@@ -22,15 +22,15 @@ from mail_protocol.core.user_agents import (
     MAILUserAgentInBackend,
 )
 from mail_protocol.network.requests import (
-    PostAdminAgentRequest,
-    PostAdminDaemonRequest,
-    PostAdminSwarmRequest,
-    PostAdminUserRequest,
-    PostAuthPasswordResetRequest,
-    PostDaemonDeliverLocalRequest,
-    PostDaemonDeliverRemoteRequest,
-    PostDraftRequest,
-    PostDraftSendRequest,
+    AdminAgentPostRequest,
+    AdminDaemonPostRequest,
+    AdminSwarmPostRequest,
+    AdminUserPostRequest,
+    AuthPasswordResetRequest,
+    DaemonDeliverLocalRequest,
+    DaemonDeliverRemoteRequest,
+    DraftPostRequest,
+    DraftSendPostRequest,
 )
 
 from mail_server.auth import get_password_hash, verify_password
@@ -217,7 +217,7 @@ class MemoryBackend(MAILServerBackend):
         return address in self.user_agents
 
     async def reset_password(
-        self, user_agent: MAILUserAgent, payload: PostAuthPasswordResetRequest
+        self, user_agent: MAILUserAgent, payload: AuthPasswordResetRequest
     ) -> str:
         """
         Reset the password for an authenticated user-agent.
@@ -412,7 +412,7 @@ class MemoryBackend(MAILServerBackend):
     async def post_draft(
         self,
         user_agent: MAILUserAgent,
-        payload: PostDraftRequest,
+        payload: DraftPostRequest,
     ) -> MAILDraftsEntry:
         """
         Post a new draft for this user-agent.
@@ -473,7 +473,7 @@ class MemoryBackend(MAILServerBackend):
         self,
         user_agent: MAILUserAgent,
         draft_id: str,
-        payload: PostDraftSendRequest,
+        payload: DraftSendPostRequest,
     ) -> MAILMessage:
         """
         Create a MAIL message from an existing user-agent draft and send.
@@ -607,7 +607,7 @@ class MemoryBackend(MAILServerBackend):
     async def daemon_deliver_local(
         self,
         daemon: MAILDaemon,
-        payload: PostDaemonDeliverLocalRequest,
+        payload: DaemonDeliverLocalRequest,
     ) -> list[MAILMessageSummary]:
         """
         Deliver MAIL message(s) to local agents sent by other local agents.
@@ -660,7 +660,7 @@ class MemoryBackend(MAILServerBackend):
     async def daemon_deliver_remote(
         self,
         daemon: MAILDaemon,
-        payload: PostDaemonDeliverRemoteRequest,
+        payload: DaemonDeliverRemoteRequest,
     ) -> list[MAILMessageSummary]:
         """
         Deliver MAIL message(s) to local agents sent by remote agents.
@@ -712,7 +712,7 @@ class MemoryBackend(MAILServerBackend):
     async def admin_post_agent(
         self,
         admin: MAILAdmin,
-        payload: PostAdminAgentRequest,
+        payload: AdminAgentPostRequest,
     ) -> MAILAgent:
         """
         Create a new MAIL agent with the specified credentials.
@@ -801,7 +801,7 @@ class MemoryBackend(MAILServerBackend):
     async def admin_post_daemon(
         self,
         admin: MAILAdmin,
-        payload: PostAdminDaemonRequest,
+        payload: AdminDaemonPostRequest,
     ) -> MAILDaemon:
         """
         Create a new MAIL daemon with the specified credentials.
@@ -890,7 +890,7 @@ class MemoryBackend(MAILServerBackend):
     async def admin_post_user(
         self,
         admin: MAILAdmin,
-        payload: PostAdminUserRequest,
+        payload: AdminUserPostRequest,
     ) -> MAILUser:
         """
         Create a new MAIL user with the specified credentials.
@@ -938,7 +938,7 @@ class MemoryBackend(MAILServerBackend):
     async def admin_post_swarm(
         self,
         admin: MAILAdmin,
-        payload: PostAdminSwarmRequest,
+        payload: AdminSwarmPostRequest,
     ) -> MAILSwarm:
         """
         Create a new MAIL swarm on this server.

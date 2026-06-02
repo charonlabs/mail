@@ -8,9 +8,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from mail_protocol.network.responses import (
-    GetAuthWhoamiResponse,
-    PostAuthPasswordResetResponse,
-    PostAuthTokenResponse,
+    AuthPasswordResetResponse,
+    AuthTokenPostResponse,
+    AuthWhoamiGetResponse,
 )
 
 from mail_server.auth import (
@@ -31,12 +31,12 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 @router.post(
     "/token",
     summary="Log in with an address and password to obtain an access token",
-    response_model=PostAuthTokenResponse,
+    response_model=AuthTokenPostResponse,
 )
 async def create_auth_token(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-) -> PostAuthTokenResponse:
+) -> AuthTokenPostResponse:
     backend = request.app.state.backend
     user_agent = await authenticate_user_agent(
         backend=backend, address=form_data.username, password=form_data.password
@@ -51,7 +51,7 @@ async def create_auth_token(
     access_token = create_access_token(
         data={"sub": user_agent.get_address()}, expires_delta=access_token_expires
     )
-    return PostAuthTokenResponse(
+    return AuthTokenPostResponse(
         access_token=access_token,
         token_type="bearer",
         metadata={},
@@ -59,12 +59,12 @@ async def create_auth_token(
 
 
 @router.get(
-    "/whoami", summary="Get MAIL user-agent info", response_model=GetAuthWhoamiResponse
+    "/whoami", summary="Get MAIL user-agent info", response_model=AuthWhoamiGetResponse
 )
-async def get_token_info(request: Request) -> GetAuthWhoamiResponse:
+async def get_token_info(request: Request) -> AuthWhoamiGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    return GetAuthWhoamiResponse(
+    return AuthWhoamiGetResponse(
         user_agent=user_agent,
         metadata={},
     )
@@ -73,9 +73,9 @@ async def get_token_info(request: Request) -> GetAuthWhoamiResponse:
 @router.post(
     "/password/reset",
     summary="Reset the user-agent's password",
-    response_model=PostAuthPasswordResetResponse,
+    response_model=AuthPasswordResetResponse,
 )
-async def post_password_reset(request: Request) -> PostAuthPasswordResetResponse:
+async def post_password_reset(request: Request) -> AuthPasswordResetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_auth_password_reset_request(request=request)
@@ -89,6 +89,6 @@ async def post_password_reset(request: Request) -> PostAuthPasswordResetResponse
         )
     if result != "success":
         raise HTTPException(status_code=400, detail="could not reset password")
-    return PostAuthPasswordResetResponse(
+    return AuthPasswordResetResponse(
         status=result,
     )

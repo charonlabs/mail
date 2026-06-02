@@ -3,11 +3,11 @@
 
 from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
-    DeleteDraftResponse,
-    GetDraftResponse,
-    GetDraftsResponse,
-    PostDraftResponse,
-    PostDraftSendResponse,
+    DraftDeleteResponse,
+    DraftGetResponse,
+    DraftPostResponse,
+    DraftSendPostResponse,
+    DraftsGetResponse,
 )
 
 from mail_server.auth import validate_user_agent
@@ -20,9 +20,9 @@ router = APIRouter(prefix="/drafts", tags=["drafts"])
 
 
 @router.get(
-    "/", summary="Get a list of message drafts", response_model=GetDraftsResponse
+    "/", summary="Get a list of message drafts", response_model=DraftsGetResponse
 )
-async def get_drafts(request: Request) -> GetDraftsResponse:
+async def get_drafts(request: Request) -> DraftsGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     try:
@@ -32,19 +32,19 @@ async def get_drafts(request: Request) -> GetDraftsResponse:
             status_code=404, detail=f"draft box not found for address {user_agent}"
         )
 
-    return GetDraftsResponse(entries=result, metadata={})
+    return DraftsGetResponse(entries=result, metadata={})
 
 
 @router.post(
-    "/", summary="Create a new message draft", response_model=PostDraftResponse
+    "/", summary="Create a new message draft", response_model=DraftPostResponse
 )
-async def post_draft(request: Request) -> PostDraftResponse:
+async def post_draft(request: Request) -> DraftPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_post_draft_request(request)
     result = await backend.post_draft(user_agent=user_agent, payload=payload)
 
-    return PostDraftResponse(
+    return DraftPostResponse(
         entry=result,
         metadata={},
     )
@@ -53,9 +53,9 @@ async def post_draft(request: Request) -> PostDraftResponse:
 @router.get(
     "/{draft_id}",
     summary="Get a specific message draft by ID",
-    response_model=GetDraftResponse,
+    response_model=DraftGetResponse,
 )
-async def get_draft(request: Request) -> GetDraftResponse:
+async def get_draft(request: Request) -> DraftGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     draft_id = request.path_params.get("draft_id")
@@ -66,7 +66,7 @@ async def get_draft(request: Request) -> GetDraftResponse:
             status_code=404, detail=f"draft with ID {draft_id} not found"
         )
 
-    return GetDraftResponse(
+    return DraftGetResponse(
         entry=result,
         metadata={},
     )
@@ -75,18 +75,18 @@ async def get_draft(request: Request) -> GetDraftResponse:
 @router.delete(
     "/{draft_id}",
     summary="Delete a specific message draft by ID",
-    response_model=DeleteDraftResponse,
+    response_model=DraftDeleteResponse,
 )
-async def delete_draft(request: Request) -> DeleteDraftResponse:
+async def delete_draft(request: Request) -> DraftDeleteResponse:
     raise NotImplementedError
 
 
 @router.post(
     "/{draft_id}/send",
     summary="Send a message from an existing draft by ID",
-    response_model=PostDraftSendResponse,
+    response_model=DraftSendPostResponse,
 )
-async def post_draft_send(request: Request) -> PostDraftSendResponse:
+async def post_draft_send(request: Request) -> DraftSendPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_post_draft_send_request(request)
@@ -94,7 +94,7 @@ async def post_draft_send(request: Request) -> PostDraftSendResponse:
     result = await backend.send_draft(
         user_agent=user_agent, draft_id=draft_id, payload=payload
     )
-    return PostDraftSendResponse(
+    return DraftSendPostResponse(
         message=result,
         metadata={},
     )

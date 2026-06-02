@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Addison Kline
 
 from fastapi import APIRouter, HTTPException, Request
-from mail_protocol.network.responses import GetOutboxMessageResponse, GetOutboxResponse
+from mail_protocol.network.responses import OutboxGetResponse, OutboxMessageGetResponse
 
 from mail_server.auth import validate_user_agent
 
@@ -10,9 +10,9 @@ router = APIRouter(prefix="/outbox", tags=["outbox"])
 
 
 @router.get(
-    "/", summary="Get a list of outbox messages", response_model=GetOutboxResponse
+    "/", summary="Get a list of outbox messages", response_model=OutboxGetResponse
 )
-async def get_outbox(request: Request) -> GetOutboxResponse:
+async def get_outbox(request: Request) -> OutboxGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     try:
@@ -23,7 +23,7 @@ async def get_outbox(request: Request) -> GetOutboxResponse:
             detail=f"outbox for address {user_agent.get_address()} not found",
         )
 
-    return GetOutboxResponse(
+    return OutboxGetResponse(
         entries=result,
         metadata={},
     )
@@ -32,9 +32,9 @@ async def get_outbox(request: Request) -> GetOutboxResponse:
 @router.get(
     "/{message_id}",
     summary="Get a specific outbox message by ID",
-    response_model=GetOutboxMessageResponse,
+    response_model=OutboxMessageGetResponse,
 )
-async def get_outbox_message(request: Request) -> GetOutboxMessageResponse:
+async def get_outbox_message(request: Request) -> OutboxMessageGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     message_id = request.path_params.get("message_id")
@@ -47,7 +47,7 @@ async def get_outbox_message(request: Request) -> GetOutboxMessageResponse:
             status_code=404, detail=f"message with ID {message_id} not found in outbox"
         )
 
-    return GetOutboxMessageResponse(
+    return OutboxMessageGetResponse(
         entry=result,
         metadata={},
     )
