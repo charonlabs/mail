@@ -22,6 +22,7 @@ from mail_protocol.network.requests import (
     PostAdminAgentRequest,
     PostAdminDaemonRequest,
     PostAdminUserRequest,
+    PostAuthPasswordResetRequest,
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
     PostDraftRequest,
@@ -68,6 +69,16 @@ class MAILServerBackend(Protocol):
     async def user_agent_exists(self, address: str) -> bool:
         """
         Return True if the user-agent exists in the backend, otherwise False.
+        """
+
+        pass
+
+    @abstractmethod
+    async def reset_password(
+        self, user_agent: MAILUserAgent, payload: PostAuthPasswordResetRequest
+    ) -> str:
+        """
+        Reset the password for an authenticated user-agent.
         """
 
         pass

@@ -25,13 +25,14 @@ from mail_protocol.network.requests import (
     PostAdminAgentRequest,
     PostAdminDaemonRequest,
     PostAdminUserRequest,
+    PostAuthPasswordResetRequest,
     PostDaemonDeliverLocalRequest,
     PostDaemonDeliverRemoteRequest,
     PostDraftRequest,
     PostDraftSendRequest,
 )
 
-from mail_server.auth import get_password_hash
+from mail_server.auth import get_password_hash, verify_password
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.fs import (
     load_draft_entries,
@@ -213,6 +214,28 @@ class MemoryBackend(MAILServerBackend):
         """
 
         return address in self.user_agents
+
+    async def reset_password(
+        self, user_agent: MAILUserAgent, payload: PostAuthPasswordResetRequest
+    ) -> str:
+        """
+        Reset the password for an authenticated user-agent.
+        """
+
+        ua_addr = user_agent.get_address()
+        ua_in_be = self.user_agents.get(ua_addr)
+        if ua_in_be is None:
+            raise ValueError(f"user-agent with address {ua_addr} not found")
+        pwd_hash = ua_in_be.hashed_password
+        pwd_current = payload.current_password
+        if not verify_password(plain_password=pwd_current, hashed_password=pwd_hash):
+            raise ValueError("incorrect password")
+        pwd_hash_new = get_password_hash(payload.new_password)
+        ua_in_be.hashed_password = pwd_hash_new
+
+        self.user_agents.update({ua_addr: ua_in_be})
+
+        return "success"
 
     #
     # Swarm endpoint handlers

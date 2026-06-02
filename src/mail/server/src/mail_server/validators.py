@@ -6,6 +6,7 @@ from mail_protocol.network.requests import (
     PostAdminAgentRequest,
     PostAdminDaemonRequest,
     PostAdminUserRequest,
+    PostAuthPasswordResetRequest,
     PostDaemonDeliverLocalRequest,
     PostDraftRequest,
     PostDraftSendRequest,
@@ -105,4 +106,17 @@ async def validate_admin_post_user_request(
         )
 
 
-async def validate_auth_password_reset_request()
+async def validate_auth_password_reset_request(
+    request: Request,
+) -> PostAuthPasswordResetRequest:
+    """
+    Ensure that the request payload is valid for `POST /auth/password/reset`.
+    """
+
+    try:
+        body = await request.json()
+        return PostAuthPasswordResetRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )

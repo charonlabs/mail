@@ -18,6 +18,7 @@ from mail_server.auth import (
     create_access_token,
     validate_user_agent,
 )
+from mail_server.validators import validate_auth_password_reset_request
 
 ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("MAIL_JWT_EXPIRE_MINUTES")
 if ACCESS_TOKEN_EXPIRE_MINUTES is None:
@@ -78,3 +79,16 @@ async def post_password_reset(request: Request) -> PostAuthPasswordResetResponse
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_auth_password_reset_request(request=request)
+    try:
+        result = await backend.reset_password(user_agent=user_agent, payload=payload)
+    except ValueError:
+        raise HTTPException(
+            status_code=401,
+            detail="incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if result != "success":
+        raise HTTPException(status_code=400, detail="could not reset password")
+    return PostAuthPasswordResetResponse(
+        status=result,
+    )

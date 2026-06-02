@@ -92,7 +92,7 @@ async def validate_user_agent(
         address = payload.get("sub")
         if address is None:
             raise credentials_exception
-        token_data = TokenData(address=address)
+        _token_data = TokenData(address=address)
     except InvalidTokenError:
         raise credentials_exception
     user_agent = await backend.get_user_agent(address)

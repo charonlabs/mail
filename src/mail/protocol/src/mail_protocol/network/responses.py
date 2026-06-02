@@ -74,11 +74,10 @@ class GetAuthWhoamiResponse(BaseModel):
 class PostAuthPasswordResetResponse(BaseModel):
     """
     Corresponds to `POST /auth/password/reset`.
-    Contains user's current password and desired new password.
+    Contains a message indicating operation success.
     """
 
-    current_password: str
-    new_password: str
+    status: Literal["success"]
 
 
 #
