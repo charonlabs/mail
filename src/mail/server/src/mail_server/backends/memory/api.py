@@ -24,6 +24,7 @@ from mail_protocol.core.user_agents import (
 from mail_protocol.network.requests import (
     PostAdminAgentRequest,
     PostAdminDaemonRequest,
+    PostAdminSwarmRequest,
     PostAdminUserRequest,
     PostAuthPasswordResetRequest,
     PostDaemonDeliverLocalRequest,
@@ -933,6 +934,48 @@ class MemoryBackend(MAILServerBackend):
             raise ValueError(f"invalid user ID: {user_id}")
 
         return user.user_agent
+
+    async def admin_post_swarm(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminSwarmRequest,
+    ) -> MAILSwarm:
+        """
+        Create a new MAIL swarm on this server.
+        """
+
+        swarm_name = payload.name
+        existing_swarm = self.swarms.get(swarm_name)
+        if existing_swarm is not None:
+            raise ValueError(f"swarm with name {swarm_name} already exists")
+
+        new_swarm = MAILSwarm(
+            name=swarm_name,
+            description=payload.description,
+            keywords=payload.keywords,
+            agents=[],
+            metadata={},
+        )
+
+        self.swarms.update({swarm_name: new_swarm})
+
+        return new_swarm
+
+    async def admin_delete_swarm(
+        self,
+        admin: MAILAdmin,
+        swarm_name: str,
+    ) -> MAILSwarm:
+        """
+        Delete an existing MAIL swarm on this server by name.
+        """
+
+        existing_swarm = self.swarms.get(swarm_name)
+        if existing_swarm is None:
+            raise ValueError(f"swarm with name {swarm_name} not found")
+
+        swarm = self.swarms.pop(swarm_name)
+        return swarm
 
     #
     # Message endpoints

@@ -12,6 +12,8 @@ from mail_protocol.core.validators import (
     validate_mail_addresses,
     validate_message_body,
     validate_message_subject,
+    validate_swarm_description,
+    validate_swarm_keywords,
     validate_swarm_name,
     validate_user_name,
     validate_uuids,
@@ -126,3 +128,14 @@ class PostAdminUserRequest(BaseModel):
 
     user_id: Annotated[str, AfterValidator(validate_user_name)]
     user_password: str
+
+
+class PostAdminSwarmRequest(BaseModel):
+    """
+    Corresponds to `DELETE /admin/swarms`.
+    Contains basic info necessary for new MAIL swarm creation.
+    """
+
+    name: Annotated[str, AfterValidator(validate_swarm_name)]
+    description: Annotated[str, AfterValidator(validate_swarm_description)]
+    keywords: Annotated[list[str], AfterValidator(validate_swarm_keywords)]

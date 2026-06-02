@@ -21,6 +21,7 @@ from mail_protocol.core.user_agents import (
 from mail_protocol.network.requests import (
     PostAdminAgentRequest,
     PostAdminDaemonRequest,
+    PostAdminSwarmRequest,
     PostAdminUserRequest,
     PostAuthPasswordResetRequest,
     PostDaemonDeliverLocalRequest,
@@ -443,6 +444,30 @@ class MAILServerBackend(Protocol):
     ) -> MAILUser:
         """
         Delete an existing MAIL user by user ID.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_post_swarm(
+        self,
+        admin: MAILAdmin,
+        payload: PostAdminSwarmRequest,
+    ) -> MAILSwarm:
+        """
+        Create a new MAIL swarm on this server.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_delete_swarm(
+        self,
+        admin: MAILAdmin,
+        swarm_name: str,
+    ) -> MAILSwarm:
+        """
+        Delete an existing MAIL swarm on this server by name.
         """
 
         pass

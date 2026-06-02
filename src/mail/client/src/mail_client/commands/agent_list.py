@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 def cmd_agent_list(args: Namespace) -> None:
     """
-    Log into a MAIL server with provided credentials.
+    Get the list of agents registered on this MAIL server.
     """
 
     # 1. check that required env vars are provided

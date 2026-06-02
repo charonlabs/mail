@@ -14,6 +14,8 @@ from mail_client.commands import (
     cmd_daemon_post,
     cmd_login,
     cmd_ping,
+    cmd_swarm_delete,
+    cmd_swarm_post,
     cmd_user_delete,
     cmd_user_get,
     cmd_user_list,
@@ -228,6 +230,45 @@ def main() -> None:
     )
     user_delete_p.add_argument("worker_name", help="the name of the user to delete")
     user_delete_p.set_defaults(func=cmd_user_delete, cmd="user-delete")
+
+    #
+    # Swarm helpers
+    #
+    # command `swarm-post`
+    swarm_post_d = "create a new swarm on the MAIL server with the specified info"
+    swarm_post_p = subparsers.add_parser(
+        "swarm-post",
+        aliases=["sp"],
+        prog="mail-admin swarm-post",
+        help=swarm_post_d,
+        description=swarm_post_d,
+    )
+    swarm_post_p.add_argument("name", help="the name of the swarm to create")
+    swarm_post_p.add_argument(
+        "description", help="the description to use for the new swarm"
+    )
+    swarm_post_p.add_argument(
+        "-k",
+        "--keywords",
+        nargs="+",
+        default=[],
+        help="the keywords to use for this swarm (default: %(default)s)",
+    )
+    swarm_post_p.set_defaults(func=cmd_swarm_post, cmd="swarm-post")
+
+    # command `swarm-delete`
+    swarm_delete_d = "delete an existing swarm by name from the MAIL server"
+    swarm_delete_p = subparsers.add_parser(
+        "swarm-delete",
+        aliases=["sd"],
+        prog="mail-admin swarm-delete",
+        help=swarm_delete_d,
+        description=swarm_delete_d,
+    )
+    swarm_delete_p.add_argument(
+        "swarm_name", help="the name of the swarm on the server to delete"
+    )
+    swarm_delete_p.set_defaults(func=cmd_swarm_delete, cmd="swarm-delete")
 
     # parse and handle args
     args = parser.parse_args()

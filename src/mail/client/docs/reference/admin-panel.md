@@ -29,7 +29,12 @@ mail-admin [option]... <command> [argument]...
 - `user-list`: Get a list of users registered on the MAIL server.
 - `user-get`: Get a specific user by ID on the MAIL server.
 - `user-post`: Create a new user with the specified credentials on the MAIL server.
-- `user-delete`: Delete an existing by ID on the MAIL server.
+- `user-delete`: Delete an existing user by ID on the MAIL server.
+
+### Swarm Operations
+
+- `swarm-post`: Create a new swarm with the specified info on the MAIL server.
+- `swarm-delete` Delete an existing swarm by name on the MAIL server.
 
 ### Utility Commands (same as main CLI)
 

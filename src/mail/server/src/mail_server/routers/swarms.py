@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Request
-from mail_protocol.core.user_agents import MAILUserAgent
+from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
     GetSwarmHealthResponse,
+    GetSwarmReadmeResponse,
     GetSwarmResponse,
     GetSwarmsResponse,
 )
@@ -22,6 +20,7 @@ router = APIRouter(prefix="/swarms", tags=["swarms"])
 async def get_swarms(request: Request) -> GetSwarmsResponse:
     backend = request.app.state.backend
     result = await backend.get_swarms()
+
     return GetSwarmsResponse(
         swarms=result,
         metadata={},
@@ -38,14 +37,15 @@ async def get_swarm(request: Request) -> GetSwarmResponse:
     swarm_name = request.path_params.get("swarm_name")
     try:
         result = await backend.get_swarm(swarm_name=swarm_name)
-        return GetSwarmResponse(
-            swarm=result,
-            metadata={},
-        )
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"swarm with name {swarm_name} not found"
         )
+
+    return GetSwarmResponse(
+        swarm=result,
+        metadata={},
+    )
 
 
 @router.get(
@@ -58,11 +58,9 @@ async def get_swarm_health(request: Request) -> GetSwarmHealthResponse:
     swarm_name = request.path_params.get("swarm_name")
     try:
         result = await backend.get_swarm_health(swarm_name=swarm_name)
-        return GetSwarmHealthResponse(
-            swarm=result,
-            metadata={},
-        )
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"swarm with name {swarm_name} not found"
         )
+
+    return GetSwarmHealthResponse(status="ok")

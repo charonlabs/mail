@@ -5,6 +5,7 @@ from fastapi import HTTPException, Request
 from mail_protocol.network.requests import (
     PostAdminAgentRequest,
     PostAdminDaemonRequest,
+    PostAdminSwarmRequest,
     PostAdminUserRequest,
     PostAuthPasswordResetRequest,
     PostDaemonDeliverLocalRequest,
@@ -14,6 +15,9 @@ from mail_protocol.network.requests import (
 from pydantic import ValidationError
 
 
+#
+# Draft endpoint validators
+#
 async def validate_post_draft_request(request: Request) -> PostDraftRequest:
     """
     Ensure the request payload is valid for `POST /drafts`.
@@ -42,6 +46,9 @@ async def validate_post_draft_send_request(request: Request) -> PostDraftSendReq
         )
 
 
+#
+# Daemon endpoint validators
+#
 async def validate_deliver_local_request(
     request: Request,
 ) -> PostDaemonDeliverLocalRequest:
@@ -58,6 +65,9 @@ async def validate_deliver_local_request(
         )
 
 
+#
+# Admin endpoint validators
+#
 async def validate_admin_post_agent_request(
     request: Request,
 ) -> PostAdminAgentRequest:
@@ -106,6 +116,25 @@ async def validate_admin_post_user_request(
         )
 
 
+async def validate_admin_post_swarm_request(
+    request: Request,
+) -> PostAdminSwarmRequest:
+    """
+    Ensure that the request payload is valid for `POST /admin/swarms`.
+    """
+
+    try:
+        body = await request.json()
+        return PostAdminSwarmRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+#
+# Auth endpoint validators
+#
 async def validate_auth_password_reset_request(
     request: Request,
 ) -> PostAuthPasswordResetRequest:

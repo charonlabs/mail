@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
     DeleteAdminAgentResponse,
     DeleteAdminDaemonResponse,
+    DeleteAdminSwarmResponse,
     DeleteAdminUserResponse,
     GetAdminAgentResponse,
     GetAdminAgentsResponse,
@@ -14,6 +15,7 @@ from mail_protocol.network.responses import (
     GetAdminUsersResponse,
     PostAdminAgentResponse,
     PostAdminDaemonResponse,
+    PostAdminSwarmResponse,
     PostAdminUserResponse,
 )
 
@@ -21,12 +23,16 @@ from mail_server.auth import validate_admin
 from mail_server.validators import (
     validate_admin_post_agent_request,
     validate_admin_post_daemon_request,
+    validate_admin_post_swarm_request,
     validate_admin_post_user_request,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+#
+# Agent endpoints
+#
 @router.get(
     "/agents",
     summary="Get a list of agents registered on this server",
@@ -38,6 +44,7 @@ async def get_agents(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     result = await backend.admin_get_agents(admin=admin)
+
     return GetAdminAgentsResponse(
         agents=result,
         metadata={},
@@ -59,6 +66,7 @@ async def get_agent(
         result = await backend.admin_get_agent(admin=admin, agent_address=agent_address)
     except ValueError:
         raise HTTPException(status_code=404, detail="agent not found")
+
     return GetAdminAgentResponse(
         agent=result,
         metadata={},
@@ -80,6 +88,7 @@ async def post_agent(
         result = await backend.admin_post_agent(admin=admin, payload=payload)
     except ValueError:
         raise HTTPException(status_code=409, detail="agent address already taken")
+
     return PostAdminAgentResponse(
         agent=result,
         metadata={},
@@ -103,12 +112,16 @@ async def delete_agent(
         )
     except ValueError:
         raise HTTPException(status_code=404, detail="agent not found")
+
     return DeleteAdminAgentResponse(
         agent=result,
         metadata={},
     )
 
 
+#
+# Daemon endpoints
+#
 @router.get(
     "/daemons",
     summary="Get a list of daemons registered on this server",
@@ -120,6 +133,7 @@ async def get_daemons(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     result = await backend.admin_get_daemons(admin=admin)
+
     return GetAdminDaemonsResponse(
         daemons=result,
         metadata={},
@@ -141,6 +155,7 @@ async def get_daemon(
         result = await backend.admin_get_daemon(admin=admin, worker_name=worker_name)
     except ValueError:
         raise HTTPException(status_code=404, detail="daemon not found")
+
     return GetAdminDaemonResponse(
         daemon=result,
         metadata={},
@@ -162,6 +177,7 @@ async def post_daemon(
         result = await backend.admin_post_daemon(admin=admin, payload=payload)
     except ValueError:
         raise HTTPException(status_code=409, detail="daemon address already taken")
+
     return PostAdminDaemonResponse(
         daemon=result,
         metadata={},
@@ -183,12 +199,16 @@ async def delete_daemon(
         result = await backend.admin_delete_daemon(admin=admin, worker_name=worker_name)
     except ValueError:
         raise HTTPException(status_code=404, detail="daemon not found")
+
     return DeleteAdminDaemonResponse(
         daemon=result,
         metadata={},
     )
 
 
+#
+# User endpoints
+#
 @router.get(
     "/users",
     summary="Get a list of users registered on this server",
@@ -200,6 +220,7 @@ async def get_users(
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     result = await backend.admin_get_users(admin=admin)
+
     return GetAdminUsersResponse(
         users=result,
         metadata={},
@@ -221,6 +242,7 @@ async def get_user(
         result = await backend.admin_get_user(admin=admin, user_id=user_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="user not found")
+
     return GetAdminUserResponse(
         user=result,
         metadata={},
@@ -242,6 +264,7 @@ async def post_user(
         result = await backend.admin_post_user(admin=admin, payload=payload)
     except ValueError:
         raise HTTPException(status_code=409, detail="user address already taken")
+
     return PostAdminUserResponse(
         user=result,
         metadata={},
@@ -263,7 +286,51 @@ async def delete_user(
         result = await backend.admin_delete_user(admin=admin, user_id=user_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="user not found")
+
     return DeleteAdminUserResponse(
         user=result,
+        metadata={},
+    )
+
+
+#
+# Swarm endpoints
+#
+@router.post(
+    "/swarms",
+    summary="Create a new MAIL swarm on this server",
+    response_model=PostAdminSwarmResponse,
+)
+async def post_swarm(request: Request) -> PostAdminSwarmResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    payload = await validate_admin_post_swarm_request(request=request)
+    try:
+        result = await backend.admin_post_swarm(admin=admin, payload=payload)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="swarm name already taken")
+
+    return PostAdminSwarmResponse(
+        swarm=result,
+        metadata={},
+    )
+
+
+@router.delete(
+    "/swarms/{swarm_name}",
+    summary="Delete an existing MAIL swarm on this server by name",
+    response_model=DeleteAdminSwarmResponse,
+)
+async def delete_swarm(request: Request) -> DeleteAdminSwarmResponse:
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    swarm_name = request.path_params.get("swarm_name")
+    try:
+        result = await backend.admin_delete_swarm(admin=admin, swarm_name=swarm_name)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="swarm not found")
+
+    return DeleteAdminSwarmResponse(
+        swarm=result,
         metadata={},
     )

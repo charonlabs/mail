@@ -16,6 +16,10 @@ from .outbox import cmd_outbox
 from .outbox_open import cmd_outbox_open
 from .ping import cmd_ping
 from .send import cmd_send
+from .swarm_delete import cmd_swarm_delete
+from .swarm_get import cmd_swarm_get
+from .swarm_list import cmd_swarm_list
+from .swarm_post import cmd_swarm_post
 from .trash import cmd_trash
 from .trash_open import cmd_trash_open
 from .user_delete import cmd_user_delete
@@ -43,6 +47,10 @@ __all__ = [
     "cmd_outbox_open",
     "cmd_ping",
     "cmd_send",
+    "cmd_swarm_delete",
+    "cmd_swarm_get",
+    "cmd_swarm_list",
+    "cmd_swarm_post",
     "cmd_trash",
     "cmd_trash_open",
     "cmd_user_delete",

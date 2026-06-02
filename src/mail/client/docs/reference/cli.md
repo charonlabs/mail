@@ -23,6 +23,11 @@ mail [option]... <command> [argument]...
 - `trash`: Open your MAIL trash box.
 - `trash-open`: Open a specific message by ID in your MAIL trash box.
 
+### Swarm Helpers
+
+- `swarm-list`: List the MAIL swarms on this server.
+- `swarm-get`: Get a specific MAIL swarm by name on this server.
+
 ### Utility Commands
 
 - `ping`: Attempt to ping the MAIL server at the URL provided.

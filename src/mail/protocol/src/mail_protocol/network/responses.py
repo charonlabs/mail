@@ -112,6 +112,16 @@ class GetSwarmHealthResponse(BaseModel):
     status: Literal["ok"]
 
 
+class GetSwarmReadmeResponse(BaseModel):
+    """
+    Corresponds to `GET /swarms/{swarm_name}/README`.
+    Contains the swarm-specific README file content.
+    """
+
+    readme: str
+    metadata: dict[str, Any]
+
+
 #
 # Inbox endpoints
 #
@@ -417,4 +427,24 @@ class DeleteAdminUserResponse(BaseModel):
     """
 
     user: MAILUser
+    metadata: dict[str, Any]
+
+
+class PostAdminSwarmResponse(BaseModel):
+    """
+    Corresponds to `POST /admin/swarms`.
+    Contains info on the newly-created MAIL swarm on this server.
+    """
+
+    swarm: MAILSwarm
+    metadata: dict[str, Any]
+
+
+class DeleteAdminSwarmResponse(BaseModel):
+    """
+    Corresponds to `DELETE /admin/swarms/{swarm_name}`.
+    Contains info on the newly-deleted MAIL swarm on this server.
+    """
+
+    swarm: MAILSwarm
     metadata: dict[str, Any]

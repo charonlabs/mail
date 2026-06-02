@@ -14,6 +14,8 @@ from mail_client.commands import (
     cmd_outbox_open,
     cmd_ping,
     cmd_send,
+    cmd_swarm_get,
+    cmd_swarm_list,
     cmd_trash,
     cmd_trash_open,
     cmd_whoami,
@@ -36,6 +38,9 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(title="commands")
 
+    #
+    # Utility commands
+    #
     # command `ping`
     ping_d = "ping a MAIL server"
     ping_p = subparsers.add_parser(
@@ -65,6 +70,9 @@ def main() -> None:
     )
     whoami_p.set_defaults(func=cmd_whoami, cmd="whoami")
 
+    #
+    # Core MAIL operations
+    #
     # command `compose`
     compose_d = "draft a new MAIL message prior to sending"
     compose_p = subparsers.add_parser(
@@ -174,6 +182,32 @@ def main() -> None:
         "message_id", help="the ID of the message in trash to open"
     )
     trash_open_p.set_defaults(func=cmd_trash_open, cmd="trash-open")
+
+    #
+    # Swarm helpers
+    #
+    # command `swarm-list`
+    swarm_list_d = "get the swarms on this MAIL server"
+    swarm_list_p = subparsers.add_parser(
+        "swarm-list",
+        aliases=["swarms", "sl"],
+        prog="mail swarm-list",
+        help=swarm_list_d,
+        description=swarm_list_d,
+    )
+    swarm_list_p.set_defaults(func=cmd_swarm_list, cmd="swarm-list")
+
+    # command `swarm-get`
+    swarm_get_d = "get a specific swarm by name on this MAIL server"
+    swarm_get_p = subparsers.add_parser(
+        "swarm-get",
+        aliases=["swarm", "sg"],
+        prog="mail swarm-get",
+        help=swarm_get_d,
+        description=swarm_get_d,
+    )
+    swarm_get_p.add_argument("swarm_name", help="the name of the MAIL swarm to get")
+    swarm_get_p.set_defaults(func=cmd_swarm_get, cmd="swarm-get")
 
     # parse and handle args
     args = parser.parse_args()
