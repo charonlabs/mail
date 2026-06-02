@@ -25,7 +25,7 @@ from mail_client.commands import (
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="mail-admin",
-        usage="mail-admin <command> [argument]...",
+        usage="mail-admin [option]... <command> [argument]...",
         description="A Python CLI client admin panel for the Multi-Agent Interface Layer (MAIL)",
         epilog="Copyright (c) 2026 Addison Kline",
     )
@@ -168,7 +168,7 @@ def main() -> None:
     daemon_post_p.set_defaults(func=cmd_daemon_post, cmd="daemon-post")
 
     # command `daemon-delete`
-    daemon_delete_d = "delete an existing daemon by local address on the MAIL server"
+    daemon_delete_d = "delete an existing daemon by worker name on the MAIL server"
     daemon_delete_p = subparsers.add_parser(
         "daemon-delete",
         aliases=["dd"],
@@ -194,7 +194,7 @@ def main() -> None:
     user_list_p.set_defaults(func=cmd_user_list, cmd="user-list")
 
     # command `user-get`
-    user_get_d = "get a specific user by local address on the MAIL server"
+    user_get_d = "get a specific user by user ID on the MAIL server"
     user_get_p = subparsers.add_parser(
         "user-get",
         aliases=["ug"],
@@ -218,7 +218,7 @@ def main() -> None:
     user_post_p.set_defaults(func=cmd_user_post, cmd="user-post")
 
     # command `user-delete`
-    user_delete_d = "delete an existing user by local address on the MAIL server"
+    user_delete_d = "delete an existing user by user ID on the MAIL server"
     user_delete_p = subparsers.add_parser(
         "user-delete",
         aliases=["ud"],

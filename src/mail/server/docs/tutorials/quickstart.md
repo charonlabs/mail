@@ -1,4 +1,4 @@
-# `mail-server` Quickstart
+# `mail-server` Quickstart Guide
 
 This document serves as a tutorial on how to get started with `mail-server`.
 

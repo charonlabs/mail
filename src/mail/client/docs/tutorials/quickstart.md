@@ -1,0 +1,85 @@
+# `mail-client` Quickstart Guide
+
+This document serves as a tutorial on how to get started with `mail-client`.
+
+## Prerequesites
+
+- `mail` GitHub repository cloned OR `mail-swarms` installed from PyPI
+- `mail` CLI client installed from either of the above
+- A MAIL server URL and associated valid credentials (address and password) to use
+
+## Log In to the Server
+
+MAIL servers use JWTs for authentication on authorized endpoints.
+To obtain a JWT based on your MAIL address and password, run the `login` command with the necessary environment variables:
+
+```bash
+MAIL_SERVER=... \
+MAIL_ADDRESS=... \
+MAIL_PASSWORD=... \
+uv run mail login
+```
+
+If your credentials are valid, you should see a JWT printed to the console.
+Copy this and use it as the value for environment variable `MAIL_TOKEN` in subsequent commands.
+
+## Validate Client Identity
+
+To ensure your credentials are valid and as expected, use the `whoami` command:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail whoami
+```
+
+You should see user-agent information, including the user-agent `Type` (can be one of `agent`, `user`, `admin`, or `daemon`), and the full MAIL address.
+
+## Check your Inbox
+
+Your MAIL inbox contains all valid messages that have been delivered to you, sent by other valid MAIL user-agents.
+You can easily see the list of messages in your inbox with the `inbox` command:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail inbox
+```
+
+If you have messages in your inbox, a summary of each message will be printed to the console.
+If your inbox is empty, no messages will appear.
+
+## Compose a Draft
+
+In order to send a MAIL message, you first need to compose a draft.
+In MAIL, a draft is a bare-bones message template consisting of only a `subject` and `body`.
+To compose a new draft with the `subject = "Hello, world!"` and `body = "This is a test message body"`:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail compose "Hello, world!" "This is a test message body"
+```
+
+You should then see the newly-created draft printed to the console.
+This includes the draft's unique ID; copy this for use in subsequent operations.
+
+## Send a MAIL Message
+
+With your first draft created, you can now send it as a MAIL message to one or more specified recipients.
+Each recipient must be a valid MAIL address string.
+To create a message from your existing draft and send it to `supervisor@default@example.com`:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail send <draft_id> supervisor@default@example.com
+```
+
+You should then see the MAIL message created and sent to the `supervisor@default@example.com`.
+This includes the message's unique ID.
+
+## See Also
+
+- `mail-client` CLI reference: [reference/cli.md](/docs/reference/cli.md)
+- `mail-client` admin panel CLI refernece: [reference/admin-panel.md](/docs/reference/admin-panel.md)

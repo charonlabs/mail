@@ -23,7 +23,7 @@ from mail_client.commands import (
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="mail",
-        usage="mail <command> [argument]...",
+        usage="mail [option...] <command> [argument...]",
         description="The Python CLI client for the Multi-Agent Interface Layer (MAIL)",
         epilog="Copyright (c) 2026 Addison Kline",
     )
