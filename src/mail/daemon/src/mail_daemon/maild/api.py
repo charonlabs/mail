@@ -134,9 +134,15 @@ def deliver_messages(message_ids: list[str]) -> None:
         logger.error(f"message local delivery request failed: {e}")
         return
 
+    if response.status_code == 401:
+        logger.info(
+            f"local message delivery request to {_mail_server} got status code 401; logging in again"
+        )
+        _obtain_daemon_token()
+        return
     if response.status_code != 200:
         logger.warning(
-            f"message local delivery request to {_mail_server} got non-200 status code: {response.status_code}"
+            f"message local delivery request to {_mail_server} got unexpected status code: {response.status_code}"
         )
         return
 
