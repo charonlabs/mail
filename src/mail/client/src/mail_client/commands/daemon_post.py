@@ -5,9 +5,9 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.requests import PostAdminDaemonRequest
+from mail_protocol.network.requests import AdminDaemonPostRequest
 from mail_protocol.network.responses import (
-    PostAdminDaemonResponse,
+    AdminDaemonPostResponse,
 )
 from pydantic import ValidationError
 from rich.console import Console
@@ -34,7 +34,7 @@ def cmd_daemon_post(args: Namespace) -> None:
     daemon_password = console.input(prompt="daemon password:", password=True)
 
     # 4. Attempt to post the new daemon to the MAIL server
-    payload = PostAdminDaemonRequest(
+    payload = AdminDaemonPostRequest(
         worker_name=worker_name, daemon_password=daemon_password
     )
     response = httpx.post(
@@ -55,7 +55,7 @@ def cmd_daemon_post(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = PostAdminDaemonResponse.model_validate(response_json)
+        response_obj = AdminDaemonPostResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -67,11 +67,11 @@ def cmd_daemon_post(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: PostAdminDaemonResponse) -> None:
+def _print_json(response_obj: AdminDaemonPostResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: PostAdminDaemonResponse) -> None:
+def _print_text(response_obj: AdminDaemonPostResponse) -> None:
     daemon = response_obj.daemon
     print("=== Daemon ===")
     print(f"Worker Name: {daemon.worker_name}")

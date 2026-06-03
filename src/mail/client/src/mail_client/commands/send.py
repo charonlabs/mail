@@ -5,8 +5,8 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.requests import PostDraftSendRequest
-from mail_protocol.network.responses import PostDraftSendResponse
+from mail_protocol.network.requests import DraftSendPostRequest
+from mail_protocol.network.responses import DraftSendPostResponse
 from pydantic import ValidationError
 
 
@@ -24,7 +24,7 @@ def cmd_send(args: Namespace) -> None:
         raise ValueError("env var MAIL_TOKEN is required")
 
     # 2. hit the server endpoint `POST /drafts/{draft_id}/send`
-    payload = PostDraftSendRequest(
+    payload = DraftSendPostRequest(
         recipients=args.to,
     )
     response = httpx.post(
@@ -45,7 +45,7 @@ def cmd_send(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = PostDraftSendResponse.model_validate(response_json)
+        response_obj = DraftSendPostResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -57,11 +57,11 @@ def cmd_send(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: PostDraftSendResponse) -> None:
+def _print_json(response_obj: DraftSendPostResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: PostDraftSendResponse) -> None:
+def _print_text(response_obj: DraftSendPostResponse) -> None:
     message = response_obj.message
 
     print("=== Message ===")

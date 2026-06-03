@@ -5,9 +5,9 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.requests import PostAdminAgentRequest
+from mail_protocol.network.requests import AdminAgentPostRequest
 from mail_protocol.network.responses import (
-    PostAdminAgentResponse,
+    AdminAgentPostResponse,
 )
 from pydantic import ValidationError
 from rich.console import Console
@@ -37,7 +37,7 @@ def cmd_agent_post(args: Namespace) -> None:
     agent_password = console.input(prompt="agent password:", password=True)
 
     # 4. Attempt to post the new agent to the MAIL server
-    payload = PostAdminAgentRequest(
+    payload = AdminAgentPostRequest(
         agent_name=agent, swarm_name=swarm, agent_password=agent_password
     )
     response = httpx.post(
@@ -58,7 +58,7 @@ def cmd_agent_post(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = PostAdminAgentResponse.model_validate(response_json)
+        response_obj = AdminAgentPostResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -70,11 +70,11 @@ def cmd_agent_post(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: PostAdminAgentResponse) -> None:
+def _print_json(response_obj: AdminAgentPostResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: PostAdminAgentResponse) -> None:
+def _print_text(response_obj: AdminAgentPostResponse) -> None:
     agent = response_obj.agent
     print("=== Agent ===")
     print(f"Name: {agent.name}")

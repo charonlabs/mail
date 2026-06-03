@@ -5,7 +5,7 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.responses import GetOutboxMessageResponse
+from mail_protocol.network.responses import OutboxMessageGetResponse
 from pydantic import ValidationError
 
 
@@ -39,7 +39,7 @@ def cmd_outbox_open(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = GetOutboxMessageResponse.model_validate(response_json)
+        response_obj = OutboxMessageGetResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -51,11 +51,11 @@ def cmd_outbox_open(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: GetOutboxMessageResponse) -> None:
+def _print_json(response_obj: OutboxMessageGetResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: GetOutboxMessageResponse) -> None:
+def _print_text(response_obj: OutboxMessageGetResponse) -> None:
     entry = response_obj.entry
     message = entry.message
 

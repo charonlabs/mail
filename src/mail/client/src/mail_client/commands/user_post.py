@@ -5,9 +5,9 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.requests import PostAdminUserRequest
+from mail_protocol.network.requests import AdminUserPostRequest
 from mail_protocol.network.responses import (
-    PostAdminUserResponse,
+    AdminUserPostResponse,
 )
 from pydantic import ValidationError
 from rich.console import Console
@@ -34,7 +34,7 @@ def cmd_user_post(args: Namespace) -> None:
     user_password = console.input(prompt="user password:", password=True)
 
     # 4. Attempt to post the new user to the MAIL server
-    payload = PostAdminUserRequest(user_id=user_id, user_password=user_password)
+    payload = AdminUserPostRequest(user_id=user_id, user_password=user_password)
     response = httpx.post(
         url=f"{MAIL_SERVER}/admin/users",
         headers={
@@ -53,7 +53,7 @@ def cmd_user_post(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = PostAdminUserResponse.model_validate(response_json)
+        response_obj = AdminUserPostResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -65,11 +65,11 @@ def cmd_user_post(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: PostAdminUserResponse) -> None:
+def _print_json(response_obj: AdminUserPostResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: PostAdminUserResponse) -> None:
+def _print_text(response_obj: AdminUserPostResponse) -> None:
     user = response_obj.user
     print("=== User ===")
     print(f"User ID: {user.user_id}")

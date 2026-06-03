@@ -5,9 +5,9 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.requests import PostAdminSwarmRequest
+from mail_protocol.network.requests import AdminSwarmPostRequest
 from mail_protocol.network.responses import (
-    PostAdminSwarmResponse,
+    AdminSwarmPostResponse,
 )
 from pydantic import ValidationError
 
@@ -26,7 +26,7 @@ def cmd_swarm_post(args: Namespace) -> None:
         raise ValueError("environment variable MAIL_TOKEN is required")
 
     # 4. Attempt to post the new swarm to the MAIL server
-    payload = PostAdminSwarmRequest(
+    payload = AdminSwarmPostRequest(
         name=args.name,
         description=args.description,
         keywords=args.keywords,
@@ -49,7 +49,7 @@ def cmd_swarm_post(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = PostAdminSwarmResponse.model_validate(response_json)
+        response_obj = AdminSwarmPostResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -61,11 +61,11 @@ def cmd_swarm_post(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: PostAdminSwarmResponse) -> None:
+def _print_json(response_obj: AdminSwarmPostResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: PostAdminSwarmResponse) -> None:
+def _print_text(response_obj: AdminSwarmPostResponse) -> None:
     swarm = response_obj.swarm
     print("=== Swarm ===")
     print(f"Name: {swarm.name}")

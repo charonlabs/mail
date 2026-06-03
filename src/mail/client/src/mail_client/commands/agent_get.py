@@ -6,7 +6,7 @@ from argparse import Namespace
 
 import httpx
 from mail_protocol.network.responses import (
-    GetAdminAgentResponse,
+    AdminAgentGetResponse,
 )
 from pydantic import ValidationError
 
@@ -41,7 +41,7 @@ def cmd_agent_get(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = GetAdminAgentResponse.model_validate(response_json)
+        response_obj = AdminAgentGetResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -53,11 +53,11 @@ def cmd_agent_get(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: GetAdminAgentResponse) -> None:
+def _print_json(response_obj: AdminAgentGetResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: GetAdminAgentResponse) -> None:
+def _print_text(response_obj: AdminAgentGetResponse) -> None:
     agent = response_obj.agent
     print("=== Agent ===")
     print(f"Name: {agent.name}")

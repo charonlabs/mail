@@ -5,7 +5,7 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.responses import GetTrashMessageResponse
+from mail_protocol.network.responses import TrashMessageGetResponse
 from pydantic import ValidationError
 
 
@@ -39,7 +39,7 @@ def cmd_trash_open(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = GetTrashMessageResponse.model_validate(response_json)
+        response_obj = TrashMessageGetResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -51,11 +51,11 @@ def cmd_trash_open(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: GetTrashMessageResponse) -> None:
+def _print_json(response_obj: TrashMessageGetResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: GetTrashMessageResponse) -> None:
+def _print_text(response_obj: TrashMessageGetResponse) -> None:
     entry = response_obj.entry
     message = entry.message
     print("=== Message ===")

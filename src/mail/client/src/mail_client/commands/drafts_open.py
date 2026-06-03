@@ -5,7 +5,7 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.responses import GetDraftResponse
+from mail_protocol.network.responses import DraftGetResponse
 from pydantic import ValidationError
 
 
@@ -39,7 +39,7 @@ def cmd_drafts_open(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = GetDraftResponse.model_validate(response_json)
+        response_obj = DraftGetResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -51,11 +51,11 @@ def cmd_drafts_open(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: GetDraftResponse) -> None:
+def _print_json(response_obj: DraftGetResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: GetDraftResponse) -> None:
+def _print_text(response_obj: DraftGetResponse) -> None:
     entry = response_obj.entry
     draft = entry.draft
 

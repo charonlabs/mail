@@ -5,7 +5,7 @@ import os
 from argparse import Namespace
 
 import httpx
-from mail_protocol.network.responses import GetInboxResponse
+from mail_protocol.network.responses import InboxGetResponse
 from pydantic import ValidationError
 
 
@@ -39,7 +39,7 @@ def cmd_inbox(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = GetInboxResponse.model_validate(response_json)
+        response_obj = InboxGetResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -51,11 +51,11 @@ def cmd_inbox(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: GetInboxResponse) -> None:
+def _print_json(response_obj: InboxGetResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: GetInboxResponse) -> None:
+def _print_text(response_obj: InboxGetResponse) -> None:
     entries = response_obj.entries
     print("=== Inbox ===")
     for entry in entries:
