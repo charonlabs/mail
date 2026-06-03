@@ -11,12 +11,11 @@ from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.outbox import MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm
 from mail_protocol.core.trash import MAILTrashEntry
-from mail_protocol.core.user_agents import MAILAgent, MAILUserAgentInBackend
+from mail_protocol.core.user_agents import MAILUserAgentInBackend
 from mail_protocol.core.validators import (
     validate_mail_address,
     validate_swarm_name,
     validate_uuid,
-    validate_uuids,
 )
 
 logger = logging.getLogger(__name__)
@@ -188,6 +187,8 @@ async def load_inboxes() -> dict[str, list[str]]:
                             logger.warning(f"Message ID validation failed: {e}")
                             continue
 
+                        ie_ids.append(ie_id)
+
                     inboxes.update({entry.name: ie_ids})
 
     logger.info(f"found {len(inboxes)} inboxes")
@@ -256,6 +257,8 @@ async def load_outboxes() -> dict[str, list[str]]:
                         except ValueError as e:
                             logger.warning(f"Message ID validation failed: {e}")
                             continue
+
+                        oe_ids.append(oe_id)
 
                     outboxes.update({entry.name: oe_ids})
 
@@ -326,6 +329,8 @@ async def load_drafts() -> dict[str, list[str]]:
                             logger.warning(f"Draft ID validation failed: {e}")
                             continue
 
+                        draft_ids.append(draft_id)
+
                     drafts.update({entry.name: draft_ids})
 
     logger.info(f"found {len(drafts)} drafts")
@@ -394,6 +399,8 @@ async def load_trashes() -> dict[str, list[str]]:
                         except ValueError as e:
                             logger.warning(f"Message ID validation failed: {e}")
                             continue
+
+                        trash_ids.append(trash_id)
 
                     trashes.update({entry.name: trash_ids})
 
@@ -502,8 +509,8 @@ async def save_inboxes(inboxes: dict[str, list[str]]) -> None:
     for address, ie_ids in inboxes.items():
         inbox_path = inboxes_path.joinpath(address)
         with open(inbox_path, "w") as inbox_file:
-            content = "\n".join(ie_ids)
-            inbox_file.write(content)
+            for ie_id in ie_ids:
+                inbox_file.write(f"{ie_id}\n")
 
 
 async def save_outbox_entries(
@@ -534,8 +541,8 @@ async def save_outboxes(outboxes: dict[str, list[str]]) -> None:
     for address, oe_ids in outboxes.items():
         outbox_path = outboxes_path.joinpath(address)
         with open(outbox_path, "w") as outbox_file:
-            content = "\n".join(oe_ids)
-            outbox_file.write(content)
+            for oe_id in oe_ids:
+                outbox_file.write(f"{oe_id}\n")
 
 
 async def save_draft_entries(
@@ -566,8 +573,8 @@ async def save_drafts(drafts: dict[str, list[str]]) -> None:
     for address, draft_ids in drafts.items():
         drafts_path = draft_boxes_path.joinpath(address)
         with open(drafts_path, "w") as drafts_file:
-            content = "\n".join(draft_ids)
-            drafts_file.write(content)
+            for draft_id in draft_ids:
+                drafts_file.write(f"{draft_id}\n")
 
 
 async def save_trash_entries(trash_entries: dict[str, MAILTrashEntry]) -> None:
@@ -596,8 +603,8 @@ async def save_trashes(trashes: dict[str, list[str]]) -> None:
     for address, te_ids in trashes.items():
         trash_path = trash_boxes_path.joinpath(address)
         with open(trash_path, "w") as trash_file:
-            content = "\n".join(te_ids)
-            trash_file.write(content)
+            for te_id in te_ids:
+                trash_file.write(f"{te_id}\n")
 
 
 async def save_message_buffer(message_buffer: list[str]) -> None:
@@ -609,5 +616,5 @@ async def save_message_buffer(message_buffer: list[str]) -> None:
 
     msg_buf_path = DEPLOYMENT_PATH.joinpath("message_buffer.lock")
     with open(msg_buf_path, "w") as msg_buf_file:
-        content = "\n".join(message_buffer)
-        msg_buf_file.write(content)
+        for msg_id in message_buffer:
+            msg_buf_file.write(f"{msg_id}\n")
