@@ -26,7 +26,7 @@ def cmd_user_delete(args: Namespace) -> None:
 
     # 2. Attempt to get the specific user by local address on the MAIL server
     response = httpx.delete(
-        url=f"{MAIL_SERVER}/admin/users/{args.worker_name}",
+        url=f"{MAIL_SERVER}/admin/users/{args.user_id}",
         headers={
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
             "Authorization": f"Bearer {MAIL_TOKEN}",
