@@ -228,7 +228,7 @@ def main() -> None:
         help=user_delete_d,
         description=user_delete_d,
     )
-    user_delete_p.add_argument("worker_name", help="the name of the user to delete")
+    user_delete_p.add_argument("user_id", help="the name of the user to delete")
     user_delete_p.set_defaults(func=cmd_user_delete, cmd="user-delete")
 
     #

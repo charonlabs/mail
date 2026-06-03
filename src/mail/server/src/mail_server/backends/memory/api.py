@@ -729,10 +729,20 @@ class MemoryBackend(MAILServerBackend):
             host=self.host,
         )
 
+        # add new agent to self.user_agents
         ua_in_be = MAILUserAgentInBackend(
             user_agent=agent, hashed_password=get_password_hash(payload.agent_password)
         )
         self.user_agents.update({full_address: ua_in_be})
+
+        # add new inbox to self.inboxes
+        self.inboxes.update({full_address: []})
+        # add new outbox to self.outboxes
+        self.outboxes.update({full_address: []})
+        # add new drafts box to self.drafts
+        self.drafts.update({full_address: []})
+        # add new trash box to self.trashes
+        self.trashes.update({full_address: []})
 
         return agent
 
@@ -756,6 +766,15 @@ class MemoryBackend(MAILServerBackend):
                 {full_address: agent}
             )  # re-add if invalid this far in
             raise ValueError(f"invalid agent address: {agent_address}")
+
+        # remove inbox from self.inboxes
+        self.inboxes.pop(full_address)
+        # remove outbox from self.outboxes
+        self.outboxes.pop(full_address)
+        # remove drafts box from self.drafts
+        self.drafts.pop(full_address)
+        # remove trash box from self.trashes
+        self.trashes.pop(full_address)
 
         return agent.user_agent
 
@@ -823,6 +842,15 @@ class MemoryBackend(MAILServerBackend):
         )
         self.user_agents.update({full_address: ua_in_be})
 
+        # add new inbox to self.inboxes
+        self.inboxes.update({full_address: []})
+        # add new outbox to self.outboxes
+        self.outboxes.update({full_address: []})
+        # add new drafts box to self.drafts
+        self.drafts.update({full_address: []})
+        # add new trash box to self.trashes
+        self.trashes.update({full_address: []})
+
         return daemon
 
     async def admin_delete_daemon(
@@ -845,6 +873,15 @@ class MemoryBackend(MAILServerBackend):
                 {full_address: daemon}
             )  # re-add if invalid this far in
             raise ValueError(f"invalid daemon worker name: {worker_name}")
+
+        # remove inbox from self.inboxes
+        self.inboxes.pop(full_address)
+        # remove outbox from self.outboxes
+        self.outboxes.pop(full_address)
+        # remove drafts box from self.drafts
+        self.drafts.pop(full_address)
+        # remove trash box from self.trashes
+        self.trashes.pop(full_address)
 
         return daemon.user_agent
 
@@ -912,6 +949,15 @@ class MemoryBackend(MAILServerBackend):
         )
         self.user_agents.update({full_address: ua_in_be})
 
+        # add new inbox to self.inboxes
+        self.inboxes.update({full_address: []})
+        # add new outbox to self.outboxes
+        self.outboxes.update({full_address: []})
+        # add new drafts box to self.drafts
+        self.drafts.update({full_address: []})
+        # add new trash box to self.trashes
+        self.trashes.update({full_address: []})
+
         return user
 
     async def admin_delete_user(self, admin: MAILAdmin, user_id: str) -> MAILUser:
@@ -932,6 +978,15 @@ class MemoryBackend(MAILServerBackend):
                 {full_address: user}
             )  # re-add if invalid this far in
             raise ValueError(f"invalid user ID: {user_id}")
+
+        # remove inbox from self.inboxes
+        self.inboxes.pop(full_address)
+        # remove outbox from self.outboxes
+        self.outboxes.pop(full_address)
+        # remove drafts box from self.drafts
+        self.drafts.pop(full_address)
+        # remove trash box from self.trashes
+        self.trashes.pop(full_address)
 
         return user.user_agent
 
