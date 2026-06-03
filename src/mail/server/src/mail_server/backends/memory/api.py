@@ -514,13 +514,13 @@ class MemoryBackend(MAILServerBackend):
         )
 
         # add to server messages
-        self.messages.update({message.message_id: message})
+        self.messages.update({message_id: message})
         # add to server outbox_entries
-        self.outbox_entries.update({outbox_entry.message_id: outbox_entry})
+        self.outbox_entries.update({message_id: outbox_entry})
         # add to user-agent's outbox
-        self.outboxes[ua_address].append(outbox_entry.message_id)
+        self.outboxes[ua_address].append(message_id)
         # add to message delivery buffer
-        self.message_buffer.append(message.message_id)
+        self.message_buffer.append(message_id)
 
         return message
 

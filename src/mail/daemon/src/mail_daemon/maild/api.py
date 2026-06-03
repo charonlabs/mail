@@ -7,14 +7,13 @@ from os import getenv
 from time import sleep
 
 import httpx
-from mail_protocol.core.messages import MAILMessage
-from mail_protocol.network.requests import PostDaemonDeliverLocalRequest
+from mail_protocol.network.requests import DaemonDeliverLocalRequest
 from mail_protocol.network.responses import (
-    GetAuthWhoamiResponse,
-    GetRootResponse,
-    PostAuthTokenResponse,
-    PostDaemonDeliverLocalResponse,
-    PostDaemonMessageBufferClearResponse,
+    AuthTokenPostResponse,
+    AuthWhoamiGetResponse,
+    DaemonDeliverLocalResponse,
+    DaemonMessageBufferClearResponse,
+    RootGetResponse,
 )
 from pydantic import ValidationError
 
@@ -100,9 +99,7 @@ def clear_message_buffer() -> list[str]:
         return []
 
     try:
-        response_obj = PostDaemonMessageBufferClearResponse.model_validate(
-            response.json()
-        )
+        response_obj = DaemonMessageBufferClearResponse.model_validate(response.json())
     except ValidationError as e:
         logger.error(
             f"message buffer clear response from {_mail_server} failed validation: {e}"
@@ -117,7 +114,7 @@ def deliver_messages(message_ids: list[str]) -> None:
     Attempt to deliver the messages fetched from the server buffer.
     """
 
-    payload = PostDaemonDeliverLocalRequest(
+    payload = DaemonDeliverLocalRequest(
         message_ids=message_ids,
     )
 
@@ -144,7 +141,7 @@ def deliver_messages(message_ids: list[str]) -> None:
         return
 
     try:
-        response_obj = PostDaemonDeliverLocalResponse.model_validate(response.json())
+        response_obj = DaemonDeliverLocalResponse.model_validate(response.json())
     except ValidationError as e:
         logger.error(
             f"message local delivery response from {_mail_server} failed validation: {e}"
@@ -215,7 +212,7 @@ def _check_server() -> None:
         )
 
     try:
-        _get_root_response = GetRootResponse.model_validate(response.json())
+        _get_root_response = RootGetResponse.model_validate(response.json())
     except ValidationError as e:
         logger.critical(f"got unexpected response from `GET /`: {e}")
         raise ValueError(f"got unexpected response from `GET /`: {e}")
@@ -265,7 +262,7 @@ def _obtain_daemon_token() -> None:
         )
 
     try:
-        post_token_response = PostAuthTokenResponse.model_validate(
+        post_token_response = AuthTokenPostResponse.model_validate(
             response_login.json()
         )
     except ValidationError as e:
@@ -296,7 +293,7 @@ def _obtain_daemon_token() -> None:
         )
 
     try:
-        get_whoami_response = GetAuthWhoamiResponse.model_validate(
+        get_whoami_response = AuthWhoamiGetResponse.model_validate(
             response_whoami.json()
         )
     except ValidationError as e:
