@@ -20,6 +20,11 @@ from mail_client.commands import (
     cmd_user_get,
     cmd_user_list,
     cmd_user_post,
+    cmd_webhook_delete,
+    cmd_webhook_get,
+    cmd_webhook_list,
+    cmd_webhook_patch,
+    cmd_webhook_post,
     cmd_whoami,
 )
 
@@ -269,6 +274,78 @@ def main() -> None:
         "swarm_name", help="the name of the swarm on the server to delete"
     )
     swarm_delete_p.set_defaults(func=cmd_swarm_delete, cmd="swarm-delete")
+
+    #
+    # Webhook helpers
+    #
+    # command `webhook-list`
+    webhook_list_d = "list all webhooks on the MAIL server"
+    webhook_list_p = subparsers.add_parser(
+        "webhook-list",
+        aliases=["wl"],
+        prog="mail-admin webhook-list",
+        help=webhook_list_d,
+        description=webhook_list_d,
+    )
+    webhook_list_p.set_defaults(func=cmd_webhook_list, cmd="webhook-list")
+
+    # command `webhook-get`
+    webhook_get_d = "get an existing webhook by ID on the MAIL server"
+    webhook_get_p = subparsers.add_parser(
+        "webhook-get",
+        aliases=["wg"],
+        prog="mail-admin webhook-get",
+        help=webhook_get_d,
+        description=webhook_get_d,
+    )
+    webhook_get_p.add_argument("webhook_id", help="the ID of the webhook to get")
+    webhook_get_p.set_defaults(func=cmd_webhook_get, cmd="webhook-get")
+
+    # command `webhook-post`
+    webhook_post_d = "create a new webhook on the MAIL server"
+    webhook_post_p = subparsers.add_parser(
+        "webhook-post",
+        aliases=["wp"],
+        prog="mail-admin webhook-post",
+        help=webhook_post_d,
+        description=webhook_post_d,
+    )
+    webhook_post_p.add_argument("url", help="the URL to hit for this webhook")
+    webhook_post_p.add_argument("secret", help="the secret to use for this webhook")
+    webhook_post_p.add_argument(
+        "-e",
+        "--events",
+        nargs="+",
+        default=["mail.delivered"],
+        help="the event(s) for this webhook",
+    )
+    webhook_post_p.set_defaults(func=cmd_webhook_post, cmd="webhook-post")
+
+    # command `webhook-patch`
+    webhook_patch_d = "update an existing webhook on the MAIL server"
+    webhook_patch_p = subparsers.add_parser(
+        "webhook-patch",
+        aliases=["wP"],
+        prog="mail-admin webhook-patch",
+        help=webhook_patch_d,
+        description=webhook_patch_d,
+    )
+    webhook_patch_p.add_argument("webhook_id", help="the ID of the webhook to update")
+    webhook_patch_p.add_argument("-u", "--url", help="the new URL to use, if any")
+    webhook_patch_p.add_argument("-s", "--secret", help="the new secret to use, if any")
+    webhook_patch_p.set_defaults(func=cmd_webhook_patch, cmd="webhook-patch")
+
+    # command `webhook-delete`
+    webhook_delete_d = "delete an existing webhook by ID on the MAIL server"
+    webhook_delete_p = subparsers.add_parser(
+        "webhook-delete",
+        aliases=["wd"],
+        prog="mail-admin webhook-delete",
+        help=webhook_delete_d,
+        description=webhook_delete_d,
+    )
+    webhook_delete_p.add_argument("webhook_id", help="the ID of the webhook to delete")
+    webhook_delete_p.set_defaults(func=cmd_webhook_delete, cmd="webhook-delete")
 
     # parse and handle args
     args = parser.parse_args()

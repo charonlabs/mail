@@ -65,6 +65,7 @@ from mail_server.backends.memory.fs import (
     save_trash_entries,
     save_trashes,
     save_user_agents,
+    save_webhooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -205,6 +206,7 @@ class MemoryBackend(MAILServerBackend):
         await save_trash_entries(self.trash_entries)
         await save_trashes(self.trashes)
         await save_message_buffer(self.message_buffer)
+        await save_webhooks(self.webhooks)
 
         logger.info("backend shutdown complete")
 
@@ -1106,18 +1108,7 @@ class MemoryBackend(MAILServerBackend):
         Update an existing server webhook URL and/or secret.
         """
 
-        for webhook in self.webhooks.values():
-            if webhook.webhook_id == webhook_id:
-                if payload.url is not None:
-                    old_url = webhook.url
-                    webhook.url = payload.url
-                    self.webhooks.pop(old_url)
-                    self.webhooks.update({webhook.url: webhook})
-                if payload.secret is not None:
-                    webhook.secret = payload.secret
-                    self.webhooks.update({webhook.url: webhook})
-
-        raise ValueError(f"webhook with ID {webhook_id} not found")
+        raise NotImplementedError
 
     async def admin_webhook_delete(
         self,
@@ -1128,11 +1119,16 @@ class MemoryBackend(MAILServerBackend):
         Delete an existing server webhook by ID.
         """
 
+        wh_url: str | None = None
         for webhook in self.webhooks.values():
             if webhook.webhook_id == webhook_id:
-                self.webhooks.pop(webhook.url)
+                wh_url = webhook.url
+                break
 
-        raise ValueError(f"webhook with ID {webhook_id} not found")
+        if wh_url is None:
+            raise ValueError(f"webhook with ID {webhook_id} not found")
+
+        return self.webhooks.pop(wh_url)
 
     async def _handle_webhook_delivered(
         self,

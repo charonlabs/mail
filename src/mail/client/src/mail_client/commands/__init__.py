@@ -26,6 +26,11 @@ from .user_delete import cmd_user_delete
 from .user_get import cmd_user_get
 from .user_list import cmd_user_list
 from .user_post import cmd_user_post
+from .webhook_delete import cmd_webhook_delete
+from .webhook_get import cmd_webhook_get
+from .webhook_list import cmd_webhook_list
+from .webhook_patch import cmd_webhook_patch
+from .webhook_post import cmd_webhook_post
 from .whoami import cmd_whoami
 
 __all__ = [
@@ -57,5 +62,10 @@ __all__ = [
     "cmd_user_get",
     "cmd_user_list",
     "cmd_user_post",
+    "cmd_webhook_delete",
+    "cmd_webhook_get",
+    "cmd_webhook_list",
+    "cmd_webhook_patch",
+    "cmd_webhook_post",
     "cmd_whoami",
 ]

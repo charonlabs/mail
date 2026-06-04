@@ -30,6 +30,8 @@ from mail_server.validators import (
     validate_admin_post_daemon_request,
     validate_admin_post_swarm_request,
     validate_admin_post_user_request,
+    validate_admin_webhook_patch_request,
+    validate_admin_webhook_post_request,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -350,7 +352,14 @@ async def delete_swarm(request: Request) -> AdminSwarmDeleteResponse:
     response_model=AdminWebhooksGetResponse,
 )
 async def get_webhooks(request: Request) -> AdminWebhooksGetResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    result = await backend.admin_webhooks_get(admin=admin)
+
+    return AdminWebhooksGetResponse(
+        webhook_ids=result,
+        metadata={},
+    )
 
 
 @router.get(
@@ -359,7 +368,15 @@ async def get_webhooks(request: Request) -> AdminWebhooksGetResponse:
     response_model=AdminWebhookGetResponse,
 )
 async def get_webhook(request: Request) -> AdminWebhookGetResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    webhook_id = request.path_params.get("webhook_id")
+    result = await backend.admin_webhook_get(admin=admin, webhook_id=webhook_id)
+
+    return AdminWebhookGetResponse(
+        webhook=result,
+        metadata={},
+    )
 
 
 @router.post(
@@ -368,7 +385,15 @@ async def get_webhook(request: Request) -> AdminWebhookGetResponse:
     response_model=AdminWebhooksPostResponse,
 )
 async def post_webhook(request: Request) -> AdminWebhooksPostResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    payload = await validate_admin_webhook_post_request(request=request)
+    result = await backend.admin_webhook_post(admin=admin, payload=payload)
+
+    return AdminWebhooksPostResponse(
+        webhook=result,
+        metadata={},
+    )
 
 
 @router.patch(
@@ -377,7 +402,15 @@ async def post_webhook(request: Request) -> AdminWebhooksPostResponse:
     response_model=AdminWebhooksPatchResponse,
 )
 async def patch_webhook(request: Request) -> AdminWebhooksPatchResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    payload = await validate_admin_webhook_patch_request(request=request)
+    result = await backend.admin_webhook_get(admin=admin, payload=payload)
+
+    return AdminWebhooksPatchResponse(
+        webhook=result,
+        metadata={},
+    )
 
 
 @router.delete(
@@ -386,4 +419,12 @@ async def patch_webhook(request: Request) -> AdminWebhooksPatchResponse:
     response_model=AdminWebhooksDeleteResponse,
 )
 async def delete_webhook(request: Request) -> AdminWebhooksDeleteResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    admin = await validate_admin(backend=backend, request=request)
+    webhook_id = request.path_params.get("webhook_id")
+    result = await backend.admin_webhook_delete(admin=admin, webhook_id=webhook_id)
+
+    return AdminWebhooksDeleteResponse(
+        webhook=result,
+        metadata={},
+    )

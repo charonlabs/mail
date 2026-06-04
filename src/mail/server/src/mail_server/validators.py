@@ -7,6 +7,8 @@ from mail_protocol.network.requests import (
     AdminDaemonPostRequest,
     AdminSwarmPostRequest,
     AdminUserPostRequest,
+    AdminWebhooksPatchRequest,
+    AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
     DaemonDeliverLocalRequest,
     DraftPostRequest,
@@ -126,6 +128,38 @@ async def validate_admin_post_swarm_request(
     try:
         body = await request.json()
         return AdminSwarmPostRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_webhook_post_request(
+    request: Request,
+) -> AdminWebhooksPostRequest:
+    """
+    Ensure that the request payload is valid for `POST /admin/webhooks`.
+    """
+
+    try:
+        body = await request.json()
+        return AdminWebhooksPostRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_webhook_patch_request(
+    request: Request,
+) -> AdminWebhooksPatchRequest:
+    """
+    Ensure that the given request payload is valid for `PATCH /admin/webhooks`.
+    """
+
+    try:
+        body = await request.json()
+        return AdminWebhooksPatchRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
