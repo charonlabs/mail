@@ -24,3 +24,11 @@ SWARM_DESCRIPTION_LEN_MAX = 255
 
 SWARM_KEYWORD_LEN_MIN = 1
 SWARM_KEYWORD_LEN_MAX = 31
+
+# List length limits mirror agent names: short slugs, swarm-scoped.
+LIST_NAME_LEN_MIN = 1
+LIST_NAME_LEN_MAX = 31
+
+# The literal prefix that identifies a list-shaped MAIL address.
+# Example address: ``list:welfare-discourse@chorus@localhost``.
+LIST_ADDRESS_PREFIX = "list"

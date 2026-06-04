@@ -12,6 +12,9 @@ from mail_protocol.core.constants import (
     AGENT_NAME_LEN_MIN,
     DAEMON_WORKER_NAME_LEN_MAX,
     DAEMON_WORKER_NAME_LEN_MIN,
+    LIST_ADDRESS_PREFIX,
+    LIST_NAME_LEN_MAX,
+    LIST_NAME_LEN_MIN,
     MESSAGE_BODY_LEN_MAX,
     MESSAGE_BODY_LEN_MIN,
     MESSAGE_SUBJECT_LEN_MAX,
@@ -95,14 +98,24 @@ def validate_mail_address(address: str) -> str:
     at_split = address.split("@")
 
     if len(at_split) == 3:
-        # TODO: handle agent addresses
-        agent_name, swarm_name, host = at_split
-        validate_agent_name(agent_name)
+        first, swarm_name, host = at_split
+        colon_split = first.split(":", 1)
+        if len(colon_split) == 2:
+            prefix, identifier = colon_split
+            match prefix:
+                case _ if prefix == LIST_ADDRESS_PREFIX:
+                    validate_list_name(identifier)
+                case _:
+                    raise ValueError(
+                        f"invalid MAIL address structure: {address}"
+                    )
+        else:
+            # No prefix → agent address.
+            validate_agent_name(first)
         validate_swarm_name(swarm_name)
         validate_host(host)
 
     elif len(at_split) == 2:
-        # TODO: handle admin/user/daemon addresses
         prefix, host = at_split
         colon_split = prefix.split(":")
         if len(colon_split) != 2:
@@ -406,6 +419,40 @@ def validate_webhook_message_id(id: str) -> str:
     validate_uuid(uuid)
 
     return id
+
+
+def validate_list_name(name: str) -> str:
+    """
+    Ensure that the given string is a valid MAIL list name.
+
+    Lists are addressed inside a swarm, so the name follows the same
+    slug discipline as agent and swarm names.
+    """
+
+    name_len = len(name)
+    if name_len < LIST_NAME_LEN_MIN:
+        raise ValueError(
+            f"list name must be at least {LIST_NAME_LEN_MIN} characters long"
+        )
+    if name_len > LIST_NAME_LEN_MAX:
+        raise ValueError(
+            f"list name must be no longer than {LIST_NAME_LEN_MAX} characters"
+        )
+    if not string_is_slug(name):
+        raise ValueError(f"invalid slug string: {name}")
+
+    return name
+
+
+def validate_list_names(names: list[str]) -> list[str]:
+    """
+    Ensure that all strings provided are valid MAIL list names.
+    """
+
+    for name in names:
+        validate_list_name(name)
+
+    return names
 
 
 def string_is_slug(string: str) -> bool:
