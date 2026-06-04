@@ -7,6 +7,7 @@ from pathlib import Path
 
 from mail_protocol.core.drafts import MAILDraftsEntry
 from mail_protocol.core.inbox import MAILInboxEntrySummary
+from mail_protocol.core.lists import MAILListInBackend
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.outbox import MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm
@@ -411,6 +412,38 @@ async def load_trashes() -> dict[str, list[str]]:
     return trashes
 
 
+async def load_lists() -> dict[str, MAILListInBackend]:
+    """
+    Load saved MAIL lists from the local filesystem.
+    """
+
+    lists_path = DEPLOYMENT_PATH.joinpath("lists")
+    logger.info(f"loading lists: {lists_path}...")
+    lists: dict[str, MAILListInBackend] = {}
+    with scandir(lists_path) as entries:
+        for entry in entries:
+            if entry.is_file():
+                try:
+                    validate_mail_address(entry.name)
+                except ValueError as e:
+                    logger.info(f"failed to validate MAIL address: {e}")
+                    continue
+
+                with open(entry) as list_file:
+                    content = list_file.read()
+                    try:
+                        list_model = MAILListInBackend.model_validate_json(content)
+                    except Exception as e:
+                        logger.info(f"MAILListInBackend validation failed: {e}")
+                        continue
+
+                    lists.update({list_model.get_address(): list_model})
+
+    logger.info(f"found {len(lists)} lists")
+
+    return lists
+
+
 async def load_message_buffer() -> list[str]:
     """
     Load saved message delivery buffer from the local filesystem.
@@ -639,6 +672,21 @@ async def save_trashes(trashes: dict[str, list[str]]) -> None:
         with open(trash_path, "w") as trash_file:
             for te_id in te_ids:
                 trash_file.write(f"{te_id}\n")
+
+
+async def save_lists(lists: dict[str, MAILListInBackend]) -> None:
+    """
+    Save MAIL lists from memory to the local filesystem.
+    """
+
+    logger.info(f"saving {len(lists)} lists...")
+
+    lists_path = DEPLOYMENT_PATH.joinpath("lists")
+    for address, mail_list in lists.items():
+        list_path = lists_path.joinpath(address)
+        with open(list_path, "w") as list_file:
+            content = mail_list.model_dump_json()
+            list_file.write(content)
 
 
 async def save_message_buffer(message_buffer: list[str]) -> None:

@@ -5,10 +5,13 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel
 
+from mail_protocol.core.lists import MAILListPolicy
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.validators import (
     validate_agent_name,
     validate_daemon_worker_name,
+    validate_list_name,
+    validate_mail_address,
     validate_mail_addresses,
     validate_message_body,
     validate_message_subject,
@@ -162,3 +165,28 @@ class AdminWebhooksPatchRequest(BaseModel):
 
     url: Annotated[str, AfterValidator(validate_url)]
     secret: str
+
+
+class AdminListPostRequest(BaseModel):
+    """
+    Corresponds to `POST /admin/lists`.
+    Contains the descriptive fields needed to create a new MAIL list.
+    """
+
+    name: Annotated[str, AfterValidator(validate_list_name)]
+    swarm_name: Annotated[str, AfterValidator(validate_swarm_name)]
+    owner: Annotated[str, AfterValidator(validate_mail_address)]
+    members: Annotated[list[str], AfterValidator(validate_mail_addresses)] = []
+    policy: MAILListPolicy = MAILListPolicy()
+
+
+class AdminListPatchRequest(BaseModel):
+    """
+    Corresponds to `PATCH /admin/lists/{list_address}`.
+
+    All fields are optional; only the policy is mutable at v1. The
+    canonical address (name, swarm, host) is immutable for the life of
+    the list — re-create + cut over if a rename is required.
+    """
+
+    policy: MAILListPolicy | None = None

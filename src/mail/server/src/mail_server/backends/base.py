@@ -14,6 +14,7 @@ from uuid import uuid4
 import httpx
 from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
+from mail_protocol.core.lists import MAILListInBackend
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
@@ -30,6 +31,8 @@ from mail_protocol.core.webhooks import MAILMessageInWebhook, MAILWebhook
 from mail_protocol.network.requests import (
     AdminAgentPostRequest,
     AdminDaemonPostRequest,
+    AdminListPatchRequest,
+    AdminListPostRequest,
     AdminSwarmPostRequest,
     AdminUserPostRequest,
     AdminWebhooksPatchRequest,
@@ -494,6 +497,7 @@ class MAILServerBackend(Protocol):
         pass
 
     #
+    #
     # Webhook handlers
     #
     @abstractmethod
@@ -689,3 +693,96 @@ class MAILServerBackend(Protocol):
             return True
 
         return False
+
+    #
+    # List endpoints
+    #
+    @abstractmethod
+    async def admin_get_lists(
+        self,
+        admin: MAILAdmin,
+    ) -> list[MAILListInBackend]:
+        """
+        Get all MAIL lists known to this server.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_get_list(
+        self,
+        admin: MAILAdmin,
+        list_address: str,
+    ) -> MAILListInBackend:
+        """
+        Get a specific MAIL list by its full ``list:`` address.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_post_list(
+        self,
+        admin: MAILAdmin,
+        payload: AdminListPostRequest,
+    ) -> MAILListInBackend:
+        """
+        Create a new MAIL list on this server.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_patch_list(
+        self,
+        admin: MAILAdmin,
+        list_address: str,
+        payload: AdminListPatchRequest,
+    ) -> MAILListInBackend:
+        """
+        Update mutable fields on an existing MAIL list. v1 only allows
+        policy edits; the canonical address (name, swarm, host) is
+        immutable for the life of the list.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_delete_list(
+        self,
+        admin: MAILAdmin,
+        list_address: str,
+    ) -> MAILListInBackend:
+        """
+        Delete an existing MAIL list by its full ``list:`` address.
+        """
+
+        pass
+
+    @abstractmethod
+    async def add_list_member(
+        self,
+        list_address: str,
+        member_address: str,
+    ) -> MAILListInBackend:
+        """
+        Append a member to a MAIL list. Idempotent.
+
+        Permission checks (against the list's ``join_policy``) are the
+        responsibility of the calling router; the storage layer does not
+        enforce them.
+        """
+
+        pass
+
+    @abstractmethod
+    async def remove_list_member(
+        self,
+        list_address: str,
+        member_address: str,
+    ) -> MAILListInBackend:
+        """
+        Remove a member from a MAIL list. Idempotent.
+        """
+
+        pass

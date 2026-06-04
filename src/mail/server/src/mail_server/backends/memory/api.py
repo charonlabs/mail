@@ -10,6 +10,7 @@ from typing import Any
 
 from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
+from mail_protocol.core.lists import MAILList, MAILListInBackend
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
@@ -26,6 +27,8 @@ from mail_protocol.core.webhooks import MAILWebhook
 from mail_protocol.network.requests import (
     AdminAgentPostRequest,
     AdminDaemonPostRequest,
+    AdminListPatchRequest,
+    AdminListPostRequest,
     AdminSwarmPostRequest,
     AdminUserPostRequest,
     AdminWebhooksPatchRequest,
@@ -44,6 +47,7 @@ from mail_server.backends.memory.fs import (
     load_drafts,
     load_inbox_entries,
     load_inboxes,
+    load_lists,
     load_message_buffer,
     load_messages,
     load_outbox_entries,
@@ -57,6 +61,7 @@ from mail_server.backends.memory.fs import (
     save_drafts,
     save_inbox_entries,
     save_inboxes,
+    save_lists,
     save_message_buffer,
     save_messages,
     save_outbox_entries,
@@ -180,6 +185,13 @@ class MemoryBackend(MAILServerBackend):
         Values: MAILWebhook instances
         """
 
+        self.lists: dict[str, MAILListInBackend] = await load_lists()
+        """
+        A dict of all MAIL lists known to this server.
+        Keys: list addresses (``list:<name>@<swarm>@<host>``)
+        Values: MAILListInBackend instances
+        """
+
         host = kwargs.get("host")
         if host is not None:
             if isinstance(host, str):
@@ -207,6 +219,7 @@ class MemoryBackend(MAILServerBackend):
         await save_trashes(self.trashes)
         await save_message_buffer(self.message_buffer)
         await save_webhooks(self.webhooks)
+        await save_lists(self.lists)
 
         logger.info("backend shutdown complete")
 
@@ -1149,6 +1162,154 @@ class MemoryBackend(MAILServerBackend):
                         secret=webhook.secret,
                     )
                 )
+
+    #
+    # List endpoints
+    #
+    async def admin_get_lists(self, admin: MAILAdmin) -> list[MAILListInBackend]:
+        """
+        Get all MAIL lists known to this server.
+        """
+
+        return list(self.lists.values())
+
+    async def admin_get_list(
+        self,
+        admin: MAILAdmin,
+        list_address: str,
+    ) -> MAILListInBackend:
+        """
+        Get a specific MAIL list by its full ``list:`` address.
+        """
+
+        mail_list = self.lists.get(list_address)
+        if mail_list is None:
+            raise ValueError(f"list not found: {list_address}")
+        return mail_list
+
+    async def admin_post_list(
+        self,
+        admin: MAILAdmin,
+        payload: AdminListPostRequest,
+    ) -> MAILListInBackend:
+        """
+        Create a new MAIL list on this server.
+        """
+
+        mail_list = MAILList(
+            name=payload.name,
+            swarm=payload.swarm_name,
+            host=self.host,
+            owner=payload.owner,
+            members=payload.members,
+            policy=payload.policy,
+        )
+        address = mail_list.get_address()
+        if address in self.lists:
+            raise ValueError(f"list address already taken: {address}")
+
+        now = datetime.now(UTC)
+        record = MAILListInBackend(
+            **mail_list.model_dump(),
+            list_id=str(uuid.uuid4()),
+            created_at=now,
+            updated_at=now,
+        )
+        self.lists[address] = record
+        return record
+
+    async def admin_patch_list(
+        self,
+        admin: MAILAdmin,
+        list_address: str,
+        payload: AdminListPatchRequest,
+    ) -> MAILListInBackend:
+        """
+        Update mutable fields on an existing MAIL list. v1 only supports
+        policy edits; the canonical address (name, swarm, host) is
+        immutable for the life of the list.
+        """
+
+        existing = self.lists.get(list_address)
+        if existing is None:
+            raise ValueError(f"list not found: {list_address}")
+
+        updated_fields: dict[str, Any] = {}
+        if payload.policy is not None:
+            updated_fields["policy"] = payload.policy
+
+        if updated_fields:
+            updated = existing.model_copy(
+                update={**updated_fields, "updated_at": datetime.now(UTC)}
+            )
+            self.lists[list_address] = updated
+            return updated
+        return existing
+
+    async def admin_delete_list(
+        self,
+        admin: MAILAdmin,
+        list_address: str,
+    ) -> MAILListInBackend:
+        """
+        Delete an existing MAIL list by its full ``list:`` address.
+        """
+
+        existing = self.lists.get(list_address)
+        if existing is None:
+            raise ValueError(f"list not found: {list_address}")
+        return self.lists.pop(list_address)
+
+    async def add_list_member(
+        self,
+        list_address: str,
+        member_address: str,
+    ) -> MAILListInBackend:
+        """
+        Append a member to a MAIL list.
+
+        Idempotent — re-adding an existing member returns the list
+        unchanged. Permission checks (against the list's ``join_policy``)
+        are the responsibility of the calling router; the storage layer
+        does not enforce them.
+        """
+
+        existing = self.lists.get(list_address)
+        if existing is None:
+            raise ValueError(f"list not found: {list_address}")
+        if member_address in existing.members:
+            return existing
+
+        updated_members = [*existing.members, member_address]
+        updated = existing.model_copy(
+            update={"members": updated_members, "updated_at": datetime.now(UTC)}
+        )
+        self.lists[list_address] = updated
+        return updated
+
+    async def remove_list_member(
+        self,
+        list_address: str,
+        member_address: str,
+    ) -> MAILListInBackend:
+        """
+        Remove a member from a MAIL list.
+
+        Idempotent — removing a non-member returns the list unchanged.
+        """
+
+        existing = self.lists.get(list_address)
+        if existing is None:
+            raise ValueError(f"list not found: {list_address}")
+        if member_address not in existing.members:
+            return existing
+
+        updated_members = [m for m in existing.members if m != member_address]
+        updated = existing.model_copy(
+            update={"members": updated_members, "updated_at": datetime.now(UTC)}
+        )
+        self.lists[list_address] = updated
+        return updated
 
     #
     # Message endpoints
