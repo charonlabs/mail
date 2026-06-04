@@ -1,9 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
+import asyncio
+import hashlib
+import hmac
+import logging
+import time
 from abc import abstractmethod
+from datetime import UTC, datetime
 from typing import Any, Protocol
+from uuid import uuid4
 
+import httpx
 from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
@@ -18,23 +26,36 @@ from mail_protocol.core.user_agents import (
     MAILUserAgent,
     MAILUserAgentInBackend,
 )
+from mail_protocol.core.webhooks import MAILMessageInWebhook, MAILWebhook
 from mail_protocol.network.requests import (
     AdminAgentPostRequest,
     AdminDaemonPostRequest,
     AdminSwarmPostRequest,
     AdminUserPostRequest,
+    AdminWebhooksPatchRequest,
+    AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
     DraftPostRequest,
     DraftSendPostRequest,
 )
+from mail_protocol.network.responses import AdminWebhooksDeleteResponse
+from mail_protocol.network.webhooks import WebhookDeliveredPostRequest
+
+logger = logging.getLogger(__name__)
 
 
 class MAILServerBackend(Protocol):
     """
     A generic base class for the MAIL server backend.
     """
+
+    client = httpx.AsyncClient(
+        headers={
+            "User-Agent": "Multi-Agent-Interface-Layer-Server/2.0.0 (github.com/charonlabs/mail)"
+        }
+    )
 
     #
     # Lifecyle handlers
@@ -471,3 +492,200 @@ class MAILServerBackend(Protocol):
         """
 
         pass
+
+    #
+    # Webhook handlers
+    #
+    @abstractmethod
+    async def admin_webhooks_get(self, admin: MAILAdmin) -> list[str]:
+        """
+        Get the IDs for all existing server webhooks.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_webhook_get(self, admin: MAILAdmin, webhook_id: str) -> MAILWebhook:
+        """
+        Get an existing server webhook by ID.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_webhook_post(
+        self,
+        admin: MAILAdmin,
+        payload: AdminWebhooksPostRequest,
+    ) -> MAILWebhook:
+        """
+        Create a new server webhook.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_webhook_patch(
+        self,
+        admin: MAILAdmin,
+        webhook_id: str,
+        payload: AdminWebhooksPatchRequest,
+    ) -> MAILWebhook:
+        """
+        Update an existing server webhook URL and/or secret.
+        """
+
+        pass
+
+    @abstractmethod
+    async def admin_webhook_delete(
+        self,
+        admin: MAILAdmin,
+        webhook_id: str,
+    ) -> MAILWebhook:
+        """
+        Delete an existing server webhook by ID.
+        """
+
+        pass
+
+    async def handle_webhook_delivered_for_url(
+        self,
+        url: str,
+        recipient: str,
+        message: MAILMessage,
+        secret: str,
+    ) -> None:
+        """
+        Common webhook `mail.delivered` handler for MAIL server backends.
+        """
+
+        event_id = f"evt_{uuid4()}"
+        if not self._webhook_delivered_post(
+            event_id=event_id,
+            url=url,
+            recipient=recipient,
+            message=message,
+            secret=secret,
+        ):
+            return
+
+        await asyncio.sleep(1)
+        if not self._webhook_delivered_post(
+            event_id=event_id,
+            url=url,
+            recipient=recipient,
+            message=message,
+            secret=secret,
+        ):
+            return
+
+        await asyncio.sleep(30)
+        if not self._webhook_delivered_post(
+            event_id=event_id,
+            url=url,
+            recipient=recipient,
+            message=message,
+            secret=secret,
+        ):
+            return
+
+        await asyncio.sleep(300)
+        if not self._webhook_delivered_post(
+            event_id=event_id,
+            url=url,
+            recipient=recipient,
+            message=message,
+            secret=secret,
+        ):
+            return
+
+        await asyncio.sleep(3600)
+        if not self._webhook_delivered_post(
+            event_id=event_id,
+            url=url,
+            recipient=recipient,
+            message=message,
+            secret=secret,
+        ):
+            return
+
+        await asyncio.sleep(6 * 3600)
+        if not self._webhook_delivered_post(
+            event_id=event_id,
+            url=url,
+            recipient=recipient,
+            message=message,
+            secret=secret,
+        ):
+            return
+
+        logger.warning(
+            f"webhook POST request for `mail.delivered` to {url} failed after 5 tries"
+        )
+
+    async def _webhook_delivered_post(
+        self,
+        event_id: str,
+        url: str,
+        recipient: str,
+        message: MAILMessage,
+        secret: str,
+    ) -> bool:
+        """
+        Attempt an individual POST request fo the webhook `mail.delivered` for a specific URL.
+        Return True if a retry is needed, False otherwise.
+        """
+
+        delivered_at = datetime.now(UTC)
+        payload = WebhookDeliveredPostRequest(
+            event="mail.delivered",
+            event_id=event_id,
+            delivered_at=delivered_at,
+            message=MAILMessageInWebhook(
+                message_id=message.message_id,
+                sender=message.sender,
+                recipient=recipient,
+                subject=message.subject,
+                body=message.body,
+                sent_at=message.sent_at,
+                swarm=recipient.split("@")[1],
+                metadata={},
+            ),
+        )
+        raw_body = payload.model_dump_json()
+        signature = hmac.new(
+            key=secret.encode(),
+            msg=f"{delivered_at}.{raw_body}".encode(),
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+
+        async with self.client as client:
+            try:
+                response = await client.post(
+                    url=url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-MAIL-Event-Id": payload.event_id,
+                        "X-MAIL-Timestamp": f"{int(time.time())}",
+                        "X-MAIL-Signature": f"sha256={signature}",
+                    },
+                    json=payload,
+                    timeout=10,
+                )
+            except httpx.TimeoutException:
+                return True
+
+        # successful response
+        if (response.status_code >= 200) and (response.status_code < 300):
+            return False
+        # 4xx
+        elif (response.status_code >= 400) and (response.status_code < 500):
+            if response.status_code == 429:
+                return True
+            return False
+        # 5xx
+        elif (response.status_code >= 500) and (response.status_code < 600):
+            return True
+
+        return False

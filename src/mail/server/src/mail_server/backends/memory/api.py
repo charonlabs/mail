@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
+import asyncio
 import logging
 import uuid
 from copy import deepcopy
@@ -21,11 +22,14 @@ from mail_protocol.core.user_agents import (
     MAILUserAgent,
     MAILUserAgentInBackend,
 )
+from mail_protocol.core.webhooks import MAILWebhook
 from mail_protocol.network.requests import (
     AdminAgentPostRequest,
     AdminDaemonPostRequest,
     AdminSwarmPostRequest,
     AdminUserPostRequest,
+    AdminWebhooksPatchRequest,
+    AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
@@ -48,6 +52,7 @@ from mail_server.backends.memory.fs import (
     load_trash_entries,
     load_trashes,
     load_user_agents,
+    load_webhooks,
     save_draft_entries,
     save_drafts,
     save_inbox_entries,
@@ -165,6 +170,13 @@ class MemoryBackend(MAILServerBackend):
         """
         A list of all MAIL messages in the delivery buffer.
         Items: message IDs
+        """
+
+        self.webhooks: dict[str, MAILWebhook] = await load_webhooks()
+        """
+        A dict of all server webhooks.
+        Keys: webhook URLs
+        Values: MAILWebhook instances
         """
 
         host = kwargs.get("host")
@@ -652,6 +664,11 @@ class MemoryBackend(MAILServerBackend):
                     continue
 
                 self.inboxes[ua_address].append(inbox_entry.message_id)
+                # send webhook `mail.delivered`
+                await self._handle_webhook_delivered(
+                    recipient=rec,
+                    message=message,
+                )
 
             messages.append(message.summarize())
 
@@ -1031,6 +1048,111 @@ class MemoryBackend(MAILServerBackend):
 
         swarm = self.swarms.pop(swarm_name)
         return swarm
+
+    #
+    # Webhook handlers
+    #
+    async def admin_webhooks_get(self, admin: MAILAdmin) -> list[str]:
+        """
+        Get the IDs for all existing server webhooks.
+        """
+
+        webhooks = self.webhooks
+        return [wh.webhook_id for wh in webhooks.values()]
+
+    async def admin_webhook_get(self, admin: MAILAdmin, webhook_id: str) -> MAILWebhook:
+        """
+        Get an existing server webhook by ID.
+        """
+
+        for webhook in self.webhooks.values():
+            if webhook.webhook_id == webhook_id:
+                return webhook
+
+        raise ValueError(f"webhook with ID {webhook_id} not found")
+
+    async def admin_webhook_post(
+        self,
+        admin: MAILAdmin,
+        payload: AdminWebhooksPostRequest,
+    ) -> MAILWebhook:
+        """
+        Create a new server webhook.
+        """
+
+        # if the given URL is already being used, return that without adding anything
+        webhook = self.webhooks.get(payload.url)
+        if webhook is not None:
+            return webhook
+
+        webhook_id = f"wh_{str(uuid.uuid4())}"
+        new_webhook = MAILWebhook(
+            webhook_id=webhook_id,
+            url=payload.url,
+            events=payload.events,
+            secret=payload.secret,
+        )
+        self.webhooks.update({payload.url: new_webhook})
+
+        return new_webhook
+
+    async def admin_webhook_patch(
+        self,
+        admin: MAILAdmin,
+        webhook_id: str,
+        payload: AdminWebhooksPatchRequest,
+    ) -> MAILWebhook:
+        """
+        Update an existing server webhook URL and/or secret.
+        """
+
+        for webhook in self.webhooks.values():
+            if webhook.webhook_id == webhook_id:
+                if payload.url is not None:
+                    old_url = webhook.url
+                    webhook.url = payload.url
+                    self.webhooks.pop(old_url)
+                    self.webhooks.update({webhook.url: webhook})
+                if payload.secret is not None:
+                    webhook.secret = payload.secret
+                    self.webhooks.update({webhook.url: webhook})
+
+        raise ValueError(f"webhook with ID {webhook_id} not found")
+
+    async def admin_webhook_delete(
+        self,
+        admin: MAILAdmin,
+        webhook_id: str,
+    ) -> MAILWebhook:
+        """
+        Delete an existing server webhook by ID.
+        """
+
+        for webhook in self.webhooks.values():
+            if webhook.webhook_id == webhook_id:
+                self.webhooks.pop(webhook.url)
+
+        raise ValueError(f"webhook with ID {webhook_id} not found")
+
+    async def _handle_webhook_delivered(
+        self,
+        recipient: str,
+        message: MAILMessage,
+    ) -> None:
+        """
+        Handle all `mail.delivered` webhooks.
+        """
+
+        for url, webhook in self.webhooks.items():
+            if "mail.delivered" in webhook.events:
+                _task = asyncio.create_task(
+                    self.handle_webhook_delivered_for_url(
+                        url=url,
+                        recipient=recipient,
+                        message=message,
+                        secret=webhook.secret,
+                    )
+                )
 
     #
     # Message endpoints

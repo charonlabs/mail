@@ -15,8 +15,10 @@ from mail_protocol.core.validators import (
     validate_swarm_description,
     validate_swarm_keywords,
     validate_swarm_name,
+    validate_url,
     validate_user_name,
     validate_uuids,
+    validate_webhook_event_types,
 )
 
 
@@ -139,3 +141,24 @@ class AdminSwarmPostRequest(BaseModel):
     name: Annotated[str, AfterValidator(validate_swarm_name)]
     description: Annotated[str, AfterValidator(validate_swarm_description)]
     keywords: Annotated[list[str], AfterValidator(validate_swarm_keywords)]
+
+
+class AdminWebhooksPostRequest(BaseModel):
+    """
+    Corresponds to `POST /admin/webhooks`.
+    Contains info required for webhook setup.
+    """
+
+    url: Annotated[str, AfterValidator(validate_url)]
+    events: Annotated[list[str], AfterValidator(validate_webhook_event_types)]
+    secret: str
+
+
+class AdminWebhooksPatchRequest(BaseModel):
+    """
+    Corresponds to `PATCH /admin/webhooks`.
+    Allows client to change URL or secret for an existing webhook.
+    """
+
+    url: Annotated[str, AfterValidator(validate_url)]
+    secret: str

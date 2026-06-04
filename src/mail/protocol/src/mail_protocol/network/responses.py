@@ -22,6 +22,7 @@ from mail_protocol.core.validators import (
     validate_local_addresses,
     validate_user_names,
 )
+from mail_protocol.core.webhooks import MAILWebhook
 
 
 #
@@ -437,4 +438,54 @@ class AdminSwarmDeleteResponse(BaseModel):
     """
 
     swarm: MAILSwarm
+    metadata: dict[str, Any]
+
+
+class AdminWebhooksGetResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/webhooks`.
+    Contains a list of existing webhooks by ID.
+    """
+
+    webhook_ids: list[str]
+    metadata: dict[str, Any]
+
+
+class AdminWebhookGetResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/webhooks/{webhook_id}`.
+    Contains info on the existing webhook by ID.
+    """
+
+    webhook: MAILWebhook
+    metadata: dict[str, Any]
+
+
+class AdminWebhooksPostResponse(BaseModel):
+    """
+    Corresponds to `POST /admin/webhooks`.
+    Contains information on the newly-created webhook.
+    """
+
+    webhook: MAILWebhook
+    metadata: dict[str, Any]
+
+
+class AdminWebhooksPatchResponse(BaseModel):
+    """
+    Corresponds to `PATCH /admin/webhooks/{webhook_id}`.
+    Contains information on the patched webhook.
+    """
+
+    webhook: MAILWebhook
+    metadata: dict[str, Any]
+
+
+class AdminWebhooksDeleteResponse(BaseModel):
+    """
+    Corresponds to `DELETE /admin/webhooks/{webhook_id}`.
+    Contains information on the newly-deleted webhook.
+    """
+
+    webhook: MAILWebhook
     metadata: dict[str, Any]

@@ -17,6 +17,11 @@ from mail_protocol.network.responses import (
     AdminUserGetResponse,
     AdminUserPostResponse,
     AdminUsersGetResponse,
+    AdminWebhookGetResponse,
+    AdminWebhooksDeleteResponse,
+    AdminWebhooksGetResponse,
+    AdminWebhooksPatchResponse,
+    AdminWebhooksPostResponse,
 )
 
 from mail_server.auth import validate_admin
@@ -334,3 +339,51 @@ async def delete_swarm(request: Request) -> AdminSwarmDeleteResponse:
         swarm=result,
         metadata={},
     )
+
+
+#
+# Webhook endpoints
+#
+@router.get(
+    "/webhooks",
+    summary="Get the IDs of all existing server webhooks",
+    response_model=AdminWebhooksGetResponse,
+)
+async def get_webhooks(request: Request) -> AdminWebhooksGetResponse:
+    raise NotImplementedError
+
+
+@router.get(
+    "/webhooks/{webhook_id}",
+    summary="Get a specific existing server webhook by ID",
+    response_model=AdminWebhookGetResponse,
+)
+async def get_webhook(request: Request) -> AdminWebhookGetResponse:
+    raise NotImplementedError
+
+
+@router.post(
+    "/webhooks",
+    summary="Create a new webhook for this server",
+    response_model=AdminWebhooksPostResponse,
+)
+async def post_webhook(request: Request) -> AdminWebhooksPostResponse:
+    raise NotImplementedError
+
+
+@router.patch(
+    "/webhooks/{webhook_id}",
+    summary="Update an existing webhook by ID on this server",
+    response_model=AdminWebhooksPatchResponse,
+)
+async def patch_webhook(request: Request) -> AdminWebhooksPatchResponse:
+    raise NotImplementedError
+
+
+@router.delete(
+    "/webhooks/{webhook_id}",
+    summary="Delete an existing webhook by ID from this server",
+    response_model=AdminWebhooksDeleteResponse,
+)
+async def delete_webhook(request: Request) -> AdminWebhooksDeleteResponse:
+    raise NotImplementedError

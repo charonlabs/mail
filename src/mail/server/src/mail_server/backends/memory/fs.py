@@ -16,7 +16,9 @@ from mail_protocol.core.validators import (
     validate_mail_address,
     validate_swarm_name,
     validate_uuid,
+    validate_webhook_id,
 )
+from mail_protocol.core.webhooks import MAILWebhook
 
 logger = logging.getLogger(__name__)
 
@@ -434,6 +436,38 @@ async def load_message_buffer() -> list[str]:
     return msg_buf
 
 
+async def load_webhooks() -> dict[str, MAILWebhook]:
+    """
+    Load saved server webhooks from the local filesystem.
+    """
+
+    webhooks_path = DEPLOYMENT_PATH.joinpath("webhooks")
+    logger.info(f"loading webhooks: {webhooks_path}...")
+    webhooks: dict[str, MAILWebhook] = {}
+    with scandir(webhooks_path) as entries:
+        for entry in entries:
+            if entry.is_file():
+                try:
+                    validate_webhook_id(entry.name)
+                except ValueError as e:
+                    logger.warning(f"MAIL webhook ID validation failed: {e}")
+                    continue
+
+                with open(entry) as message_file:
+                    content = message_file.read()
+                    try:
+                        webhook_model = MAILWebhook.model_validate_json(content)
+                    except Exception as e:
+                        logger.warning(f"MAILWebhook model validation failed: {e}")
+                        continue
+
+                    webhooks.update({webhook_model.url: webhook_model})
+
+    logger.info(f"found {len(webhooks)} webhooks")
+
+    return webhooks
+
+
 #
 # Save memory backend to the local filesystem
 # (on server shutdown)
@@ -618,3 +652,18 @@ async def save_message_buffer(message_buffer: list[str]) -> None:
     with open(msg_buf_path, "w") as msg_buf_file:
         for msg_id in message_buffer:
             msg_buf_file.write(f"{msg_id}\n")
+
+
+async def save_webhooks(webhooks: dict[str, MAILWebhook]) -> None:
+    """
+    Save server webhooks from memory to the local filesystem.
+    """
+
+    logger.info(f"saving {len(webhooks)} webhooks...")
+
+    webhooks_path = DEPLOYMENT_PATH.joinpath("webhooks")
+    for webhook in webhooks.values():
+        wh_path = webhooks_path.joinpath(webhook.webhook_id)
+        with open(wh_path, "w") as wh_file:
+            content = webhook.model_dump_json()
+            wh_file.write(content)

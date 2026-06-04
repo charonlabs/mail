@@ -3,6 +3,7 @@
 
 import re
 import uuid
+from urllib.parse import urlsplit
 
 import validators
 
@@ -335,6 +336,76 @@ def validate_daemon_worker_names(names: list[str]) -> list[str]:
         validate_daemon_worker_name(name)
 
     return names
+
+
+def validate_webhook_event_type(event: str) -> str:
+    """
+    Ensure that the given string is a valid MAIL webhook event type.
+    """
+
+    match event:
+        case "mail.delivered":
+            return event
+        case _:
+            raise ValueError(f"invalid webhook event type: {event}")
+
+
+def validate_webhook_event_types(events: list[str]) -> list[str]:
+    """
+    Ensure that all given strings are valid MAIL webhook event types.
+    """
+
+    for event in events:
+        validate_webhook_event_type(event)
+
+    return events
+
+
+def validate_url(url: str) -> str:
+    """
+    Ensure that the given string is a valid URL.
+    """
+
+    try:
+        urlsplit(url)
+    except Exception:
+        raise ValueError(f"invalid URL: {url}")
+
+    return url
+
+
+def validate_webhook_id(id: str) -> str:
+    """
+    Ensure that the given string is a valid webhook ID ('wh_<uuid>').
+    """
+
+    us_split = id.split("_")
+    if len(us_split) != 2:
+        raise ValueError(f"invalid webhook ID: {id}")
+
+    prefix, uuid = us_split
+    if prefix != "wh":
+        raise ValueError(f"expected prefix 'wh', got '{prefix}'")
+    validate_uuid(uuid)
+
+    return id
+
+
+def validate_webhook_message_id(id: str) -> str:
+    """
+    Ensure that the given string is a valid webhook message ID (`msg_<uuid>`).
+    """
+
+    us_split = id.split("_")
+    if len(us_split) != 2:
+        raise ValueError(f"invalid webhook message ID: {id}")
+
+    prefix, uuid = us_split
+    if prefix != "msg":
+        raise ValueError(f"expected prefix 'msg', got '{prefix}'")
+    validate_uuid(uuid)
+
+    return id
 
 
 def string_is_slug(string: str) -> bool:
