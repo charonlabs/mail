@@ -11,7 +11,6 @@ from mail_protocol.core.user_agents import (
     MAILAgent,
     MAILDaemon,
     MAILUser,
-    MAILUserAgent,
     MAILUserAgentInBackend,
 )
 from pwdlib import PasswordHash
@@ -118,6 +117,11 @@ def init_memory_backend(
     # print(f"ensuring deployment trashes: {TRASHES_PATH}")
     TRASHES_PATH.mkdir(exist_ok=True)
     print(f"ensured deployment trashes: {TRASHES_PATH}")
+
+    # ~/.mail-swarms/deployments/{deployment}/webhooks
+    WEBHOOKS_PATH = DEPLOYMENT_PATH.joinpath("webhooks")
+    WEBHOOKS_PATH.mkdir(exist_ok=True)
+    print(f"ensured deployment webhooks: {WEBHOOKS_PATH}")
 
     # write swarm file
     SWARM_PATH = SWARMS_PATH.joinpath(swarm)
