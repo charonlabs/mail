@@ -13,6 +13,7 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 
 - `POST /auth/token`: Log in with a valid MAIL address and password to obtain a temporary access token.
 - `GET /auth/whoami`: Obtain information on the logged-in MAIL server user-agent.
+- `POST /auth/password/reset`: Reset the logged-in user-agent's password.
 
 ### Swarms
 
@@ -55,8 +56,21 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 ### Admin
 
 - `GET /admin/agents`: Get a list of agents by local address (agent@swarm) from the MAIL server.
+- `POST /admin/agents`: Creat a new MAIL agent for this server.
 - `GET /admin/agents/{agent_address}`: Get a specific registered agent by local address (agent@swarm).
+- `DELETE /admin/agents/{agent_address}`: Delete an existing registered agent by local address (agent@swarm).
 - `GET /admin/daemons`: Get a list of daemons by worker name from the MAIL server.
+- `POST /admin/daemons`: Create a new MAIL daemon for this server.
 - `GET /admin/daemons/{worker_name}`: Get a specific registered daemon by worker name.
+- `DELETE /admin/daemons/{worker_name}`: Delete an existing daemon by worker name from the server.
 - `GET /admin/users`: Get a list of users by user ID from the MAIL server.
+- `POST /admin/users`: Create a new MAIL user for this server.
 - `GET /admin/users/{user_id}`: Get a specific registered user by user ID.
+- `DELETE /admin/users/{user_id}`: Delete an existing user by ID from the server.
+- `POST /admin/swarms`: Create a new MAIL swarm on the server.
+- `DELETE /admin/swawms/{swarm_name}`: Delete an existing MAIL swarm from the server.
+- `GET /admin/webhooks`: Get the IDs of all existing webhooks on this MAIL server.
+- `POST /admin/webhooks`: Create a new webhook on the MAIL server.
+- `GET /admin/webhooks/{webhook_id}`: Get an existing server webhook by ID.
+- `DELETE /admin/webhooks/{webhook_id}`: Delete an existing server webhook by ID.
+- `PATCH /admin/webhooks/{webhook_id}`: Update an existing server webhook by ID.

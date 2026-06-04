@@ -36,6 +36,14 @@ mail-admin [option]... <command> [argument]...
 - `swarm-post`: Create a new swarm with the specified info on the MAIL server.
 - `swarm-delete` Delete an existing swarm by name on the MAIL server.
 
+### Webhook Operations
+
+- `webhook-list`: Get a list of webhooks registered on the MAIL server.
+- `webhook-get`: Get a specific webhook by ID on the MAIL server.
+- `webhook-post`: Cerate a new webhook on the MAIL server.
+- `webhook-patch`: Update an existing webhook by ID on the MAIL server.
+- `webhook-delete`: Delete an existing webhook by ID on the MAIL server.
+
 ### Utility Commands (same as main CLI)
 
 - `ping`: Attempt to ping the MAIL server at the URL provided.
