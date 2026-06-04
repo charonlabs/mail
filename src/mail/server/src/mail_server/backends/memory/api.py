@@ -1166,12 +1166,29 @@ class MemoryBackend(MAILServerBackend):
     #
     # List endpoints
     #
-    async def admin_get_lists(self, admin: MAILAdmin) -> list[MAILListInBackend]:
+    async def get_lists(self) -> list[MAILListInBackend]:
         """
-        Get all MAIL lists known to this server.
+        Get all MAIL lists known to this server (no auth scope).
         """
 
         return list(self.lists.values())
+
+    async def get_list(self, list_address: str) -> MAILListInBackend:
+        """
+        Get a specific MAIL list by its ``list:`` address (no auth scope).
+        """
+
+        mail_list = self.lists.get(list_address)
+        if mail_list is None:
+            raise ValueError(f"list not found: {list_address}")
+        return mail_list
+
+    async def admin_get_lists(self, admin: MAILAdmin) -> list[MAILListInBackend]:
+        """
+        Admin read of every list known to the server.
+        """
+
+        return await self.get_lists()
 
     async def admin_get_list(
         self,
@@ -1179,13 +1196,10 @@ class MemoryBackend(MAILServerBackend):
         list_address: str,
     ) -> MAILListInBackend:
         """
-        Get a specific MAIL list by its full ``list:`` address.
+        Admin read of a specific MAIL list.
         """
 
-        mail_list = self.lists.get(list_address)
-        if mail_list is None:
-            raise ValueError(f"list not found: {list_address}")
-        return mail_list
+        return await self.get_list(list_address)
 
     async def admin_post_list(
         self,

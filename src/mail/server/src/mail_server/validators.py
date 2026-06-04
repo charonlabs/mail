@@ -5,6 +5,8 @@ from fastapi import HTTPException, Request
 from mail_protocol.network.requests import (
     AdminAgentPostRequest,
     AdminDaemonPostRequest,
+    AdminListPatchRequest,
+    AdminListPostRequest,
     AdminSwarmPostRequest,
     AdminUserPostRequest,
     AdminWebhooksPatchRequest,
@@ -13,6 +15,7 @@ from mail_protocol.network.requests import (
     DaemonDeliverLocalRequest,
     DraftPostRequest,
     DraftSendPostRequest,
+    ListMemberPostRequest,
 )
 from pydantic import ValidationError
 
@@ -160,6 +163,55 @@ async def validate_admin_webhook_patch_request(
     try:
         body = await request.json()
         return AdminWebhooksPatchRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_post_list_request(
+    request: Request,
+) -> AdminListPostRequest:
+    """
+    Ensure that the request payload is valid for `POST /admin/lists`.
+    """
+
+    try:
+        body = await request.json()
+        return AdminListPostRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_admin_patch_list_request(
+    request: Request,
+) -> AdminListPatchRequest:
+    """
+    Ensure that the request payload is valid for `PATCH /admin/lists/{list_address}`.
+    """
+
+    try:
+        body = await request.json()
+        return AdminListPatchRequest.model_validate(body)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_list_member_post_request(
+    request: Request,
+) -> ListMemberPostRequest:
+    """
+    Ensure that the request payload is valid for the member-add endpoints
+    (`POST /lists/{list_address}/members` and the admin variant).
+    """
+
+    try:
+        body = await request.json()
+        return ListMemberPostRequest.model_validate(body)
     except ValidationError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"

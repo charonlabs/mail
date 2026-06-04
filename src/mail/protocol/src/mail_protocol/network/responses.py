@@ -7,6 +7,7 @@ from pydantic import AfterValidator, BaseModel
 
 from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
+from mail_protocol.core.lists import MAILListInBackend
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
 from mail_protocol.core.outbox import MAILOutboxEntry, MAILOutboxEntrySummary
 from mail_protocol.core.swarms import MAILSwarm, MAILSwarmSummary
@@ -488,4 +489,95 @@ class AdminWebhooksDeleteResponse(BaseModel):
     """
 
     webhook: MAILWebhook
+    metadata: dict[str, Any]
+
+
+#
+# List endpoints
+#
+class AdminListsGetResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/lists`. All lists known to the server.
+    """
+
+    lists: list[MAILListInBackend]
+    metadata: dict[str, Any]
+
+
+class AdminListGetResponse(BaseModel):
+    """
+    Corresponds to `GET /admin/lists/{list_address}`.
+    """
+
+    mail_list: MAILListInBackend
+    metadata: dict[str, Any]
+
+
+class AdminListPostResponse(BaseModel):
+    """
+    Corresponds to `POST /admin/lists`.
+    """
+
+    mail_list: MAILListInBackend
+    metadata: dict[str, Any]
+
+
+class AdminListPatchResponse(BaseModel):
+    """
+    Corresponds to `PATCH /admin/lists/{list_address}`.
+    """
+
+    mail_list: MAILListInBackend
+    metadata: dict[str, Any]
+
+
+class AdminListDeleteResponse(BaseModel):
+    """
+    Corresponds to `DELETE /admin/lists/{list_address}`.
+    """
+
+    mail_list: MAILListInBackend
+    metadata: dict[str, Any]
+
+
+class ListsGetResponse(BaseModel):
+    """
+    Corresponds to `GET /lists`. Returns lists visible to the caller.
+    At v1 every list has ``visibility = "public"``; future versions
+    that introduce private lists will filter here.
+    """
+
+    lists: list[MAILListInBackend]
+    metadata: dict[str, Any]
+
+
+class ListGetResponse(BaseModel):
+    """
+    Corresponds to `GET /lists/{list_address}`.
+    """
+
+    mail_list: MAILListInBackend
+    metadata: dict[str, Any]
+
+
+class ListMemberPostResponse(BaseModel):
+    """
+    Corresponds to `POST /lists/{list_address}/members` and
+    `POST /admin/lists/{list_address}/members`. The updated list with
+    the member appended (idempotent — re-adding an existing member is
+    a no-op).
+    """
+
+    mail_list: MAILListInBackend
+    metadata: dict[str, Any]
+
+
+class ListMemberDeleteResponse(BaseModel):
+    """
+    Corresponds to `DELETE /lists/{list_address}/members/{member_address}`.
+    The updated list with the member removed (idempotent — removing a
+    non-member is a no-op).
+    """
+
+    mail_list: MAILListInBackend
     metadata: dict[str, Any]

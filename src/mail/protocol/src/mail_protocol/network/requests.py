@@ -190,3 +190,17 @@ class AdminListPatchRequest(BaseModel):
     """
 
     policy: MAILListPolicy | None = None
+
+
+class ListMemberPostRequest(BaseModel):
+    """
+    Corresponds to ``POST /lists/{list_address}/members``
+    and ``POST /admin/lists/{list_address}/members``.
+
+    ``member_address`` is the address being added. For the public
+    subscribe path, this must match the authenticated bearer
+    (self-subscribe); for the admin add path, any valid MAIL address
+    is accepted.
+    """
+
+    member_address: Annotated[str, AfterValidator(validate_mail_address)]

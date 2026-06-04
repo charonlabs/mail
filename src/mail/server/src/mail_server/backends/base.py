@@ -698,12 +698,28 @@ class MAILServerBackend(Protocol):
     # List endpoints
     #
     @abstractmethod
+    async def get_lists(self) -> list[MAILListInBackend]:
+        """
+        Get all MAIL lists known to this server (no auth scope).
+        """
+
+        pass
+
+    @abstractmethod
+    async def get_list(self, list_address: str) -> MAILListInBackend:
+        """
+        Get a specific MAIL list by address (no auth scope).
+        """
+
+        pass
+
+    @abstractmethod
     async def admin_get_lists(
         self,
         admin: MAILAdmin,
     ) -> list[MAILListInBackend]:
         """
-        Get all MAIL lists known to this server.
+        Admin read of every list known to the server.
         """
 
         pass
@@ -715,7 +731,7 @@ class MAILServerBackend(Protocol):
         list_address: str,
     ) -> MAILListInBackend:
         """
-        Get a specific MAIL list by its full ``list:`` address.
+        Admin read of a specific MAIL list.
         """
 
         pass

@@ -20,6 +20,7 @@ from mail_server.routers import (
     daemon,
     drafts,
     inbox,
+    lists,
     outbox,
     swarms,
     trash,
@@ -89,6 +90,8 @@ app.include_router(drafts.router)
 app.include_router(trash.router)
 app.include_router(daemon.router)
 app.include_router(admin.router)
+app.include_router(lists.admin_router)
+app.include_router(lists.public_router)
 
 
 #
