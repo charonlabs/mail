@@ -670,6 +670,17 @@ class MAILServerBackend(Protocol):
             digestmod=hashlib.sha256,
         ).hexdigest()
 
+        # Smoke-test instrumentation. Remove once verification matches.
+        logger.info(
+            "webhook signing: timestamp=%s body_len=%d body_sha=%s body_head=%r signature=%s secret_head=%s",
+            wall_timestamp,
+            len(raw_body),
+            hashlib.sha256(raw_body.encode()).hexdigest()[:16],
+            raw_body[:200],
+            signature,
+            secret[:6],
+        )
+
         async with self.client as client:
             try:
                 response = await client.post(
