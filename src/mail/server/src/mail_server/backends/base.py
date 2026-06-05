@@ -651,7 +651,9 @@ class MAILServerBackend(Protocol):
             event_id=event_id,
             delivered_at=delivered_at,
             message=MAILMessageInWebhook(
-                message_id=message.message_id,
+                # MAILMessage stores a bare UUID; the webhook payload's
+                # message_id is the prefixed form per validate_webhook_message_id.
+                message_id=f"msg_{message.message_id}",
                 sender=message.sender,
                 recipient=recipient,
                 subject=message.subject,
