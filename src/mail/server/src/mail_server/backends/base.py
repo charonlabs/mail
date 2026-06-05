@@ -564,7 +564,7 @@ class MAILServerBackend(Protocol):
         """
 
         event_id = f"evt_{uuid4()}"
-        if not self._webhook_delivered_post(
+        if not await self._webhook_delivered_post(
             event_id=event_id,
             url=url,
             recipient=recipient,
@@ -574,7 +574,7 @@ class MAILServerBackend(Protocol):
             return
 
         await asyncio.sleep(1)
-        if not self._webhook_delivered_post(
+        if not await self._webhook_delivered_post(
             event_id=event_id,
             url=url,
             recipient=recipient,
@@ -584,7 +584,7 @@ class MAILServerBackend(Protocol):
             return
 
         await asyncio.sleep(30)
-        if not self._webhook_delivered_post(
+        if not await self._webhook_delivered_post(
             event_id=event_id,
             url=url,
             recipient=recipient,
@@ -594,7 +594,7 @@ class MAILServerBackend(Protocol):
             return
 
         await asyncio.sleep(300)
-        if not self._webhook_delivered_post(
+        if not await self._webhook_delivered_post(
             event_id=event_id,
             url=url,
             recipient=recipient,
@@ -604,7 +604,7 @@ class MAILServerBackend(Protocol):
             return
 
         await asyncio.sleep(3600)
-        if not self._webhook_delivered_post(
+        if not await self._webhook_delivered_post(
             event_id=event_id,
             url=url,
             recipient=recipient,
@@ -614,7 +614,7 @@ class MAILServerBackend(Protocol):
             return
 
         await asyncio.sleep(6 * 3600)
-        if not self._webhook_delivered_post(
+        if not await self._webhook_delivered_post(
             event_id=event_id,
             url=url,
             recipient=recipient,
