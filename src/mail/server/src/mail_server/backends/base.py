@@ -680,9 +680,14 @@ class MAILServerBackend(Protocol):
                         "X-MAIL-Timestamp": f"{wall_timestamp}",
                         "X-MAIL-Signature": f"sha256={signature}",
                     },
-                    # Pydantic models aren't directly JSON-serializable
-                    # by httpx; dump in JSON mode to get a plain dict.
-                    json=payload.model_dump(mode="json"),
+                    # Post the exact bytes that were signed. Using
+                    # ``json=payload.model_dump(mode="json")`` would
+                    # ask httpx to re-encode, which produces different
+                    # bytes (key order, whitespace, type coercions)
+                    # than ``payload.model_dump_json()`` — the
+                    # receiver verifies HMAC over the body it sees,
+                    # so the bytes must match what we signed.
+                    content=raw_body.encode(),
                     timeout=10,
                 )
             except httpx.TimeoutException:
