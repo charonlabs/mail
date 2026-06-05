@@ -680,7 +680,9 @@ class MAILServerBackend(Protocol):
                         "X-MAIL-Timestamp": f"{wall_timestamp}",
                         "X-MAIL-Signature": f"sha256={signature}",
                     },
-                    json=payload,
+                    # Pydantic models aren't directly JSON-serializable
+                    # by httpx; dump in JSON mode to get a plain dict.
+                    json=payload.model_dump(mode="json"),
                     timeout=10,
                 )
             except httpx.TimeoutException:
