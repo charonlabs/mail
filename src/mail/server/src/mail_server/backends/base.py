@@ -43,7 +43,6 @@ from mail_protocol.network.requests import (
     DraftPostRequest,
     DraftSendPostRequest,
 )
-from mail_protocol.network.responses import AdminWebhooksDeleteResponse
 from mail_protocol.network.webhooks import WebhookDeliveredPostRequest
 
 logger = logging.getLogger(__name__)
@@ -642,6 +641,11 @@ class MAILServerBackend(Protocol):
         """
 
         delivered_at = datetime.now(UTC)
+        # Generate the wall-clock timestamp once. The same value MUST be
+        # used in both the HMAC signature prefix and the X-MAIL-Timestamp
+        # header so the receiver can recompute the signature using only
+        # the values it sees on the wire.
+        wall_timestamp = int(time.time())
         payload = WebhookDeliveredPostRequest(
             event="mail.delivered",
             event_id=event_id,
@@ -660,7 +664,7 @@ class MAILServerBackend(Protocol):
         raw_body = payload.model_dump_json()
         signature = hmac.new(
             key=secret.encode(),
-            msg=f"{delivered_at}.{raw_body}".encode(),
+            msg=f"{wall_timestamp}.{raw_body}".encode(),
             digestmod=hashlib.sha256,
         ).hexdigest()
 
@@ -671,7 +675,7 @@ class MAILServerBackend(Protocol):
                     headers={
                         "Content-Type": "application/json",
                         "X-MAIL-Event-Id": payload.event_id,
-                        "X-MAIL-Timestamp": f"{int(time.time())}",
+                        "X-MAIL-Timestamp": f"{wall_timestamp}",
                         "X-MAIL-Signature": f"sha256={signature}",
                     },
                     json=payload,
