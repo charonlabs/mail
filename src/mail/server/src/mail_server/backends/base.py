@@ -48,16 +48,15 @@ from mail_protocol.network.webhooks import WebhookDeliveredPostRequest
 logger = logging.getLogger(__name__)
 
 
+_WEBHOOK_USER_AGENT = (
+    "Multi-Agent-Interface-Layer-Server/2.0.0 (github.com/charonlabs/mail)"
+)
+
+
 class MAILServerBackend(Protocol):
     """
     A generic base class for the MAIL server backend.
     """
-
-    client = httpx.AsyncClient(
-        headers={
-            "User-Agent": "Multi-Agent-Interface-Layer-Server/2.0.0 (github.com/charonlabs/mail)"
-        }
-    )
 
     #
     # Lifecyle handlers
@@ -670,7 +669,13 @@ class MAILServerBackend(Protocol):
             digestmod=hashlib.sha256,
         ).hexdigest()
 
-        async with self.client as client:
+        # Use a fresh AsyncClient per attempt. A shared instance gets
+        # closed by the ``async with`` block on the first attempt and
+        # then raises ``Cannot reopen a client instance, once it has
+        # been closed.`` on subsequent retries.
+        async with httpx.AsyncClient(
+            headers={"User-Agent": _WEBHOOK_USER_AGENT},
+        ) as client:
             try:
                 response = await client.post(
                     url=url,
