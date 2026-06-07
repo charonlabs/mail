@@ -557,6 +557,7 @@ class MAILServerBackend(Protocol):
         recipient: str,
         message: MAILMessage,
         secret: str,
+        list_address: str | None = None,
     ) -> None:
         """
         Common webhook `mail.delivered` handler for MAIL server backends.
@@ -569,6 +570,7 @@ class MAILServerBackend(Protocol):
             recipient=recipient,
             message=message,
             secret=secret,
+            list_address=list_address,
         ):
             return
 
@@ -579,6 +581,7 @@ class MAILServerBackend(Protocol):
             recipient=recipient,
             message=message,
             secret=secret,
+            list_address=list_address,
         ):
             return
 
@@ -589,6 +592,7 @@ class MAILServerBackend(Protocol):
             recipient=recipient,
             message=message,
             secret=secret,
+            list_address=list_address,
         ):
             return
 
@@ -599,6 +603,7 @@ class MAILServerBackend(Protocol):
             recipient=recipient,
             message=message,
             secret=secret,
+            list_address=list_address,
         ):
             return
 
@@ -609,6 +614,7 @@ class MAILServerBackend(Protocol):
             recipient=recipient,
             message=message,
             secret=secret,
+            list_address=list_address,
         ):
             return
 
@@ -619,6 +625,7 @@ class MAILServerBackend(Protocol):
             recipient=recipient,
             message=message,
             secret=secret,
+            list_address=list_address,
         ):
             return
 
@@ -633,10 +640,16 @@ class MAILServerBackend(Protocol):
         recipient: str,
         message: MAILMessage,
         secret: str,
+        list_address: str | None = None,
     ) -> bool:
         """
         Attempt an individual POST request fo the webhook `mail.delivered` for a specific URL.
         Return True if a retry is needed, False otherwise.
+
+        When ``list_address`` is set, the delivery originated from a
+        list expansion; the value is carried in
+        ``message.metadata.list_address`` so the receiver can surface
+        the originating list to the end-recipient.
         """
 
         delivered_at = datetime.now(UTC)
@@ -645,6 +658,9 @@ class MAILServerBackend(Protocol):
         # header so the receiver can recompute the signature using only
         # the values it sees on the wire.
         wall_timestamp = int(time.time())
+        metadata: dict[str, Any] = {}
+        if list_address is not None:
+            metadata["list_address"] = list_address
         payload = WebhookDeliveredPostRequest(
             event="mail.delivered",
             event_id=event_id,
@@ -659,7 +675,7 @@ class MAILServerBackend(Protocol):
                 body=message.body,
                 sent_at=message.sent_at,
                 swarm=recipient.split("@")[1],
-                metadata={},
+                metadata=metadata,
             ),
         )
         raw_body = payload.model_dump_json()

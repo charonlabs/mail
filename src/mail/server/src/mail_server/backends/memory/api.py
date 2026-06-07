@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 
+from mail_protocol.core.constants import LIST_ADDRESS_PREFIX
 from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILList, MAILListInBackend
@@ -668,21 +669,24 @@ class MemoryBackend(MAILServerBackend):
             )
             self.inbox_entries.update({inbox_entry.message_id: inbox_entry})
 
-            # 3. update the inbox of each recipient
-            recipients = message.recipients
-            for rec in recipients:
-                try:
-                    user_agent = await self.get_user_agent(rec)
-                    ua_address = user_agent.get_address()
-                except Exception:
-                    logger.warning(f"failed to validate recipient address {rec}")
+            # 3. update the inbox of each recipient. Recipients with the
+            # ``list:`` prefix are fan-out targets; expand to members,
+            # deliver to each, and tag the per-member webhook with the
+            # originating list address. Direct recipients are delivered
+            # as before with no list tag.
+            for rec in message.recipients:
+                if rec.startswith(f"{LIST_ADDRESS_PREFIX}:"):
+                    await self._fan_out_to_list(
+                        list_address=rec,
+                        inbox_entry=inbox_entry,
+                        message=message,
+                    )
                     continue
-
-                self.inboxes[ua_address].append(inbox_entry.message_id)
-                # send webhook `mail.delivered`
-                await self._handle_webhook_delivered(
-                    recipient=rec,
+                await self._deliver_to_address(
+                    address=rec,
+                    inbox_entry=inbox_entry,
                     message=message,
+                    list_address=None,
                 )
 
             messages.append(message.summarize())
@@ -1147,9 +1151,14 @@ class MemoryBackend(MAILServerBackend):
         self,
         recipient: str,
         message: MAILMessage,
+        list_address: str | None = None,
     ) -> None:
         """
         Handle all `mail.delivered` webhooks.
+
+        ``list_address`` is set when the delivery originated from a
+        list expansion; the webhook receiver uses it to surface the
+        originating list to the recipient.
         """
 
         for url, webhook in self.webhooks.items():
@@ -1160,8 +1169,82 @@ class MemoryBackend(MAILServerBackend):
                         recipient=recipient,
                         message=message,
                         secret=webhook.secret,
+                        list_address=list_address,
                     )
                 )
+
+    async def _deliver_to_address(
+        self,
+        *,
+        address: str,
+        inbox_entry: MAILInboxEntrySummary,
+        message: MAILMessage,
+        list_address: str | None,
+    ) -> None:
+        """
+        Deliver one inbox entry to a single recipient.
+
+        Validates the recipient address against the registered
+        user-agents, appends the inbox-entry id to that recipient's
+        inbox list, and fires ``mail.delivered`` webhooks. Unknown
+        recipients are logged and skipped rather than aborting the
+        wider delivery.
+        """
+
+        try:
+            user_agent = await self.get_user_agent(address)
+            ua_address = user_agent.get_address()
+        except Exception:
+            logger.warning(f"failed to validate recipient address {address}")
+            return
+
+        self.inboxes[ua_address].append(inbox_entry.message_id)
+        await self._handle_webhook_delivered(
+            recipient=address,
+            message=message,
+            list_address=list_address,
+        )
+
+    async def _fan_out_to_list(
+        self,
+        *,
+        list_address: str,
+        inbox_entry: MAILInboxEntrySummary,
+        message: MAILMessage,
+    ) -> None:
+        """
+        Expand a ``list:`` recipient into per-member deliveries.
+
+        Looks the list up, iterates members, delivers to each via
+        ``_deliver_to_address`` with ``list_address`` populated so the
+        per-member webhook events can carry the originating list.
+
+        Lists that aren't present on the server are logged and
+        skipped; nested list members (another ``list:`` prefix) are
+        rejected to keep v1 fan-out single-hop.
+        """
+
+        try:
+            mail_list = await self.get_list(list_address)
+        except ValueError:
+            logger.warning(
+                f"unknown list address in recipients; skipping: {list_address}"
+            )
+            return
+
+        for member in mail_list.members:
+            if member.startswith(f"{LIST_ADDRESS_PREFIX}:"):
+                logger.warning(
+                    f"nested list members are not supported in v1; "
+                    f"skipping {member!r} in {list_address!r}"
+                )
+                continue
+            await self._deliver_to_address(
+                address=member,
+                inbox_entry=inbox_entry,
+                message=message,
+                list_address=list_address,
+            )
 
     #
     # List endpoints
