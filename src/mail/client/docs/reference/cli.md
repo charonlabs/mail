@@ -28,6 +28,13 @@ mail [option]... <command> [argument]...
 - `swarm-list`: List the MAIL swarms on this server.
 - `swarm-get`: Get a specific MAIL swarm by name on this server.
 
+### Mailing List Helpers
+
+- `lists`: Get the mailing lists on this MAIL server for the authorized user-agent.
+- `list-get`: Get a specific mailing list on this MAIL server by address.
+- `list-subscribe`: Subscribe to an existing mailing list by address on this MAIL server.
+- `list-unsubscribe`: Unsubscribe from an existing mailing list by address on this MAIL server.
+
 ### Utility Commands
 
 - `ping`: Attempt to ping the MAIL server at the URL provided.

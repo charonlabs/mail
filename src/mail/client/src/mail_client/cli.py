@@ -9,6 +9,10 @@ from mail_client.commands import (
     cmd_drafts_open,
     cmd_inbox,
     cmd_inbox_open,
+    cmd_list_get,
+    cmd_list_subscribe,
+    cmd_list_unsubscribe,
+    cmd_lists,
     cmd_login,
     cmd_outbox,
     cmd_outbox_open,
@@ -208,6 +212,61 @@ def main() -> None:
     )
     swarm_get_p.add_argument("swarm_name", help="the name of the MAIL swarm to get")
     swarm_get_p.set_defaults(func=cmd_swarm_get, cmd="swarm-get")
+
+    #
+    # Mailing list helpers
+    #
+    # command `lists`
+    lists_d = "get mailing lists on this MAIL server"
+    lists_p = subparsers.add_parser(
+        "lists",
+        prog="mail lists",
+        help=lists_d,
+        description=lists_d,
+    )
+    lists_p.set_defaults(func=cmd_lists, cmd="lists")
+
+    # command `list-get`
+    list_get_d = "get a specific list on this MAIL server by address"
+    list_get_p = subparsers.add_parser(
+        "list-get",
+        aliases=["list", "lg"],
+        prog="mail list-get",
+        help=list_get_d,
+        description=list_get_d,
+    )
+    list_get_p.add_argument(
+        "list_address", help="the address of the mailing list to get"
+    )
+    list_get_p.set_defaults(func=cmd_list_get, cmd="list-get")
+
+    # command `list-subscribe`
+    list_subscribe_d = "subscribe to a mailing list on this server by address"
+    list_subscribe_p = subparsers.add_parser(
+        "list-subscribe",
+        aliases=["ls"],
+        prog="mail list-subscribe",
+        help=list_subscribe_d,
+        description=list_subscribe_d,
+    )
+    list_subscribe_p.add_argument(
+        "list_address", help="the address of the mailing list to subscribe to"
+    )
+    list_subscribe_p.set_defaults(func=cmd_list_subscribe, cmd="list-subscribe")
+
+    # command `list-unsubscribe`
+    list_unsubscribe_d = "unsubscribe from a mailing list on this server by address"
+    list_unsubscribe_p = subparsers.add_parser(
+        "list-unsubscribe",
+        aliases=["lu"],
+        prog="mail list-unsubscribe",
+        help=list_unsubscribe_d,
+        description=list_unsubscribe_d,
+    )
+    list_unsubscribe_p.add_argument(
+        "list_address", help="the address of the mailing list to unsubscribe from"
+    )
+    list_unsubscribe_p.set_defaults(func=cmd_list_unsubscribe, cmd="list-unsubscribe")
 
     # parse and handle args
     args = parser.parse_args()

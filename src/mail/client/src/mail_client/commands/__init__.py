@@ -11,6 +11,17 @@ from .drafts import cmd_drafts
 from .drafts_open import cmd_drafts_open
 from .inbox import cmd_inbox
 from .inbox_open import cmd_inbox_open
+from .list_delete import cmd_list_delete
+from .list_get import cmd_list_get
+from .list_get_admin import cmd_list_get_admin
+from .list_list import cmd_list_list
+from .list_member_delete import cmd_list_member_delete
+from .list_member_post import cmd_list_member_post
+from .list_patch import cmd_list_patch
+from .list_post import cmd_list_post
+from .list_subscribe import cmd_list_subscribe
+from .list_unsubscribe import cmd_list_unsubscribe
+from .lists import cmd_lists
 from .login import cmd_login
 from .outbox import cmd_outbox
 from .outbox_open import cmd_outbox_open
@@ -47,6 +58,17 @@ __all__ = [
     "cmd_drafts_open",
     "cmd_inbox",
     "cmd_inbox_open",
+    "cmd_list_delete",
+    "cmd_list_get",
+    "cmd_list_get_admin",
+    "cmd_list_list",
+    "cmd_list_member_delete",
+    "cmd_list_member_post",
+    "cmd_list_patch",
+    "cmd_list_post",
+    "cmd_list_subscribe",
+    "cmd_list_unsubscribe",
+    "cmd_lists",
     "cmd_login",
     "cmd_outbox",
     "cmd_outbox_open",

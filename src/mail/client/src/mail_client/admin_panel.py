@@ -12,6 +12,13 @@ from mail_client.commands import (
     cmd_daemon_get,
     cmd_daemon_list,
     cmd_daemon_post,
+    cmd_list_delete,
+    cmd_list_get_admin,
+    cmd_list_list,
+    cmd_list_member_delete,
+    cmd_list_member_post,
+    cmd_list_patch,
+    cmd_list_post,
     cmd_login,
     cmd_ping,
     cmd_swarm_delete,
@@ -346,6 +353,125 @@ def main() -> None:
     )
     webhook_delete_p.add_argument("webhook_id", help="the ID of the webhook to delete")
     webhook_delete_p.set_defaults(func=cmd_webhook_delete, cmd="webhook-delete")
+
+    #
+    # Mailing list helpers
+    #
+    # command `list-list`
+    list_list_d = "get all mailing lists on the MAIL server"
+    list_list_p = subparsers.add_parser(
+        "list-list",
+        aliases=["ll"],
+        prog="mail-admin list-list",
+        help=list_list_d,
+        description=list_list_d,
+    )
+    list_list_p.set_defaults(func=cmd_list_list, cmd="list-list")
+
+    # command `list-get`
+    list_get_d = "get a specific mailing list on the MAIL server by address"
+    list_get_p = subparsers.add_parser(
+        "list-get",
+        aliases=["lg"],
+        prog="mail-admin list-get",
+        help=list_get_d,
+        description=list_get_d,
+    )
+    list_get_p.add_argument(
+        "list_address", help="the address of the mailing list to get"
+    )
+    list_get_p.set_defaults(func=cmd_list_get_admin, cmd="list-get")
+
+    # command `list-post`
+    list_post_d = "create a new mailing list on the MAIL server"
+    list_post_p = subparsers.add_parser(
+        "list-post",
+        aliases=["lp"],
+        prog="mail-admin list-post",
+        help=list_post_d,
+        description=list_post_d,
+    )
+    list_post_p.add_argument("name", help="the name of the new mailing list")
+    list_post_p.add_argument(
+        "swarm_name", help="the name of the swarm to use for this mailing list"
+    )
+    list_post_p.add_argument("owner", help="the MAIL address of the mailing list owner")
+    list_post_p.add_argument(
+        "-m",
+        "--members",
+        nargs="+",
+        default=[],
+        help="the MAIL addresses of members to add to this mailing list (default: %(default)s",
+    )
+    list_post_p.set_defaults(func=cmd_list_post, cmd="list-post")
+
+    # command `list-patch`
+    list_patch_d = "update an existing mailing list on the MAIL server"
+    list_patch_p = subparsers.add_parser(
+        "list-patch",
+        aliases=["lP"],
+        prog="mail-admin list-patch",
+        help=list_patch_d,
+        description=list_patch_d,
+    )
+    list_patch_p.set_defaults(func=cmd_list_patch, cmd="list-patch")
+
+    # command `list-delete`
+    list_delete_d = "delete an existing mailing list on the MAIL server by address"
+    list_delete_p = subparsers.add_parser(
+        "list-delete",
+        aliases=["ld"],
+        prog="mail-admin list-delete",
+        help=list_delete_d,
+        description=list_delete_d,
+    )
+    list_delete_p.add_argument(
+        "list_address", help="the address of the mailing list to delete"
+    )
+    list_delete_p.set_defaults(func=cmd_list_delete, cmd="list-delete")
+
+    # command `list-member-post`
+    list_member_post_d = (
+        "add a new member to an existing mailing list on the MAIL server"
+    )
+    list_member_post_p = subparsers.add_parser(
+        "list-member-post",
+        aliases=["lmp"],
+        prog="mail-admin list-member-post",
+        help=list_member_post_d,
+        description=list_member_post_d,
+    )
+    list_member_post_p.add_argument(
+        "list_address", help="the MAIL address of the mailing list to add a member to"
+    )
+    list_member_post_p.add_argument(
+        "member_address",
+        help="the MAIL address of the member to add to this mailing list",
+    )
+    list_member_post_p.set_defaults(func=cmd_list_member_post, cmd="list-member-post")
+
+    # command `list-member-delete`
+    list_member_delete_d = (
+        "delete a member from an existing mailing list on the MAIL server"
+    )
+    list_member_delete_p = subparsers.add_parser(
+        "list-member-delete",
+        aliases=["lmd"],
+        prog="mail-admin list-member-delete",
+        help=list_member_delete_d,
+        description=list_member_delete_d,
+    )
+    list_member_delete_p.add_argument(
+        "list_address",
+        help="the MAIL address of the mailing list to remove a member from",
+    )
+    list_member_delete_p.add_argument(
+        "member_address",
+        help="the MAIL address of the member to remove from this mailing list",
+    )
+    list_member_delete_p.set_defaults(
+        func=cmd_list_member_delete, cmd="list-member-delete"
+    )
 
     # parse and handle args
     args = parser.parse_args()
