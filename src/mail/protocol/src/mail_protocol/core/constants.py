@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Addison Kline
+
+MESSAGE_SUBJECT_LEN_MIN = 1
+MESSAGE_SUBJECT_LEN_MAX = 255
+
+MESSAGE_BODY_LEN_MIN = 1
+MESSAGE_BODY_LEN_MAX = 65535
+
+AGENT_NAME_LEN_MIN = 1
+AGENT_NAME_LEN_MAX = 31
+
+USER_NAME_LEN_MIN = 1
+USER_NAME_LEN_MAX = 31
+
+DAEMON_WORKER_NAME_LEN_MIN = 1
+DAEMON_WORKER_NAME_LEN_MAX = 31
+
+SWARM_NAME_LEN_MIN = 1
+SWARM_NAME_LEN_MAX = 31
+
+SWARM_DESCRIPTION_LEN_MIN = 0
+SWARM_DESCRIPTION_LEN_MAX = 255
+
+SWARM_KEYWORD_LEN_MIN = 1
+SWARM_KEYWORD_LEN_MAX = 31
+
+# List length limits mirror agent names: short slugs, swarm-scoped.
+LIST_NAME_LEN_MIN = 1
+LIST_NAME_LEN_MAX = 31
+
+# The literal prefix that identifies a list-shaped MAIL address.
+# Example address: ``list:welfare-discourse@chorus@localhost``.
+LIST_ADDRESS_PREFIX = "list"

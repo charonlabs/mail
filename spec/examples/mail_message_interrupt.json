@@ -1,22 +1,19 @@
 {
   "id": "44444444-4444-4444-8444-444444444444",
   "timestamp": "2025-01-01T12:07:00Z",
-  "message": {
-    "task_id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
-    "interrupt_id": "00000000-0000-4000-8000-000000000000",
-    "sender": { 
-      "address_type": "agent", 
-      "address": "supervisor" 
-    },
-    "recipients": [
-      { 
-        "address_type": "agent", 
-        "address": "weather" 
-      }
-    ],
-    "subject": "Pause",
-    "body": "Stop processing current task."
+  "msg_type": "interrupt",
+  "sender": { 
+    "addr_type": "agent", 
+    "address": "supervisor" 
   },
-  "msg_type": "interrupt"
+  "recipients": [
+    { 
+      "addr_type": "agent", 
+      "address": "weather" 
+    }
+  ],
+  "subject": "Pause",
+  "body": "Stop processing current task.",
+  "task_id": "11111111-aaaa-4aaa-8aaa-111111111111",
+  "metadata": {}
 }
-

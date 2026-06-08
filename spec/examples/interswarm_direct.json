@@ -1,0 +1,45 @@
+{
+  "message_id": "66666666-6666-4666-8666-666666666666",
+  "source_swarm": "swarm-a",
+  "target_swarm": "swarm-b",
+  "timestamp": "2025-01-01T12:15:00Z",
+  "payload": {
+    "id": "44444444-bbbb-4bbb-8bbb-444444444444",
+    "timestamp": "2025-01-01T12:15:00Z",
+    "msg_type": "direct",
+    "sender": { 
+      "addr_type": "agent", 
+      "address": "supervisor@swarm-a" 
+    },
+    "recipients": [
+      { 
+        "addr_type": "agent", 
+        "address": "weather@swarm-b" 
+      }
+    ],
+    "subject": "Interswarm Message",
+    "body": "Forecast please",
+    "metadata": {},
+    "task_id": "33333333-aaaa-4aaa-8aaa-333333333333"
+  },
+  "task": {
+    "task_id": "33333333-aaaa-4aaa-8aaa-333333333333",
+    "task_owner": {
+      "instance_type": "user",
+      "instance_client_id": "123",
+      "swarm_name": "swarm-a"
+    },
+    "task_contributors": [
+      {
+        "instance_type": "user",
+        "instance_client_id": "123",
+        "swarm_name": "swarm-a"
+      }
+    ],
+    "start_time": "2025-01-01T12:15:00Z",
+    "completed": false,
+    "metadata": {}
+  },
+  "metadata": { "expect_response": true }
+}
+

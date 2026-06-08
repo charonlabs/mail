@@ -3,92 +3,105 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-from typing import Any
+import json
+import uuid
+from argparse import Namespace
+from datetime import UTC, datetime
 
-import pytest
-
-from mail.client import MAILClientCLI
-
-
-def _make_cli() -> MAILClientCLI:
-    args = SimpleNamespace(url="http://example.com", api_key=None, verbose=False)
-    return MAILClientCLI(args)  # type: ignore[arg-type]
+from mail_client.client import Newman
+from mail_protocol.interswarm import MAILInterswarmMessage
 
 
-def test_cli_initializes_without_readline(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("mail.client.readline", None)
-    cli = _make_cli()
-    assert cli._history_file.name == ".mail_history"
+def build_interswarm_message_dict() -> dict[str, object]:
+    now = datetime.now(UTC).isoformat()
+    return {
+        "interswarm_message_id": str(uuid.uuid4()),
+        "source_swarm": "local-swarm",
+        "target_swarm": "remote-swarm",
+        "timestamp": now,
+        "payload": {
+            "id": str(uuid.uuid4()),
+            "timestamp": now,
+            "msg_type": "direct",
+            "sender": {"addr_type": "agent", "address": "supervisor"},
+            "recipients": [{"addr_type": "agent", "address": "weather@remote-swarm"}],
+            "subject": "Delegated task",
+            "body": "Fetch remote context",
+            "task_id": str(uuid.uuid4()),
+            "metadata": {},
+        },
+        "task": {
+            "task_id": str(uuid.uuid4()),
+            "task_owner": {
+                "instance_type": "user",
+                "instance_client_id": "user-123",
+                "swarm_name": "local-swarm",
+            },
+            "task_contributors": [
+                {
+                    "instance_type": "swarm",
+                    "instance_client_id": "remote-swarm",
+                    "swarm_name": "local-swarm",
+                }
+            ],
+            "start_time": now,
+            "completed": False,
+            "metadata": {},
+        },
+        "attachments": [],
+        "metadata": {"trace_id": "trace-123"},
+    }
 
 
-@pytest.mark.asyncio
-async def test_cli_help_does_not_exit(monkeypatch: pytest.MonkeyPatch) -> None:
-    cli = _make_cli()
-
-    inputs = iter(["help", "exit"])
-    calls: list[str] = []
-    help_called = []
-
-    def fake_input(_prompt: str, *_args: Any) -> str:
-        value = next(inputs)
-        calls.append(value)
-        return value
-
-    def record_help() -> None:
-        help_called.append("yes")
-
-    monkeypatch.setattr("rich.console.Console.input", fake_input)
-    monkeypatch.setattr(cli.parser, "print_help", record_help)
-
-    await cli.run(attempt_login=False)
-
-    assert calls == ["help", "exit"]
-    assert help_called == ["yes"]
-
-
-@pytest.mark.asyncio
-async def test_cli_handles_parse_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    cli = _make_cli()
-
-    inputs = iter(["unknown", "exit"])
-    parse_calls: list[list[str]] = []
-
-    def fake_input(_prompt: str, *_args: Any) -> str:
-        return next(inputs)
-
-    def fail_parse(tokens: list[str]) -> None:
-        parse_calls.append(tokens)
-        raise SystemExit
-
-    monkeypatch.setattr("rich.console.Console.input", fake_input)
-    monkeypatch.setattr(cli.parser, "parse_args", fail_parse)
-
-    await cli.run(attempt_login=False)
-
-    assert parse_calls == [["unknown"]]
-
-
-@pytest.mark.asyncio
-async def test_cli_uses_shlex_for_tokenization(
-    monkeypatch: pytest.MonkeyPatch,
+def test_newman_interswarm_command_posts_validated_message(
+    tmp_path,
 ) -> None:
-    captured_messages: list[str] = []
+    newman = Newman("http://example.com")
+    newman._api_key = "swarm-token"
+    newman._user_id = "local-swarm"
+    newman._user_role = "swarm"
 
-    async def fake_post_message(self: MAILClientCLI, args) -> None:  # type: ignore[override]
-        captured_messages.append(args.body)
+    captured: dict[str, object] = {}
+    printed: list[object] = []
 
-    monkeypatch.setattr(MAILClientCLI, "_message", fake_post_message)
+    class DummyResponse:
+        status = "success"
+        new_task = True
 
-    cli = _make_cli()
+        def model_dump(self) -> dict[str, object]:
+            return {
+                "status": self.status,
+                "new_task": self.new_task,
+                "metadata": {},
+            }
 
-    inputs = iter(['message "hello world"', "exit"])
+    class DummyClient:
+        def post_interswarm_message(
+            self,
+            *,
+            message: MAILInterswarmMessage,
+            metadata: dict[str, object],
+        ) -> DummyResponse:
+            captured["message"] = message
+            captured["metadata"] = metadata
+            return DummyResponse()
 
-    def fake_input(_prompt: str, *_args: Any) -> str:
-        return next(inputs)
+    newman._client = DummyClient()
+    newman._console.print = printed.append  # type: ignore[method-assignment]
 
-    monkeypatch.setattr("rich.console.Console.input", fake_input)
+    message_dict = build_interswarm_message_dict()
+    message_path = tmp_path / "interswarm-message.json"
+    message_path.write_text(json.dumps(message_dict))
 
-    await cli.run(attempt_login=False)
+    newman._cmd_interswarm(
+        Namespace(
+            message_json=None,
+            file=str(message_path),
+            metadata='{"request_id":"req-123"}',
+            verbose=False,
+        )
+    )
 
-    assert captured_messages == ["hello world"]
+    assert captured["message"] == MAILInterswarmMessage.model_validate(message_dict)
+    assert captured["metadata"] == {"request_id": "req-123"}
+    assert printed == ["interswarm message result: [green]success[/green] (new_task=True)"]
