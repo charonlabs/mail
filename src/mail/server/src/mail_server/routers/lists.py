@@ -91,9 +91,7 @@ async def admin_get_list(request: Request) -> AdminListGetResponse:
     admin = await validate_admin(backend=backend, request=request)
     list_address = request.path_params.get("list_address")
     try:
-        result = await backend.admin_get_list(
-            admin=admin, list_address=list_address
-        )
+        result = await backend.admin_get_list(admin=admin, list_address=list_address)
     except ValueError:
         raise HTTPException(status_code=404, detail="list not found")
     return AdminListGetResponse(mail_list=result, metadata={})
@@ -146,9 +144,7 @@ async def admin_delete_list(request: Request) -> AdminListDeleteResponse:
     admin = await validate_admin(backend=backend, request=request)
     list_address = request.path_params.get("list_address")
     try:
-        result = await backend.admin_delete_list(
-            admin=admin, list_address=list_address
-        )
+        result = await backend.admin_delete_list(admin=admin, list_address=list_address)
     except ValueError:
         raise HTTPException(status_code=404, detail="list not found")
     return AdminListDeleteResponse(mail_list=result, metadata={})
@@ -235,7 +231,7 @@ async def get_list(request: Request) -> ListGetResponse:
 
 
 @public_router.post(
-    "/{list_address}/members",
+    "/{list_address}/subscribe",
     summary="Subscribe to a MAIL list",
     response_model=ListMemberPostResponse,
 )
@@ -252,8 +248,7 @@ async def subscribe(request: Request) -> ListMemberPostResponse:
         raise HTTPException(
             status_code=403,
             detail=(
-                "subscribe is self-only; use the admin endpoint to add "
-                "another member."
+                "subscribe is self-only; use the admin endpoint to add another member."
             ),
         )
 
@@ -278,25 +273,16 @@ async def subscribe(request: Request) -> ListMemberPostResponse:
     return ListMemberPostResponse(mail_list=result, metadata={})
 
 
-@public_router.delete(
-    "/{list_address}/members/{member_address}",
-    summary="Leave a MAIL list",
+@public_router.post(
+    "/{list_address}/unsubscribe",
+    summary="Unsubscribe from a MAIL list",
     response_model=ListMemberDeleteResponse,
 )
 async def unsubscribe(request: Request) -> ListMemberDeleteResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     list_address = request.path_params.get("list_address")
-    member_address = request.path_params.get("member_address")
-
-    if member_address != user_agent.get_address():
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "unsubscribe is self-only; use the admin endpoint to "
-                "remove another member."
-            ),
-        )
+    member_address = user_agent.get_address()
 
     try:
         result = await backend.remove_list_member(

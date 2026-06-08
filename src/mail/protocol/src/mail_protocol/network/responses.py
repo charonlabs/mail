@@ -562,7 +562,7 @@ class ListGetResponse(BaseModel):
 
 class ListMemberPostResponse(BaseModel):
     """
-    Corresponds to `POST /lists/{list_address}/members` and
+    Corresponds to `POST /lists/{list_address}/subscribe` and
     `POST /admin/lists/{list_address}/members`. The updated list with
     the member appended (idempotent — re-adding an existing member is
     a no-op).
@@ -574,7 +574,8 @@ class ListMemberPostResponse(BaseModel):
 
 class ListMemberDeleteResponse(BaseModel):
     """
-    Corresponds to `DELETE /lists/{list_address}/members/{member_address}`.
+    Corresponds to `POST /lists/{list_address}/unsubscribe`
+    and `DELETE /lists/{list_address}/members/{member_address}`.
     The updated list with the member removed (idempotent — removing a
     non-member is a no-op).
     """

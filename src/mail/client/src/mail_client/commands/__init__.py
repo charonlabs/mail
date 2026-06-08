@@ -11,6 +11,10 @@ from .drafts import cmd_drafts
 from .drafts_open import cmd_drafts_open
 from .inbox import cmd_inbox
 from .inbox_open import cmd_inbox_open
+from .list_get import cmd_list_get
+from .list_subscribe import cmd_list_subscribe
+from .list_unsubscribe import cmd_list_unsubscribe
+from .lists import cmd_lists
 from .login import cmd_login
 from .outbox import cmd_outbox
 from .outbox_open import cmd_outbox_open
@@ -47,6 +51,10 @@ __all__ = [
     "cmd_drafts_open",
     "cmd_inbox",
     "cmd_inbox_open",
+    "cmd_list_get",
+    "cmd_list_subscribe",
+    "cmd_list_unsubscribe",
+    "cmd_lists",
     "cmd_login",
     "cmd_outbox",
     "cmd_outbox_open",
