@@ -6,15 +6,14 @@ from argparse import Namespace
 
 import httpx
 from mail_protocol.network.responses import (
-    ListsGetResponse,
+    AdminListsGetResponse,
 )
 from pydantic import ValidationError
 
 
-def cmd_lists(args: Namespace) -> None:
+def cmd_list_list(args: Namespace) -> None:
     """
-    Get the list of mailing list addresses on this MAIL server.
-    Only includes the mailing list this user-agent is authorized to access.
+    Get all mailing list addresses on this MAIL server.
     """
 
     # 1. check that required env vars are provided
@@ -27,7 +26,7 @@ def cmd_lists(args: Namespace) -> None:
 
     # 2. Attempt to get the list of mailing lists on the MAIL server
     response = httpx.get(
-        url=f"{MAIL_SERVER}/lists",
+        url=f"{MAIL_SERVER}/admin/lists",
         headers={
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
             "Authorization": f"Bearer {MAIL_TOKEN}",
@@ -42,7 +41,7 @@ def cmd_lists(args: Namespace) -> None:
 
     response_json = response.json()
     try:
-        response_obj = ListsGetResponse.model_validate(response_json)
+        response_obj = AdminListsGetResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
@@ -54,11 +53,11 @@ def cmd_lists(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: ListsGetResponse) -> None:
+def _print_json(response_obj: AdminListsGetResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: ListsGetResponse) -> None:
+def _print_text(response_obj: AdminListsGetResponse) -> None:
     lists = response_obj.lists
     print("=== Mailing Lists ===")
     for list in lists:

@@ -5,16 +5,16 @@ import os
 from argparse import Namespace
 
 import httpx
+from mail_protocol.network.requests import AdminListPostRequest
 from mail_protocol.network.responses import (
-    ListGetResponse,
+    AdminListPostResponse,
 )
 from pydantic import ValidationError
 
 
-def cmd_list_get(args: Namespace) -> None:
+def cmd_list_post(args: Namespace) -> None:
     """
-    Get a specific mailing list by address on the MAIL server.
-    Must be a mailing list that this user-agent is authorized to access.
+    Create a new mailing list on the MAIL server.
     """
 
     # 1. check that required env vars are provided
@@ -25,28 +25,36 @@ def cmd_list_get(args: Namespace) -> None:
     if MAIL_TOKEN is None:
         raise ValueError("environment variable MAIL_TOKEN is required")
 
-    # 2. Attempt to get the specific mailing list by address on the MAIL server
-    response = httpx.get(
-        url=f"{MAIL_SERVER}/lists/{args.list_address}",
+    # 4. Attempt to post the new list to the MAIL server
+    payload = AdminListPostRequest(
+        name=args.name,
+        swarm_name=args.swarm_name,
+        owner=args.owner,
+        members=args.members,
+    )
+    response = httpx.post(
+        url=f"{MAIL_SERVER}/admin/lists",
         headers={
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
             "Authorization": f"Bearer {MAIL_TOKEN}",
+            "Content-Type": "application/json",
         },
+        json=payload.model_dump(),
     )
 
-    # 3. Parse and validate server response
+    # 4. Parse and validate server response
     if response.status_code != 200:
         raise RuntimeError(
-            f"get mailing list request to {MAIL_SERVER} failed with status code {response.status_code}"
+            f"post list request to {MAIL_SERVER} failed with status code {response.status_code}"
         )
 
     response_json = response.json()
     try:
-        response_obj = ListGetResponse.model_validate(response_json)
+        response_obj = AdminListPostResponse.model_validate(response_json)
     except ValidationError as e:
         raise RuntimeError(f"response validation failed: {e}")
 
-    # 4. Print the specified mailing lists
+    # 5. Print the specified mailing list
     match args.output:
         case "json":
             _print_json(response_obj)
@@ -54,11 +62,11 @@ def cmd_list_get(args: Namespace) -> None:
             _print_text(response_obj)
 
 
-def _print_json(response_obj: ListGetResponse) -> None:
+def _print_json(response_obj: AdminListPostResponse) -> None:
     print(response_obj.model_dump_json())
 
 
-def _print_text(response_obj: ListGetResponse) -> None:
+def _print_text(response_obj: AdminListPostResponse) -> None:
     mlist = response_obj.mail_list
     print("=== Mailing List ===")
     print(f"List ID: {mlist.list_id}")

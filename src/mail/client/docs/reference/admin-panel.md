@@ -44,6 +44,16 @@ mail-admin [option]... <command> [argument]...
 - `webhook-patch`: Update an existing webhook by ID on the MAIL server.
 - `webhook-delete`: Delete an existing webhook by ID on the MAIL server.
 
+### Mailing List Operations
+
+- `list-list`: Get all mailing lists on the MAIL server.
+- `list-get`: Get a specific mailing list by address on the MAIL server.
+- `list-post`: Create a new mailing list on the MAIL server.
+- `list-patch` Update an existing mailing list on the MAIL server.
+- `list-delete`: Delete an existing mailing list by address from the MAIL server.
+- `list-member-post`: Add a new member to the existing mailing list on the MAIL server.
+- `list-member-delete`: Remove a member from an existing mailing list on the MAIL server.
+
 ### Utility Commands (same as main CLI)
 
 - `ping`: Attempt to ping the MAIL server at the URL provided.
