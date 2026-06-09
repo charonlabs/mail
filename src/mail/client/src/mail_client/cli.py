@@ -3,6 +3,8 @@
 
 import argparse
 
+from mail_protocol.cli_help import add_hidden_subparsers, make_arg_parser
+
 from mail_client.commands import (
     cmd_compose,
     cmd_drafts,
@@ -25,13 +27,63 @@ from mail_client.commands import (
     cmd_whoami,
 )
 
+COMMAND_GROUPS = [
+    (
+        "Utility",
+        [
+            ("ping (p)", "Ping a MAIL server."),
+            ("login (l)", "Log into a MAIL server."),
+            ("whoami (me, id)", "Show authenticated user-agent info."),
+        ],
+    ),
+    (
+        "Messaging",
+        [
+            ("compose (c)", "Draft a new MAIL message."),
+            ("send (s)", "Send a drafted message."),
+            ("inbox (i)", "List your inbox messages."),
+            ("inbox-open (open, o)", "Open an inbox message by ID."),
+            ("outbox (O)", "List your sent messages."),
+            ("outbox-open (Oopen, Oo)", "Open an outbox message by ID."),
+            ("drafts (d)", "List message drafts."),
+            ("drafts-open (do)", "Open a draft by ID."),
+            ("trash (t)", "List trashed messages."),
+            ("trash-open (to)", "Open a trashed message by ID."),
+        ],
+    ),
+    (
+        "Swarms",
+        [
+            ("swarm-list (swarms, sl)", "List swarms on the server."),
+            ("swarm-get (swarm, sg)", "Get a swarm by name."),
+        ],
+    ),
+    (
+        "Mailing Lists",
+        [
+            ("lists", "List mailing lists."),
+            ("list-get (list, lg)", "Get a list by address."),
+            ("list-subscribe (ls)", "Subscribe to a list."),
+            ("list-unsubscribe (lu)", "Unsubscribe from a list."),
+        ],
+    ),
+]
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
+EXAMPLES = [
+    "mail login",
+    'mail compose "Status update" "The migration is complete."',
+    "mail send <draft-id> user@example",
+    "mail inbox-open <message-id>",
+]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = make_arg_parser(
         prog="mail",
         usage="mail [option...] <command> [argument...]",
         description="The Python CLI client for the Multi-Agent Interface Layer (MAIL)",
-        epilog="Copyright (c) 2026 Addison Kline",
+        command_groups=COMMAND_GROUPS,
+        examples=EXAMPLES,
     )
     parser.add_argument(
         "-o",
@@ -40,7 +92,7 @@ def main() -> None:
         default="text",
         help="the output style for this CLI command (default: %(default)s)",
     )
-    subparsers = parser.add_subparsers(title="commands")
+    subparsers = add_hidden_subparsers(parser)
 
     #
     # Utility commands
@@ -268,7 +320,11 @@ def main() -> None:
     )
     list_unsubscribe_p.set_defaults(func=cmd_list_unsubscribe, cmd="list-unsubscribe")
 
-    # parse and handle args
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     try:

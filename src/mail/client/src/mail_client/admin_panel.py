@@ -3,6 +3,8 @@
 
 import argparse
 
+from mail_protocol.cli_help import add_hidden_subparsers, make_arg_parser
+
 from mail_client.commands import (
     cmd_agent_delete,
     cmd_agent_get,
@@ -35,13 +37,88 @@ from mail_client.commands import (
     cmd_whoami,
 )
 
+COMMAND_GROUPS = [
+    (
+        "Utility",
+        [
+            ("ping (p)", "Ping a MAIL server."),
+            ("login (l)", "Log into a MAIL server."),
+            ("whoami (me, id)", "Show authenticated user-agent info."),
+        ],
+    ),
+    (
+        "Agents",
+        [
+            ("agent-list (al)", "List agents."),
+            ("agent-get (ag)", "Get an agent by local address."),
+            ("agent-post (ap)", "Create an agent."),
+            ("agent-delete (ad)", "Delete an agent."),
+        ],
+    ),
+    (
+        "Daemons",
+        [
+            ("daemon-list (dl)", "List daemons."),
+            ("daemon-get (dg)", "Get a daemon by local address."),
+            ("daemon-post (dp)", "Create daemon credentials."),
+            ("daemon-delete (dd)", "Delete daemon credentials."),
+        ],
+    ),
+    (
+        "Users",
+        [
+            ("user-list (ul)", "List users."),
+            ("user-get (ug)", "Get a user by ID."),
+            ("user-post (up)", "Create a user."),
+            ("user-delete (ud)", "Delete a user."),
+        ],
+    ),
+    (
+        "Swarms",
+        [
+            ("swarm-post (sp)", "Create a swarm."),
+            ("swarm-delete (sd)", "Delete a swarm by name."),
+        ],
+    ),
+    (
+        "Webhooks",
+        [
+            ("webhook-list (wl)", "List webhooks."),
+            ("webhook-get (wg)", "Get a webhook by ID."),
+            ("webhook-post (wp)", "Create a webhook."),
+            ("webhook-patch (wP)", "Update a webhook."),
+            ("webhook-delete (wd)", "Delete a webhook."),
+        ],
+    ),
+    (
+        "Mailing Lists",
+        [
+            ("list-list (ll)", "List mailing lists."),
+            ("list-get (lg)", "Get a mailing list by address."),
+            ("list-post (lp)", "Create a mailing list."),
+            ("list-patch (lP)", "Update a mailing list."),
+            ("list-delete (ld)", "Delete a mailing list."),
+            ("list-member-post (lmp)", "Add a list member."),
+            ("list-member-delete (lmd)", "Remove a list member."),
+        ],
+    ),
+]
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
+EXAMPLES = [
+    "mail-admin login",
+    "mail-admin agent-list",
+    "mail-admin user-post <user-id>",
+    "mail-admin webhook-list",
+]
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = make_arg_parser(
         prog="mail-admin",
         usage="mail-admin [option]... <command> [argument]...",
         description="A Python CLI client admin panel for the Multi-Agent Interface Layer (MAIL)",
-        epilog="Copyright (c) 2026 Addison Kline",
+        command_groups=COMMAND_GROUPS,
+        examples=EXAMPLES,
     )
     parser.add_argument(
         "-o",
@@ -50,14 +127,14 @@ def main() -> None:
         default="text",
         help="the output style for this CLI command (default: %(default)s)",
     )
-    subparsers = parser.add_subparsers(title="commands")
+    subparsers = add_hidden_subparsers(parser)
 
     # command `ping`
     ping_d = "ping a MAIL server"
     ping_p = subparsers.add_parser(
         "ping",
         aliases=["p"],
-        prog="mail ping",
+        prog="mail-admin ping",
         help=ping_d,
         description=ping_d,
     )
@@ -66,7 +143,11 @@ def main() -> None:
     # command `login`
     login_d = "log into a MAIL server"
     login_p = subparsers.add_parser(
-        "login", aliases=["l"], prog="mail login", help=login_d, description=login_d
+        "login",
+        aliases=["l"],
+        prog="mail-admin login",
+        help=login_d,
+        description=login_d,
     )
     login_p.set_defaults(func=cmd_login, cmd="login")
 
@@ -75,7 +156,7 @@ def main() -> None:
     whoami_p = subparsers.add_parser(
         "whoami",
         aliases=["me", "id"],
-        prog="mail whoami",
+        prog="mail-admin whoami",
         help=whoami_d,
         description=whoami_d,
     )
@@ -401,7 +482,7 @@ def main() -> None:
         "--members",
         nargs="+",
         default=[],
-        help="the MAIL addresses of members to add to this mailing list (default: %(default)s",
+        help="the MAIL addresses of members to add to this mailing list (default: %(default)s)",
     )
     list_post_p.set_defaults(func=cmd_list_post, cmd="list-post")
 
@@ -473,7 +554,11 @@ def main() -> None:
         func=cmd_list_member_delete, cmd="list-member-delete"
     )
 
-    # parse and handle args
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     try:
