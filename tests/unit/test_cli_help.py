@@ -3,9 +3,17 @@
 
 from __future__ import annotations
 
+from argparse import Namespace
+
 import pytest
 from mail_client.admin_panel import build_parser as build_admin_parser
-from mail_client.cli import build_parser as build_mail_parser
+from mail_client.cli import (
+    _run_command,
+    _text_to_markdown,
+)
+from mail_client.cli import (
+    build_parser as build_mail_parser,
+)
 from mail_daemon.cli import build_parser as build_daemon_parser
 from mail_server.cli import build_parser as build_server_parser
 
@@ -60,3 +68,94 @@ def test_mail_daemon_help_has_readable_log_options() -> None:
     assert "-llf LEVEL, -log-level-file LEVEL" not in help_text
     assert "--log-level-console LEVEL" in help_text
     assert "mail-daemon --log-level-console debug" in help_text
+
+
+def test_mail_parser_accepts_markdown_output() -> None:
+    args = build_mail_parser().parse_args(["--output", "markdown", "ping"])
+
+    assert args.output == "markdown"
+
+
+def test_text_to_markdown_converts_structured_text() -> None:
+    text = (
+        "=== Draft ===\n"
+        "Draft ID: draft-123\n"
+        "Body:\n"
+        "hello world\n"
+        "line: with colon\n"
+        "=== Entry Data ===\n"
+        "Sent At: None\n"
+    )
+
+    assert _text_to_markdown(text) == (
+        "# Draft\n"
+        "- **Draft ID:** draft-123\n"
+        "- **Body:**\n"
+        "\n"
+        "```\n"
+        "hello world\n"
+        "line: with colon\n"
+        "```\n"
+        "\n"
+        "## Entry Data\n"
+        "- **Sent At:** None\n"
+    )
+
+
+def test_text_to_markdown_preserves_mailbox_summary_timestamps() -> None:
+    text = (
+        "=== Inbox ===\n"
+        "2026-06-09T14:23:45+00:00 | msg-123 | [agent@swarm@host] Subject (42 characters)\n"
+    )
+
+    assert _text_to_markdown(text) == (
+        "# Inbox\n"
+        "- 2026-06-09T14:23:45+00:00 | msg-123 | [agent@swarm@host] Subject (42 characters)\n"
+    )
+
+
+def test_text_to_markdown_preserves_recipient_address_prefixes() -> None:
+    text = (
+        "=== Message ===\n"
+        "Recipient(s):\n"
+        "- user:alice@example.com\n"
+        "- daemon:worker@example.com\n"
+    )
+
+    assert _text_to_markdown(text) == (
+        "# Message\n"
+        "- **Recipient(s):** \n"
+        "- user:alice@example.com\n"
+        "- daemon:worker@example.com\n"
+    )
+
+
+def test_text_to_markdown_preserves_list_addresses_and_swarm_summaries() -> None:
+    text = (
+        "=== Mailing Lists ===\n"
+        "list:dev@example@host (3 members)\n"
+        "=== Swarms ===\n"
+        "[example] (2 agents): [weather, math]\n"
+    )
+
+    assert _text_to_markdown(text) == (
+        "# Mailing Lists\n"
+        "- list:dev@example@host (3 members)\n"
+        "## Swarms\n"
+        "- [example] (2 agents): [weather, math]\n"
+    )
+
+
+def test_run_command_renders_markdown_from_text_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def command(args: Namespace) -> None:
+        assert args.output == "text"
+        print("=== Inbox ===")
+        print("Message ID: msg-123")
+
+    args = Namespace(output="markdown")
+
+    _run_command(command, args)
+
+    assert capsys.readouterr().out == "# Inbox\n- **Message ID:** msg-123\n"

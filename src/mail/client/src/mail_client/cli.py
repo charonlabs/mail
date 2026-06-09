@@ -2,6 +2,9 @@
 # Copyright (c) 2026 Addison Kline
 
 import argparse
+import contextlib
+import io
+from collections.abc import Callable
 
 from mail_protocol.cli_help import add_hidden_subparsers, make_arg_parser
 
@@ -26,6 +29,35 @@ from mail_client.commands import (
     cmd_trash_open,
     cmd_whoami,
 )
+
+MARKDOWN_FIELD_LABELS = {
+    "Address",
+    "Agents",
+    "Body",
+    "Created At",
+    "Delivered At",
+    "Delivered By",
+    "Description",
+    "Draft ID",
+    "Join Policy",
+    "Keywords",
+    "List ID",
+    "Members",
+    "Message ID",
+    "Name",
+    "Owner",
+    "Received At",
+    "Recipient(s)",
+    "Send Policy",
+    "Sender",
+    "Sent At",
+    "Sent By",
+    "Subject",
+    "Trashed At",
+    "Type",
+    "Updated At",
+    "Visibility",
+}
 
 COMMAND_GROUPS = [
     (
@@ -88,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-o",
         "--output",
-        choices=["text", "json"],
+        choices=["text", "json", "markdown"],
         default="text",
         help="the output style for this CLI command (default: %(default)s)",
     )
@@ -335,7 +367,83 @@ def main() -> None:
         exit(1)
 
     try:
-        func(args)
+        _run_command(func, args)
     except Exception as e:
         print(f"command {args.cmd} failed: {e}")
         exit(1)
+
+
+def _run_command(
+    func: Callable[[argparse.Namespace], None], args: argparse.Namespace
+) -> None:
+    if args.output != "markdown":
+        func(args)
+        return
+
+    args.output = "text"
+    stdout = io.StringIO()
+    with contextlib.redirect_stdout(stdout):
+        func(args)
+
+    print(_text_to_markdown(stdout.getvalue()), end="")
+
+
+def _text_to_markdown(text: str) -> str:
+    lines = text.splitlines()
+    markdown_lines: list[str] = []
+    seen_heading = False
+    in_section = False
+    in_body = False
+
+    for line in lines:
+        if line.startswith("=== ") and line.endswith(" ==="):
+            if in_body:
+                markdown_lines.append("```")
+                markdown_lines.append("")
+                in_body = False
+
+            title = line.removeprefix("=== ").removesuffix(" ===")
+            heading_prefix = "##" if seen_heading else "#"
+            markdown_lines.append(f"{heading_prefix} {title}")
+            seen_heading = True
+            in_section = True
+            continue
+
+        if in_body:
+            markdown_lines.append(line)
+            continue
+
+        if not line:
+            markdown_lines.append("")
+            continue
+
+        label, separator, value = line.partition(":")
+        if separator and label in MARKDOWN_FIELD_LABELS:
+            if label == "Body":
+                markdown_lines.append("- **Body:**")
+                markdown_lines.append("")
+                markdown_lines.append("```")
+                if value.lstrip():
+                    markdown_lines.append(value.lstrip())
+                in_body = True
+                continue
+
+            markdown_lines.append(f"- **{label}:** {value.lstrip()}")
+            continue
+
+        if line.startswith("- "):
+            markdown_lines.append(line)
+            continue
+
+        if in_section:
+            markdown_lines.append(f"- {line}")
+        else:
+            markdown_lines.append(line)
+
+    if in_body:
+        markdown_lines.append("```")
+
+    if not markdown_lines:
+        return ""
+
+    return "\n".join(markdown_lines) + "\n"
