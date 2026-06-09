@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from mail.stdlib.fs import (
+from mail.legacy.stdlib.fs import (
     create_directory,
     delete_file,
     read_directory,

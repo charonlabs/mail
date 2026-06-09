@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from mail.factories.base import LiteLLMAgentFunction
+from mail.legacy.factories.base import LiteLLMAgentFunction
 
 
 def _make_agent() -> LiteLLMAgentFunction:
@@ -184,8 +184,8 @@ async def test_run_completions_anthropic_native_sanitizes_pause_turn_requests(
     )
     client = _DummyAnthropicClient(messages_api)
 
-    monkeypatch.setattr("mail.factories.base.anthropic.AsyncAnthropic", lambda: client)
-    monkeypatch.setattr("mail.factories.base.wrap_anthropic", lambda c: c)
+    monkeypatch.setattr("mail.legacy.factories.base.anthropic.AsyncAnthropic", lambda: client)
+    monkeypatch.setattr("mail.legacy.factories.base.wrap_anthropic", lambda c: c)
 
     messages = [
         {"role": "user", "content": "hello"},
@@ -224,8 +224,8 @@ async def test_stream_completions_anthropic_native_sanitizes_pause_turn_requests
     )
     client = _DummyAnthropicClient(messages_api)
 
-    monkeypatch.setattr("mail.factories.base.anthropic.AsyncAnthropic", lambda: client)
-    monkeypatch.setattr("mail.factories.base.wrap_anthropic", lambda c: c)
+    monkeypatch.setattr("mail.legacy.factories.base.anthropic.AsyncAnthropic", lambda: client)
+    monkeypatch.setattr("mail.legacy.factories.base.wrap_anthropic", lambda c: c)
 
     messages = [
         {"role": "user", "content": "hello"},

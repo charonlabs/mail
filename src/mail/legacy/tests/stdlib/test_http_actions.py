@@ -6,7 +6,7 @@ from typing import Any
 import aiohttp
 import pytest
 
-from mail.stdlib.http import (
+from mail.legacy.stdlib.http import (
     http_delete,
     http_get,
     http_head,

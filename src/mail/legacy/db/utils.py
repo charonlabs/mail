@@ -9,9 +9,9 @@ from typing import Any, Literal
 import asyncpg
 import dotenv
 
-from mail.db.types import AgentHistoriesDB
+from mail.legacy.db.types import AgentHistoriesDB
 
-logger = logging.getLogger("mail.db")
+logger = logging.getLogger("mail.legacy.db")
 
 # global connection pool
 _pool: asyncpg.Pool | None = None

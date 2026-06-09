@@ -12,7 +12,7 @@ def test_root_endpoint():
     """
     Test that `GET /` works as expected.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.get("/")
@@ -27,7 +27,7 @@ def test_status_without_auth():
     """
     Test that `GET /status` requires an authorization header.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.get("/status")
@@ -39,7 +39,7 @@ def test_status_with_auth():
     """
     Test that `GET /status` works as expected with an authorization header.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.get("/status", headers={"Authorization": "Bearer test-key"})
@@ -54,7 +54,7 @@ def test_message_flow_success():
     """
     Test that `POST /message` works as expected.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.post(
@@ -77,7 +77,7 @@ def test_post_responses_requires_debug():
     """
     `POST /responses` should be hidden when debug mode is disabled.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         app.state.debug = False
@@ -93,7 +93,7 @@ def test_post_responses_validates_payload():
     """
     `POST /responses` should reject payloads with the wrong schema.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         app.state.debug = True
@@ -111,7 +111,7 @@ def test_post_responses_calls_openai_client(monkeypatch: pytest.MonkeyPatch):
     """
     Happy path: the endpoint must forward the request to the OpenAI client.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     class DummyResponse:
         def __init__(self) -> None:
@@ -139,9 +139,9 @@ def test_post_responses_calls_openai_client(monkeypatch: pytest.MonkeyPatch):
         # patched_server mocks login to return "fake-jwt", so we receive that here
         return {"role": "user", "id": "u-456", "api_key": "resp-api-key"}
 
-    monkeypatch.setattr("mail.utils.get_token_info", fake_get_token_info, raising=False)
+    monkeypatch.setattr("mail.legacy.utils.get_token_info", fake_get_token_info, raising=False)
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info", fake_get_token_info, raising=False
+        "mail.legacy.utils.auth.get_token_info", fake_get_token_info, raising=False
     )
 
     input_payload = [{"role": "user", "content": "hello"}]
@@ -193,7 +193,7 @@ def test_message_flow_defaults_msg_type_on_none():
     """
     The server should treat an explicit `null` message type as a request.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.post(

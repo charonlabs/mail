@@ -6,7 +6,7 @@ from typing import Any, TypedDict
 
 from sse_starlette import ServerSentEvent
 
-from mail.core.message import MAILMessage
+from mail.legacy.core.message import MAILMessage
 
 
 class SwarmEndpoint(TypedDict):

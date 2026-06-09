@@ -5,7 +5,7 @@ from typing import Any
 
 from fastmcp import Client
 
-from mail import action
+from mail.legacy import action
 
 MCP_PING_PARAMETERS = {
     "type": "object",

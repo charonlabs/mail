@@ -7,7 +7,7 @@ import json
 from datetime import datetime, UTC
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 
 def _format_table(data: list[dict[str, Any]], columns: list[str] | None = None) -> str:

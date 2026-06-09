@@ -9,12 +9,12 @@ from typing import Any
 import pytest
 from starlette.requests import Request
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     MAILInterswarmMessage,
     MAILResponse,
     create_agent_address,
 )
-from mail.server import app, receive_interswarm_back, utils
+from mail.legacy.server import app, receive_interswarm_back, utils
 
 
 class DummyMailInstance:
@@ -59,7 +59,7 @@ async def test_interswarm_response_routes_to_task_owner(
     """
     When an interswarm response is received, it should be routed to the task owner.
     """
-    from mail import server
+    from mail.legacy import server
 
     task_id = "task-bind"
     binding = {"role": "user", "id": "user-123", "api_key": "user-api-key"}

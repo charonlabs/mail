@@ -5,13 +5,13 @@ import warnings
 from collections.abc import Awaitable
 from typing import Any, Literal
 
-from mail.core.agents import AgentOutput
-from mail.factories import AgentFunction
-from mail.factories.base import LiteLLMAgentFunction
+from mail.legacy.core.agents import AgentOutput
+from mail.legacy.factories import AgentFunction
+from mail.legacy.factories.base import LiteLLMAgentFunction
 
 consultant_agent_params = {
     "llm": "openai/gpt-5-mini",
-    "system": "mail.examples.consultant_dummy.prompts:SYSPROMPT",
+    "system": "mail.legacy.examples.consultant_dummy.prompts:SYSPROMPT",
 }
 
 

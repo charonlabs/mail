@@ -6,8 +6,8 @@
 from collections.abc import Awaitable
 from typing import Any, Literal
 
-from mail.core.agents import AgentOutput
-from mail.factories.base import LiteLLMAgentFunction
+from mail.legacy.core.agents import AgentOutput
+from mail.legacy.factories.base import LiteLLMAgentFunction
 
 
 class LiteLLMCoordinatorFunction(LiteLLMAgentFunction):

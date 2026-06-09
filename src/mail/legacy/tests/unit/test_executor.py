@@ -3,8 +3,8 @@
 
 import asyncio
 
-from mail.core.actions import ActionCore
-from mail.core.tools import AgentToolCall
+from mail.legacy.core.actions import ActionCore
+from mail.legacy.core.tools import AgentToolCall
 
 
 async def _action_echo(args: dict) -> str:  # noqa: ANN001

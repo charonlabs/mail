@@ -11,8 +11,8 @@ from typing import Any
 import pytest
 from aiohttp import web
 
-from mail.client import MAILClient
-from mail.config import ClientConfig
+from mail.legacy.client import MAILClient
+from mail.legacy.config import ClientConfig
 
 EXAMPLE_MAIL_MESSAGE: dict[str, Any] = {
     "id": "msg-001",

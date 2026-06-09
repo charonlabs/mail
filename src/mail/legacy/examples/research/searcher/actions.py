@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, UTC
 from random import Random
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # Simulated knowledge base for different source types
 KNOWLEDGE_BASE = {

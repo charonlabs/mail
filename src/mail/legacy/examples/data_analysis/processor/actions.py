@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from random import Random
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # Dataset templates with generators
 DATASET_GENERATORS = {

@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from mail.stdlib.openai import (
+from mail.legacy.stdlib.openai import (
     OpenAIChatCompletionsAgentFunction,
     OpenAIChatCompletionsSupervisorFunction,
     OpenAIResponsesAgentFunction,
@@ -76,7 +76,7 @@ def patch_async_openai(monkeypatch: pytest.MonkeyPatch):
             instances.append(self)
 
     monkeypatch.setattr(
-        "mail.stdlib.openai.agents.openai.AsyncOpenAI", DummyAsyncOpenAI
+        "mail.legacy.stdlib.openai.agents.openai.AsyncOpenAI", DummyAsyncOpenAI
     )
     return instances
 

@@ -9,7 +9,7 @@ from typing import Literal, cast
 import ujson
 from sse_starlette import ServerSentEvent
 
-from mail.core.message import MAILMessage, create_agent_address
+from mail.legacy.core.message import MAILMessage, create_agent_address
 
 QueueItem = tuple[int, int, MAILMessage]
 

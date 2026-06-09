@@ -6,7 +6,7 @@
 import json
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # Dummy FAQ database for demonstration purposes
 FAQ_DATABASE = [

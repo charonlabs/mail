@@ -428,7 +428,7 @@ def test_subscribe_self(
 ) -> None:
     address = _seed_list(backend)
     response = client.post(
-        f"/lists/{address}/members",
+        f"/lists/{address}/subscribe",
         json={"member_address": USER_ADDRESS},
         headers=_user_headers(),
     )
@@ -442,7 +442,7 @@ def test_subscribe_other_rejected_with_403(
 ) -> None:
     address = _seed_list(backend)
     response = client.post(
-        f"/lists/{address}/members",
+        f"/lists/{address}/subscribe",
         json={"member_address": OTHER_USER_ADDRESS},
         headers=_user_headers(),
     )
@@ -451,7 +451,7 @@ def test_subscribe_other_rejected_with_403(
 
 def test_subscribe_missing_list_returns_404(client: TestClient) -> None:
     response = client.post(
-        "/lists/list:nonexistent@chorus@localhost/members",
+        "/lists/list:nonexistent@chorus@localhost/subscribe",
         json={"member_address": USER_ADDRESS},
         headers=_user_headers(),
     )
@@ -466,8 +466,8 @@ def test_unsubscribe_self(
         backend,
         members=[USER_ADDRESS, OTHER_USER_ADDRESS],
     )
-    response = client.delete(
-        f"/lists/{address}/members/{USER_ADDRESS}",
+    response = client.post(
+        f"/lists/{address}/unsubscribe",
         headers=_user_headers(),
     )
     assert response.status_code == 200
@@ -475,7 +475,7 @@ def test_unsubscribe_self(
     assert OTHER_USER_ADDRESS in backend.lists[address].members
 
 
-def test_unsubscribe_other_rejected_with_403(
+def test_unsubscribe_uses_authenticated_user(
     client: TestClient,
     backend: MemoryBackend,
 ) -> None:
@@ -483,11 +483,13 @@ def test_unsubscribe_other_rejected_with_403(
         backend,
         members=[USER_ADDRESS, OTHER_USER_ADDRESS],
     )
-    response = client.delete(
-        f"/lists/{address}/members/{OTHER_USER_ADDRESS}",
-        headers=_user_headers(),
+    response = client.post(
+        f"/lists/{address}/unsubscribe",
+        headers=_other_headers(),
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert USER_ADDRESS in backend.lists[address].members
+    assert OTHER_USER_ADDRESS not in backend.lists[address].members
 
 
 _ = mail_auth  # silence the import-for-side-effect note

@@ -23,10 +23,10 @@ from aiohttp import ClientSession
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-import mail.net.server_utils as server_utils
-import mail.utils as utils
-from mail.config.server import ServerConfig, SettingsConfig, SwarmConfig
-from mail.core.message import (
+import mail.legacy.net.server_utils as server_utils
+import mail.legacy.utils as utils
+from mail.legacy.config.server import ServerConfig, SettingsConfig, SwarmConfig
+from mail.legacy.core.message import (
     MAIL_MESSAGE_TYPES,
     MAILAddress,
     MAILBroadcast,
@@ -37,17 +37,17 @@ from mail.core.message import (
     parse_agent_address,
     parse_task_contributors,
 )
-from mail.net import types as types
-from mail.db.utils import close_pool as close_db_pool
-from mail.utils.logger import init_logger
-from mail.utils.openai import SwarmOAIClient, build_oai_clients_dict
+from mail.legacy.net import types as types
+from mail.legacy.db.utils import close_pool as close_db_pool
+from mail.legacy.utils.logger import init_logger
+from mail.legacy.utils.openai import SwarmOAIClient, build_oai_clients_dict
 
 from .api import MAILSwarm, MAILSwarmTemplate
 
 # Initialize logger at module level so it runs regardless of how the server is started
 _server_config: ServerConfig = ServerConfig()
 init_logger()
-logger = logging.getLogger("mail.server")
+logger = logging.getLogger("mail.legacy.server")
 
 # Template injection for programmatic server startup (single-process only)
 # Used by run_server_with_template() and MAILSwarmTemplate.start_server()
@@ -815,7 +815,7 @@ async def _persist_task_title(
         return
 
     try:
-        from mail.db.utils import update_task
+        from mail.legacy.db.utils import update_task
 
         await update_task(
             task_id=task_id,
@@ -836,7 +836,7 @@ async def ui_get_task_summary(task_id: str, force_regen: bool = False):
     Generates using Haiku on first request, then returns cached title.
     Pass force_regen=true to regenerate the title.
     """
-    from mail.summarizer import summarize_task
+    from mail.legacy.summarizer import summarize_task
 
     caller_id = "ui-dev-user"
     caller_role: Literal["admin", "swarm", "user"] = "user"

@@ -20,7 +20,7 @@ from .message import (
     create_agent_address,
 )
 
-logger = logging.getLogger("mail.tools")
+logger = logging.getLogger("mail.legacy.tools")
 
 MAIL_TOOL_NAMES = [
     "send_request",

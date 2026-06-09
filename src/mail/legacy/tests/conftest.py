@@ -99,7 +99,7 @@ def make_stub_agent(
     user_token: str = "secret-token",
     # internal params
     llm: str = "openai/gpt-5-mini",
-    system: str = "mail.examples.analyst_dummy.prompts:SYSPROMPT",
+    system: str = "mail.legacy.examples.analyst_dummy.prompts:SYSPROMPT",
     # OPTIONAL
     # top-level params
     name: str = "base_agent",
@@ -125,7 +125,7 @@ def make_stub_agent(
         tools = [{"name": "task_complete", "args": {"finish_message": "Task finished"}}]
 
     async def agent(history: list[dict[str, Any]], tool_choice: str):  # noqa: ARG001
-        from mail.factories.base import AgentToolCall
+        from mail.legacy.factories.base import AgentToolCall
 
         call = AgentToolCall(
             tool_name=tools[0]["name"],
@@ -161,8 +161,8 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     This fixture patches the `SwarmRegistry`, `MAILSwarmTemplate.from_swarm_json_file`, and `MAILSwarm.submit_message` to avoid network and heavy LLM calls.
     """
     # Reset global server state to avoid cross-test interference
-    import mail.server as server
-    from mail.api import MAILAgentTemplate, MAILSwarmTemplate
+    import mail.legacy.server as server
+    from mail.legacy.api import MAILAgentTemplate, MAILSwarmTemplate
 
     server.app.state.user_mail_instances = {}
     server.app.state.user_mail_tasks = {}
@@ -186,10 +186,10 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("SWARM_NAME", "example")
     monkeypatch.setenv("BASE_URL", "http://localhost:8000")
     monkeypatch.setenv("SWARM_REGISTRY_FILE", "test-swarm-registry.json")
-    monkeypatch.setenv("SWARM_SOURCE", "tests/swarms.json")
+    monkeypatch.setenv("SWARM_SOURCE", "src/mail/legacy/configs/swarms.json")
 
     # Fake registry prevents network
-    monkeypatch.setattr("mail.net.registry.SwarmRegistry", FakeSwarmRegistry)
+    monkeypatch.setattr("mail.legacy.net.registry.SwarmRegistry", FakeSwarmRegistry)
 
     stub_swarm = MAILSwarmTemplate(
         version="1.3.6",
@@ -198,7 +198,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
             MAILAgentTemplate(
                 name="supervisor",
                 # Use importable path for read_python_string
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 comm_targets=["analyst"],
                 actions=[],
                 agent_params={},
@@ -209,7 +209,7 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
             ),
             MAILAgentTemplate(
                 name="analyst",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 comm_targets=["supervisor"],
                 actions=[],
                 agent_params={},
@@ -223,17 +223,17 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
 
     # Ensure the server uses our stub swarm template instead of reading swarms.json
     monkeypatch.setattr(
-        "mail.api.MAILSwarmTemplate.from_swarm_json_file",
+        "mail.legacy.api.MAILSwarmTemplate.from_swarm_json_file",
         lambda swarm_name, json_filepath: stub_swarm,  # noqa: ARG005
         raising=False,
     )
     monkeypatch.setattr(
-        "mail.MAILSwarmTemplate.from_swarm_json_file",
+        "mail.legacy.MAILSwarmTemplate.from_swarm_json_file",
         lambda swarm_name, json_filepath: stub_swarm,  # noqa: ARG005
         raising=False,
     )
     monkeypatch.setattr(
-        "mail.net.server_utils.MAILSwarmTemplate.from_swarm_json_file",
+        "mail.legacy.net.server_utils.MAILSwarmTemplate.from_swarm_json_file",
         lambda swarm_name, json_filepath: stub_swarm,  # noqa: ARG005
         raising=False,
     )
@@ -262,19 +262,19 @@ def patched_server(monkeypatch: pytest.MonkeyPatch):
         return response, events
 
     monkeypatch.setattr(
-        "mail.MAILSwarm.submit_message", _compat_submit_message, raising=True
+        "mail.legacy.MAILSwarm.submit_message", _compat_submit_message, raising=True
     )
 
     # Stub auth calls to avoid aiohttp
     monkeypatch.setattr(
-        "mail.utils.auth.login", lambda api_key: _async_return("fake-jwt")
+        "mail.legacy.utils.auth.login", lambda api_key: _async_return("fake-jwt")
     )
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info",
+        "mail.legacy.utils.auth.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),
     )
     monkeypatch.setattr(
-        "mail.utils.get_token_info",
+        "mail.legacy.utils.get_token_info",
         lambda token: _async_return({"role": "user", "id": "u-123"}),
         raising=False,
     )

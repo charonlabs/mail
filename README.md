@@ -26,7 +26,7 @@ mail/
 │   ├── client/           # mail-client package
 │   ├── daemon/           # mail-daemon package
 │   └── legacy/           # archived MAIL v1 runtime, docs, config, and UI
-├── tests/                # test suite, currently mixed during migration
+├── tests/                # active MAIL v2 test suite
 ├── scripts/              # repository scripts, currently mixed during migration
 └── pyproject.toml        # uv workspace and meta-package configuration
 ```
@@ -51,14 +51,20 @@ Use the v2 client:
 uv run mail --help
 ```
 
-Run tests:
+Run active v2 tests:
 
 ```bash
 uv run pytest
 ```
 
-During the transition, some root-level tests and scripts still target the legacy
-runtime. Legacy-specific material is being moved under `src/mail/legacy`.
+During the transition, some root-level scripts still target the legacy runtime.
+Legacy tests and other v1 material live under `src/mail/legacy`.
+
+Run archived legacy tests explicitly:
+
+```bash
+uv run pytest src/mail/legacy/tests
+```
 
 ## Documentation
 

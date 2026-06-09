@@ -17,7 +17,7 @@ def test_message_requires_auth_missing_header():
     """
     Test that `POST /message` requires an authorization header.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.post(
@@ -38,7 +38,7 @@ def test_message_invalid_auth_format():
     """
     Test that `POST /message` requires a valid authorization header.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         r = client.post(
@@ -60,11 +60,11 @@ def test_message_invalid_role_rejected(monkeypatch: pytest.MonkeyPatch):
     """
     Test that `POST /message` requires a non-`agent` role.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     # Override token info to mimic an agent (not a user/admin)
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info",
+        "mail.legacy.utils.auth.get_token_info",
         lambda token: _async_return({"role": "agent", "id": "a-1"}),
     )
 
@@ -88,7 +88,7 @@ def test_status_after_message_shows_user_ready_true(monkeypatch: pytest.MonkeyPa
     """
     Test that `GET /status` shows the user as ready after a message is sent.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     with TestClient(app) as client:
         # Initially, user is not active

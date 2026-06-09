@@ -8,12 +8,12 @@ from typing import Any, Literal
 
 from openai.resources.responses.responses import _make_tools
 
-from mail.core.agents import AgentFunction, AgentOutput
-from mail.core.tools import (
+from mail.legacy.core.agents import AgentFunction, AgentOutput
+from mail.legacy.core.tools import (
     create_supervisor_tools,
     pydantic_function_tool,
 )
-from mail.factories.base import (
+from mail.legacy.factories.base import (
     LiteLLMAgentFunction,
     MAILAgentFunction,
 )

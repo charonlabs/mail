@@ -27,10 +27,10 @@ from rich import console
 from rich.syntax import Syntax
 from sse_starlette import ServerSentEvent
 
-import mail.utils as utils
-from mail.config import ClientConfig
-from mail.core.message import MAILInterswarmMessage, MAILMessage
-from mail.net.types import (
+import mail.legacy.utils as utils
+from mail.legacy.config import ClientConfig
+from mail.legacy.core.message import MAILInterswarmMessage, MAILMessage
+from mail.legacy.net.types import (
     GetHealthResponse,
     GetRootResponse,
     GetStatusResponse,
@@ -67,7 +67,7 @@ class MAILClient:
             config = ClientConfig()
         self.verbose = config.verbose
         if self.verbose:
-            self.logger = logging.getLogger("mail.client")
+            self.logger = logging.getLogger("mail.legacy.client")
         else:
             self.logger = logging.getLogger("mailquiet.client")
 

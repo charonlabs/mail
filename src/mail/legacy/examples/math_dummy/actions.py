@@ -10,7 +10,7 @@ import re
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation, localcontext
 from typing import Any, Final, Union
 
-from mail import action
+from mail.legacy import action
 
 Number = Union[int, Decimal]
 

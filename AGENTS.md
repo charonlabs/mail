@@ -24,10 +24,11 @@ uv sync
 uv run mail-server --help
 uv run mail --help
 uv run pytest
+uv run pytest src/mail/legacy/tests
 ```
 
-During migration, some root-level tests and scripts still target legacy modules.
-Prefer focused test commands for the package you touch.
+During migration, some root-level scripts still target legacy modules.
+Root `tests/` is the active v2 suite; legacy tests run explicitly from `src/mail/legacy/tests`.
 
 ## Import Guidance
 

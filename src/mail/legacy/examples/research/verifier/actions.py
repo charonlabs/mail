@@ -8,7 +8,7 @@ import json
 from random import Random
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # Source reliability ratings
 SOURCE_RELIABILITY = {

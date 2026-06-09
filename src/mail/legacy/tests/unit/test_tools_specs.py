@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from mail.core.tools import (
+from mail.legacy.core.tools import (
     convert_call_to_mail_message,
     create_await_message_tool,
     create_mail_tools,
@@ -13,7 +13,7 @@ from mail.core.tools import (
     create_supervisor_tools,
     create_task_complete_tool,
 )
-from mail.factories.base import AgentToolCall
+from mail.legacy.factories.base import AgentToolCall
 
 
 def _call(name: str, args: dict[str, Any]) -> AgentToolCall:

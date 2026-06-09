@@ -3,7 +3,7 @@
 
 import datetime
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     MAILBroadcast,
     MAILMessage,
     MAILRequest,

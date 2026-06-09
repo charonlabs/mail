@@ -7,7 +7,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     MAILInterswarmMessage,
     MAILMessage,
     MAILRequest,
@@ -76,10 +76,10 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
     """
     Test that the interswarm forward endpoint submits to the runtime when receiving an interswarm message.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info",
+        "mail.legacy.utils.auth.get_token_info",
         lambda token: _async_return(
             {"role": "agent", "id": "ag-forward", "api_key": "api-key-forward"}
         ),
@@ -100,7 +100,7 @@ def test_interswarm_forward_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
         return DummySwarm()
 
     monkeypatch.setattr(
-        "mail.server.get_or_create_mail_instance",
+        "mail.legacy.server.get_or_create_mail_instance",
         fake_get_or_create,
     )
 
@@ -134,10 +134,10 @@ def test_interswarm_back_requires_running_task(monkeypatch: pytest.MonkeyPatch):
     """
     Test that the interswarm back endpoint requires a running task when receiving an interswarm message.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info",
+        "mail.legacy.utils.auth.get_token_info",
         lambda token: _async_return(
             {"role": "agent", "id": "ag-back", "api_key": "api-key-back"}
         ),
@@ -162,10 +162,10 @@ def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
     """
     Test that the interswarm back endpoint submits to the runtime when the task is running.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info",
+        "mail.legacy.utils.auth.get_token_info",
         lambda token: _async_return(
             {"role": "agent", "id": "ag-back", "api_key": "api-key-back"}
         ),
@@ -186,7 +186,7 @@ def test_interswarm_back_submits_to_runtime(monkeypatch: pytest.MonkeyPatch):
         return DummySwarm()
 
     monkeypatch.setattr(
-        "mail.server._get_mail_instance_from_interswarm_message",
+        "mail.legacy.server._get_mail_instance_from_interswarm_message",
         fake_get_mail_instance_from_interswarm_message,
     )
 
@@ -222,10 +222,10 @@ def test_post_interswarm_message_forwards_to_router(monkeypatch: pytest.MonkeyPa
     """
     Test that the interswarm message endpoint forwards to the router when receiving a message.
     """
-    from mail.server import app
+    from mail.legacy.server import app
 
     monkeypatch.setattr(
-        "mail.utils.auth.get_token_info",
+        "mail.legacy.utils.auth.get_token_info",
         lambda token: _async_return(
             {"role": "user", "id": "user-123", "api_key": "api-key-user"}
         ),
@@ -252,7 +252,7 @@ def test_post_interswarm_message_forwards_to_router(monkeypatch: pytest.MonkeyPa
         return DummyMail()
 
     monkeypatch.setattr(
-        "mail.server.get_or_create_mail_instance",
+        "mail.legacy.server.get_or_create_mail_instance",
         fake_get_or_create,
     )
 

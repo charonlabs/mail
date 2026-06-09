@@ -3,12 +3,12 @@
 
 """Summarizer agent for the Research Assistant swarm."""
 
-from mail.examples.research.summarizer.agent import LiteLLMSummarizerFunction
-from mail.examples.research.summarizer.actions import (
+from mail.legacy.examples.research.summarizer.agent import LiteLLMSummarizerFunction
+from mail.legacy.examples.research.summarizer.actions import (
     summarize_text,
     create_bibliography,
 )
-from mail.examples.research.summarizer.prompts import SYSPROMPT
+from mail.legacy.examples.research.summarizer.prompts import SYSPROMPT
 
 __all__ = [
     "LiteLLMSummarizerFunction",

@@ -4,7 +4,7 @@
 import aiohttp
 import pytest
 
-from mail.stdlib.interswarm import (
+from mail.legacy.stdlib.interswarm import (
     get_swarm_health,
     get_swarm_registry,
     ping_swarm,

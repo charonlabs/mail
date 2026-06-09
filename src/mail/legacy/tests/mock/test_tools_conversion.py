@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
-from mail.core.tools import convert_call_to_mail_message
-from mail.factories.base import AgentToolCall
+from mail.legacy.core.tools import convert_call_to_mail_message
+from mail.legacy.factories.base import AgentToolCall
 
 
 def _call(name: str, args: dict) -> AgentToolCall:

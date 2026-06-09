@@ -7,7 +7,7 @@ import json
 import re
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # Keyword mappings for classification
 CATEGORY_KEYWORDS = {

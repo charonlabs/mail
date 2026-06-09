@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from mail.net.registry import SwarmRegistry
+from mail.legacy.net.registry import SwarmRegistry
 
 
 @pytest.mark.asyncio

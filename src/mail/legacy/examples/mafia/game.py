@@ -8,20 +8,20 @@ from enum import Enum
 import litellm
 import rich
 
-from mail.api import MAILAgentTemplate, MAILMessage, MAILSwarm, MAILSwarmTemplate
-from mail.examples.mafia.narrator_tools import NarratorError, get_narrator_actions
-from mail.examples.mafia.personas import PERSONAS, Persona
-from mail.examples.mafia.prompts import (
+from mail.legacy.api import MAILAgentTemplate, MAILMessage, MAILSwarm, MAILSwarmTemplate
+from mail.legacy.examples.mafia.narrator_tools import NarratorError, get_narrator_actions
+from mail.legacy.examples.mafia.personas import PERSONAS, Persona
+from mail.legacy.examples.mafia.prompts import (
     create_agent_system_prompt,
     create_narrator_system_prompt,
 )
-from mail.examples.mafia.roles import (
+from mail.legacy.examples.mafia.roles import (
     ALL_ROLES,
     Role,
     calculate_roles,
 )
-from mail.factories.base import base_agent_factory
-from mail.utils import get_version
+from mail.legacy.factories.base import base_agent_factory
+from mail.legacy.utils import get_version
 
 
 class GamePhase(Enum):

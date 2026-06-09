@@ -11,40 +11,40 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "python::mail.factories.supervisor:LiteLLMSupervisorFunction",
+                "factory": "python::mail.legacy.factories.supervisor:LiteLLMSupervisorFunction",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT"
+                    "system": "python::mail.legacy.examples.supervisor.prompts:SYSPROMPT"
                 }
             },
             {
                 "name": "weather",
-                "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
+                "factory": "python::mail.legacy.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT"
+                    "system": "python::mail.legacy.examples.weather_dummy.prompts:SYSPROMPT"
                 }
             },
             {
                 "name": "math",
-                "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
+                "factory": "python::mail.legacy.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT"
+                    "system": "python::mail.legacy.examples.math_dummy.prompts:SYSPROMPT"
                 }
             }
         ],
         "actions": [],
         "action_imports": [
-            "python::mail.examples.weather_dummy.actions:get_weather_forecast",
-            "python::mail.examples.math_dummy.actions:calculate_expression"
+            "python::mail.legacy.examples.weather_dummy.actions:get_weather_forecast",
+            "python::mail.legacy.examples.math_dummy.actions:calculate_expression"
         ]
     },
     {
@@ -59,38 +59,38 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "python::mail.factories.supervisor:LiteLLMSupervisorFunction",
+                "factory": "python::mail.legacy.factories.supervisor:LiteLLMSupervisorFunction",
                 "comm_targets": ["weather", "math"],
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "weather",
-                "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
+                "factory": "python::mail.legacy.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "actions": ["get_weather_forecast"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.weather_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "math",
-                "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
+                "factory": "python::mail.legacy.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.math_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
@@ -98,8 +98,8 @@
         ],
         "actions": [],
         "action_imports": [
-            "python::mail.examples.weather_dummy.actions:get_weather_forecast",
-            "python::mail.examples.math_dummy.actions:calculate_expression"
+            "python::mail.legacy.examples.weather_dummy.actions:get_weather_forecast",
+            "python::mail.legacy.examples.math_dummy.actions:calculate_expression"
         ]
     },
     {
@@ -114,25 +114,25 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "python::mail.factories.supervisor:LiteLLMSupervisorFunction",
+                "factory": "python::mail.legacy.factories.supervisor:LiteLLMSupervisorFunction",
                 "comm_targets": ["weather", "math", "supervisor@swarm-beta"],
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "weather",
-                "factory": "python::mail.examples.weather_dummy.agent:LiteLLMWeatherFunction",
+                "factory": "python::mail.legacy.examples.weather_dummy.agent:LiteLLMWeatherFunction",
                 "comm_targets": ["supervisor", "math"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.weather_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.weather_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "actions": ["get_weather_forecast"],
@@ -140,21 +140,21 @@
             },
             {
                 "name": "math",
-                "factory": "python::mail.examples.math_dummy.agent:LiteLLMMathFunction",
+                "factory": "python::mail.legacy.examples.math_dummy.agent:LiteLLMMathFunction",
                 "comm_targets": ["supervisor", "weather"],
                 "actions": ["calculate_expression"],
                 "tool_format": "completions",
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.math_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.math_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 }
             }
         ],
         "actions": [],
         "action_imports": [
-            "python::mail.examples.weather_dummy.actions:get_weather_forecast",
-            "python::mail.examples.math_dummy.actions:calculate_expression"
+            "python::mail.legacy.examples.weather_dummy.actions:get_weather_forecast",
+            "python::mail.legacy.examples.math_dummy.actions:calculate_expression"
         ]
     },
     {
@@ -169,36 +169,36 @@
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "python::mail.factories.supervisor:LiteLLMSupervisorFunction",
+                "factory": "python::mail.legacy.factories.supervisor:LiteLLMSupervisorFunction",
                 "comm_targets": ["consultant", "analyst", "supervisor@swarm-alpha"],
                 "enable_entrypoint": true,
                 "enable_interswarm": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.supervisor.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.supervisor.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "consultant",
-                "factory": "python::mail.examples.consultant_dummy.agent:LiteLLMConsultantFunction",
+                "factory": "python::mail.legacy.examples.consultant_dummy.agent:LiteLLMConsultantFunction",
                 "comm_targets": ["supervisor", "analyst"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.consultant_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.consultant_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "analyst",
-                "factory": "python::mail.examples.analyst_dummy.agent:LiteLLMAnalystFunction",
+                "factory": "python::mail.legacy.examples.analyst_dummy.agent:LiteLLMAnalystFunction",
                 "comm_targets": ["supervisor", "consultant"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.analyst_dummy.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.analyst_dummy.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
@@ -219,49 +219,49 @@
         "agents": [
             {
                 "name": "coordinator",
-                "factory": "python::mail.examples.support.coordinator.agent:LiteLLMCoordinatorFunction",
+                "factory": "python::mail.legacy.examples.support.coordinator.agent:LiteLLMCoordinatorFunction",
                 "comm_targets": ["faq", "classifier", "sentiment"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.support.coordinator.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.support.coordinator.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "faq",
-                "factory": "python::mail.examples.support.faq.agent:LiteLLMFaqFunction",
+                "factory": "python::mail.legacy.examples.support.faq.agent:LiteLLMFaqFunction",
                 "comm_targets": ["coordinator"],
                 "actions": ["search_faq"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.support.faq.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.support.faq.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "classifier",
-                "factory": "python::mail.examples.support.classifier.agent:LiteLLMClassifierFunction",
+                "factory": "python::mail.legacy.examples.support.classifier.agent:LiteLLMClassifierFunction",
                 "comm_targets": ["coordinator", "sentiment"],
                 "actions": ["classify_ticket"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.support.classifier.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.support.classifier.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "sentiment",
-                "factory": "python::mail.examples.support.sentiment.agent:LiteLLMSentimentFunction",
+                "factory": "python::mail.legacy.examples.support.sentiment.agent:LiteLLMSentimentFunction",
                 "comm_targets": ["coordinator", "classifier"],
                 "actions": ["analyze_sentiment", "create_escalation"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.support.sentiment.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.support.sentiment.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
@@ -269,10 +269,10 @@
         ],
         "actions": [],
         "action_imports": [
-            "python::mail.examples.support.faq.actions:search_faq",
-            "python::mail.examples.support.classifier.actions:classify_ticket",
-            "python::mail.examples.support.sentiment.actions:analyze_sentiment",
-            "python::mail.examples.support.sentiment.actions:create_escalation"
+            "python::mail.legacy.examples.support.faq.actions:search_faq",
+            "python::mail.legacy.examples.support.classifier.actions:classify_ticket",
+            "python::mail.legacy.examples.support.sentiment.actions:analyze_sentiment",
+            "python::mail.legacy.examples.support.sentiment.actions:create_escalation"
         ]
     },
     {
@@ -287,49 +287,49 @@
         "agents": [
             {
                 "name": "analyst",
-                "factory": "python::mail.examples.data_analysis.analyst.agent:LiteLLMAnalystFunction",
+                "factory": "python::mail.legacy.examples.data_analysis.analyst.agent:LiteLLMAnalystFunction",
                 "comm_targets": ["processor", "statistics", "reporter"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.data_analysis.analyst.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.data_analysis.analyst.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "processor",
-                "factory": "python::mail.examples.data_analysis.processor.agent:LiteLLMProcessorFunction",
+                "factory": "python::mail.legacy.examples.data_analysis.processor.agent:LiteLLMProcessorFunction",
                 "comm_targets": ["analyst", "statistics"],
                 "actions": ["generate_sample_data", "parse_csv"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.data_analysis.processor.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.data_analysis.processor.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "statistics",
-                "factory": "python::mail.examples.data_analysis.statistics.agent:LiteLLMStatisticsFunction",
+                "factory": "python::mail.legacy.examples.data_analysis.statistics.agent:LiteLLMStatisticsFunction",
                 "comm_targets": ["analyst", "processor"],
                 "actions": ["calculate_statistics", "run_correlation"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.data_analysis.statistics.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.data_analysis.statistics.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "reporter",
-                "factory": "python::mail.examples.data_analysis.reporter.agent:LiteLLMReporterFunction",
+                "factory": "python::mail.legacy.examples.data_analysis.reporter.agent:LiteLLMReporterFunction",
                 "comm_targets": ["analyst"],
                 "actions": ["format_report"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.data_analysis.reporter.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.data_analysis.reporter.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
@@ -337,11 +337,11 @@
         ],
         "actions": [],
         "action_imports": [
-            "python::mail.examples.data_analysis.processor.actions:generate_sample_data",
-            "python::mail.examples.data_analysis.processor.actions:parse_csv",
-            "python::mail.examples.data_analysis.statistics.actions:calculate_statistics",
-            "python::mail.examples.data_analysis.statistics.actions:run_correlation",
-            "python::mail.examples.data_analysis.reporter.actions:format_report"
+            "python::mail.legacy.examples.data_analysis.processor.actions:generate_sample_data",
+            "python::mail.legacy.examples.data_analysis.processor.actions:parse_csv",
+            "python::mail.legacy.examples.data_analysis.statistics.actions:calculate_statistics",
+            "python::mail.legacy.examples.data_analysis.statistics.actions:run_correlation",
+            "python::mail.legacy.examples.data_analysis.reporter.actions:format_report"
         ]
     },
     {
@@ -356,49 +356,49 @@
         "agents": [
             {
                 "name": "researcher",
-                "factory": "python::mail.examples.research.researcher.agent:LiteLLMResearcherFunction",
+                "factory": "python::mail.legacy.examples.research.researcher.agent:LiteLLMResearcherFunction",
                 "comm_targets": ["searcher", "verifier", "summarizer"],
                 "enable_entrypoint": true,
                 "can_complete_tasks": true,
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.research.researcher.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.research.researcher.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "searcher",
-                "factory": "python::mail.examples.research.searcher.agent:LiteLLMSearcherFunction",
+                "factory": "python::mail.legacy.examples.research.searcher.agent:LiteLLMSearcherFunction",
                 "comm_targets": ["researcher", "verifier"],
                 "actions": ["search_topic", "extract_facts"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.research.searcher.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.research.searcher.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "verifier",
-                "factory": "python::mail.examples.research.verifier.agent:LiteLLMVerifierFunction",
+                "factory": "python::mail.legacy.examples.research.verifier.agent:LiteLLMVerifierFunction",
                 "comm_targets": ["researcher", "searcher"],
                 "actions": ["verify_claim", "rate_confidence"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.research.verifier.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.research.verifier.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
             },
             {
                 "name": "summarizer",
-                "factory": "python::mail.examples.research.summarizer.agent:LiteLLMSummarizerFunction",
+                "factory": "python::mail.legacy.examples.research.summarizer.agent:LiteLLMSummarizerFunction",
                 "comm_targets": ["researcher"],
                 "actions": ["summarize_text", "create_bibliography"],
                 "agent_params": {
                     "llm": "anthropic/claude-opus-4-5-20251101",
-                    "system": "python::mail.examples.research.summarizer.prompts:SYSPROMPT",
+                    "system": "python::mail.legacy.examples.research.summarizer.prompts:SYSPROMPT",
                     "use_proxy": false
                 },
                 "tool_format": "completions"
@@ -406,12 +406,12 @@
         ],
         "actions": [],
         "action_imports": [
-            "python::mail.examples.research.searcher.actions:search_topic",
-            "python::mail.examples.research.searcher.actions:extract_facts",
-            "python::mail.examples.research.verifier.actions:verify_claim",
-            "python::mail.examples.research.verifier.actions:rate_confidence",
-            "python::mail.examples.research.summarizer.actions:summarize_text",
-            "python::mail.examples.research.summarizer.actions:create_bibliography"
+            "python::mail.legacy.examples.research.searcher.actions:search_topic",
+            "python::mail.legacy.examples.research.searcher.actions:extract_facts",
+            "python::mail.legacy.examples.research.verifier.actions:verify_claim",
+            "python::mail.legacy.examples.research.verifier.actions:rate_confidence",
+            "python::mail.legacy.examples.research.summarizer.actions:summarize_text",
+            "python::mail.legacy.examples.research.summarizer.actions:create_bibliography"
         ]
     }
 ]

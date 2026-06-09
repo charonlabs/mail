@@ -4,13 +4,13 @@
 import datetime
 import uuid
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     MAILMessage,
     MAILRequest,
     create_agent_address,
     format_agent_address,
 )
-from mail.net.router import InterswarmRouter
+from mail.legacy.net.router import InterswarmRouter
 
 
 class _DummyRegistry:

@@ -4,9 +4,9 @@
 import asyncio
 import logging
 
-from mail.api import MAILSwarm, MAILSwarmTemplate
-from mail.config import ServerConfig
-from mail.net.registry import SwarmRegistry
+from mail.legacy.api import MAILSwarm, MAILSwarmTemplate
+from mail.legacy.config import ServerConfig
+from mail.legacy.net.registry import SwarmRegistry
 
 logger = logging.getLogger(__name__)
 

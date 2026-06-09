@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from mail import MAILAction, MAILAgentTemplate, MAILSwarmTemplate
-from mail.factories import LiteLLMSupervisorFunction
+from mail.legacy import MAILAction, MAILAgentTemplate, MAILSwarmTemplate
+from mail.legacy.factories import LiteLLMSupervisorFunction
 
 if TYPE_CHECKING:
-    from mail import MAILSwarm
+    from mail.legacy import MAILSwarm
 
 
 # ============================================================================

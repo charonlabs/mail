@@ -64,7 +64,7 @@
         },
         "action_imports": {
           "type": "array",
-          "description": "Python import strings resolving to pre-built MAILAction objects (e.g., 'python::mail.stdlib.mcp.actions:mcp_ping')",
+          "description": "Python import strings resolving to pre-built MAILAction objects (e.g., 'python::mail.legacy.stdlib.mcp.actions:mcp_ping')",
           "items": {
             "type": "string"
           },

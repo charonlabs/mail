@@ -8,9 +8,9 @@ from typing import Any, Literal
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from mail.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate, action
-from mail.swarms_json.utils import build_swarm_from_swarms_json
-from tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
+from mail.legacy.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate, action
+from mail.legacy.swarms_json.utils import build_swarm_from_swarms_json
+from mail.legacy.tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
 
 class FakeMAILRuntime:
@@ -108,7 +108,7 @@ def patch_mail_in_api(monkeypatch: pytest.MonkeyPatch) -> None:
     Patch the `MAILRuntime` used inside `mail.api` to avoid heavy runtime behavior.
     """
     # Patch the MAILRuntime used inside mail.api to avoid heavy runtime behavior
-    import mail.api as api
+    import mail.legacy.api as api
 
     monkeypatch.setattr(api, "MAILRuntime", FakeMAILRuntime)
 
@@ -126,7 +126,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "tests.conftest:make_stub_agent",
+                "factory": "mail.legacy.tests.conftest:make_stub_agent",
                 "comm_targets": ["analyst"],
                 "can_complete_tasks": True,
                 "actions": [],
@@ -135,7 +135,7 @@ def test_from_swarm_json_valid_creates_swarm() -> None:
             },
             {
                 "name": "analyst",
-                "factory": "tests.conftest:make_stub_agent",
+                "factory": "mail.legacy.tests.conftest:make_stub_agent",
                 "comm_targets": ["supervisor"],
                 "actions": [],
                 "agent_params": {},
@@ -246,13 +246,13 @@ def test_agent_params_prefixed_python_strings_resolved() -> None:
         "agents": [
             {
                 "name": "supervisor",
-                "factory": "tests.conftest:make_stub_agent",
+                "factory": "mail.legacy.tests.conftest:make_stub_agent",
                 "comm_targets": ["supervisor"],
                 "can_complete_tasks": True,
                 "actions": [],
                 "enable_entrypoint": True,
                 "agent_params": {
-                    "system": "python::tests.conftest:TEST_SYSTEM_PROMPT",
+                    "system": "python::mail.legacy.tests.conftest:TEST_SYSTEM_PROMPT",
                 },
             },
         ],
@@ -274,7 +274,7 @@ def test_from_swarm_json_missing_required_field_raises(missing: str) -> None:
     """
     Test that `MAILSwarmTemplate.from_swarm_json` raises an error if a required field is missing.
     """
-    from mail import MAILSwarmTemplate
+    from mail.legacy import MAILSwarmTemplate
 
     base = {
         "name": "x",
@@ -296,7 +296,7 @@ def test_from_swarm_json_wrong_types_raise() -> None:
     """
     Test that `MAILSwarmTemplate.from_swarm_json` raises an error if a field is the wrong type.
     """
-    from mail import MAILSwarmTemplate
+    from mail.legacy import MAILSwarmTemplate
 
     bad = {
         "name": 123,
@@ -317,7 +317,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
     """
     Test that `MAILSwarmTemplate.from_swarm_json_file` works as expected.
     """
-    from mail import MAILSwarmTemplate
+    from mail.legacy import MAILSwarmTemplate
 
     contents = [
         {
@@ -326,7 +326,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
             "agents": [
                 {
                     "name": "s",
-                    "factory": "tests.conftest:make_stub_agent",
+                    "factory": "mail.legacy.tests.conftest:make_stub_agent",
                     "comm_targets": [],
                     "actions": [],
                     "can_complete_tasks": True,
@@ -343,7 +343,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
             "agents": [
                 {
                     "name": "supervisor",
-                    "factory": "tests.conftest:make_stub_agent",
+                    "factory": "mail.legacy.tests.conftest:make_stub_agent",
                     "comm_targets": ["analyst"],
                     "actions": [],
                     "can_complete_tasks": True,
@@ -352,7 +352,7 @@ def test_from_swarm_json_file_selects_named_swarm(tmp_path: Any) -> None:
                 },
                 {
                     "name": "analyst",
-                    "factory": "tests.conftest:make_stub_agent",
+                    "factory": "mail.legacy.tests.conftest:make_stub_agent",
                     "comm_targets": ["supervisor"],
                     "actions": [],
                     "agent_params": {},
@@ -391,7 +391,7 @@ def test_mailagent_to_core_preserves_actions() -> None:
 
     agent = MAILAgent(
         name="weather",
-        factory="tests.conftest:make_stub_agent",
+        factory="mail.legacy.tests.conftest:make_stub_agent",
         actions=[action],
         function=noop_agent,  # type: ignore[arg-type]
         comm_targets=["supervisor"],
@@ -409,7 +409,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
     """
     Test that `MAILSwarm.post_message` works as expected.
     """
-    from mail import MAILSwarm
+    from mail.legacy import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
@@ -417,7 +417,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
         agents=[
             MAILAgent(
                 name="supervisor",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 actions=[],
                 function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["analyst"],
@@ -427,7 +427,7 @@ async def test_post_message_uses_default_entrypoint_and_returns_events() -> None
             ),
             MAILAgent(
                 name="analyst",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 actions=[],
                 function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["supervisor"],
@@ -460,7 +460,7 @@ async def test_post_message_stream_headers_and_type() -> None:
     """
     from sse_starlette import EventSourceResponse
 
-    from mail import MAILSwarm
+    from mail.legacy import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
@@ -468,7 +468,7 @@ async def test_post_message_stream_headers_and_type() -> None:
         agents=[
             MAILAgent(
                 name="supervisor",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 actions=[],
                 function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["analyst"],
@@ -478,7 +478,7 @@ async def test_post_message_stream_headers_and_type() -> None:
             ),
             MAILAgent(
                 name="analyst",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 actions=[],
                 function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["supervisor"],
@@ -500,7 +500,7 @@ def test_build_message_request_validation() -> None:
     """
     Test that `MAILSwarm.build_message` works as expected.
     """
-    from mail import MAILSwarm
+    from mail.legacy import MAILSwarm
 
     swarm = MAILSwarm(
         name="myswarm",
@@ -508,7 +508,7 @@ def test_build_message_request_validation() -> None:
         agents=[
             MAILAgent(
                 name="supervisor",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 actions=[],
                 function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["analyst"],
@@ -518,7 +518,7 @@ def test_build_message_request_validation() -> None:
             ),
             MAILAgent(
                 name="analyst",
-                factory="tests.conftest:make_stub_agent",
+                factory="mail.legacy.tests.conftest:make_stub_agent",
                 actions=[],
                 function=make_stub_agent,  # type: ignore[arg-type]
                 comm_targets=["supervisor"],
@@ -609,7 +609,7 @@ def test_mailaction_from_swarm_json_missing_required_field(missing: str) -> None
         "name": "act",
         "description": "desc",
         "parameters": {"type": "object", "properties": {}},
-        "function": "tests.conftest:make_stub_agent",
+        "function": "mail.legacy.tests.conftest:make_stub_agent",
     }
     bad = base.copy()
     bad.pop(missing)
@@ -627,7 +627,7 @@ def test_mailaction_from_swarm_json_type_validation() -> None:
         "name": 123,
         "description": "desc",
         "parameters": {"type": "object", "properties": {}},
-        "function": "tests.conftest:make_stub_agent",
+        "function": "mail.legacy.tests.conftest:make_stub_agent",
     }
 
     with pytest.raises(ValueError) as exc:
@@ -687,7 +687,7 @@ async def test_mailaction_resolves_decorated_function_from_string() -> None:
         name="via_string",
         description="Use decorated action.",
         parameters={"type": "object", "properties": {}},
-        function="tests.unit.test_mail_api:decorated_for_string",
+        function="mail.legacy.tests.unit.test_mail_api:decorated_for_string",
     )
 
     result = await action_from_string.function({})  # type: ignore[arg-type]
@@ -740,7 +740,7 @@ def test_swarm_template_action_imports_populate_actions() -> None:
         "agents": [
             {
                 "name": "alpha",
-                "factory": "tests.conftest:make_stub_agent",
+                "factory": "mail.legacy.tests.conftest:make_stub_agent",
                 "comm_targets": [],
                 "actions": ["decorated_for_string"],
                 "agent_params": {},
@@ -752,7 +752,7 @@ def test_swarm_template_action_imports_populate_actions() -> None:
             }
         ],
         "actions": [],
-        "action_imports": ["python::tests.unit.test_mail_api:decorated_for_string"],
+        "action_imports": ["python::mail.legacy.tests.unit.test_mail_api:decorated_for_string"],
         "enable_interswarm": False,
         "breakpoint_tools": [],
         "exclude_tools": [],
@@ -779,7 +779,7 @@ def test_swarm_template_action_imports_duplicate_names_raise() -> None:
         "agents": [
             {
                 "name": "alpha",
-                "factory": "tests.conftest:make_stub_agent",
+                "factory": "mail.legacy.tests.conftest:make_stub_agent",
                 "comm_targets": [],
                 "actions": ["decorated_for_string"],
                 "agent_params": {},
@@ -795,10 +795,10 @@ def test_swarm_template_action_imports_duplicate_names_raise() -> None:
                 "name": "decorated_for_string",
                 "description": "Inline duplicate",
                 "parameters": {"type": "object", "properties": {}},
-                "function": "python::tests.unit.test_mail_api:decorated_for_string",
+                "function": "python::mail.legacy.tests.unit.test_mail_api:decorated_for_string",
             }
         ],
-        "action_imports": ["python::tests.unit.test_mail_api:decorated_for_string"],
+        "action_imports": ["python::mail.legacy.tests.unit.test_mail_api:decorated_for_string"],
         "enable_interswarm": False,
         "breakpoint_tools": [],
         "exclude_tools": [],

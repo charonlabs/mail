@@ -7,8 +7,8 @@ import uuid
 import ujson
 from sse_starlette import ServerSentEvent
 
-from mail.core.message import MAILMessage, MAILRequest, create_agent_address
-from mail.core.tasks import MAILTask
+from mail.legacy.core.message import MAILMessage, MAILRequest, create_agent_address
+from mail.legacy.core.tasks import MAILTask
 
 
 def test_get_messages_parses_json_event_data() -> None:

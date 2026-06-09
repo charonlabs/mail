@@ -44,12 +44,11 @@ directory:
 - `assets/`
 - `AGENTS.v1.md`
 - `CLAUDE.v1.md`
+- `tests/`
 
 The repository still has root-level files that are v1-oriented and should move
 here in later cleanup passes:
 
-- `tests/` that import `mail.core`, `mail.api`, `mail.factories`, `mail.stdlib`,
-  `mail.server`, or other v1 modules
 - `scripts/` that run v1 swarms or v1 smoke tests
 
 ## Import Namespace
@@ -70,10 +69,9 @@ Legacy `swarms.json` import strings should also use `mail.legacy`:
 "factory": "python::mail.legacy.factories.supervisor:LiteLLMSupervisorFunction"
 ```
 
-Current transition caveat: some files in this directory still import the old v1
-module paths such as `mail.api`, `mail.core`, and `mail.server`. Those imports
-should be rewritten to `mail.legacy.*` before treating this archive as fully
-self-contained inside the v2 workspace.
+The legacy runtime and tests now use `mail.legacy.*` imports. Archived prose
+docs may still mention historical `mail.*` paths until those pages are touched
+for content updates.
 
 ## Documentation Policy
 
@@ -92,10 +90,10 @@ When moving old docs into this archive:
 
 ## Tests And Scripts
 
-Legacy tests should live under `src/mail/legacy/tests/` and should be runnable
-with an explicit command, separate from the default v2 test suite.
+Legacy tests live under `src/mail/legacy/tests/` and run with an explicit
+command, separate from the default v2 test suite.
 
-Recommended target commands after the move:
+Recommended commands:
 
 ```bash
 # v2/default tests

@@ -10,11 +10,11 @@ from typing import Any
 
 import aiohttp
 
-from mail import utils
+from mail.legacy import utils
 
 from .types import SwarmEndpoint, SwarmInfo
 
-logger = logging.getLogger("mail.registry")
+logger = logging.getLogger("mail.legacy.registry")
 
 
 class SwarmRegistry:

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     create_agent_address,
     create_system_address,
     create_user_address,

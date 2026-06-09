@@ -5,7 +5,7 @@ from typing import Any
 
 import aiohttp
 
-from mail import action
+from mail.legacy import action
 
 SWARM_URL_PARAMETERS = {
     "type": "object",

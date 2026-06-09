@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from mail.utils import parsing
+from mail.legacy.utils import parsing
 
 
 class DummyResponse:

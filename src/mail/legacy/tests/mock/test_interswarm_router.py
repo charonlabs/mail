@@ -6,14 +6,14 @@ import uuid
 
 import pytest
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     MAILInterswarmMessage,
     MAILRequest,
     create_agent_address,
     format_agent_address,
 )
-from mail.net.registry import SwarmRegistry
-from mail.net.router import InterswarmRouter
+from mail.legacy.net.registry import SwarmRegistry
+from mail.legacy.net.router import InterswarmRouter
 
 
 @pytest.fixture()

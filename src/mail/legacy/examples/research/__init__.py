@@ -14,13 +14,13 @@ Agents:
     - summarizer: Synthesizes and summarizes findings
 """
 
-from mail.examples.research.researcher.agent import LiteLLMResearcherFunction
-from mail.examples.research.searcher.agent import LiteLLMSearcherFunction
-from mail.examples.research.searcher.actions import search_topic, extract_facts
-from mail.examples.research.verifier.agent import LiteLLMVerifierFunction
-from mail.examples.research.verifier.actions import verify_claim, rate_confidence
-from mail.examples.research.summarizer.agent import LiteLLMSummarizerFunction
-from mail.examples.research.summarizer.actions import (
+from mail.legacy.examples.research.researcher.agent import LiteLLMResearcherFunction
+from mail.legacy.examples.research.searcher.agent import LiteLLMSearcherFunction
+from mail.legacy.examples.research.searcher.actions import search_topic, extract_facts
+from mail.legacy.examples.research.verifier.agent import LiteLLMVerifierFunction
+from mail.legacy.examples.research.verifier.actions import verify_claim, rate_confidence
+from mail.legacy.examples.research.summarizer.agent import LiteLLMSummarizerFunction
+from mail.legacy.examples.research.summarizer.actions import (
     summarize_text,
     create_bibliography,
 )

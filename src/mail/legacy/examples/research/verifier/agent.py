@@ -6,8 +6,8 @@
 from collections.abc import Awaitable
 from typing import Any, Literal
 
-from mail.core.agents import AgentOutput
-from mail.factories.action import LiteLLMActionAgentFunction
+from mail.legacy.core.agents import AgentOutput
+from mail.legacy.factories.action import LiteLLMActionAgentFunction
 
 
 class LiteLLMVerifierFunction(LiteLLMActionAgentFunction):

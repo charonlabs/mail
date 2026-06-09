@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from mail.core.agents import AgentCore
-from mail.core.message import (
+from mail.legacy.core.agents import AgentCore
+from mail.legacy.core.message import (
     MAILBroadcast,
     MAILInterrupt,
     MAILInterswarmMessage,
@@ -23,9 +23,9 @@ from mail.core.message import (
     create_user_address,
     format_agent_address,
 )
-from mail.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
-from mail.core.tools import AgentToolCall
-from mail.net.registry import SwarmRegistry
+from mail.legacy.core.runtime import AGENT_HISTORY_KEY, MAILRuntime
+from mail.legacy.core.tools import AgentToolCall
+from mail.legacy.net.registry import SwarmRegistry
 
 
 def _create_agent_core(

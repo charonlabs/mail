@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from mail.core import (
+from mail.legacy.core import (
     AgentCore,
     MAILMessage,
     MAILRequest,
@@ -23,7 +23,7 @@ async def test_submit_and_wait_resolves_on_task_complete() -> None:
     """
 
     async def stub_agent(history, tool_choice):  # noqa: ARG001
-        from mail.core.tools import AgentToolCall
+        from mail.legacy.core.tools import AgentToolCall
 
         call = AgentToolCall(
             tool_name="task_complete",
@@ -97,7 +97,7 @@ async def test_breakpoint_tool_triggers_task_complete() -> None:
     """
 
     async def breakpoint_agent(history, tool_choice):  # noqa: ARG001
-        from mail.core.tools import AgentToolCall
+        from mail.legacy.core.tools import AgentToolCall
 
         call = AgentToolCall(
             tool_name="pause_for_debug",
@@ -184,7 +184,7 @@ async def test_breakpoint_tool_triggers_task_complete_anthropic() -> None:
     """
 
     async def breakpoint_agent(history, tool_choice):  # noqa: ARG001
-        from mail.core.tools import AgentToolCall
+        from mail.legacy.core.tools import AgentToolCall
 
         completion = {
             "role": "assistant",

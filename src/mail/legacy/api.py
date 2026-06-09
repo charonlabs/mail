@@ -15,8 +15,8 @@ from typing import Any, Literal, TypeVar, get_type_hints
 from pydantic import BaseModel, Field, create_model
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
-from mail import utils
-from mail.core import (
+from mail.legacy import utils
+from mail.legacy.core import (
     ActionFunction,
     ActionOverrideFunction,
     AgentFunction,
@@ -29,14 +29,14 @@ from mail.core import (
     create_user_address,
     pydantic_model_to_tool,
 )
-from mail.core.actions import ActionCore
-from mail.core.agents import AgentCore
-from mail.core.message import MAILBroadcast, MAILInterswarmMessage
-from mail.core.tasks import MAILTask
-from mail.core.tools import MAIL_TOOL_NAMES
-from mail.factories.base import MAILAgentFunction
-from mail.net import SwarmRegistry
-from mail.swarms_json import (
+from mail.legacy.core.actions import ActionCore
+from mail.legacy.core.agents import AgentCore
+from mail.legacy.core.message import MAILBroadcast, MAILInterswarmMessage
+from mail.legacy.core.tasks import MAILTask
+from mail.legacy.core.tools import MAIL_TOOL_NAMES
+from mail.legacy.factories.base import MAILAgentFunction
+from mail.legacy.net import SwarmRegistry
+from mail.legacy.swarms_json import (
     SwarmsJSONAction,
     SwarmsJSONAgent,
     SwarmsJSONSwarm,
@@ -46,9 +46,9 @@ from mail.swarms_json import (
     build_swarms_from_swarms_json,
     load_swarms_json_from_file,
 )
-from mail.utils import read_python_string, resolve_prefixed_string_references
+from mail.legacy.utils import read_python_string, resolve_prefixed_string_references
 
-logger = logging.getLogger("mail.api")
+logger = logging.getLogger("mail.legacy.api")
 
 ActionLike = TypeVar("ActionLike", bound=Callable[..., Awaitable[str] | str])
 
@@ -300,8 +300,8 @@ class MAILAgentTemplate:
         """
         match name:
             case "supervisor":
-                from mail.examples import supervisor
-                from mail.factories import supervisor_factory
+                from mail.legacy.examples import supervisor
+                from mail.legacy.factories import supervisor_factory
 
                 agent_params = supervisor.supervisor_agent_params
 
@@ -318,7 +318,7 @@ class MAILAgentTemplate:
                     exclude_tools=[],
                 )
             case "weather":
-                from mail.examples import weather_dummy as weather
+                from mail.legacy.examples import weather_dummy as weather
 
                 agent_params = weather.weather_agent_params
                 actions = [weather.action_get_weather_forecast]
@@ -336,7 +336,7 @@ class MAILAgentTemplate:
                     exclude_tools=[],
                 )
             case "math":
-                from mail.examples import math_dummy as math
+                from mail.legacy.examples import math_dummy as math
 
                 agent_params = math.math_agent_params
 
@@ -353,7 +353,7 @@ class MAILAgentTemplate:
                     exclude_tools=[],
                 )
             case "consultant":
-                from mail.examples import consultant_dummy as consultant
+                from mail.legacy.examples import consultant_dummy as consultant
 
                 agent_params = consultant.consultant_agent_params
 
@@ -370,7 +370,7 @@ class MAILAgentTemplate:
                     exclude_tools=[],
                 )
             case "analyst":
-                from mail.examples import analyst_dummy as analyst
+                from mail.legacy.examples import analyst_dummy as analyst
 
                 agent_params = analyst.analyst_agent_params
 
@@ -1893,7 +1893,7 @@ class MAILSwarmTemplate:
         import time
         import webbrowser
 
-        from mail.server import run_server_with_template
+        from mail.legacy.server import run_server_with_template
 
         # Validate template first (already validated in __init__, but re-check)
         self._validate()

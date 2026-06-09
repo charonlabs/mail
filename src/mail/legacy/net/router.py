@@ -10,7 +10,7 @@ from typing import Any, cast
 
 import aiohttp
 
-from mail.core.message import (
+from mail.legacy.core.message import (
     MAILAddress,
     MAILInterswarmMessage,
     MAILMessage,
@@ -22,7 +22,7 @@ from mail.core.message import (
 
 from .registry import SwarmRegistry
 
-logger = logging.getLogger("mail.router")
+logger = logging.getLogger("mail.legacy.router")
 
 
 StreamHandler = Callable[[str, str | None], Awaitable[None]]

@@ -3,7 +3,7 @@
 
 """Researcher agent for the Research Assistant swarm."""
 
-from mail.examples.research.researcher.agent import LiteLLMResearcherFunction
-from mail.examples.research.researcher.prompts import SYSPROMPT
+from mail.legacy.examples.research.researcher.agent import LiteLLMResearcherFunction
+from mail.legacy.examples.research.researcher.prompts import SYSPROMPT
 
 __all__ = ["LiteLLMResearcherFunction", "SYSPROMPT"]

@@ -3,7 +3,7 @@
 
 import pytest
 
-from mail.stdlib.mcp import (
+from mail.legacy.stdlib.mcp import (
     mcp_call_tool,
     mcp_get_prompt,
     mcp_list_prompts,
@@ -59,7 +59,7 @@ def patch_mcp_client(monkeypatch: pytest.MonkeyPatch) -> None:
     def factory(server_url: str) -> _DummyClient:
         return _DummyClient(server_url)
 
-    monkeypatch.setattr("mail.stdlib.mcp.actions.Client", factory)
+    monkeypatch.setattr("mail.legacy.stdlib.mcp.actions.Client", factory)
 
 
 @pytest.mark.asyncio

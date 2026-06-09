@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from mail.swarms_json.utils import (
+from mail.legacy.swarms_json.utils import (
     build_action_from_swarms_json,
     build_agent_from_swarms_json,
     build_swarm_from_swarms_json,
@@ -19,7 +19,7 @@ def _minimal_action() -> dict[str, object]:
         "name": "ping",
         "description": "Send a ping",
         "parameters": {"type": "object", "properties": {}},
-        "function": "tests.conftest:make_stub_agent",
+        "function": "mail.legacy.tests.conftest:make_stub_agent",
     }
 
 
@@ -31,7 +31,7 @@ def _minimal_agent(
 ) -> dict[str, object]:
     return {
         "name": name,
-        "factory": "tests.conftest:make_stub_agent",
+        "factory": "mail.legacy.tests.conftest:make_stub_agent",
         "comm_targets": targets,
         "agent_params": {},
         "enable_entrypoint": enable_entrypoint,
@@ -136,7 +136,7 @@ def test_build_swarm_from_swarms_json_rejects_bad_action_imports() -> None:
             _minimal_agent("alpha", [], enable_entrypoint=True, can_complete_tasks=True)
         ],
         "actions": [],
-        "action_imports": ["python::tests.conftest:make_stub_agent", 123],
+        "action_imports": ["python::mail.legacy.tests.conftest:make_stub_agent", 123],
     }
     with pytest.raises(ValueError) as exc:
         build_swarm_from_swarms_json(data)
@@ -308,7 +308,7 @@ def test_cross_validate_agent_action_with_imports_skips() -> None:
     agent["actions"] = ["imported_action"]
     data = _valid_swarm(
         agents=[agent, _minimal_agent("worker", ["supervisor"])],
-        action_imports=["python::tests.conftest:make_stub_agent"],
+        action_imports=["python::mail.legacy.tests.conftest:make_stub_agent"],
     )
     # Should not raise (unmatched action may come from imports)
     build_swarm_from_swarms_json(data)

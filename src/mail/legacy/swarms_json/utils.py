@@ -6,7 +6,7 @@ import json
 import warnings
 from typing import Any
 
-from mail.utils.parsing import target_address_is_interswarm
+from mail.legacy.utils.parsing import target_address_is_interswarm
 
 from .types import (
     SwarmsJSONAction,
