@@ -46,7 +46,9 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    init_logger(log_level_file=args.llf, log_level_console=args.log_level_console)
+    init_logger(
+        log_level_file=args.log_level_file, log_level_console=args.log_level_console
+    )
 
     try:
         run_daemon(args)
