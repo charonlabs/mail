@@ -239,18 +239,6 @@ async def subscribe(request: Request) -> ListMemberPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
     list_address = request.path_params.get("list_address")
-    payload = await validate_list_member_post_request(request=request)
-
-    # v1 join_policy = "open" — anyone authenticated may subscribe, but
-    # the requested member address must match the bearer's own
-    # address. Self-subscribe only at this endpoint.
-    if payload.member_address != user_agent.get_address():
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "subscribe is self-only; use the admin endpoint to add another member."
-            ),
-        )
 
     try:
         existing = await backend.get_list(list_address=list_address)
@@ -268,7 +256,7 @@ async def subscribe(request: Request) -> ListMemberPostResponse:
 
     result = await backend.add_list_member(
         list_address=list_address,
-        member_address=payload.member_address,
+        member_address=user_agent.get_address(),
     )
     return ListMemberPostResponse(mail_list=result, metadata={})
 
