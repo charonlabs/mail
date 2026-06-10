@@ -194,7 +194,7 @@ Both helpers require the caller to own the task; the server automatically scopes
 ## Testing & Utilities
 
 - Unit coverage lives in `tests/unit/test_mail_client.py`, using an in‑process aiohttp server to validate payloads and streaming behaviour.
-- `scripts/demo_client.py` launches a stubbed MAIL server and exercises the client end‑to‑end—useful for manual testing or onboarding demos.
+- The old root client demo helper was removed during the v2 cleanup; use the archived legacy tests for client/server checks.
 
 ## Integration Tips
 

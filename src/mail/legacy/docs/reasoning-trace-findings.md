@@ -358,6 +358,6 @@ for block in response.content:
 
 ## Test Script
 
-Location: `scripts/smoke_test_reasoning.py`
+Location: historical root reasoning smoke-test helper, removed during the v2 cleanup
 
 Runs both streaming and non-streaming tests against OpenAI gpt-5.2 with Einstein's Zebra Puzzle to ensure sufficient reasoning is generated.

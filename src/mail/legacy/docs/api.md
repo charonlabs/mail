@@ -64,7 +64,7 @@ The server exposes a [FastAPI application](/src/mail/server.py) with endpoints f
 - `MAILClient` (see [client.md](/docs/client.md)) mirrors every route above with ergonomic async methods
 - Supports bearer tokens, custom timeouts, and optional externally managed `aiohttp.ClientSession`
 - Provides `post_message_stream()` to yield `ServerSentEvent` objects without recreating SSE parsing logic
-- Used by automated tests and demo scripts (`scripts/demo_client.py`) to validate client/server interoperability
+- Used by archived legacy tests to validate client/server interoperability
 
 ## Python API
 

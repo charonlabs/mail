@@ -46,10 +46,6 @@ directory:
 - `CLAUDE.v1.md`
 - `tests/`
 
-The repository still has root-level files that are v1-oriented and should move
-here in later cleanup passes:
-
-- `scripts/` that run v1 swarms or v1 smoke tests
 
 ## Import Namespace
 
@@ -103,9 +99,9 @@ uv run pytest
 uv run pytest src/mail/legacy/tests
 ```
 
-Legacy smoke scripts and demos should live under `src/mail/legacy/scripts/`.
-Root `scripts/` should be reserved for repository maintenance tasks that apply
-to the v2 workspace as a whole.
+Root `scripts/` is reserved for repository maintenance tasks that apply to the
+v2 workspace as a whole. Legacy-specific smoke scripts and demos should only be
+added under `src/mail/legacy/scripts/` if they are needed again.
 
 ## UI Status
 

@@ -27,7 +27,7 @@ mail/
 │   ├── daemon/           # mail-daemon package
 │   └── legacy/           # archived MAIL v1 runtime, docs, config, and UI
 ├── tests/                # active MAIL v2 test suite
-├── scripts/              # repository scripts, currently mixed during migration
+├── scripts/              # repository maintenance scripts
 └── pyproject.toml        # uv workspace and meta-package configuration
 ```
 

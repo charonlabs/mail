@@ -208,15 +208,9 @@ To continue a conversation after task_complete:
 
 ### Running the Dev Environment
 
-Use the script at `scripts/run_ui_dev.py`:
-```bash
-python scripts/run_ui_dev.py
-```
-
-This starts:
-- MAIL server on port 8000 with a 2-agent swarm (Supervisor + Researcher)
-- Next.js dev server on port 3000
-- Logs MAIL server to `mail_server.log`, pnpm to terminal
+The old root UI dev helper was removed during the v2 cleanup.
+This archived UI still targets v1 debug endpoints and should be run manually
+from `src/mail/legacy/ui/` only when maintaining legacy behavior.
 
 ### Common Issues
 
