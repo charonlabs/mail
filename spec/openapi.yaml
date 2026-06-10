@@ -1,375 +1,2264 @@
 openapi: 3.1.0
 info:
-  title: MAIL Server API
-  version: "2.0-pre1"
-  description: REST API for the Multi-Agent Interface Layer (MAIL) server, including interswarm messaging.
-servers:
-  - url: http://localhost:8000
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-  schemas:
-    MAILAddress:
-      $ref: './MAIL-core.schema.json#/$defs/MAILAddress'
-    MAILMessage:
-      $ref: './MAIL-core.schema.json#/$defs/MAILMessage'
-    MAILTask:
-      $ref: './MAIL-core.schema.json#/$defs/MAILTask'
-    MAILInstance:
-      $ref: './MAIL-core.schema.json#/$defs/MAILInstance'
-    MAILRemoteSwarm:
-      $ref: './MAIL-core.schema.json#/$defs/MAILRemoteSwarm'
-    MAILInterswarmMessage:
-      $ref: './MAIL-interswarm.schema.json'
-    MAILServerSentEvent:
-      $ref: './MAIL-core.schema.json#/$defs/MAILServerSentEvent'
+  title: MAIL
+  summary: Multi-Agent Interface Layer
+  description: An email system for humans and agents alike
+  version: '2.0'
 paths:
+  /auth/token:
+    post:
+      tags:
+      - authentication
+      summary: Log in with an address and password to obtain an access token
+      operationId: create_auth_token_auth_token_post
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Body_create_auth_token_auth_token_post'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /auth/whoami:
+    get:
+      tags:
+      - authentication
+      summary: Get MAIL user-agent info
+      operationId: get_token_info_auth_whoami_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthWhoamiGetResponse'
+  /auth/password/reset:
+    post:
+      tags:
+      - authentication
+      summary: Reset the user-agent's password
+      operationId: post_password_reset_auth_password_reset_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPasswordResetResponse'
+  /swarms/:
+    get:
+      tags:
+      - swarms
+      summary: Get basic server information and metadata
+      operationId: get_swarms_swarms__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwarmsGetResponse'
+  /swarms/{swarm_name}:
+    get:
+      tags:
+      - swarms
+      summary: Get information on a specific swarm by name
+      operationId: get_swarm_swarms__swarm_name__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwarmGetResponse'
+  /swarms/{swarm_name}/health:
+    get:
+      tags:
+      - swarms
+      summary: Get health information on a specific swarm by name
+      operationId: get_swarm_health_swarms__swarm_name__health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwarmHealthGetResponse'
+  /inbox/:
+    get:
+      tags:
+      - inbox
+      summary: Get a list of inbox messages
+      operationId: get_inbox_inbox__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxGetResponse'
+  /inbox/{message_id}:
+    get:
+      tags:
+      - inbox
+      summary: Get a specific inbox message by ID
+      operationId: open_inbox_message_inbox__message_id__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxMessageGetResponse'
+    delete:
+      tags:
+      - inbox
+      summary: Move a specific inbox message by ID to trash
+      operationId: delete_inbox_message_inbox__message_id__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxMessageDeleteResponse'
+  /outbox/:
+    get:
+      tags:
+      - outbox
+      summary: Get a list of outbox messages
+      operationId: get_outbox_outbox__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboxGetResponse'
+  /outbox/{message_id}:
+    get:
+      tags:
+      - outbox
+      summary: Get a specific outbox message by ID
+      operationId: get_outbox_message_outbox__message_id__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboxMessageGetResponse'
+  /drafts/:
+    get:
+      tags:
+      - drafts
+      summary: Get a list of message drafts
+      operationId: get_drafts_drafts__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftsGetResponse'
+    post:
+      tags:
+      - drafts
+      summary: Create a new message draft
+      operationId: post_draft_drafts__post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftPostResponse'
+  /drafts/{draft_id}:
+    get:
+      tags:
+      - drafts
+      summary: Get a specific message draft by ID
+      operationId: get_draft_drafts__draft_id__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftGetResponse'
+    delete:
+      tags:
+      - drafts
+      summary: Delete a specific message draft by ID
+      operationId: delete_draft_drafts__draft_id__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftDeleteResponse'
+  /drafts/{draft_id}/send:
+    post:
+      tags:
+      - drafts
+      summary: Send a message from an existing draft by ID
+      operationId: post_draft_send_drafts__draft_id__send_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftSendPostResponse'
+  /trash/:
+    get:
+      tags:
+      - trash
+      summary: Get a list of messages in trash
+      operationId: get_trashed_messages_trash__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrashGetResponse'
+  /trash/{message_id}:
+    get:
+      tags:
+      - trash
+      summary: Get a specific trashed message by ID
+      operationId: get_trashed_message_trash__message_id__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrashMessageGetResponse'
+    delete:
+      tags:
+      - trash
+      summary: Delete a specific trashed message by ID
+      operationId: delete_trashed_message_trash__message_id__delete
+      parameters:
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Message Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrashMessageDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /trash/clear:
+    post:
+      tags:
+      - trash
+      summary: Remove all exisisting messages from trash
+      operationId: post_trash_clear_trash_clear_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrashClearPostResponse'
+  /daemon/message-buffer/clear:
+    post:
+      tags:
+      - daemon
+      summary: Obtain all messages in need of delivery
+      operationId: clear_message_buffer_daemon_message_buffer_clear_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaemonMessageBufferClearResponse'
+  /daemon/deliver/local:
+    post:
+      tags:
+      - daemon
+      summary: Upload new messages to deliver from local agent(s)
+      operationId: deliver_local_messages_daemon_deliver_local_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaemonDeliverLocalResponse'
+  /daemon/deliver/remote:
+    post:
+      tags:
+      - daemon
+      summary: Upload new messages to deliver from remote agent(s)
+      operationId: deliver_remote_messages_daemon_deliver_remote_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaemonDeliverRemoteResponse'
+  /admin/agents:
+    get:
+      tags:
+      - admin
+      summary: Get a list of agents registered on this server
+      operationId: get_agents_admin_agents_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgentsGetResponse'
+    post:
+      tags:
+      - admin
+      summary: Create a new MAIL agent on this server
+      operationId: post_agent_admin_agents_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgentPostResponse'
+  /admin/agents/{agent_address}:
+    get:
+      tags:
+      - admin
+      summary: Get a specific registered agent by local address (name@swarm)
+      operationId: get_agent_admin_agents__agent_address__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgentGetResponse'
+    delete:
+      tags:
+      - admin
+      summary: Delete an existing MAIL agent on this server
+      operationId: delete_agent_admin_agents__agent_address__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAgentDeleteResponse'
+  /admin/daemons:
+    get:
+      tags:
+      - admin
+      summary: Get a list of daemons registered on this server
+      operationId: get_daemons_admin_daemons_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDaemonsGetResponse'
+    post:
+      tags:
+      - admin
+      summary: Create a new MAIL daemon on this server
+      operationId: post_daemon_admin_daemons_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDaemonPostResponse'
+  /admin/daemons/{worker_name}:
+    get:
+      tags:
+      - admin
+      summary: Get a specific registered daemon by worker name
+      operationId: get_daemon_admin_daemons__worker_name__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDaemonGetResponse'
+    delete:
+      tags:
+      - admin
+      summary: Delete an existing MAIL daemon on this server
+      operationId: delete_daemon_admin_daemons__worker_name__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDaemonDeleteResponse'
+  /admin/users:
+    get:
+      tags:
+      - admin
+      summary: Get a list of users registered on this server
+      operationId: get_users_admin_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUsersGetResponse'
+    post:
+      tags:
+      - admin
+      summary: Create a new MAIL user on this server
+      operationId: post_user_admin_users_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserPostResponse'
+  /admin/users/{user_id}:
+    get:
+      tags:
+      - admin
+      summary: Get a specific registered user by ID
+      operationId: get_user_admin_users__user_id__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserGetResponse'
+    delete:
+      tags:
+      - admin
+      summary: Delete an existing MAIL user on this server
+      operationId: delete_user_admin_users__user_id__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDeleteResponse'
+  /admin/swarms:
+    post:
+      tags:
+      - admin
+      summary: Create a new MAIL swarm on this server
+      operationId: post_swarm_admin_swarms_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSwarmPostResponse'
+  /admin/swarms/{swarm_name}:
+    delete:
+      tags:
+      - admin
+      summary: Delete an existing MAIL swarm on this server by name
+      operationId: delete_swarm_admin_swarms__swarm_name__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSwarmDeleteResponse'
+  /admin/webhooks:
+    get:
+      tags:
+      - admin
+      summary: Get the IDs of all existing server webhooks
+      operationId: get_webhooks_admin_webhooks_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWebhooksGetResponse'
+    post:
+      tags:
+      - admin
+      summary: Create a new webhook for this server
+      operationId: post_webhook_admin_webhooks_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWebhooksPostResponse'
+  /admin/webhooks/{webhook_id}:
+    get:
+      tags:
+      - admin
+      summary: Get a specific existing server webhook by ID
+      operationId: get_webhook_admin_webhooks__webhook_id__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWebhookGetResponse'
+    delete:
+      tags:
+      - admin
+      summary: Delete an existing webhook by ID from this server
+      operationId: delete_webhook_admin_webhooks__webhook_id__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWebhooksDeleteResponse'
+    patch:
+      tags:
+      - admin
+      summary: Update an existing webhook by ID on this server
+      operationId: patch_webhook_admin_webhooks__webhook_id__patch
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWebhooksPatchResponse'
+  /admin/lists:
+    get:
+      tags:
+      - admin-lists
+      summary: Get all MAIL lists known to this server
+      operationId: admin_get_lists_admin_lists_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListsGetResponse'
+    post:
+      tags:
+      - admin-lists
+      summary: Create a new MAIL list on this server
+      operationId: admin_post_list_admin_lists_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListPostResponse'
+  /admin/lists/{list_address}:
+    get:
+      tags:
+      - admin-lists
+      summary: Get a specific MAIL list by address
+      operationId: admin_get_list_admin_lists__list_address__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListGetResponse'
+    delete:
+      tags:
+      - admin-lists
+      summary: Delete a MAIL list
+      operationId: admin_delete_list_admin_lists__list_address__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListDeleteResponse'
+    patch:
+      tags:
+      - admin-lists
+      summary: Update a MAIL list's policy
+      operationId: admin_patch_list_admin_lists__list_address__patch
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListPatchResponse'
+  /admin/lists/{list_address}/members:
+    post:
+      tags:
+      - admin-lists
+      summary: Admin-add a member to a MAIL list
+      operationId: admin_add_list_member_admin_lists__list_address__members_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMemberPostResponse'
+  /admin/lists/{list_address}/members/{member_address}:
+    delete:
+      tags:
+      - admin-lists
+      summary: Admin-remove a member from a MAIL list
+      operationId: admin_remove_list_member_admin_lists__list_address__members__member_address__delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMemberDeleteResponse'
+  /lists:
+    get:
+      tags:
+      - lists
+      summary: Get lists visible to the caller
+      operationId: get_lists_lists_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListsGetResponse'
+  /lists/{list_address}:
+    get:
+      tags:
+      - lists
+      summary: Get a specific list
+      operationId: get_list_lists__list_address__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListGetResponse'
+  /lists/{list_address}/subscribe:
+    post:
+      tags:
+      - lists
+      summary: Subscribe to a MAIL list
+      operationId: subscribe_lists__list_address__subscribe_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMemberPostResponse'
+  /lists/{list_address}/unsubscribe:
+    post:
+      tags:
+      - lists
+      summary: Unsubscribe from a MAIL list
+      operationId: unsubscribe_lists__list_address__unsubscribe_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMemberDeleteResponse'
   /:
     get:
-      summary: Root health
-      operationId: root
+      summary: Get basic server information and metadata
+      operationId: get_root__get
       responses:
         '200':
-          description: Server info
+          description: Successful Response
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  name: { 
-                    type: string,
-                    enum: ["mail"]
-                  }
-                  protocol_version: { 
-                    type: string,
-                    enum: ["2.0"]
-                  }
-                  swarm: { 
-                    type: string,
-                    description: The name of the swarm that is running
-                  }
-                  status: { 
-                    type: string,
-                    enum: ["running"]
-                  }
-                  uptime: { type: number }
-                  metadata: { 
-                    type: object,
-                    additionalProperties: true
-                  }
-  /status:
-    get:
-      summary: Server status
-      operationId: status
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Status summary
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  swarm:
-                    type: object
-                    properties:
-                      name: { 
-                        type: string, 
-                        nullable: true 
-                      }
-                      status: { type: string }
-                  active_users: { type: integer }
-                  user_mail_ready: { type: boolean }
-                  user_task_running: { type: boolean }
-  /whoami:
-    get:
-      summary: Caller identity
-      operationId: whoami
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Username and role bound to the supplied token
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required: [id, role]
-                properties:
-                  id: { type: string }
-                  role: { 
-                    type: string,
-                    enum: ["admin", "user", "agent"]
-                  }
-        '401':
-          description: Unauthorized
-  /message:
-    post:
-      summary: Send a message to the swarm 
-      description: Requires role=user or role=admin.
-      operationId: message
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [message]
-              properties:
-                message: {
-                  $ref: '#/components/schemas/MAILMessage'
-                }
-                entrypoint:
-                  type: string
-                  description: Optional agent entrypoint override (defaults to configured entrypoint)
-                show_events:
-                  type: boolean
-                  description: When true, include collected events alongside the response
-                  default: false
-                stream:
-                  type: boolean
-                  description: When true, server responds with text/event-stream (SSE)
-                  default: false
-                resume_from:
-                  type: string
-                  description: When provided, resume the task from the given state
-                  enum: ["user_response", "breakpoint_tool_call"]
-                  default: null
-                kwargs:
-                  type: object
-                  description: Additional keyword arguments to pass to the entrypoint
-                  default: {}
-      responses:
-        '200':
-          description: Final response produced by supervisor after task completion
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [response]
-                additionalProperties: false
-                properties:
-                  response: { 
-                    $ref: '#/components/schemas/MAILMessage' 
-                  }
-                  events:
-                    type: array
-                    nullable: true
-                    items:
-                      $ref: '#/components/schemas/MAILServerSentEvent'
-            text/event-stream:
-              schema:
-                type: string
-                description: SSE stream emitted when stream=true
-        '401':
-          description: Unauthorized
+                $ref: '#/components/schemas/RootGetResponse'
   /health:
     get:
-      summary: Health for interswarm checks
-      operationId: health
+      summary: Get the current MAIL server health
+      operationId: get_health_health_get
       responses:
         '200':
-          description: Health info
+          description: Successful Response
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  status: { type: string }
-                  swarm_name: { type: string }
-                  timestamp: { 
-                    type: string, 
-                    format: date-time 
-                  }
-  /swarms:
-    get:
-      summary: List known swarms
-      operationId: listSwarms
-      responses:
-        '200':
-          description: Known swarms
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  swarms:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/MAILRemoteSwarm'
-  /swarms/register:
-    post:
-      summary: Register a swarm
-      description: Requires role=admin.
-      operationId: registerSwarm
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [name, base_url]
-              properties:
-                name: { type: string }
-                base_url: { 
-                  type: string,
-                  format: uri
-                }
-                auth_token: { 
-                  type: string, 
-                  nullable: true 
-                }
-                volatile: { 
-                  type: boolean, 
-                  default: true 
-                }
-                public: { 
-                  type: boolean, 
-                  default: false 
-                }
-      responses:
-        '200':
-          description: Registration result
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  status: { 
-                    type: string,
-                    enum: ["registered"]
-                  }
-                  swarm: { 
-                    type: object,
-                    $ref: '#/components/schemas/MAILRemoteSwarm'
-                  }
-        '401':
-          description: Unauthorized
-  /interswarm/forward:
-    post:
-      summary: Receive interswarm forward message
-      description: Requires role=agent.
-      operationId: receiveInterswarmForward
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [message]
-              properties:
-                message: { $ref: '#/components/schemas/MAILInterswarmMessage' }
-      responses:
-        '200':
-          description: Status indicating operation success
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  swarm: { type: string }
-                  status: { 
-                    type: string,
-                    enum: ["success"]
-                  }
-                  task_id: { type: string }
-                  local_runner: { type: string }
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-  /interswarm/back:
-    post:
-      summary: Receive interswarm back message
-      description: Requires role=agent.
-      operationId: receiveInterswarmBack
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [message]
-              properties:
-                message: { $ref: '#/components/schemas/MAILInterswarmMessage' }
-      responses:
-        '200':
-          description: Status indicating operation success
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  swarm: { type: string }
-                  status: { 
-                    type: string,
-                    enum: ["success"]
-                  }
-                  task_id: { type: string }
-                  local_runner: { type: string }
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
-  /interswarm/message:
-    post:
-      summary: Post an interswarm message
-      description: Requires role=user or role=admin.
-      operationId: postInterswarmMessage
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [message]
-              properties:
-                message: { $ref: '#/components/schemas/MAILInterswarmMessage' }
-      responses:
-        '200':
-          description: Routed MAIL message result
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                properties:
-                  response:
-                    $ref: '#/components/schemas/MAILMessage'
-                  events:
-                    type: array
-                    nullable: true
-                    items:
-                      type: object
-                      description: Server-sent event snapshot
-                      additionalProperties: true
-        '400':
-          description: Bad request
-        '401':
-          description: Unauthorized
+                $ref: '#/components/schemas/HealthGetResponse'
+components:
+  schemas:
+    AdminAgentDeleteResponse:
+      properties:
+        agent:
+          $ref: '#/components/schemas/MAILAgent'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - agent
+      - metadata
+      title: AdminAgentDeleteResponse
+      description: 'Corresponds to `DELETE /admin/agent/{agent_address}`.
+
+        Contains a newly-deleted MAIL agent registered on this server.'
+    AdminAgentGetResponse:
+      properties:
+        agent:
+          $ref: '#/components/schemas/MAILAgent'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - agent
+      - metadata
+      title: AdminAgentGetResponse
+      description: 'Corresponds to `GET /admin/agents/{agent_address}`.
+
+        Contains a specific MAIL agent registered on this server.'
+    AdminAgentPostResponse:
+      properties:
+        agent:
+          $ref: '#/components/schemas/MAILAgent'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - agent
+      - metadata
+      title: AdminAgentPostResponse
+      description: 'Corresponds to `POST /admin/agent`.
+
+        Contains the new MAIL agent registered on this server.'
+    AdminAgentsGetResponse:
+      properties:
+        agents:
+          items:
+            type: string
+          type: array
+          title: Agents
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - agents
+      - metadata
+      title: AdminAgentsGetResponse
+      description: 'Corresponds to `GET /admin/agents`.
+
+        Contains the list of agents by local address (name@swarm) registered on this
+        MAIL server.'
+    AdminDaemonDeleteResponse:
+      properties:
+        daemon:
+          $ref: '#/components/schemas/MAILDaemon'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - daemon
+      - metadata
+      title: AdminDaemonDeleteResponse
+      description: 'Corresponds to `DELETE /admin/daemons/{worker_name}`.
+
+        Contains a newly-deleted MAIL daemon registered on this server.'
+    AdminDaemonGetResponse:
+      properties:
+        daemon:
+          $ref: '#/components/schemas/MAILDaemon'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - daemon
+      - metadata
+      title: AdminDaemonGetResponse
+      description: 'Corresponds to `GET /admin/daemons/{worker_name}`.
+
+        Contains a specific MAIL daemon registered on this server.'
+    AdminDaemonPostResponse:
+      properties:
+        daemon:
+          $ref: '#/components/schemas/MAILDaemon'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - daemon
+      - metadata
+      title: AdminDaemonPostResponse
+      description: 'Corresponds to `POST /admin/daemons`.
+
+        Contains the new MAIL daemon registered on this server.'
+    AdminDaemonsGetResponse:
+      properties:
+        daemons:
+          items:
+            type: string
+          type: array
+          title: Daemons
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - daemons
+      - metadata
+      title: AdminDaemonsGetResponse
+      description: 'Corresponds to `GET /admin/daemons`.
+
+        Contains the list of daemons by worker name registered on this MAIL server.'
+    AdminListDeleteResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: AdminListDeleteResponse
+      description: Corresponds to `DELETE /admin/lists/{list_address}`.
+    AdminListGetResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: AdminListGetResponse
+      description: Corresponds to `GET /admin/lists/{list_address}`.
+    AdminListPatchResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: AdminListPatchResponse
+      description: Corresponds to `PATCH /admin/lists/{list_address}`.
+    AdminListPostResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: AdminListPostResponse
+      description: Corresponds to `POST /admin/lists`.
+    AdminListsGetResponse:
+      properties:
+        lists:
+          items:
+            $ref: '#/components/schemas/MAILListInBackend'
+          type: array
+          title: Lists
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - lists
+      - metadata
+      title: AdminListsGetResponse
+      description: Corresponds to `GET /admin/lists`. All lists known to the server.
+    AdminSwarmDeleteResponse:
+      properties:
+        swarm:
+          $ref: '#/components/schemas/MAILSwarm'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - swarm
+      - metadata
+      title: AdminSwarmDeleteResponse
+      description: 'Corresponds to `DELETE /admin/swarms/{swarm_name}`.
+
+        Contains info on the newly-deleted MAIL swarm on this server.'
+    AdminSwarmPostResponse:
+      properties:
+        swarm:
+          $ref: '#/components/schemas/MAILSwarm'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - swarm
+      - metadata
+      title: AdminSwarmPostResponse
+      description: 'Corresponds to `POST /admin/swarms`.
+
+        Contains info on the newly-created MAIL swarm on this server.'
+    AdminUserDeleteResponse:
+      properties:
+        user:
+          $ref: '#/components/schemas/MAILUser'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - user
+      - metadata
+      title: AdminUserDeleteResponse
+      description: 'Corresponds to `DELETE /admin/users/{user_id}`.
+
+        Contains a newly-deleted MAIL user registered on this server.'
+    AdminUserGetResponse:
+      properties:
+        user:
+          $ref: '#/components/schemas/MAILUser'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - user
+      - metadata
+      title: AdminUserGetResponse
+      description: 'Corresponds to `GET /admin/users/{user_id}`.
+
+        Contains a specific MAIL user registered on this server.'
+    AdminUserPostResponse:
+      properties:
+        user:
+          $ref: '#/components/schemas/MAILUser'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - user
+      - metadata
+      title: AdminUserPostResponse
+      description: 'Corresponds to `POST /admin/users`.
+
+        Contains the new MAIL user registered on this server.'
+    AdminUsersGetResponse:
+      properties:
+        users:
+          items:
+            type: string
+          type: array
+          title: Users
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - users
+      - metadata
+      title: AdminUsersGetResponse
+      description: 'Corresponds to `GET /admin/users`.
+
+        Contains a list of users by username registered on this MAIL server.'
+    AdminWebhookGetResponse:
+      properties:
+        webhook:
+          $ref: '#/components/schemas/MAILWebhook'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - webhook
+      - metadata
+      title: AdminWebhookGetResponse
+      description: 'Corresponds to `GET /admin/webhooks/{webhook_id}`.
+
+        Contains info on the existing webhook by ID.'
+    AdminWebhooksDeleteResponse:
+      properties:
+        webhook:
+          $ref: '#/components/schemas/MAILWebhook'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - webhook
+      - metadata
+      title: AdminWebhooksDeleteResponse
+      description: 'Corresponds to `DELETE /admin/webhooks/{webhook_id}`.
+
+        Contains information on the newly-deleted webhook.'
+    AdminWebhooksGetResponse:
+      properties:
+        webhook_ids:
+          items:
+            type: string
+          type: array
+          title: Webhook Ids
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - webhook_ids
+      - metadata
+      title: AdminWebhooksGetResponse
+      description: 'Corresponds to `GET /admin/webhooks`.
+
+        Contains a list of existing webhooks by ID.'
+    AdminWebhooksPatchResponse:
+      properties:
+        webhook:
+          $ref: '#/components/schemas/MAILWebhook'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - webhook
+      - metadata
+      title: AdminWebhooksPatchResponse
+      description: 'Corresponds to `PATCH /admin/webhooks/{webhook_id}`.
+
+        Contains information on the patched webhook.'
+    AdminWebhooksPostResponse:
+      properties:
+        webhook:
+          $ref: '#/components/schemas/MAILWebhook'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - webhook
+      - metadata
+      title: AdminWebhooksPostResponse
+      description: 'Corresponds to `POST /admin/webhooks`.
+
+        Contains information on the newly-created webhook.'
+    AuthPasswordResetResponse:
+      properties:
+        status:
+          type: string
+          const: success
+          title: Status
+      type: object
+      required:
+      - status
+      title: AuthPasswordResetResponse
+      description: 'Corresponds to `POST /auth/password/reset`.
+
+        Contains a message indicating operation success.'
+    AuthTokenPostResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          const: bearer
+          title: Token Type
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - access_token
+      - token_type
+      - metadata
+      title: AuthTokenPostResponse
+      description: 'Corresponds to `POST /auth/token`.
+
+        Contains a temporary JWT and associated metadata.'
+    AuthWhoamiGetResponse:
+      properties:
+        user_agent:
+          $ref: '#/components/schemas/MAILUserAgent'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - user_agent
+      - metadata
+      title: AuthWhoamiGetResponse
+      description: 'Corresponds to `GET /auth/whoami`.
+
+        Contains current user information and metadata.'
+    Body_create_auth_token_auth_token_post:
+      properties:
+        grant_type:
+          anyOf:
+          - type: string
+            pattern: ^password$
+          - type: 'null'
+          title: Grant Type
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          format: password
+          title: Password
+        scope:
+          type: string
+          title: Scope
+          default: ''
+        client_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Id
+        client_secret:
+          anyOf:
+          - type: string
+          - type: 'null'
+          format: password
+          title: Client Secret
+      type: object
+      required:
+      - username
+      - password
+      title: Body_create_auth_token_auth_token_post
+    DaemonDeliverLocalResponse:
+      properties:
+        messages:
+          items:
+            $ref: '#/components/schemas/MAILMessageSummary'
+          type: array
+          title: Messages
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - messages
+      - metadata
+      title: DaemonDeliverLocalResponse
+      description: 'Corresponds to `POST /daemon/deliver/local`.
+
+        Contains the list of messages successfully delivered to server-local user-agents.'
+    DaemonDeliverRemoteResponse:
+      properties:
+        messages:
+          items:
+            $ref: '#/components/schemas/MAILMessageSummary'
+          type: array
+          title: Messages
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - messages
+      - metadata
+      title: DaemonDeliverRemoteResponse
+      description: 'Corresponds to `POST /daemon/deliver/remote`.
+
+        Contains the list of messages successfully delivered to server-local user-agents.'
+    DaemonMessageBufferClearResponse:
+      properties:
+        message_ids:
+          items:
+            type: string
+          type: array
+          title: Message Ids
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - message_ids
+      - metadata
+      title: DaemonMessageBufferClearResponse
+      description: 'Corresponds to `POST /daemon/message-buffer/clear`.
+
+        Contains the IDs of all MAIL messages on the server to be delivered by the
+        daemon.'
+    DraftDeleteResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILDraftsEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: DraftDeleteResponse
+      description: 'Corresponds to `DELETE /drafts/{draft_id}`.
+
+        Contains the specific message draft deleted from the user-agent''s drafts
+        box.'
+    DraftGetResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILDraftsEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: DraftGetResponse
+      description: 'Corresponds to `GET /drafts/{draft_id}`.
+
+        Contains a specific message draft inside the user-agent''s drafts box.'
+    DraftPostResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILDraftsEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: DraftPostResponse
+      description: 'Corresponds to `POST /drafts`.
+
+        Contains the new entry in the user-agent''s drafts box.'
+    DraftSendPostResponse:
+      properties:
+        message:
+          $ref: '#/components/schemas/MAILMessage'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - message
+      - metadata
+      title: DraftSendPostResponse
+      description: 'Corresponds to `POST /drafts/{draft_id}/send`.
+
+        Contains the assembled MAIL message to be delivered.'
+    DraftsGetResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/MAILDraftsEntrySummary'
+          type: array
+          title: Entries
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entries
+      - metadata
+      title: DraftsGetResponse
+      description: 'Corresponds to `GET /drafts`.
+
+        Contains a list of entries in the user-agent''s drafts box.'
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthGetResponse:
+      properties:
+        status:
+          type: string
+          const: ok
+          title: Status
+      type: object
+      required:
+      - status
+      title: HealthGetResponse
+      description: 'Corresponds to `GET /health`.
+
+        Contains a basic health status message (should be ok).'
+    InboxGetResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/MAILInboxEntrySummary'
+          type: array
+          title: Entries
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entries
+      - metadata
+      title: InboxGetResponse
+      description: 'Corresponds to `GET /inbox`.
+
+        Contains a list of entries in the user-agent''s inbox.'
+    InboxMessageDeleteResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILInboxEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: InboxMessageDeleteResponse
+      description: 'Corresponds to `DELETE /inbox/{message_id}`.
+
+        Contains a specific entry by message ID that was moved from the user-agent''s
+        inbox to trash.'
+    InboxMessageGetResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILInboxEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: InboxMessageGetResponse
+      description: 'Corresponds to `GET /inbox/{message_id}`.
+
+        Contains a specific entry by message ID inside the user-agent''s inbox.'
+    ListGetResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: ListGetResponse
+      description: Corresponds to `GET /lists/{list_address}`.
+    ListMemberDeleteResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: ListMemberDeleteResponse
+      description: 'Corresponds to `POST /lists/{list_address}/unsubscribe`
+
+        and `DELETE /lists/{list_address}/members/{member_address}`.
+
+        The updated list with the member removed (idempotent — removing a
+
+        non-member is a no-op).'
+    ListMemberPostResponse:
+      properties:
+        mail_list:
+          $ref: '#/components/schemas/MAILListInBackend'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - mail_list
+      - metadata
+      title: ListMemberPostResponse
+      description: 'Corresponds to `POST /lists/{list_address}/subscribe` and
+
+        `POST /admin/lists/{list_address}/members`. The updated list with
+
+        the member appended (idempotent — re-adding an existing member is
+
+        a no-op).'
+    ListsGetResponse:
+      properties:
+        lists:
+          items:
+            $ref: '#/components/schemas/MAILListInBackend'
+          type: array
+          title: Lists
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - lists
+      - metadata
+      title: ListsGetResponse
+      description: 'Corresponds to `GET /lists`. Returns lists visible to the caller.
+
+        At v1 every list has ``visibility = "public"``; future versions
+
+        that introduce private lists will filter here.'
+    MAILAdmin:
+      properties:
+        ua_type:
+          type: string
+          const: admin
+          title: Ua Type
+        admin_id:
+          type: string
+          title: Admin Id
+        host:
+          type: string
+          title: Host
+      type: object
+      required:
+      - ua_type
+      - admin_id
+      - host
+      title: MAILAdmin
+    MAILAgent:
+      properties:
+        ua_type:
+          type: string
+          const: agent
+          title: Ua Type
+        name:
+          type: string
+          title: Name
+        swarm:
+          type: string
+          title: Swarm
+        host:
+          type: string
+          title: Host
+      type: object
+      required:
+      - ua_type
+      - name
+      - swarm
+      - host
+      title: MAILAgent
+    MAILDaemon:
+      properties:
+        ua_type:
+          type: string
+          const: daemon
+          title: Ua Type
+        worker_name:
+          type: string
+          title: Worker Name
+        host:
+          type: string
+          title: Host
+      type: object
+      required:
+      - ua_type
+      - worker_name
+      - host
+      title: MAILDaemon
+    MAILDraft:
+      properties:
+        draft_id:
+          type: string
+          title: Draft Id
+        subject:
+          type: string
+          title: Subject
+        body:
+          type: string
+          title: Body
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - draft_id
+      - subject
+      - body
+      - created_at
+      title: MAILDraft
+      description: 'A draft of an individual MAIL message.
+
+        Does not yet account for intended recipients.'
+    MAILDraftsEntry:
+      properties:
+        draft:
+          $ref: '#/components/schemas/MAILDraft'
+        sent_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sent At
+        sent_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sent By
+      type: object
+      required:
+      - draft
+      title: MAILDraftsEntry
+      description: A MAIL message draft in a user-agent's drafts box.
+    MAILDraftsEntrySummary:
+      properties:
+        draft_id:
+          type: string
+          title: Draft Id
+        subject:
+          type: string
+          title: Subject
+        body_size:
+          type: integer
+          title: Body Size
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - draft_id
+      - subject
+      - body_size
+      - created_at
+      title: MAILDraftsEntrySummary
+      description: A summarized MAIL draft entry to be included in lists.
+    MAILInboxEntry:
+      properties:
+        message:
+          $ref: '#/components/schemas/MAILMessage'
+        received_at:
+          type: string
+          format: date-time
+          title: Received At
+        delivered_by:
+          type: string
+          title: Delivered By
+      type: object
+      required:
+      - message
+      - received_at
+      - delivered_by
+      title: MAILInboxEntry
+      description: Wrapper for an individual MAIL message in a user-agent's inbox.
+    MAILInboxEntrySummary:
+      properties:
+        message_id:
+          type: string
+          title: Message Id
+        sender:
+          type: string
+          title: Sender
+        subject:
+          type: string
+          title: Subject
+        body_size:
+          type: integer
+          title: Body Size
+        received_at:
+          type: string
+          format: date-time
+          title: Received At
+        delivered_by:
+          type: string
+          title: Delivered By
+      type: object
+      required:
+      - message_id
+      - sender
+      - subject
+      - body_size
+      - received_at
+      - delivered_by
+      title: MAILInboxEntrySummary
+      description: A summarized MAIL inbox entry to be included in lists.
+    MAILListInBackend:
+      properties:
+        list_type:
+          type: string
+          const: list
+          title: List Type
+          default: list
+        name:
+          type: string
+          title: Name
+        swarm:
+          type: string
+          title: Swarm
+        host:
+          type: string
+          title: Host
+        owner:
+          type: string
+          title: Owner
+        members:
+          items:
+            type: string
+          type: array
+          title: Members
+        policy:
+          $ref: '#/components/schemas/MAILListPolicy'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        list_id:
+          type: string
+          title: List Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - name
+      - swarm
+      - host
+      - owner
+      - list_id
+      - created_at
+      - updated_at
+      title: MAILListInBackend
+      description: Backend storage variant — adds the assigned id and timestamps.
+    MAILListPolicy:
+      properties:
+        visibility:
+          type: string
+          enum:
+          - public
+          - private
+          title: Visibility
+          default: public
+        join_policy:
+          type: string
+          enum:
+          - open
+          - approval
+          - admin-only
+          title: Join Policy
+          default: open
+        send_policy:
+          type: string
+          enum:
+          - open
+          - members-only
+          - admin-only
+          title: Send Policy
+          default: open
+      type: object
+      title: MAILListPolicy
+      description: 'Policy controls for a MAIL list.
+
+
+        All three fields are forward-looking — the wire format reserves the
+
+        enumerations now so future contributions can extend ``join_policy``
+
+        and ``send_policy`` without changing the protocol shape.
+
+
+        For v1 contribution scope, only the ``public`` / ``open`` / ``open``
+
+        variants are honored by the server. Other variants validate at the
+
+        protocol layer but are rejected at the endpoint layer.'
+    MAILMessage:
+      properties:
+        message_id:
+          type: string
+          title: Message Id
+        sender:
+          type: string
+          title: Sender
+        recipients:
+          items:
+            type: string
+          type: array
+          title: Recipients
+        subject:
+          type: string
+          title: Subject
+        body:
+          type: string
+          title: Body
+        sent_at:
+          type: string
+          format: date-time
+          title: Sent At
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - message_id
+      - sender
+      - recipients
+      - subject
+      - body
+      - sent_at
+      - metadata
+      title: MAILMessage
+      description: A constructed message to be delivered via MAIL.
+    MAILMessageSummary:
+      properties:
+        message_id:
+          type: string
+          title: Message Id
+        sender:
+          type: string
+          title: Sender
+        recipients:
+          items:
+            type: string
+          type: array
+          title: Recipients
+        subject:
+          type: string
+          title: Subject
+        body_size:
+          type: integer
+          title: Body Size
+        sent_at:
+          type: string
+          format: date-time
+          title: Sent At
+      type: object
+      required:
+      - message_id
+      - sender
+      - recipients
+      - subject
+      - body_size
+      - sent_at
+      title: MAILMessageSummary
+      description: A summarized MAIL message to be included in lists.
+    MAILOutboxEntry:
+      properties:
+        message:
+          $ref: '#/components/schemas/MAILMessage'
+        delivered_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Delivered At
+        delivered_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Delivered By
+      type: object
+      required:
+      - message
+      title: MAILOutboxEntry
+      description: Wrapper for an individual MAIL message in a user-agent's outbox.
+    MAILOutboxEntrySummary:
+      properties:
+        message_id:
+          type: string
+          title: Message Id
+        recipients:
+          items:
+            type: string
+          type: array
+          title: Recipients
+        subject:
+          type: string
+          title: Subject
+        body_size:
+          type: integer
+          title: Body Size
+        sent_at:
+          type: string
+          format: date-time
+          title: Sent At
+        delivered_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Delivered At
+        delivered_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Delivered By
+      type: object
+      required:
+      - message_id
+      - recipients
+      - subject
+      - body_size
+      - sent_at
+      title: MAILOutboxEntrySummary
+      description: A summarized MAIL outbox entry to be included in lists.
+    MAILSwarm:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        keywords:
+          items:
+            type: string
+          type: array
+          title: Keywords
+        agents:
+          items:
+            type: string
+          type: array
+          title: Agents
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - name
+      - description
+      - keywords
+      - agents
+      - metadata
+      title: MAILSwarm
+      description: Abstract MAIL swarm class.
+    MAILSwarmSummary:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        keywords:
+          items:
+            type: string
+          type: array
+          title: Keywords
+        num_agents:
+          type: integer
+          title: Num Agents
+      type: object
+      required:
+      - name
+      - description
+      - keywords
+      - num_agents
+      title: MAILSwarmSummary
+      description: More concise summary of a MAIL swarm.
+    MAILTrashEntry:
+      properties:
+        message:
+          $ref: '#/components/schemas/MAILMessage'
+        trashed_at:
+          type: string
+          format: date-time
+          title: Trashed At
+      type: object
+      required:
+      - message
+      - trashed_at
+      title: MAILTrashEntry
+      description: Wrapper for an individual MAIL message in a user-agent's trash
+        box.
+    MAILTrashEntrySummary:
+      properties:
+        message_id:
+          type: string
+          title: Message Id
+        sender:
+          type: string
+          title: Sender
+        subject:
+          type: string
+          title: Subject
+        body_size:
+          type: integer
+          title: Body Size
+        trashed_at:
+          type: string
+          format: date-time
+          title: Trashed At
+      type: object
+      required:
+      - message_id
+      - sender
+      - subject
+      - body_size
+      - trashed_at
+      title: MAILTrashEntrySummary
+      description: A summarized MAIL trash entry to be included in lists.
+    MAILUser:
+      properties:
+        ua_type:
+          type: string
+          const: user
+          title: Ua Type
+        user_id:
+          type: string
+          title: User Id
+        host:
+          type: string
+          title: Host
+      type: object
+      required:
+      - ua_type
+      - user_id
+      - host
+      title: MAILUser
+    MAILUserAgent:
+      properties:
+        user_agent:
+          oneOf:
+          - $ref: '#/components/schemas/MAILAgent'
+          - $ref: '#/components/schemas/MAILUser'
+          - $ref: '#/components/schemas/MAILAdmin'
+          - $ref: '#/components/schemas/MAILDaemon'
+          title: User Agent
+          discriminator:
+            propertyName: ua_type
+            mapping:
+              admin: '#/components/schemas/MAILAdmin'
+              agent: '#/components/schemas/MAILAgent'
+              daemon: '#/components/schemas/MAILDaemon'
+              user: '#/components/schemas/MAILUser'
+      type: object
+      required:
+      - user_agent
+      title: MAILUserAgent
+      description: Base class for MAIL user-agents.
+    MAILWebhook:
+      properties:
+        webhook_id:
+          type: string
+          title: Webhook Id
+        url:
+          type: string
+          title: Url
+        events:
+          items:
+            type: string
+          type: array
+          title: Events
+        secret:
+          type: string
+          title: Secret
+      type: object
+      required:
+      - webhook_id
+      - url
+      - events
+      - secret
+      title: MAILWebhook
+      description: Object representing a MAIL webhook.
+    OutboxGetResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/MAILOutboxEntrySummary'
+          type: array
+          title: Entries
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entries
+      - metadata
+      title: OutboxGetResponse
+      description: 'Corresponds to `GET /outbox`.
+
+        Contains a list of entries in the user-agent''s outbox.'
+    OutboxMessageGetResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILOutboxEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: OutboxMessageGetResponse
+      description: 'Corresponds to `GET /outbox/{message_id}`.
+
+        Contains a specific entry by message ID inside the user-agent''s outbox.'
+    RootGetResponse:
+      properties:
+        protocol_name:
+          type: string
+          const: mail
+          title: Protocol Name
+        protocol_version:
+          type: string
+          const: '2.0'
+          title: Protocol Version
+        uptime:
+          type: number
+          title: Uptime
+      type: object
+      required:
+      - protocol_name
+      - protocol_version
+      - uptime
+      title: RootGetResponse
+      description: 'Corresponds to `GET /`.
+
+        Contains basic MAIL server information and metadata.'
+    SwarmGetResponse:
+      properties:
+        swarm:
+          $ref: '#/components/schemas/MAILSwarm'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - swarm
+      - metadata
+      title: SwarmGetResponse
+      description: 'Corresponds to `GET /swarms/{swarm_name}`.
+
+        Contains information about the specified existing + exposed MAIL swarm.'
+    SwarmHealthGetResponse:
+      properties:
+        status:
+          type: string
+          const: ok
+          title: Status
+      type: object
+      required:
+      - status
+      title: SwarmHealthGetResponse
+      description: 'Corresponds to `GET /swarms/{swarm_name}/health`.
+
+        Contains up-to-date, swarm-specific health information.'
+    SwarmsGetResponse:
+      properties:
+        swarms:
+          items:
+            $ref: '#/components/schemas/MAILSwarmSummary'
+          type: array
+          title: Swarms
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - swarms
+      - metadata
+      title: SwarmsGetResponse
+      description: 'Corresponds to `GET /swarms`.
+
+        Contains the list of swarms exposed by this server.'
+    TrashClearPostResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/MAILTrashEntrySummary'
+          type: array
+          title: Entries
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entries
+      - metadata
+      title: TrashClearPostResponse
+      description: 'Corresponds to `POST /trash/clear`.
+
+        Contains the list of messages deleted from the user-agent''s trash box.'
+    TrashGetResponse:
+      properties:
+        entries:
+          items:
+            $ref: '#/components/schemas/MAILTrashEntrySummary'
+          type: array
+          title: Entries
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entries
+      - metadata
+      title: TrashGetResponse
+      description: 'Corresponds to `GET /trash`.
+
+        Contains a list of messages in the user-agent''s trash box.'
+    TrashMessageDeleteResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILTrashEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: TrashMessageDeleteResponse
+      description: 'Corresponds to `DELETE /trash/{message_id}`.
+
+        Contains the specific message deleted from the user-agent''s trash box.'
+    TrashMessageGetResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILTrashEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: TrashMessageGetResponse
+      description: 'Corresponds to `GET /trash/{message_id}`.
+
+        Contains the specific trashed message by ID from the user-agent''s trash box.'
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
