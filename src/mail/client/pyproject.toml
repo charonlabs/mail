@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
+mail = "mail_client.cli:main"
 mail-admin = "mail_client.admin_panel:main"
 
 [build-system]

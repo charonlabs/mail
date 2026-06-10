@@ -56,7 +56,7 @@ async def get_swarm_health(request: Request) -> SwarmHealthGetResponse:
     backend = request.app.state.backend
     swarm_name = request.path_params.get("swarm_name")
     try:
-        result = await backend.get_swarm_health(swarm_name=swarm_name)
+        await backend.get_swarm_health(swarm_name=swarm_name)
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"swarm with name {swarm_name} not found"

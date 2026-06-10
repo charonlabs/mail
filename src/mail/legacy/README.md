@@ -96,7 +96,7 @@ Recommended commands:
 uv run pytest
 
 # legacy runtime tests
-uv run pytest src/mail/legacy/tests
+uv run --extra legacy pytest src/mail/legacy/tests
 ```
 
 Root `scripts/` is reserved for repository maintenance tasks that apply to the

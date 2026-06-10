@@ -1,7 +1,7 @@
 [project]
 name = "mail-daemon"
 version = "2.0.0"
-description = "Add your description here"
+description = "Daemon implementation for the Multi-Agent Interface Layer (MAIL)"
 readme = "README.md"
 authors = [
     { name = "Addison Kline", email = "77369109+addisonkline@users.noreply.github.com" }
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-daemon = "mail_daemon.cli:main"
+mail-daemon = "mail_daemon.cli:main"
 
 [build-system]
 requires = ["hatchling"]

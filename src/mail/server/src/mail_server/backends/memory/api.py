@@ -582,7 +582,7 @@ class MemoryBackend(MAILServerBackend):
         """
 
         ua_address = user_agent.get_address()
-        trash_msg_ids = self.drafts.get(ua_address)
+        trash_msg_ids = self.trashes.get(ua_address)
         if trash_msg_ids is None:
             raise ValueError(f"no trash box found for address {ua_address}")
         if message_id not in trash_msg_ids:

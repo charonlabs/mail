@@ -9,7 +9,7 @@ from mail_protocol.network.responses import (
     TrashMessageGetResponse,
 )
 
-from mail.server.src.mail_server.auth import validate_user_agent
+from mail_server.auth import validate_user_agent
 
 router = APIRouter(prefix="/trash", tags=["trash"])
 

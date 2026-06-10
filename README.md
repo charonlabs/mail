@@ -63,7 +63,7 @@ Legacy tests and other v1 material live under `src/mail/legacy`.
 Run archived legacy tests explicitly:
 
 ```bash
-uv run pytest src/mail/legacy/tests
+uv run --extra legacy pytest src/mail/legacy/tests
 ```
 
 ## Documentation
