@@ -10,7 +10,7 @@ from fastapi import HTTPException, Request
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-logger = logging.getLogger("mail.auth")
+logger = logging.getLogger("mail.legacy.auth")
 
 
 async def check_auth_endpoints() -> None:

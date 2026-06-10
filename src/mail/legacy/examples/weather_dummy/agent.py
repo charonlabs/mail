@@ -5,13 +5,13 @@ import warnings
 from collections.abc import Awaitable
 from typing import Any, Literal
 
-from mail.core.agents import AgentOutput
-from mail.factories import AgentFunction
-from mail.factories.action import LiteLLMActionAgentFunction
+from mail.legacy.core.agents import AgentOutput
+from mail.legacy.factories import AgentFunction
+from mail.legacy.factories.action import LiteLLMActionAgentFunction
 
 weather_agent_params = {
     "llm": "openai/gpt-5-mini",
-    "system": "mail.examples.weather_dummy.prompts:SYSPROMPT",
+    "system": "mail.legacy.examples.weather_dummy.prompts:SYSPROMPT",
 }
 
 

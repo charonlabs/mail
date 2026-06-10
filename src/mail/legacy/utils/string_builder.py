@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from mail.core.tools import get_tool_help
+from mail.legacy.core.tools import get_tool_help
 
 SPEC_PATH = Path(__file__).resolve().parents[3] / "spec" / "SPEC.md"
 

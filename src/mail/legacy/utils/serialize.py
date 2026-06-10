@@ -5,8 +5,8 @@ from typing import Any
 import ujson
 from sse_starlette import ServerSentEvent
 
-from mail.core.message import MAILMessage
-from mail.utils.version import get_version
+from mail.legacy.core.message import MAILMessage
+from mail.legacy.utils.version import get_version
 
 _REDACT_KEYS = {
     "id",

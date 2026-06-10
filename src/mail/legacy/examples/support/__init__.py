@@ -13,13 +13,13 @@ Agents:
     - sentiment: Analyzes customer sentiment and flags escalations
 """
 
-from mail.examples.support.coordinator.agent import LiteLLMCoordinatorFunction
-from mail.examples.support.faq.agent import LiteLLMFaqFunction
-from mail.examples.support.faq.actions import search_faq
-from mail.examples.support.classifier.agent import LiteLLMClassifierFunction
-from mail.examples.support.classifier.actions import classify_ticket
-from mail.examples.support.sentiment.agent import LiteLLMSentimentFunction
-from mail.examples.support.sentiment.actions import analyze_sentiment, create_escalation
+from mail.legacy.examples.support.coordinator.agent import LiteLLMCoordinatorFunction
+from mail.legacy.examples.support.faq.agent import LiteLLMFaqFunction
+from mail.legacy.examples.support.faq.actions import search_faq
+from mail.legacy.examples.support.classifier.agent import LiteLLMClassifierFunction
+from mail.legacy.examples.support.classifier.actions import classify_ticket
+from mail.legacy.examples.support.sentiment.agent import LiteLLMSentimentFunction
+from mail.legacy.examples.support.sentiment.actions import analyze_sentiment, create_escalation
 
 __all__ = [
     "LiteLLMCoordinatorFunction",

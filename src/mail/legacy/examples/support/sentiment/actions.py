@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, UTC
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # Sentiment indicators with associated scores
 POSITIVE_INDICATORS = {

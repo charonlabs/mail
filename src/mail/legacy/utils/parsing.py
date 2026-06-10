@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from mail.core import parse_agent_address
+from mail.legacy.core import parse_agent_address
 
 PYTHON_STRING_PREFIX = "python::"
 URL_STRING_PREFIX = "url::"

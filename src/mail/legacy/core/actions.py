@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 import logging
 
-from mail.core.tools import AgentToolCall
+from mail.legacy.core.tools import AgentToolCall
 
 ActionFunction = Callable[[dict[str, Any]], Awaitable[str]]
 """
@@ -43,7 +43,7 @@ class ActionCore:
         """
         Execute an action tool and return the response within a MAIL runtime.
         """
-        logger = logging.getLogger("mail.actions")
+        logger = logging.getLogger("mail.legacy.actions")
         if actions:
             action = actions.get(self.name)
             if action:

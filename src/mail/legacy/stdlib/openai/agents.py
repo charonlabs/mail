@@ -15,10 +15,10 @@ from openai.types.chat import (
 )
 from openai.types.responses import ResponseInputParam, ToolParam
 
-from mail.core.agents import AgentOutput
-from mail.core.tools import AgentToolCall
-from mail.factories.base import MAILAgentFunction
-from mail.factories.supervisor import SupervisorFunction
+from mail.legacy.core.agents import AgentOutput
+from mail.legacy.core.tools import AgentToolCall
+from mail.legacy.factories.base import MAILAgentFunction
+from mail.legacy.factories.supervisor import SupervisorFunction
 
 
 class OpenAIChatCompletionsAgentFunction(MAILAgentFunction):

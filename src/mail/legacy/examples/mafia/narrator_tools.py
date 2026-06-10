@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING
 import rich
 from pydantic import BaseModel, Field
 
-from mail.api import MAILAction
+from mail.legacy.api import MAILAction
 
 if TYPE_CHECKING:
-    from mail.examples.mafia.game import Game
+    from mail.legacy.examples.mafia.game import Game
 
 
 class NarratorError(Exception):

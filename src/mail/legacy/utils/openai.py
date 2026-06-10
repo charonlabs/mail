@@ -12,8 +12,8 @@ from openai.types.responses import (
 )
 from pydantic import BaseModel, ValidationError
 
-from mail.api import MAILAction, MAILSwarm, MAILSwarmTemplate
-from mail.utils.serialize import dump_mail_result
+from mail.legacy.api import MAILAction, MAILSwarm, MAILSwarmTemplate
+from mail.legacy.utils.serialize import dump_mail_result
 
 
 async def async_lambda(x: Any) -> Any:

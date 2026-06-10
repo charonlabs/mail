@@ -1,5 +1,5 @@
-from mail.examples.mafia.personas import Persona
-from mail.examples.mafia.roles import Role
+from mail.legacy.examples.mafia.personas import Persona
+from mail.legacy.examples.mafia.roles import Role
 
 
 def create_agent_system_prompt(persona: Persona, role: Role | None = None) -> str:

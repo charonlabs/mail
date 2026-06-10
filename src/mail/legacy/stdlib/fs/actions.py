@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Any
 
-from mail.api import action
+from mail.legacy.api import action
 
 FILE_READ_PARAMETERS = {
     "type": "object",

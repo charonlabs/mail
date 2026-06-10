@@ -11,7 +11,7 @@ import math
 from collections import Counter
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 # All available metrics
 AVAILABLE_METRICS = [

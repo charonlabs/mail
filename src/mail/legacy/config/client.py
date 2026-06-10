@@ -34,12 +34,12 @@ def _resolve_mail_config_path() -> Path | None:
             return candidate
         logger.debug(f"MAIL_CONFIG_PATH set to {candidate} but file missing")
 
-    cwd_candidate = Path.cwd() / "mail.toml"
+    cwd_candidate = Path.cwd() / "mail.legacy.toml"
     if cwd_candidate.is_file():
         return cwd_candidate
 
     for ancestor in Path(__file__).resolve().parents:
-        candidate = ancestor / "mail.toml"
+        candidate = ancestor / "mail.legacy.toml"
         if candidate.is_file():
             return candidate
 
@@ -63,7 +63,7 @@ def _client_defaults() -> dict[str, Any]:
 
     config_path = _resolve_mail_config_path()
     if config_path is None:
-        logger.debug("mail.toml not found; using built-in client defaults")
+        logger.debug("mail.legacy.toml not found; using built-in client defaults")
         return defaults
 
     try:

@@ -4,7 +4,7 @@ This document serves as a tutorial on how to get started with `mail-server`.
 
 ## Prerequesites
 
-- `mail` GitHub repository cloned OR `mail-swarms` installed from PyPI
+- `mail` GitHub repository cloned OR the `mail-swarms` v2 meta-package installed
 - `mail` CLI client installed from either of the above
 
 ## Required Environment Variables

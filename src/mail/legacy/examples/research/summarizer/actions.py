@@ -8,7 +8,7 @@ import re
 from datetime import datetime, UTC
 from typing import Any
 
-from mail import action
+from mail.legacy import action
 
 
 def _extract_sentences(text: str) -> list[str]:

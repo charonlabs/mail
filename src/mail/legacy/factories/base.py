@@ -30,10 +30,10 @@ from litellm import (
 )
 from litellm.types.utils import ModelResponse
 
-from mail.core.agents import AgentFunction, AgentOutput
-from mail.core.tools import AgentToolCall, create_mail_tools
+from mail.legacy.core.agents import AgentFunction, AgentOutput
+from mail.legacy.core.tools import AgentToolCall, create_mail_tools
 
-logger = logging.getLogger("mail.factories.base")
+logger = logging.getLogger("mail.legacy.factories.base")
 
 
 def base_agent_factory(

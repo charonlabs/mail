@@ -692,6 +692,68 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
+## `argon2-cffi==25.1.0`
+Argon2 for Python
+### License field:
+MIT
+
+### License Text (`argon2_cffi-25.1.0.dist-info/licenses/LICENSE`)
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2015 Hynek Schlawack and the argon2-cffi contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## `argon2-cffi-bindings==25.1.0`
+Low-level CFFI bindings for Argon2
+### License field:
+MIT
+
+### License Text (`argon2_cffi_bindings-25.1.0.dist-info/licenses/LICENSE`)
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2021 Hynek Schlawack
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## `asyncpg==0.31.0`
 An asyncio PostgreSQL driver
 ### License field:
@@ -2320,6 +2382,67 @@ licenses_ directory.
 .. _OSI-approved: http://opensource.org/licenses/
 .. _license-list:
 .. _GPL-compatible: https://www.gnu.org/licenses/license-list.html
+```
+
+## `dotenv==0.9.9`
+Deprecated package
+### License field:
+(license metadata not found)
+### Home page:
+https://github.com/pedroburon/dotenv
+### Author:
+Pedro Burón
+
+### License Text (`LICENSE`)
+
+```text
+MIT License
+
+Copyright (c) 2018 Pedro Burón
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### License Text (`dotenv-0.9.9.dist-info/LICENSE`)
+
+```text
+MIT License
+
+Copyright (c) 2018 Pedro Burón
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ## `dydantic==0.0.8`
@@ -5124,14 +5247,42 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## `mail-swarms==1.3.6`
-Multi-Agent Interface Layer reference implementation
+## `mail-client==2.0.0`
+CLI client for interacting with MAIL servers
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-daemon==2.0.0`
+Daemon implementation for the Multi-Agent Interface Layer (MAIL)
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-protocol==2.0.0`
+Types and constants for the Multi-Agent Interface Layer (MAIL) protocol
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-server==2.0.0`
+FastAPI server for the Multi-Agent Interface Layer (MAIL)
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-swarms==2.0.0`
+Multi-Agent Interface Layer v2 workspace meta-package
 ### License field:
 Apache-2.0
 ### Classifiers:
 License :: OSI Approved :: Apache Software License
 
-### License Text (`mail_swarms-1.3.6.dist-info/licenses/LICENSE`)
+### License Text (`mail_swarms-2.0.0.dist-info/licenses/LICENSE`)
 
 ```text
 Apache License
@@ -5337,7 +5488,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### License Text (`mail_swarms-1.3.6.dist-info/licenses/NOTICE`)
+### License Text (`mail_swarms-2.0.0.dist-info/licenses/NOTICE`)
 
 ```text
 MAIL Project
@@ -8245,6 +8396,39 @@ Copyright 2016-2021, Andrew Svetlov and aio-libs team
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+```
+
+## `pwdlib==0.3.0`
+Modern password hashing for Python
+### License field:
+MIT License
+### Classifiers:
+License :: OSI Approved :: MIT License
+
+### License Text (`pwdlib-0.3.0.dist-info/licenses/LICENSE`)
+
+```text
+MIT License
+
+Copyright (c) 2024, François Voron
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ## `pycparser==2.23`
@@ -11930,6 +12114,38 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## `validators==0.35.0`
+Python Data Validation for Humans™
+### License field:
+MIT
+### Classifiers:
+License :: OSI Approved :: MIT License
+
+### License Text (`validators-0.35.0.dist-info/licenses/LICENSE.txt`)
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2013 - 2025 Konsta Vesterinen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ## `werkzeug==3.1.1`

@@ -19,7 +19,7 @@ import ujson
 from litellm import aresponses
 from sse_starlette import ServerSentEvent
 
-from mail.db.utils import (
+from mail.legacy.db.utils import (
     create_agent_history,
     create_task,
     create_task_event,
@@ -30,10 +30,10 @@ from mail.db.utils import (
     load_tasks,
     update_task,
 )
-from mail.net import InterswarmRouter, SwarmRegistry
-from mail.utils.context import get_model_ctx_len
-from mail.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
-from mail.utils.string_builder import build_mail_help_string
+from mail.legacy.net import InterswarmRouter, SwarmRegistry
+from mail.legacy.utils.context import get_model_ctx_len
+from mail.legacy.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
+from mail.legacy.utils.string_builder import build_mail_help_string
 
 from .actions import (
     ActionCore,
@@ -64,7 +64,7 @@ from .tools import (
     normalize_breakpoint_tool_call,
 )
 
-logger = logging.getLogger("mail.runtime")
+logger = logging.getLogger("mail.legacy.runtime")
 
 AGENT_HISTORY_KEY = "{task_id}::{agent_name}"
 _UNSET = object()

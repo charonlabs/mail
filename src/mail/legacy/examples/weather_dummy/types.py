@@ -1,4 +1,4 @@
-from mail.examples.weather_dummy.actions import get_weather_forecast
+from mail.legacy.examples.weather_dummy.actions import get_weather_forecast
 
 action_get_weather_forecast = get_weather_forecast
 

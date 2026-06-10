@@ -8,11 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from mail import utils
-from mail.client import MAILClientCLI
-from mail.config import ClientConfig, ServerConfig
-from mail.server import run_server
-from mail.url_scheme import parse_swarm_url
+from mail.legacy import utils
+from mail.legacy.client import MAILClientCLI
+from mail.legacy.config import ClientConfig, ServerConfig
+from mail.legacy.server import run_server
+from mail.legacy.url_scheme import parse_swarm_url
 
 
 def _str_to_bool(value: str | bool) -> bool:
@@ -151,7 +151,7 @@ def _run_db_init(_args: argparse.Namespace) -> None:
     """
     Initialize the database tables for MAIL.
     """
-    from mail.db.init import create_tables
+    from mail.legacy.db.init import create_tables
 
     asyncio.run(create_tables())
 
