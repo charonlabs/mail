@@ -45,7 +45,13 @@
   * [7.6 Timestamps](#76-timestamps)
   * [7.7 Message Metadata](#77-message-metadata)
 * [8 Delivery](#8-delivery)
+  * [8.1 Pre-Send Errors](#81-pre-send-errors)
+  * [8.2 Post-Send Errors](#82-post-send-errors)
 * [9 Security Considerations](#9-security-considerations)
+  * [9.1 MAIL Clients](#91-mail-clients)
+  * [9.2 MAIL Daemons](#92-mail-daemons)
+  * [9.3 MAIL Servers](#93-mail-servers)
+  * [9.4 MAIL User-Agents](#94-mail-user-agents)
 * [10 Versioning](#10-versioning)
 * [11 References](#11-references)
 
@@ -85,15 +91,22 @@ Message delivery is handled largely by MAIL daemons, rather than the server itse
 
 ### 4.1. MAIL Clients
 
-TODO
+A MAIL client is software that can connect to a MAIL server over [HTTP(S)][http-specs] to provide access to authorized user-agent(s).
+MAIL clients MUST support the endpoints and data models defined by the authoritative MAIL HTTP contract in [openapi.yaml](openapi.yaml).
+MAIL clients MAY provide extra functionality beyond what is required by the OpenAPI spec.
+Implementers SHOULD heed to the MAIL client security considerations in [Section 9.1](#91-mail-clients).
 
 ### 4.2. MAIL Servers
 
-TODO
+A MAIL server is an HTTP server that conforms to the authoritative contract in [openapi.yaml](openapi.yaml).
+MAIL servers MAY provide extra functionality beyond what is required by the OpenAPI spec.
+Implementers SHOULD heed to the MAIL server security considerations in [Section 9.3](#93-mail-servers).
 
 ### 4.3. MAIL Swarms
 
-TODO
+A MAIL swarm is an abstract collection of agent addresses, mailing lists, and associated metadata existing within a MAIL server.
+Swarms SHOULD be used to scope discrete multi-agent deployments within a MAIL server.
+Swarms MUST be representable by the `MAILSwarm` schema defined in [openapi.yaml](openapi.yaml).
 
 ## 5. User-Agents
 
@@ -104,20 +117,28 @@ This category encompasses both human users and AI agents, as well as autonomous 
 
 A MAIL admin is a user-agent with server-level administrator privileges beyond those of other user-agent types.
 Admins MAY use all the same MAIL server functionalities that agents and users can.
+Every MAIL admin MUST have a host-scoped address (see [Section 6.1](#61-host-scoped-addresses)).
 Implementers SHOULD exercise extreme caution when generating and handing out admin credentials.
 
 ### 5.2. Agents
 
 A MAIL agent is a user-agent category reserved for AI agents.
-Agents MAY compose and send messages to other user-agents, 
+Agents MAY compose and send messages to other user-agents, subscribe to/unsubscribe from mailing lists, and access limited server metadata.
+Every MAIL agent MUST have a swarm-scoped address (see [Section 6.2](#62-swarm-scoped-addresses)).
 
 ### 5.3. Daemons
 
-TODO
+A MAIL daemon is a user-agent tasked with delivering messages between authorized user-agents.
+Daemons MUST NOT tamper with, modify, or otherwise alter the contents of the MAIL messages they deliver.
+Daemons SHOULD NOT be able to compose and send messages of their own.
+Every MAIL daemon MUST have a host-scoped address (see [Section 6.1](#61-host-scoped-addresses)).
+Implementers SHOULD exercise extreme caution when generating and handing out admin credentials.
 
 ### 5.4. Users
 
-TODO
+A MAIL user is a user-agent category reserved for human users of a MAIL swarmer without administrator privileges.
+Users MAY compose and send messages to other user-agents, subscribe to/unsubscribe from mailing lists, and access limited server metadata.
+Every MAIL user MUST have a host-scoped address (see [Section 6.1](#61-host-scoped-addresses)).
 
 ## 6. Addresses
 
@@ -166,7 +187,7 @@ All MAIL mailing lists MUST have an address following the format `list:{list_id}
 
 A MAIL message is an atomic unit of data that can be delivered from one MAIL address to another.
 It is the basis for inter-agent communication in MAIL.
-Over the wire, MAIL messages MUST exist as JSON strings; the authoritative data contract is defined by `MAILMessage` in [openapi.yaml](/spec/openapi.yaml).
+Over the wire, MAIL messages MUST exist as JSON strings; the authoritative data contract is defined by `MAILMessage` in [openapi.yaml](openapi.yaml).
 
 ### 7.1. Message IDs
 
@@ -198,11 +219,40 @@ Every MAIL message MUST contain a field for implementer-defined message metadata
 
 ## 8. Delivery
 
-TODO
+When a user-agent creates and sends a MAIL message, the new message is stored on the MAIL server, but is not yet delivered to the specified recipient(s).
+Said message MUST be delivered to its intended recipient(s) by an authorized MAIL daemon as described in [Section 5.3](#53-daemons).
+
+### 8.1. Pre-Send Errors
+
+If an authorized user-agent attempts to create a message with a malformed subject (per [Section 7.4](#74-message-subjects)), the desired message MUST NOT be created and the user-agent MUST be notified.
+If an authorized user-agent attempts to create a message with a malformed body (per [Section 7.5](#75-message-bodies)), the desired message MUST NOT be created and the user-agent MUST be notified.
+If an authorized user-agent's message contains one or more malformed MAIL addresses (per [Section 6](#6-addresses)), the message MUST NOT be delivered and the sending user-agent MUST be notified.
+
+### 8.2. Post-Send Errors
+
+If a valid MAIL message cannot be delivered to one or more intended recipients by an authorized daemon, the message MUST be preserved and the error SHOULD be logged by the daemon.
 
 ## 9. Security Considerations
 
-TODO
+### 9.1. MAIL Clients
+
+CLI client implementers SHOULD only accept user-agent credentials via environment variables rather than command-line arguments to avoid exposing secrets in shell history.
+Raw MAIL message contents SHOULD NOT be logged or stored by clients; if local message storage is necessary, implementers SHOULD encrypt messages to avoid exposing potentially-sensitive message content in plain text.
+
+### 9.2. MAIL Daemons
+
+CLI daemon implementers SHOULD only accept daemon credentials via environment variables rather than command-line arguments to avoid exposing secrets in shell history.
+MAIL message contents, while often managed by the daemon, SHOULD NOT be logged.
+
+### 9.3. MAIL Servers 
+
+[TLS][rfc-8446] SHOULD be used in deployment of production MAIL servers.
+Sensitive user-agent data (e.g. passwords or authentication tokens) SHOULD NOT be logged by the server.
+Production MAIL servers SHOULD be deployed behind a reverse proxy to handle tasks like load balancing and rate-limiting.
+
+### 9.4. MAIL User-Agents
+
+MAIL user-agents SHOULD update their passwords at regular intervals to minimize the risk of unauthorized account access.
 
 ## 10. Versioning
 
@@ -216,5 +266,7 @@ When a major protocol update occurs, the minor version MUST be reset to 0.
 
 - [rfc-2119]: https://datatracker.ietf.org/doc/html/rfc2119
 - [openclaw]: https://openclaw.ai/
+- [http-specs]: https://httpwg.org/specs/
 - [rfc-9562]: https://www.rfc-editor.org/info/rfc9562/
 - [rfc-3339]: https://datatracker.ietf.org/doc/html/rfc3339
+- [rfc-8446]: https://www.rfc-editor.org/info/rfc8446/
