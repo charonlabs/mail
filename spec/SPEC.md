@@ -1,4 +1,4 @@
-# Multi-Agent Interface Layer Specification
+# Multi-Agent Interface Layer (MAIL) Specification
 
 - **Version**: 2.0
 - **Date**: June 10, 2026
@@ -19,33 +19,46 @@
     - GitHub: [@jacobtohahn](https://github.com/jacobtohahn)
 
 ## Table of Contents
-* [Abstract](#abstract)
-* [Terminology](#terminology)
-  * [RFC 2119](#rfc-2119)
-* [Motivation](#motivation)
-  * [Goals for MAIL](#goals-for-mail)
-  * [What MAIL is not](#what-mail-is-not)
-* [Architecture Overview](#architecture-overview)
-* [User-Agents](#user-agents)
-  * [Admins](#admins)
-  * [Agents](#agents)
-  * [Daemons](#daemons)
-  * [Users](#users)
-* [Addressing](#addressing)
-* [References](#references)
+* [1 Abstract](#1-abstract)
+* [2 Requirements Language](#2-requirements-language)
+* [3 Motivation](#3-motivation)
+  * [3.1 Goals For MAIL](#31-goals-for-mail)
+  * [3.2 What MAIL Is Not](#32-what-mail-is-not)
+* [4 Architecture Overview](#4-architecture-overview)
+  * [4.1 MAIL Clients](#41-mail-clients)
+  * [4.2 MAIL Servers](#42-mail-servers)
+  * [4.3 MAIL Swarms](#43-mail-swarms)
+* [5 User-Agents](#5-user-agents)
+  * [5.1 Admins](#51-admins)
+  * [5.2 Agents](#52-agents)
+  * [5.3 Daemons](#53-daemons)
+  * [5.4 Users](#54-users)
+* [6 Addresses](#6-addresses)
+  * [6.1 Host-Scoped Addresses](#61-host-scoped-addresses)
+  * [6.2 Swarm-Scoped Addresses](#62-swarm-scoped-addresses)
+* [7 Messages](#7-messages)
+  * [7.1 Message IDs](#71-message-ids)
+  * [7.2 Senders](#72-senders)
+  * [7.3 Recipients](#73-recipients)
+  * [7.4 Message Subjects](#74-message-subjects)
+  * [7.5 Message Bodies](#75-message-bodies)
+  * [7.6 Timestamps](#76-timestamps)
+  * [7.7 Message Metadata](#77-message-metadata)
+* [8 Delivery](#8-delivery)
+* [9 Security Considerations](#9-security-considerations)
+* [10 Versioning](#10-versioning)
+* [11 References](#11-references)
 
-## Abstract
+## 1. Abstract
 
 The Multi-Agent Interface Layer (MAIL) is an open protocol that defines a text-based, email-like communication layer for human users and AI agents alike.
 More specifically, it defines a suite of data structure primitives, an HTTP contract for server-client interaction, and associated rules and terminology.
 
-## Terminology
-
-### RFC 2119
+## 2. Requirements Language
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this document are to be interpreted as described in [RFC 2119][rfc-2119].
 
-## Motivation
+## 3. Motivation
 
 In a world where AI agents are increasingly capable of handling long-running, complex tasks, the need for standardized contracts covering inter-agent communication is more palpable than ever.
 While MAIL v1 defined contracts for inter-agent messaging, it also defined strict standards for multi-agent systems in general, including their runtime environment and tool usage.
@@ -53,52 +66,155 @@ However, as of 2026, the flaws in this approach became readily apparent.
 The success of terminal-based agents like [OpenClaw][openclaw] demonstrates that AI agents no longer need to have their runtime and execution environments defined in the same place as their communication contract.
 As a result, MAIL v2 much more explicitly covers the communication layer between AI agents, and as little as possible beyond that.
 
-### Goals for MAIL
+### 3.1. Goals For MAIL
 
-- **Focus on communication.** MAIL is, at its core, a communication protocol. Areas outside the scope of communication (agent runtime, tool execution, etc.) need not be defined and handled by MAIL itself.
-- **Don't reinvent the wheel.** MAIL need not define contracts for areas outside the scope of inter-agent communication. There are plenty of existing standards covering topics like server-client communication, authentication, and data formatting that make more sense to use and build off of rather than replace altogether.
+- **Focus on communication.** MAIL is, at its core, a communication protocol. Areas outside the scope of communication (agent runtime, tool execution, etc.) SHOULD NOT be defined and handled by MAIL itself.
+- **Don't reinvent the wheel.** There are plenty of existing standards covering topics like server-client communication, authentication, data formatting, and more. MAIL SHOULD NOT define contracts for such topics when standards already exist and can be built off of.
 
-### What MAIL is not
+### 3.2. What MAIL Is Not
 
 - **MAIL is not an agent runtime.** Rather than impose restrictions on how AI agents can exist and act autonomously, MAIL focuses explicitly on the communication layer between multiple agents.
 - **MAIL is not a monolithic standard for all inter-agent communication.** MAIL is designed to mirror email and its associated standards that have existed for decades. However, just as humans can digitally communicate by means beyond just email, AI agents are by no means required to use MAIL for *all* inter-agent communication. Just like humans, AI agents want to use the best tool for the job, whatever that may be.
 
-## Architecture Overview
+## 4. Architecture Overview
 
 MAIL defines a standard for email-like communication between AI agents and human users alike by allowing user-agents to compose and send messages to one another.
 Like in modern email, MAIL user-agents have their own addresses and associated inboxes where messages sent to them can be delivered.
 The MAIL server is in charge of managing user-agent authentication, message boxes, drafts, and the first and last stages of message delivery.
 Message delivery is handled largely by MAIL daemons, rather than the server itself.
 
-## User-Agents
+### 4.1. MAIL Clients
+
+TODO
+
+### 4.2. MAIL Servers
+
+TODO
+
+### 4.3. MAIL Swarms
+
+TODO
+
+## 5. User-Agents
 
 A MAIL user-agent is an authorized client communicating with a specified MAIL server.
 This category encompasses both human users and AI agents, as well as autonomous daemons tasked with message delivery.
 
-### Admins
+### 5.1. Admins
 
 A MAIL admin is a user-agent with server-level administrator privileges beyond those of other user-agent types.
 Admins MAY use all the same MAIL server functionalities that agents and users can.
 Implementers SHOULD exercise extreme caution when generating and handing out admin credentials.
 
-### Agents
+### 5.2. Agents
 
 A MAIL agent is a user-agent category reserved for AI agents.
 Agents MAY compose and send messages to other user-agents, 
 
-### Daemons
+### 5.3. Daemons
 
 TODO
 
-### Users
+### 5.4. Users
 
 TODO
 
-## Addressing
+## 6. Addresses
+
+A MAIL address is a unique identifying string for a given user-agent or delivery target.
+Depending on the type of user-agent or delivery target, a MAIL address MUST be either host-scoped or swarm-scoped.
+
+### 6.1. Host-Scoped Addresses
+
+Host-scoped addresses are MAIL addresses defined at the level of the MAIL server, rather than a server-owned swarm.
+These follow the format `{ua_type}:{ua_id}@{host}`, where:
+- **ua_type**: The user-agent type. MUST be one of `admin`, `daemon`, `user`.
+- **ua_id**: The user-agent's unique ID. See below for more info.
+- **host**: The domain name of the MAIL server host, e.g. `example.com`. For the sake of brevity and readability, fully-qualified domain names (e.g. `mail.example.com`) SHOULD be avoided.
+
+All MAIL admins MUST have an address following the format `admin:{admin_id}@{host}`, where:
+- **admin_id**: The unique identifier of a given MAIL server administrator. This value MUST be unique within a given MAIL server, i.e., no other admins have this same ID. This value MUST be a slug string. It MUST be at least 1 character in length, and SHOULD be no longer than 32 characters in total.
+- **host**: See definition above.
+
+All MAIL daemons MUST have an address following the format `daemon:{worker_name}@{host}`, where:
+- **worker_name**: The unique identifier of a given MAIL server daemon. This value MUST be unique within a given MAIL server, i.e., no other daemons have this same worker name. This value MUST be a slug string. It MUST be at least 1 character in length, and SHOULD be no longer than 32 characters in total.
+- **host**: See definition above.
+
+All MAIL users MUST have an address following the format `user:{user_id}@{host}`, where:
+- **user_id**: The unique identifier of a given MAIL server user. This value MUST be unique within a given MAIL server, i.e., no other users have this same ID. This value MUST be a slug string. It MUST be at least 1 character in length, and SHOULD be no longer than 32 characters in total.
+- **host**: See definition above.
+
+### 6.2. Swarm-Scoped Addresses
+
+Swarm-scoped addresses are MAIL addresses defined at the level of a swarm existing inside a MAIL server.
+These follow the format `{address_id}@{swarm}@{host}`, where:
+- **address_id**: The unique identifier of a given MAIL swarm address. MUST be one of `{agent}`, `list:{list_id}` (see below for more info).
+- **swarm**: The name of the swarm on a given MAIL server. This value MUST be unique, i.e., no other swarms on this server have this same name. This value MUST be a slug string. It MUST be at least 1 character in length, and SHOULD be no longer than 32 characters in total.
+- **host**: See definition above.
+
+All MAIL agents MUST have an address following the format `{agent}@{swarm}@{host}`, where:
+- **agent**: The identifier of a given agent within a MAIL swarm. This value MUST be unique within a swarm, but MAY be shared by one or more agents on different swarms (e.g., `supervisor@swarm-1@example.com` and `supervisor@swarm-2@example.com` can coexist). This value MUST be a slug string. It MUST be at least 1 character in length, and SHOULD be no longer than 32 characters in total.
+- **swarm**: See definition above.
+- **host**: See definition above.
+
+All MAIL mailing lists MUST have an address following the format `list:{list_id}@{swarm}@{host}`, where:
+- **list_id**: The identifier of a given mailing list within a MAIL swarm. This value MUST be unique within a swarm, but MAY be shared by one or more lists on different swarms (e.g., `list:all@swarm-1@example.com` and `list:all@swarm-2@example.com` can coexist). This value MUST be a slug string. It MUST be at least 1 character in length, and SHOULD be no longer than 32 characters in total.
+- **swarm**: See definition above.
+- **host**: See definition above.
+
+## 7. Messages
+
+A MAIL message is an atomic unit of data that can be delivered from one MAIL address to another.
+It is the basis for inter-agent communication in MAIL.
+Over the wire, MAIL messages MUST exist as JSON strings; the authoritative data contract is defined by `MAILMessage` in [openapi.yaml](/spec/openapi.yaml).
+
+### 7.1. Message IDs
+
+Every MAIL message MUST have a unique identifier string, keyed by `message_id`. This value MUST be a [UUID][rfc-9562]. Message IDs SHOULD be generated upon message creation.
+
+### 7.2. Senders
+
+Every MAIL message MUST contain the address string of its sender, keyed by `sender`. This value MUST be a valid MAIL address per [Section 6](#6-addresses).
+
+### 7.3. Recipients
+
+Every MAIL message MUST contain the intended recipient address(es) determined by its sender, keyed by `recipients`. This array value MUST contain at least 1 entry. Each entry MUST be a valid MAIL address per [Section 6](#6-addresses).
+
+### 7.4. Message Subjects
+
+Every MAIL message MUST contain the subject string determined by its sender, keyed by `subject`. This value MUST be at least 1 character long, and SHOULD be no longer than 256 characters in total.
+
+### 7.5. Message Bodies
+
+Every MAIL message MUST contain the body string determined by its sender, keyed by `body`. This value MUST be at least 1 character long. No maximum character length is enforced by this spec; implementers SHOULD decide on their own limit to enforce (the reference implementation uses a body size limit of 65535 characters).
+
+### 7.6. Timestamps
+
+Every MAIL message MUST contain the timestamp string of the time it was sent by its sender, keyed by `sent_at`. This value MUST be a UTC timestamp as defined by [RFC 3339][rfc-3339].
+
+### 7.7. Message Metadata
+
+Every MAIL message MUST contain a field for implementer-defined message metadata, defined by `metadata`. This value MAY be an empty object (`{}`). Implementer-defined message data MUST be stored in the `metadata` field, rather than in the top level of the `MAILMessage` object itself.
+
+## 8. Delivery
 
 TODO
 
-## References
+## 9. Security Considerations
+
+TODO
+
+## 10. Versioning
+
+All versions of the MAIL protocol MUST follow the format `{major}.{minor}`, where:
+- **major**: The major protocol version. This value MUST be a positive integer. Major protocol changes MUST increment this value by 1.
+- **minor**: The minor protocol version. This value MUST be an integer greater than or equal to 0. Minor (i.e. non-breaking) protocol changes MUST increment this value by 1.
+
+When a major protocol update occurs, the minor version MUST be reset to 0.
+
+## 11. References
 
 - [rfc-2119]: https://datatracker.ietf.org/doc/html/rfc2119
 - [openclaw]: https://openclaw.ai/
+- [rfc-9562]: https://www.rfc-editor.org/info/rfc9562/
+- [rfc-3339]: https://datatracker.ietf.org/doc/html/rfc3339
