@@ -14,6 +14,7 @@ from mail_protocol.core.validators import (
     validate_mail_address,
     validate_mail_addresses,
     validate_message_body,
+    validate_message_recipients,
     validate_message_subject,
     validate_swarm_description,
     validate_swarm_keywords,
@@ -65,7 +66,7 @@ class DraftSendPostRequest(BaseModel):
     Contains relevant information for sending an existing draft as a MAIL message.
     """
 
-    recipients: Annotated[list[str], AfterValidator(validate_mail_addresses)]
+    recipients: Annotated[list[str], AfterValidator(validate_message_recipients)]
 
 
 #

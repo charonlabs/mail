@@ -1,17 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
-
-# mail_server.auth checks MAIL_JWT_* env vars at import time. The
-# values are inert for these tests; set placeholders before any
-# mail_server.* import so collection succeeds.
-os.environ.setdefault("MAIL_JWT_SECRET_KEY", "test-secret-not-used")
-os.environ.setdefault("MAIL_JWT_ALGORITHM", "HS256")
 
 import pytest
 from mail_protocol.core.lists import MAILListInBackend, MAILListPolicy
@@ -24,9 +17,8 @@ from mail_protocol.core.user_agents import (
 )
 from mail_protocol.core.webhooks import MAILWebhook
 from mail_protocol.network.requests import DaemonDeliverLocalRequest
-from mail_server.auth import get_password_hash  # noqa: E402
-from mail_server.backends.memory import fs as memory_fs  # noqa: E402
-from mail_server.backends.memory.api import MemoryBackend  # noqa: E402
+from mail_server.auth import get_password_hash
+from mail_server.backends.memory.api import MemoryBackend
 
 HOST = "localhost"
 SWARM = "chorus"
@@ -34,33 +26,6 @@ SENDER = f"sender@{SWARM}@{HOST}"
 ALICE = f"alice@{SWARM}@{HOST}"
 BOB = f"bob@{SWARM}@{HOST}"
 LIST_ADDRESS = f"list:welfare-discourse@{SWARM}@{HOST}"
-
-
-@pytest.fixture
-def deployment_dir(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Path:
-    deployment = tmp_path / "deployment"
-    for subdir in (
-        "user_agents",
-        "swarms",
-        "messages",
-        "inbox_entries",
-        "inboxes",
-        "outbox_entries",
-        "outboxes",
-        "draft_entries",
-        "drafts",
-        "trash_entries",
-        "trashes",
-        "webhooks",
-        "lists",
-    ):
-        (deployment / subdir).mkdir(parents=True, exist_ok=True)
-    (deployment / "message_buffer.lock").touch()
-    monkeypatch.setattr(memory_fs, "DEPLOYMENT_PATH", deployment)
-    return deployment
 
 
 def _agent(name: str) -> MAILUserAgentInBackend:

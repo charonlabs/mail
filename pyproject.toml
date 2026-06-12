@@ -84,13 +84,30 @@ exclude = [
 [tool.mypy]
 ignore_missing_imports=true
 
+[tool.coverage.run]
+# Scope coverage to the v2 packages; run with `uv run pytest --cov`.
+source_pkgs = [
+    "mail_protocol",
+    "mail_server",
+    "mail_client",
+    "mail_daemon",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# Ratchet: raise as coverage grows; never lower (docs/testing-plan.md §7).
+fail_under = 65
+
 [dependency-groups]
 dev = [
     "mypy>=1.17.1",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=7.0.0",
+    "PyYAML>=6.0.2",
     "referencing>=0.36.2",
+    "respx>=0.23.1",
     "ruff>=0.12.12",
     "tqdm>=4.67.1",
 ]

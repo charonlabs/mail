@@ -17,7 +17,10 @@ from mail_protocol.network.requests import (
     DraftSendPostRequest,
     ListMemberPostRequest,
 )
-from pydantic import ValidationError
+
+# NOTE: the except clauses below catch ValueError, which covers both
+# pydantic.ValidationError and json.JSONDecodeError — an unparseable
+# body must 422 the same way an invalid one does.
 
 
 #
@@ -31,7 +34,7 @@ async def validate_post_draft_request(request: Request) -> DraftPostRequest:
     try:
         body = await request.json()
         return DraftPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -45,7 +48,7 @@ async def validate_post_draft_send_request(request: Request) -> DraftSendPostReq
     try:
         body = await request.json()
         return DraftSendPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -64,7 +67,7 @@ async def validate_deliver_local_request(
     try:
         body = await request.json()
         return DaemonDeliverLocalRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -83,7 +86,7 @@ async def validate_admin_post_agent_request(
     try:
         body = await request.json()
         return AdminAgentPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -99,7 +102,7 @@ async def validate_admin_post_daemon_request(
     try:
         body = await request.json()
         return AdminDaemonPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -115,7 +118,7 @@ async def validate_admin_post_user_request(
     try:
         body = await request.json()
         return AdminUserPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -131,7 +134,7 @@ async def validate_admin_post_swarm_request(
     try:
         body = await request.json()
         return AdminSwarmPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -147,7 +150,7 @@ async def validate_admin_webhook_post_request(
     try:
         body = await request.json()
         return AdminWebhooksPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -163,7 +166,7 @@ async def validate_admin_webhook_patch_request(
     try:
         body = await request.json()
         return AdminWebhooksPatchRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -179,7 +182,7 @@ async def validate_admin_post_list_request(
     try:
         body = await request.json()
         return AdminListPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -195,7 +198,7 @@ async def validate_admin_patch_list_request(
     try:
         body = await request.json()
         return AdminListPatchRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -212,7 +215,7 @@ async def validate_list_member_post_request(
     try:
         body = await request.json()
         return ListMemberPostRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )
@@ -231,7 +234,7 @@ async def validate_auth_password_reset_request(
     try:
         body = await request.json()
         return AuthPasswordResetRequest.model_validate(body)
-    except ValidationError as e:
+    except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"
         )

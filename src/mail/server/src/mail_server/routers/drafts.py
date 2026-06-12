@@ -91,9 +91,14 @@ async def post_draft_send(request: Request) -> DraftSendPostResponse:
     user_agent = await validate_user_agent(backend=backend, request=request)
     payload = await validate_post_draft_send_request(request)
     draft_id = request.path_params.get("draft_id")
-    result = await backend.send_draft(
-        user_agent=user_agent, draft_id=draft_id, payload=payload
-    )
+    try:
+        result = await backend.send_draft(
+            user_agent=user_agent, draft_id=draft_id, payload=payload
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail=f"draft with ID {draft_id} not found"
+        )
     return DraftSendPostResponse(
         message=result,
         metadata={},

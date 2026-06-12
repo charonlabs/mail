@@ -6,6 +6,11 @@ The old MAIL v1 reference implementation docs have been archived under
 `src/mail/legacy/docs/`. Use those archived docs only when maintaining or
 studying the legacy runtime.
 
+## Repository-Level Docs
+
+- [`testing-plan.md`](testing-plan.md) - v2 testing suite overhaul plan
+  (categories, phases, conventions)
+
 ## Active Package Docs
 
 - `src/mail/protocol/README.md` - protocol package documentation

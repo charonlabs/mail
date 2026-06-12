@@ -3,7 +3,6 @@
 
 import re
 import uuid
-from urllib.parse import urlsplit
 
 import validators
 
@@ -145,6 +144,20 @@ def validate_mail_addresses(addresses: list[str]) -> list[str]:
         validate_mail_address(addr)
 
     return addresses
+
+
+def validate_message_recipients(addresses: list[str]) -> list[str]:
+    """
+    Ensure that the given list is a valid MAIL message recipients value:
+    at least 1 entry (SPEC.md §7.3), each a valid MAIL address.
+
+    Distinct from ``validate_mail_addresses``, which permits an empty
+    list (e.g. a MAIL list with no members yet).
+    """
+
+    if len(addresses) < 1:
+        raise ValueError("message recipients must contain at least 1 entry")
+    return validate_mail_addresses(addresses)
 
 
 def validate_local_address(address: str) -> str:
@@ -376,12 +389,15 @@ def validate_webhook_event_types(events: list[str]) -> list[str]:
 
 def validate_url(url: str) -> str:
     """
-    Ensure that the given string is a valid URL.
+    Ensure that the given string is a valid http(s) URL.
+
+    ``simple_host=True`` permits single-label hosts like ``localhost``,
+    which are common for local webhook receivers.
     """
 
-    try:
-        urlsplit(url)
-    except Exception:
+    if not url.startswith(("http://", "https://")):
+        raise ValueError(f"invalid URL (must be http or https): {url}")
+    if not validators.url(url, simple_host=True):
         raise ValueError(f"invalid URL: {url}")
 
     return url

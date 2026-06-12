@@ -123,6 +123,11 @@ def init_memory_backend(
     WEBHOOKS_PATH.mkdir(exist_ok=True)
     print(f"ensured deployment webhooks: {WEBHOOKS_PATH}")
 
+    # ~/.mail-swarms/deployments/{deployment}/lists
+    LISTS_PATH = DEPLOYMENT_PATH.joinpath("lists")
+    LISTS_PATH.mkdir(exist_ok=True)
+    print(f"ensured deployment lists: {LISTS_PATH}")
+
     # write swarm file
     SWARM_PATH = SWARMS_PATH.joinpath(swarm)
     with open(SWARM_PATH, "w") as swarm_file:

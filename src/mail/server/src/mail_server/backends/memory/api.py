@@ -1214,9 +1214,9 @@ class MemoryBackend(MAILServerBackend):
 
         Validates the recipient address against the registered
         user-agents, appends the inbox-entry id to that recipient's
-        inbox list, and fires ``mail.delivered`` webhooks. Unknown
-        recipients are logged and skipped rather than aborting the
-        wider delivery.
+        inbox list, and fires ``mail.delivered`` webhooks (agent
+        recipients only). Unknown recipients are logged and skipped
+        rather than aborting the wider delivery.
         """
 
         try:
@@ -1227,6 +1227,18 @@ class MemoryBackend(MAILServerBackend):
             return
 
         self.inboxes[ua_address].append(inbox_entry.message_id)
+
+        # `mail.delivered` webhooks are agent-scoped at v1: the payload's
+        # required swarm field only exists for swarm-scoped addresses.
+        # Host-scoped recipients (user:/admin:/daemon:) receive mail
+        # without firing webhooks.
+        if user_agent.user_agent.ua_type != "agent":
+            logger.debug(
+                f"skipping `mail.delivered` webhooks for non-agent "
+                f"recipient {address}"
+            )
+            return
+
         await self._handle_webhook_delivered(
             recipient=address,
             message=message,

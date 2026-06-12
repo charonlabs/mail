@@ -8,6 +8,8 @@ from mail_protocol.network.responses import (
     SwarmsGetResponse,
 )
 
+from mail_server.auth import validate_user_agent
+
 router = APIRouter(prefix="/swarms", tags=["swarms"])
 
 
@@ -18,6 +20,7 @@ router = APIRouter(prefix="/swarms", tags=["swarms"])
 )
 async def get_swarms(request: Request) -> SwarmsGetResponse:
     backend = request.app.state.backend
+    await validate_user_agent(backend=backend, request=request)
     result = await backend.get_swarms()
 
     return SwarmsGetResponse(
@@ -33,6 +36,7 @@ async def get_swarms(request: Request) -> SwarmsGetResponse:
 )
 async def get_swarm(request: Request) -> SwarmGetResponse:
     backend = request.app.state.backend
+    await validate_user_agent(backend=backend, request=request)
     swarm_name = request.path_params.get("swarm_name")
     try:
         result = await backend.get_swarm(swarm_name=swarm_name)
@@ -54,6 +58,7 @@ async def get_swarm(request: Request) -> SwarmGetResponse:
 )
 async def get_swarm_health(request: Request) -> SwarmHealthGetResponse:
     backend = request.app.state.backend
+    await validate_user_agent(backend=backend, request=request)
     swarm_name = request.path_params.get("swarm_name")
     try:
         await backend.get_swarm_health(swarm_name=swarm_name)

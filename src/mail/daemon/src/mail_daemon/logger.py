@@ -50,6 +50,7 @@ def init_logger(
         "daemon_logs",
         f"{today_str}.log",
     )
+    log_filepath.parent.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
     # file handler

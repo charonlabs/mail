@@ -1,55 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
-import os
 from datetime import UTC, datetime
-from pathlib import Path
-
-# mail_server.auth checks these env vars at import time; these tests do not
-# exercise JWT behavior.
-os.environ.setdefault("MAIL_JWT_SECRET_KEY", "test-secret-not-used")
-os.environ.setdefault("MAIL_JWT_ALGORITHM", "HS256")
 
 import pytest
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.trash import MAILTrashEntry
 from mail_protocol.core.user_agents import MAILUser, MAILUserAgent
-from mail_server.backends.memory import fs as memory_fs  # noqa: E402
-from mail_server.backends.memory.api import MemoryBackend  # noqa: E402
-
-
-@pytest.fixture
-def deployment_dir(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Path:
-    deployment = tmp_path / "deployment"
-    for subdir in (
-        "user_agents",
-        "swarms",
-        "messages",
-        "inbox_entries",
-        "inboxes",
-        "outbox_entries",
-        "outboxes",
-        "draft_entries",
-        "drafts",
-        "trash_entries",
-        "trashes",
-        "webhooks",
-        "lists",
-    ):
-        (deployment / subdir).mkdir(parents=True, exist_ok=True)
-    (deployment / "message_buffer.lock").touch()
-    monkeypatch.setattr(memory_fs, "DEPLOYMENT_PATH", deployment)
-    return deployment
-
-
-@pytest.fixture
-async def backend(deployment_dir: Path) -> MemoryBackend:
-    instance = MemoryBackend()
-    await instance.on_server_startup(host="localhost")
-    return instance
+from mail_server.backends.memory.api import MemoryBackend
 
 
 def _make_user_agent() -> MAILUserAgent:
