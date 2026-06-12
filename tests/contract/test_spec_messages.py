@@ -69,14 +69,6 @@ def test_each_recipient_must_be_valid_address() -> None:
         make_message(recipients=["sage@chorus@localhost", "not an address"])
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SPEC GAP: §7.3 says recipients MUST contain at least 1 entry, "
-        "but validate_mail_addresses passes vacuously for an empty list, "
-        "so the implementation accepts a recipient-less message."
-    ),
-)
 def test_recipients_must_not_be_empty() -> None:
     """§7.3: recipients MUST contain at least 1 entry."""
 
@@ -96,7 +88,7 @@ def test_subject_must_not_be_empty() -> None:
 
 def test_subject_length_bound() -> None:
     """§7.4: subject SHOULD be no longer than 256 characters. The
-    reference implementation enforces MESSAGE_SUBJECT_LEN_MAX (255) as
+    reference implementation enforces MESSAGE_SUBJECT_LEN_MAX (256) as
     a hard cap."""
 
     assert make_message(subject="s" * MESSAGE_SUBJECT_LEN_MAX)

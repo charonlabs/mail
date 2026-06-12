@@ -147,6 +147,20 @@ def validate_mail_addresses(addresses: list[str]) -> list[str]:
     return addresses
 
 
+def validate_message_recipients(addresses: list[str]) -> list[str]:
+    """
+    Ensure that the given list is a valid MAIL message recipients value:
+    at least 1 entry (SPEC.md §7.3), each a valid MAIL address.
+
+    Distinct from ``validate_mail_addresses``, which permits an empty
+    list (e.g. a MAIL list with no members yet).
+    """
+
+    if len(addresses) < 1:
+        raise ValueError("message recipients must contain at least 1 entry")
+    return validate_mail_addresses(addresses)
+
+
 def validate_local_address(address: str) -> str:
     """
     Ensure that the given string is a valid MAIL local agent address (agent@swarm).

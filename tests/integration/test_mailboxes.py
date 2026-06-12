@@ -4,6 +4,7 @@
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
+from mail_protocol.core.constants import MESSAGE_SUBJECT_LEN_MAX
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.trash import MAILTrashEntry
 from mail_server.backends.memory.api import MemoryBackend
@@ -161,7 +162,7 @@ def test_post_draft_rejects_overlong_subject(
 ) -> None:
     response = app_client.post(
         "/drafts/",
-        json={"subject": "s" * 256, "body": "A body"},
+        json={"subject": "s" * (MESSAGE_SUBJECT_LEN_MAX + 1), "body": "A body"},
         headers=headers_for(USER),
     )
     assert response.status_code == 422
@@ -238,6 +239,26 @@ def test_send_draft_creates_message_and_buffers_it(
     assert message["subject"] == "Outgoing"
     assert message["message_id"] != draft_id
     assert message["message_id"] in backend.message_buffer
+
+
+def test_send_draft_rejects_empty_recipients(
+    app_client: TestClient, headers_for
+) -> None:
+    """SPEC.md §7.3: recipients MUST contain at least 1 entry."""
+
+    response = app_client.post(
+        "/drafts/",
+        json={"subject": "Outgoing", "body": "Payload"},
+        headers=headers_for(USER),
+    )
+    draft_id = response.json()["entry"]["draft"]["draft_id"]
+
+    response = app_client.post(
+        f"/drafts/{draft_id}/send",
+        json={"recipients": []},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 422
 
 
 def test_send_draft_rejects_invalid_recipients(

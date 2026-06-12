@@ -8,8 +8,8 @@ from pydantic import AfterValidator, BaseModel
 
 from mail_protocol.core.validators import (
     validate_mail_address,
-    validate_mail_addresses,
     validate_message_body,
+    validate_message_recipients,
     validate_message_subject,
     validate_uuid,
 )
@@ -22,7 +22,7 @@ class MAILMessageSummary(BaseModel):
 
     message_id: Annotated[str, AfterValidator(validate_uuid)]
     sender: Annotated[str, AfterValidator(validate_mail_address)]
-    recipients: Annotated[list[str], AfterValidator(validate_mail_addresses)]
+    recipients: Annotated[list[str], AfterValidator(validate_message_recipients)]
     subject: Annotated[str, AfterValidator(validate_message_subject)]
     body_size: int
     sent_at: datetime
@@ -35,7 +35,7 @@ class MAILMessage(BaseModel):
 
     message_id: Annotated[str, AfterValidator(validate_uuid)]
     sender: Annotated[str, AfterValidator(validate_mail_address)]
-    recipients: Annotated[list[str], AfterValidator(validate_mail_addresses)]
+    recipients: Annotated[list[str], AfterValidator(validate_message_recipients)]
     subject: Annotated[str, AfterValidator(validate_message_subject)]
     body: Annotated[str, AfterValidator(validate_message_body)]
     sent_at: datetime
