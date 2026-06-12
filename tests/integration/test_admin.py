@@ -267,7 +267,7 @@ def test_post_swarm_creates(app_client: TestClient, headers_for) -> None:
     assert response.status_code == 200
     assert response.json()["swarm"]["name"] == "ensemble"
 
-    response = app_client.get("/swarms/ensemble")
+    response = app_client.get("/swarms/ensemble", headers=headers_for(ADMIN))
     assert response.status_code == 200
 
 
@@ -288,7 +288,7 @@ def test_delete_swarm_removes(app_client: TestClient, headers_for) -> None:
     )
     assert response.status_code == 200
 
-    response = app_client.get(f"/swarms/{SWARM}")
+    response = app_client.get(f"/swarms/{SWARM}", headers=headers_for(ADMIN))
     assert response.status_code == 404
 
 
