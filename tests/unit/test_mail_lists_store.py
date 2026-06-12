@@ -3,16 +3,8 @@
 
 import asyncio
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
-
-# mail_server.auth checks MAIL_JWT_SECRET_KEY and MAIL_JWT_ALGORITHM at
-# import time. The values are irrelevant for these tests (they never
-# exercise the JWT path); set placeholders before any mail_server.* import
-# so collection succeeds.
-os.environ.setdefault("MAIL_JWT_SECRET_KEY", "test-secret-not-used")
-os.environ.setdefault("MAIL_JWT_ALGORITHM", "HS256")
 
 import pytest
 from mail_protocol.core.lists import MAILListInBackend, MAILListPolicy
@@ -21,47 +13,10 @@ from mail_protocol.network.requests import (
     AdminListPatchRequest,
     AdminListPostRequest,
 )
-from mail_server.backends.memory import fs as memory_fs  # noqa: E402
-from mail_server.backends.memory.api import MemoryBackend  # noqa: E402
+from mail_server.backends.memory import fs as memory_fs
+from mail_server.backends.memory.api import MemoryBackend
 
 # ─── fs persistence ─────────────────────────────────────────────────
-
-
-@pytest.fixture
-def deployment_dir(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Path:
-    """
-    Redirect the memory backend's filesystem persistence into a tmp dir.
-
-    The backend hard-codes ``~/.mail-swarms/deployments/default`` as the
-    on-disk root; tests monkeypatch ``memory_fs.DEPLOYMENT_PATH`` so the
-    write paths land somewhere isolated. Sub-dirs that the backend
-    expects on startup are pre-created here for parity with how
-    ``mail server`` provisions its own filesystem.
-    """
-    deployment = tmp_path / "deployment"
-    for subdir in (
-        "user_agents",
-        "swarms",
-        "messages",
-        "inbox_entries",
-        "inboxes",
-        "outbox_entries",
-        "outboxes",
-        "draft_entries",
-        "drafts",
-        "trash_entries",
-        "trashes",
-        "webhooks",
-        "lists",
-    ):
-        (deployment / subdir).mkdir(parents=True, exist_ok=True)
-    (deployment / "message_buffer.lock").touch()
-
-    monkeypatch.setattr(memory_fs, "DEPLOYMENT_PATH", deployment)
-    return deployment
 
 
 def _seed_list(deployment_dir: Path) -> MAILListInBackend:
@@ -140,13 +95,6 @@ async def test_save_lists_round_trips_via_load(deployment_dir: Path) -> None:
 
 
 # ─── MemoryBackend storage methods ─────────────────────────────────
-
-
-@pytest.fixture
-async def backend(deployment_dir: Path) -> MemoryBackend:
-    instance = MemoryBackend()
-    await instance.on_server_startup(host="localhost")
-    return instance
 
 
 def _make_admin() -> MAILAdmin:

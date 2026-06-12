@@ -1,15 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
-import os
 from datetime import UTC, datetime
-from pathlib import Path
-
-# mail_server.auth checks MAIL_JWT_* env vars at import time. The
-# values are inert for these tests; set placeholders so the auth
-# module can be imported.
-os.environ.setdefault("MAIL_JWT_SECRET_KEY", "test-secret-not-used")
-os.environ.setdefault("MAIL_JWT_ALGORITHM", "HS256")
 
 import pytest
 from fastapi import FastAPI
@@ -20,41 +12,12 @@ from mail_protocol.core.user_agents import (
     MAILUser,
     MAILUserAgent,
 )
-from mail_server import auth as mail_auth  # noqa: E402
-from mail_server.backends.memory import fs as memory_fs  # noqa: E402
-from mail_server.backends.memory.api import MemoryBackend  # noqa: E402
-from mail_server.routers import lists as lists_router  # noqa: E402
+from mail_server.backends.memory.api import MemoryBackend
+from mail_server.routers import lists as lists_router
 
 ADMIN_ADDRESS = "admin:ryan@localhost"
 USER_ADDRESS = "user:ryan@localhost"
 OTHER_USER_ADDRESS = "user:alice@localhost"
-
-
-@pytest.fixture
-def deployment_dir(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Path:
-    deployment = tmp_path / "deployment"
-    for subdir in (
-        "user_agents",
-        "swarms",
-        "messages",
-        "inbox_entries",
-        "inboxes",
-        "outbox_entries",
-        "outboxes",
-        "draft_entries",
-        "drafts",
-        "trash_entries",
-        "trashes",
-        "webhooks",
-        "lists",
-    ):
-        (deployment / subdir).mkdir(parents=True, exist_ok=True)
-    (deployment / "message_buffer.lock").touch()
-    monkeypatch.setattr(memory_fs, "DEPLOYMENT_PATH", deployment)
-    return deployment
 
 
 def _admin_user_agent() -> MAILUserAgent:
@@ -85,13 +48,6 @@ def _other_user_agent() -> MAILUserAgent:
             host="localhost",
         )
     )
-
-
-@pytest.fixture
-async def backend(deployment_dir: Path) -> MemoryBackend:
-    instance = MemoryBackend()
-    await instance.on_server_startup(host="localhost")
-    return instance
 
 
 @pytest.fixture
@@ -436,17 +392,24 @@ def test_subscribe_self(
     assert USER_ADDRESS in backend.lists[address].members
 
 
-def test_subscribe_other_rejected_with_403(
+def test_subscribe_ignores_supplied_member_address(
     client: TestClient,
     backend: MemoryBackend,
 ) -> None:
+    """
+    Subscribe is body-less: only the authenticated caller is ever
+    subscribed, so a request body naming another user-agent must have
+    no effect on the member list.
+    """
     address = _seed_list(backend)
     response = client.post(
         f"/lists/{address}/subscribe",
         json={"member_address": OTHER_USER_ADDRESS},
         headers=_user_headers(),
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert USER_ADDRESS in backend.lists[address].members
+    assert OTHER_USER_ADDRESS not in backend.lists[address].members
 
 
 def test_subscribe_missing_list_returns_404(client: TestClient) -> None:
@@ -490,6 +453,3 @@ def test_unsubscribe_uses_authenticated_user(
     assert response.status_code == 200
     assert USER_ADDRESS in backend.lists[address].members
     assert OTHER_USER_ADDRESS not in backend.lists[address].members
-
-
-_ = mail_auth  # silence the import-for-side-effect note
