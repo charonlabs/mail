@@ -135,6 +135,31 @@ def test_validate_webhook_event_types_checks_every_entry() -> None:
         v.validate_webhook_event_types(["mail.delivered", "mail.exploded"])
 
 
+# ─── URLs ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://example.com/hook",
+        "https://hooks.example.com/mail-events?key=value",
+        "http://localhost:8000/hook",
+        "http://127.0.0.1:8000/hook",
+    ],
+)
+def test_validate_url_accepts_http_urls(value: str) -> None:
+    assert v.validate_url(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "not a url", "example.com/hook", "ftp://example.com", "https://"],
+)
+def test_validate_url_rejects_non_http_urls(value: str) -> None:
+    with pytest.raises(ValueError):
+        v.validate_url(value)
+
+
 # ─── hosts ─────────────────────────────────────────────────────────
 
 
