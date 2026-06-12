@@ -77,6 +77,22 @@ from mail_server.backends.memory.fs import (
 logger = logging.getLogger(__name__)
 
 
+def _is_agent_recipient(address: str) -> bool:
+    """
+    Return True iff ``address`` is an *agent* address.
+
+    Agent addresses are ``name@swarm@host`` (three @-segments). User,
+    admin, and daemon addresses are ``prefix:name@host`` (two
+    @-segments). List addresses (``list:name@swarm@host``) also have
+    three segments but are routed via fan-out, not direct delivery —
+    they shouldn't reach the webhook firing path, but the explicit
+    ``list:`` exclusion is defensive.
+    """
+    if address.startswith(f"{LIST_ADDRESS_PREFIX}:"):
+        return False
+    return address.count("@") == 2
+
+
 class MemoryBackend(MAILServerBackend):
     """
     A generic base class for the MAIL server backend.
@@ -1156,10 +1172,22 @@ class MemoryBackend(MAILServerBackend):
         """
         Handle all `mail.delivered` webhooks.
 
+        Webhooks are only fired for *agent* recipients —
+        ``name@swarm@host`` shaped addresses. Non-agent recipients
+        (users, admins, daemons; addresses like ``admin:ryan@chrn.ai``)
+        don't have a downstream conduit listener; they read mail via
+        MAIL's CLI/UI directly. Firing for them also crashes inside
+        ``_webhook_delivered_post`` because the payload's ``swarm`` is
+        derived from ``recipient.split("@")[1]``, which is the host
+        for a 2-segment address and fails ``validate_swarm_name``.
+
         ``list_address`` is set when the delivery originated from a
         list expansion; the webhook receiver uses it to surface the
         originating list to the recipient.
         """
+
+        if not _is_agent_recipient(recipient):
+            return
 
         for url, webhook in self.webhooks.items():
             if "mail.delivered" in webhook.events:

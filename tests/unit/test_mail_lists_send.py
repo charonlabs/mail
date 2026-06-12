@@ -22,6 +22,7 @@ from mail_protocol.core.user_agents import (
     MAILAgent,
     MAILUserAgentInBackend,
 )
+from mail_protocol.core.webhooks import MAILWebhook
 from mail_protocol.network.requests import DaemonDeliverLocalRequest
 from mail_server.auth import get_password_hash  # noqa: E402
 from mail_server.backends.memory import fs as memory_fs  # noqa: E402
@@ -306,3 +307,64 @@ async def test_mixed_list_and_direct_recipients(
     ]
     assert list_kwargs and list_kwargs[0]["list_address"] == LIST_ADDRESS
     assert direct_kwargs and direct_kwargs[0]["list_address"] is None
+
+
+@pytest.mark.asyncio
+async def test_handle_webhook_delivered_skips_non_agent_recipients(
+    backend: MemoryBackend,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Webhooks fire only for agent recipients (name@swarm@host). Users,
+    admins, and daemons (prefix:name@host — two @-segments) skip the
+    webhook firing path because they have no chorus conduit listener
+    and their address shape crashes ``_webhook_delivered_post`` at
+    ``recipient.split("@")[1]``.
+    """
+    backend.webhooks["http://example.test/hook"] = MAILWebhook(
+        webhook_id="wh_00000000-0000-4000-8000-000000000000",
+        url="http://example.test/hook",
+        events=["mail.delivered"],
+        secret="s",
+    )
+
+    fired: list[tuple[str, MAILMessage]] = []
+
+    async def fake_handle_webhook_delivered_for_url(*, url, recipient, message, secret, list_address=None):
+        fired.append((recipient, message))
+
+    monkeypatch.setattr(
+        backend,
+        "handle_webhook_delivered_for_url",
+        fake_handle_webhook_delivered_for_url,
+    )
+
+    msg = MAILMessage(
+        message_id="33333333-3333-3333-3333-333333333333",
+        sender=SENDER,
+        recipients=[ALICE],
+        subject="s",
+        body="b",
+        sent_at=datetime(2026, 6, 12, tzinfo=UTC),
+        metadata={},
+    )
+
+    # Non-agent recipients: no webhook task is created.
+    for non_agent in ["admin:ryan@chrn.ai", "user:dummy@chrn.ai", "daemon:first@chrn.ai"]:
+        await backend._handle_webhook_delivered(recipient=non_agent, message=msg)
+
+    # Agent recipient: webhook task IS created.
+    await backend._handle_webhook_delivered(recipient=ALICE, message=msg)
+
+    # asyncio.create_task needs the loop to run for callbacks; with the
+    # fake monkeypatched coroutine, awaits resolve directly via the
+    # backend's _handle_webhook_delivered scheduling them as Tasks. Give
+    # the loop one tick.
+    import asyncio as _asyncio
+    await _asyncio.sleep(0)
+
+    fired_recipients = [r for r, _ in fired]
+    assert "admin:ryan@chrn.ai" not in fired_recipients
+    assert "user:dummy@chrn.ai" not in fired_recipients
+    assert "daemon:first@chrn.ai" not in fired_recipients
+    assert ALICE in fired_recipients
