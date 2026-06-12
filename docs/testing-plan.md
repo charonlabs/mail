@@ -1,6 +1,6 @@
 # MAIL v2 Testing Suite Overhaul Plan
 
-**Status:** Draft — approved for execution
+**Status:** In effect — Phases 0–5 landed
 **Date:** 2026-06-12
 **Scope:** The v2 packages (`mail-protocol`, `mail-server`, `mail-daemon`,
 `mail-client`) and the repository-level `tests/` suite. The legacy suite under
