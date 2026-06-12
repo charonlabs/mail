@@ -24,6 +24,7 @@ from mail_protocol.core.outbox import MAILOutboxEntrySummary
 from mail_protocol.core.user_agents import (
     MAILAgent,
     MAILDaemon,
+    MAILUser,
     MAILUserAgentInBackend,
 )
 from mail_protocol.core.webhooks import MAILWebhook
@@ -313,3 +314,63 @@ async def test_daemon_deliver_local_fires_registered_webhook(
     assert MESSAGE_ID in backend.inboxes[RECIPIENT]
     body = json.loads(route.calls[0].request.content)
     assert body["message"]["recipient"] == RECIPIENT
+
+
+@respx.mock
+async def test_delivery_to_non_agent_recipient_fires_no_webhook(
+    deployment_dir,
+) -> None:
+    """
+    `mail.delivered` webhooks are agent-scoped at v1: the payload's
+    required swarm field only exists for swarm-scoped addresses, so
+    host-scoped recipients (user:/admin:/daemon:) receive mail without
+    firing webhooks.
+    """
+
+    backend = MemoryBackend()
+    await backend.on_server_startup(host="localhost")
+
+    user_address = "user:alice@localhost"
+    backend.user_agents[user_address] = MAILUserAgentInBackend(
+        user_agent=MAILUser(ua_type="user", user_id="alice", host="localhost"),
+        hashed_password="irrelevant",
+    )
+    backend.inboxes[user_address] = []
+    message = MAILMessage(
+        message_id=MESSAGE_ID,
+        sender="user:bob@localhost",
+        recipients=[user_address],
+        subject="No hook",
+        body="Delivered silently.",
+        sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
+        metadata={},
+    )
+    backend.messages[MESSAGE_ID] = message
+    backend.outbox_entries[MESSAGE_ID] = MAILOutboxEntrySummary(
+        message_id=MESSAGE_ID,
+        recipients=[user_address],
+        subject="No hook",
+        body_size=len(message.body),
+        sent_at=message.sent_at,
+        delivered_at=None,
+        delivered_by=None,
+    )
+    backend.webhooks[WEBHOOK_URL] = MAILWebhook(
+        webhook_id="wh_44444444-4444-4444-8444-444444444444",
+        url=WEBHOOK_URL,
+        events=["mail.delivered"],
+        secret=SECRET,
+    )
+
+    route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
+    daemon = MAILDaemon(ua_type="daemon", worker_name="dummy", host="localhost")
+    await backend.daemon_deliver_local(
+        daemon=daemon,
+        payload=DaemonDeliverLocalRequest(message_ids=[MESSAGE_ID]),
+    )
+    for _ in range(20):
+        await asyncio.sleep(0)
+
+    # Mail is delivered, but no webhook fires for a user recipient.
+    assert MESSAGE_ID in backend.inboxes[user_address]
+    assert route.call_count == 0

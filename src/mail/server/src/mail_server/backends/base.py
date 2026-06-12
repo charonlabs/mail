@@ -630,7 +630,7 @@ class MAILServerBackend(Protocol):
             return
 
         logger.warning(
-            f"webhook POST request for `mail.delivered` to {url} failed after 5 tries"
+            f"webhook POST request for `mail.delivered` to {url} failed after 6 tries"
         )
 
     async def _webhook_delivered_post(
