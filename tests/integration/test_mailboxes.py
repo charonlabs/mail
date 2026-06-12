@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
-import json
 from datetime import UTC, datetime
 
-import pytest
 from fastapi.testclient import TestClient
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.trash import MAILTrashEntry
@@ -180,18 +178,11 @@ def test_post_draft_rejects_empty_subject(
     assert response.status_code == 422
 
 
-@pytest.mark.xfail(
-    raises=json.JSONDecodeError,
-    strict=True,
-    reason=(
-        "BUG: mail_server.validators only catches pydantic ValidationError; "
-        "an unparseable JSON body raises JSONDecodeError (500) on every "
-        "body-validated endpoint. Should be 422."
-    ),
-)
 def test_post_draft_rejects_unparseable_body(
     app_client: TestClient, headers_for
 ) -> None:
+    """An unparseable JSON body must 422 like an invalid one (not 500)."""
+
     response = app_client.post(
         "/drafts/",
         content=b"not json",
@@ -267,14 +258,6 @@ def test_send_draft_rejects_invalid_recipients(
     assert response.status_code == 422
 
 
-@pytest.mark.xfail(
-    raises=ValueError,
-    strict=True,
-    reason=(
-        "BUG: routers/drafts.post_draft_send does not catch the backend's "
-        "ValueError for an unknown draft ID (500). Should be 404."
-    ),
-)
 def test_send_unknown_draft_returns_404(
     app_client: TestClient, headers_for
 ) -> None:

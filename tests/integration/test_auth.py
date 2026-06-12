@@ -104,19 +104,11 @@ def test_whoami_rejects_token_without_subject(app_client: TestClient) -> None:
     assert response.status_code == 401
 
 
-@pytest.mark.xfail(
-    raises=ValueError,
-    strict=True,
-    reason=(
-        "BUG: a valid JWT whose subject no longer exists raises ValueError "
-        "(500) — MemoryBackend.get_user_agent raises instead of returning "
-        "None, so the None-check in auth.validate_user_agent is dead code. "
-        "Should be 401."
-    ),
-)
 def test_whoami_rejects_token_for_deleted_user_agent(
     app_client: TestClient,
 ) -> None:
+    """A valid JWT whose subject was since deleted must 401, not 500."""
+
     orphaned = create_access_token(data={"sub": "user:ghost@localhost"})
     response = app_client.get(
         "/auth/whoami",

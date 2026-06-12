@@ -66,6 +66,27 @@ def test_trash_clear_empties_box(app_client: TestClient, headers_for) -> None:
 
 
 @stub
+def test_patch_webhook_updates(app_client: TestClient, headers_for) -> None:
+    headers = headers_for("admin:ryan@localhost")
+    response = app_client.post(
+        "/admin/webhooks",
+        json={
+            "url": "https://example.com/mail-events",
+            "events": ["mail.delivered"],
+            "secret": "shhh",
+        },
+        headers=headers,
+    )
+    webhook_id = response.json()["webhook"]["webhook_id"]
+    response = app_client.patch(
+        f"/admin/webhooks/{webhook_id}",
+        json={"url": "https://example.com/elsewhere", "secret": "new-secret"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+
+@stub
 def test_daemon_deliver_remote(app_client: TestClient, headers_for) -> None:
     response = app_client.post(
         "/daemon/deliver/remote",

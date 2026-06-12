@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
-import pytest
 from fastapi.testclient import TestClient
 
 ADMIN = "admin:ryan@localhost"
@@ -57,14 +56,6 @@ def test_get_webhook_by_id(app_client: TestClient, headers_for) -> None:
     assert response.json()["webhook"]["url"] == WEBHOOK_BODY["url"]
 
 
-@pytest.mark.xfail(
-    raises=ValueError,
-    strict=True,
-    reason=(
-        "BUG: routers/admin.get_webhook does not catch the backend's "
-        "ValueError for an unknown webhook ID (500). Should be 404."
-    ),
-)
 def test_get_webhook_unknown_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
@@ -86,14 +77,6 @@ def test_delete_webhook_removes(app_client: TestClient, headers_for) -> None:
     assert response.json()["webhook_ids"] == []
 
 
-@pytest.mark.xfail(
-    raises=ValueError,
-    strict=True,
-    reason=(
-        "BUG: routers/admin.delete_webhook does not catch the backend's "
-        "ValueError for an unknown webhook ID (500). Should be 404."
-    ),
-)
 def test_delete_webhook_unknown_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
@@ -102,22 +85,6 @@ def test_delete_webhook_unknown_returns_404(
     )
     assert response.status_code == 404
 
-
-@pytest.mark.xfail(
-    raises=TypeError,
-    strict=True,
-    reason=(
-        "BUG: routers/admin.patch_webhook calls backend.admin_webhook_get "
-        "with a payload kwarg instead of backend.admin_webhook_patch "
-        "(which is itself still a NotImplementedError stub)."
-    ),
-)
-def test_patch_webhook_updates(app_client: TestClient, headers_for) -> None:
-    headers = headers_for(ADMIN)
-    webhook_id = _post_webhook(app_client, headers)
-    response = app_client.patch(
-        f"/admin/webhooks/{webhook_id}",
-        json={"url": "https://example.com/elsewhere", "secret": "new-secret"},
-        headers=headers,
-    )
-    assert response.status_code == 200
+# NOTE: PATCH /admin/webhooks/{id} is tracked in test_stubs.py — the
+# router is wired to MemoryBackend.admin_webhook_patch, which is still
+# a NotImplementedError stub.

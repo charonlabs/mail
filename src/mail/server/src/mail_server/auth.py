@@ -95,7 +95,11 @@ async def validate_user_agent(
         _token_data = TokenData(address=address)
     except InvalidTokenError:
         raise credentials_exception
-    user_agent = await backend.get_user_agent(address)
+    try:
+        user_agent = await backend.get_user_agent(address)
+    except ValueError:
+        # The token subject no longer exists (e.g. deleted by an admin).
+        raise credentials_exception
     if user_agent is None:
         raise credentials_exception
 

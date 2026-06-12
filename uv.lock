@@ -1314,6 +1314,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyjwt" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "uvicorn" },
 ]
 
@@ -1326,6 +1327,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 

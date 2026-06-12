@@ -371,7 +371,10 @@ async def get_webhook(request: Request) -> AdminWebhookGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     webhook_id = request.path_params.get("webhook_id")
-    result = await backend.admin_webhook_get(admin=admin, webhook_id=webhook_id)
+    try:
+        result = await backend.admin_webhook_get(admin=admin, webhook_id=webhook_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="webhook not found")
 
     return AdminWebhookGetResponse(
         webhook=result,
@@ -405,7 +408,13 @@ async def patch_webhook(request: Request) -> AdminWebhooksPatchResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_webhook_patch_request(request=request)
-    result = await backend.admin_webhook_get(admin=admin, payload=payload)
+    webhook_id = request.path_params.get("webhook_id")
+    try:
+        result = await backend.admin_webhook_patch(
+            admin=admin, webhook_id=webhook_id, payload=payload
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="webhook not found")
 
     return AdminWebhooksPatchResponse(
         webhook=result,
@@ -422,7 +431,10 @@ async def delete_webhook(request: Request) -> AdminWebhooksDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     webhook_id = request.path_params.get("webhook_id")
-    result = await backend.admin_webhook_delete(admin=admin, webhook_id=webhook_id)
+    try:
+        result = await backend.admin_webhook_delete(admin=admin, webhook_id=webhook_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="webhook not found")
 
     return AdminWebhooksDeleteResponse(
         webhook=result,
