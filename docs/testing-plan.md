@@ -264,7 +264,9 @@ coverage ratchet.
    public endpoint stays body-less. The stale 403 test is replaced by
    `test_subscribe_ignores_supplied_member_address`. `spec/openapi.yaml`
    already reflects the body-less endpoint; no spec change needed.
-2. **Coverage ratchet level.** Proposed: visibility-only until Phase 2, then
-   set the floor at the then-current number and raise it per phase.
-3. **Schemathesis adoption** (Phase 3): adopt if a fuzz run stays under ~60s
-   locally; otherwise defer to a nightly CI job.
+2. **Coverage ratchet level — RESOLVED 2026-06-12.** Set at Phase 4 exit:
+   `fail_under = 65` (suite measured 66%). Raise as coverage grows; never
+   lower.
+3. **Schemathesis adoption — RESOLVED 2026-06-12: deferred.** The drift
+   check plus SPEC conformance tests cover the schema-shape ground;
+   revisit as a nightly CI job after Phase 5.

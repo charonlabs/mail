@@ -96,6 +96,8 @@ source_pkgs = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+# Ratchet: raise as coverage grows; never lower (docs/testing-plan.md §7).
+fail_under = 65
 
 [dependency-groups]
 dev = [
