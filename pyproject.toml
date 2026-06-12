@@ -105,6 +105,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=7.0.0",
+    "PyYAML>=6.0.2",
     "referencing>=0.36.2",
     "respx>=0.23.1",
     "ruff>=0.12.12",
