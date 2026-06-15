@@ -8,6 +8,8 @@ import httpx
 from mail_protocol.network.responses import InboxGetResponse
 from pydantic import ValidationError
 
+from mail_client.commands._box_filters import box_filter_params
+
 
 def cmd_inbox(args: Namespace) -> None:
     """
@@ -24,11 +26,12 @@ def cmd_inbox(args: Namespace) -> None:
 
     # 2. hit the server endpoint `GET /inbox`
     response = httpx.get(
-        url=f"{MAIL_SERVER}/inbox/",
+        url=f"{MAIL_SERVER}/inbox",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
         },
+        params=box_filter_params(args),
     )
 
     # 3. parse and validate server response

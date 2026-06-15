@@ -73,12 +73,10 @@ def test_list_fan_out_journey(
     message_id = deliver_message(USER, [LIST_ADDRESS], subject="To the list")
 
     for member in (AGENT, OTHER_USER):
-        response = app_client.get(
-            f"/inbox/{message_id}", headers=headers_for(member)
-        )
+        response = app_client.get(f"/inbox/{message_id}", headers=headers_for(member))
         assert response.status_code == 200
         assert response.json()["entry"]["message"]["subject"] == "To the list"
 
     # The sender is not a member and receives nothing.
-    response = app_client.get("/inbox/", headers=headers_for(USER))
+    response = app_client.get("/inbox", headers=headers_for(USER))
     assert response.json()["entries"] == []

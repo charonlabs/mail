@@ -17,7 +17,11 @@ DAEMON = "daemon:dummy@localhost"
 
 ADMIN_ONLY_REQUESTS = [
     ("GET", "/admin/agents", None),
-    ("POST", "/admin/agents", {"agent_name": "x", "swarm_name": "chorus", "agent_password": "pw"}),
+    (
+        "POST",
+        "/admin/agents",
+        {"agent_name": "x", "swarm_name": "chorus", "agent_password": "pw"},
+    ),
     ("GET", "/admin/daemons", None),
     ("GET", "/admin/users", None),
     ("POST", "/admin/swarms", {"name": "x", "description": "d", "keywords": []}),
@@ -86,9 +90,7 @@ def test_daemon_endpoints_accept_daemon(app_client: TestClient, headers_for) -> 
     assert response.status_code == 200
 
 
-@pytest.mark.parametrize(
-    "path", ["/inbox/", "/outbox/", "/drafts/", "/trash/", "/lists"]
-)
+@pytest.mark.parametrize("path", ["/inbox", "/outbox", "/drafts", "/trash", "/lists"])
 def test_mailbox_and_list_endpoints_reject_missing_token(
     app_client: TestClient, path: str
 ) -> None:

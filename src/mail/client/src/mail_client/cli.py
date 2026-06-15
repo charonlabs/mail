@@ -109,6 +109,37 @@ EXAMPLES = [
 ]
 
 
+def _add_box_filter_args(box_parser: argparse.ArgumentParser) -> None:
+    """
+    Register the shared query-param flags for the "GET box" commands
+    (inbox, outbox, drafts, trash). Defaults are left as ``None`` so unset
+    flags are simply not sent and the server applies its own defaults.
+    """
+
+    box_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="max number of entries to return (1-100)",
+    )
+    box_parser.add_argument(
+        "--offset", type=int, default=None, help="number of entries to skip"
+    )
+    box_parser.add_argument(
+        "--sort-by",
+        dest="sort_by",
+        choices=["sent_at", "entered_at"],
+        default=None,
+        help="timestamp field to sort by",
+    )
+    box_parser.add_argument(
+        "--order",
+        choices=["asc", "desc"],
+        default=None,
+        help="sort direction",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = make_arg_parser(
         prog="mail",
@@ -194,6 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
     inbox_p = subparsers.add_parser(
         "inbox", aliases=["i"], prog="mail inbox", help=inbox_d, description=inbox_d
     )
+    _add_box_filter_args(inbox_p)
     inbox_p.set_defaults(func=cmd_inbox, cmd="inbox")
 
     # command `inbox-open`
@@ -213,6 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     outbox_p = subparsers.add_parser(
         "outbox", aliases=["O"], prog="mail outbox", help=outbox_d, description=outbox_d
     )
+    _add_box_filter_args(outbox_p)
     outbox_p.set_defaults(func=cmd_outbox, cmd="outbox")
 
     # command `outbox-open`
@@ -236,6 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=drafts_d,
         description=drafts_d,
     )
+    _add_box_filter_args(drafts_p)
     drafts_p.set_defaults(func=cmd_drafts, cmd="drafts")
 
     # command `drafts-open`
@@ -255,6 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     trash_p = subparsers.add_parser(
         "trash", aliases=["t"], prog="mail trash", help=trash_d, description=trash_d
     )
+    _add_box_filter_args(trash_p)
     trash_p.set_defaults(func=cmd_trash, cmd="trash")
 
     # command `trash-open`

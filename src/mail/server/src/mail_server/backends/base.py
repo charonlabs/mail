@@ -38,6 +38,7 @@ from mail_protocol.network.requests import (
     AdminWebhooksPatchRequest,
     AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
+    BoxFilterParams,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
     DraftPostRequest,
@@ -137,9 +138,14 @@ class MAILServerBackend(Protocol):
     # Inbox endpoint handlers
     #
     @abstractmethod
-    async def get_inbox(self, user_agent: MAILUserAgent) -> list[MAILInboxEntrySummary]:
+    async def get_inbox(
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILInboxEntrySummary], int]:
         """
-        Get the user-agent's inbox.
+        Get a sorted, paginated page of the user-agent's inbox.
+
+        Returns ``(page, total)`` where ``total`` is the box size before
+        pagination, so callers can populate pagination metadata.
         """
 
         pass
@@ -169,10 +175,13 @@ class MAILServerBackend(Protocol):
     #
     @abstractmethod
     async def get_outbox(
-        self, user_agent: MAILUserAgent
-    ) -> list[MAILOutboxEntrySummary]:
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILOutboxEntrySummary], int]:
         """
-        Get the user-agent's outbox.
+        Get a sorted, paginated page of the user-agent's outbox.
+
+        Returns ``(page, total)`` where ``total`` is the box size before
+        pagination, so callers can populate pagination metadata.
         """
 
         pass
@@ -192,10 +201,13 @@ class MAILServerBackend(Protocol):
     #
     @abstractmethod
     async def get_drafts(
-        self, user_agent: MAILUserAgent
-    ) -> list[MAILDraftsEntrySummary]:
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILDraftsEntrySummary], int]:
         """
-        Get the user-agent's draft box.
+        Get a sorted, paginated page of the user-agent's draft box.
+
+        Returns ``(page, total)`` where ``total`` is the box size before
+        pagination, so callers can populate pagination metadata.
         """
 
         pass
@@ -249,9 +261,14 @@ class MAILServerBackend(Protocol):
     # Trash box endpoints
     #
     @abstractmethod
-    async def get_trash(self, user_agent: MAILUserAgent) -> list[MAILTrashEntrySummary]:
+    async def get_trash(
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILTrashEntrySummary], int]:
         """
-        Get a list of messages in the user-agent's trash box.
+        Get a sorted, paginated page of the user-agent's trash box.
+
+        Returns ``(page, total)`` where ``total`` is the box size before
+        pagination, so callers can populate pagination metadata.
         """
 
         pass

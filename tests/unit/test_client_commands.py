@@ -125,7 +125,7 @@ def test_inbox_sends_bearer_token_and_lists_entries(
         "received_at": "2026-06-12T09:00:00+00:00",
         "delivered_by": "daemon:dummy@localhost",
     }
-    route = respx.get(f"{SERVER}/inbox/").mock(
+    route = respx.get(f"{SERVER}/inbox").mock(
         return_value=httpx.Response(200, json={"entries": [entry], "metadata": {}})
     )
     cmd_inbox(Namespace(output="text"))
@@ -147,9 +147,7 @@ def test_inbox_requires_mail_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @respx.mock
-def test_compose_posts_draft_payload(
-    client_env, capsys: pytest.CaptureFixture
-) -> None:
+def test_compose_posts_draft_payload(client_env, capsys: pytest.CaptureFixture) -> None:
     draft = {
         "draft_id": "55555555-5555-4555-8555-555555555555",
         "subject": "A subject",
@@ -157,7 +155,7 @@ def test_compose_posts_draft_payload(
         "created_at": "2026-06-12T09:00:00+00:00",
         "updated_at": None,
     }
-    route = respx.post(f"{SERVER}/drafts/").mock(
+    route = respx.post(f"{SERVER}/drafts").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -202,9 +200,7 @@ def test_send_posts_recipients_to_draft_endpoint(
     route = respx.post(f"{SERVER}/drafts/{draft_id}/send").mock(
         return_value=httpx.Response(200, json={"message": message, "metadata": {}})
     )
-    cmd_send(
-        Namespace(output="text", draft_id=draft_id, to=["sage@chorus@localhost"])
-    )
+    cmd_send(Namespace(output="text", draft_id=draft_id, to=["sage@chorus@localhost"]))
 
     request = route.calls[0].request
     assert json.loads(request.content) == {"recipients": ["sage@chorus@localhost"]}

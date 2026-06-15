@@ -39,7 +39,7 @@ def test_delete_inbox_message_moves_to_trash(
 def test_delete_draft_removes_it(app_client: TestClient, headers_for) -> None:
     headers = headers_for(USER)
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Disposable", "body": "Delete me"},
         headers=headers,
     )
@@ -49,9 +49,7 @@ def test_delete_draft_removes_it(app_client: TestClient, headers_for) -> None:
 
 
 @stub
-def test_delete_trashed_message_removes_it(
-    app_client: TestClient, headers_for
-) -> None:
+def test_delete_trashed_message_removes_it(app_client: TestClient, headers_for) -> None:
     response = app_client.delete(
         "/trash/11111111-1111-4111-8111-111111111111",
         headers=headers_for(USER),

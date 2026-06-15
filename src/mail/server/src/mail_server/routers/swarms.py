@@ -14,7 +14,7 @@ router = APIRouter(prefix="/swarms", tags=["swarms"])
 
 
 @router.get(
-    "/",
+    "",
     summary="Get basic server information and metadata",
     response_model=SwarmsGetResponse,
 )

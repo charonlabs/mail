@@ -29,7 +29,7 @@ def cmd_compose(args: Namespace) -> None:
         body=args.body,
     )
     response = httpx.post(
-        url=f"{MAIL_SERVER}/drafts/",
+        url=f"{MAIL_SERVER}/drafts",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",

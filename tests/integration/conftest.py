@@ -140,7 +140,7 @@ def deliver_message(app_client: TestClient, headers_for):
         daemon_headers = headers_for(DAEMON)
 
         response = app_client.post(
-            "/drafts/",
+            "/drafts",
             json={"subject": subject, "body": body},
             headers=sender_headers,
         )

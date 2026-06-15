@@ -4,6 +4,7 @@
 import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
@@ -35,6 +36,7 @@ from mail_protocol.network.requests import (
     AdminWebhooksPatchRequest,
     AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
+    BoxFilterParams,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
     DraftPostRequest,
@@ -91,6 +93,22 @@ def _is_agent_recipient(address: str) -> bool:
     if address.startswith(f"{LIST_ADDRESS_PREFIX}:"):
         return False
     return address.count("@") == 2
+
+
+def _paginate_box(
+    entries: list[Any], filters: BoxFilterParams, key: Callable[[Any], Any]
+) -> tuple[list[Any], int]:
+    """
+    Sort ``entries`` by ``key`` (honoring ``filters.order``) and return one
+    page per ``filters.limit`` / ``filters.offset``.
+
+    Returns ``(page, total)`` where ``total`` is the count before slicing.
+    """
+
+    total = len(entries)
+    ordered = sorted(entries, key=key, reverse=filters.order == "desc")
+    page = ordered[filters.offset : filters.offset + filters.limit]
+    return page, total
 
 
 class MemoryBackend(MAILServerBackend):
@@ -316,11 +334,34 @@ class MemoryBackend(MAILServerBackend):
         return "ok"
 
     #
+    # Box query helpers
+    #
+    def _box_sort_key(
+        self, filters: BoxFilterParams, entered_field: str
+    ) -> Callable[[Any], Any]:
+        """
+        Build the sort key for a "GET box" page.
+
+        ``entered_at`` sorts by ``entered_field`` — the timestamp at which the
+        entry landed in this box. ``sent_at`` sorts by the underlying
+        ``MAILMessage.sent_at`` (resolved via ``self.messages``), which is the
+        original send time and is distinct from arrival for inbox/trash. Only
+        valid for boxes whose entries reference a real message — drafts reject
+        ``sent_at`` at the router, since a draft has no send time.
+        """
+
+        if filters.sort_by == "sent_at":
+            return lambda entry: self.messages[entry.message_id].sent_at
+        return lambda entry: getattr(entry, entered_field)
+
+    #
     # Inbox endpoint handlers
     #
-    async def get_inbox(self, user_agent: MAILUserAgent) -> list[MAILInboxEntrySummary]:
+    async def get_inbox(
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILInboxEntrySummary], int]:
         """
-        Get the user-agent's inbox.
+        Get a sorted, paginated page of the user-agent's inbox.
         """
 
         ua_address = user_agent.get_address()
@@ -335,7 +376,9 @@ class MemoryBackend(MAILServerBackend):
                 raise ValueError(f"no inbox entry found for message ID {msg_id}")
             inbox_entries.append(inbox_entry)
 
-        return inbox_entries
+        return _paginate_box(
+            inbox_entries, filters, self._box_sort_key(filters, "received_at")
+        )
 
     async def get_inbox_message(
         self, user_agent: MAILUserAgent, message_id: str
@@ -379,10 +422,10 @@ class MemoryBackend(MAILServerBackend):
     # Outbox endpoint handlers
     #
     async def get_outbox(
-        self, user_agent: MAILUserAgent
-    ) -> list[MAILOutboxEntrySummary]:
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILOutboxEntrySummary], int]:
         """
-        Get the user-agent's outbox.
+        Get a sorted, paginated page of the user-agent's outbox.
         """
 
         ua_address = user_agent.get_address()
@@ -397,7 +440,9 @@ class MemoryBackend(MAILServerBackend):
                 raise ValueError(f"no outbox entry found for message ID {msg_id}")
             outbox_entries.append(outbox_entry)
 
-        return outbox_entries
+        return _paginate_box(
+            outbox_entries, filters, self._box_sort_key(filters, "sent_at")
+        )
 
     async def get_outbox_message(
         self, user_agent: MAILUserAgent, message_id: str
@@ -433,10 +478,10 @@ class MemoryBackend(MAILServerBackend):
     # Drafts box endpoints
     #
     async def get_drafts(
-        self, user_agent: MAILUserAgent
-    ) -> list[MAILDraftsEntrySummary]:
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILDraftsEntrySummary], int]:
         """
-        Get the user-agent's draft box.
+        Get a sorted, paginated page of the user-agent's draft box.
         """
 
         ua_address = user_agent.get_address()
@@ -451,7 +496,9 @@ class MemoryBackend(MAILServerBackend):
                 raise ValueError(f"draft with ID {draft_id} not found in draft entries")
             draft_entries.append(draft_entry.summarize())
 
-        return draft_entries
+        # Drafts have no send time, so `sort_by=sent_at` is rejected at the
+        # router; only `entered_at` (created_at) reaches here.
+        return _paginate_box(draft_entries, filters, lambda entry: entry.created_at)
 
     async def post_draft(
         self,
@@ -571,9 +618,11 @@ class MemoryBackend(MAILServerBackend):
     #
     # Trash box endpoints
     #
-    async def get_trash(self, user_agent: MAILUserAgent) -> list[MAILTrashEntrySummary]:
+    async def get_trash(
+        self, user_agent: MAILUserAgent, filters: BoxFilterParams
+    ) -> tuple[list[MAILTrashEntrySummary], int]:
         """
-        Get a list of messages in the user-agent's trash box.
+        Get a sorted, paginated page of the user-agent's trash box.
         """
 
         ua_address = user_agent.get_address()
@@ -588,7 +637,9 @@ class MemoryBackend(MAILServerBackend):
                 raise ValueError(f"message with ID {msg_id} not found in trash entries")
             trash_entries.append(trash_entry.summarize())
 
-        return trash_entries
+        return _paginate_box(
+            trash_entries, filters, self._box_sort_key(filters, "trashed_at")
+        )
 
     async def get_trash_message(
         self, user_agent: MAILUserAgent, message_id: str
@@ -1234,8 +1285,7 @@ class MemoryBackend(MAILServerBackend):
         # without firing webhooks.
         if user_agent.user_agent.ua_type != "agent":
             logger.debug(
-                f"skipping `mail.delivered` webhooks for non-agent "
-                f"recipient {address}"
+                f"skipping `mail.delivered` webhooks for non-agent recipient {address}"
             )
             return
 
