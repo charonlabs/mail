@@ -9,6 +9,8 @@ from mail_protocol.network.responses import (
 )
 
 from mail_server.auth import validate_user_agent
+from mail_server.utils import build_box_metadata
+from mail_server.validators import validate_box_filter_params
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
@@ -21,8 +23,9 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
 async def get_inbox(request: Request) -> InboxGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
+    filters = await validate_box_filter_params(request)
     try:
-        result = await backend.get_inbox(user_agent)
+        entries, total = await backend.get_inbox(user_agent, filters)
     except ValueError:
         raise HTTPException(
             status_code=404,
@@ -30,8 +33,8 @@ async def get_inbox(request: Request) -> InboxGetResponse:
         )
 
     return InboxGetResponse(
-        entries=result,
-        metadata={},
+        entries=entries,
+        metadata=build_box_metadata(filters, total, len(entries)),
     )
 
 

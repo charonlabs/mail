@@ -11,7 +11,9 @@ from mail_protocol.network.responses import (
 )
 
 from mail_server.auth import validate_user_agent
+from mail_server.utils import build_box_metadata
 from mail_server.validators import (
+    validate_box_filter_params,
     validate_post_draft_request,
     validate_post_draft_send_request,
 )
@@ -25,14 +27,23 @@ router = APIRouter(prefix="/drafts", tags=["drafts"])
 async def get_drafts(request: Request) -> DraftsGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
+    filters = await validate_box_filter_params(request)
+    if filters.sort_by == "sent_at":
+        raise HTTPException(
+            status_code=422,
+            detail="sort_by=sent_at is not supported for drafts (drafts have no send time)",
+        )
     try:
-        result = await backend.get_drafts(user_agent=user_agent)
+        entries, total = await backend.get_drafts(user_agent, filters)
     except ValueError:
         raise HTTPException(
             status_code=404, detail=f"draft box not found for address {user_agent}"
         )
 
-    return DraftsGetResponse(entries=result, metadata={})
+    return DraftsGetResponse(
+        entries=entries,
+        metadata=build_box_metadata(filters, total, len(entries)),
+    )
 
 
 @router.post(

@@ -8,6 +8,8 @@ import httpx
 from mail_protocol.network.responses import OutboxGetResponse
 from pydantic import ValidationError
 
+from mail_client.commands._box_filters import box_filter_params
+
 
 def cmd_outbox(args: Namespace) -> None:
     """
@@ -29,6 +31,7 @@ def cmd_outbox(args: Namespace) -> None:
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
         },
+        params=box_filter_params(args),
     )
 
     # 3. parse and validate server response

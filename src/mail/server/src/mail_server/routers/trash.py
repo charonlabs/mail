@@ -10,6 +10,8 @@ from mail_protocol.network.responses import (
 )
 
 from mail_server.auth import validate_user_agent
+from mail_server.utils import build_box_metadata
+from mail_server.validators import validate_box_filter_params
 
 router = APIRouter(prefix="/trash", tags=["trash"])
 
@@ -20,8 +22,9 @@ router = APIRouter(prefix="/trash", tags=["trash"])
 async def get_trashed_messages(request: Request) -> TrashGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
+    filters = await validate_box_filter_params(request)
     try:
-        result = await backend.get_trash(user_agent=user_agent)
+        entries, total = await backend.get_trash(user_agent, filters)
     except ValueError:
         raise HTTPException(
             status_code=404,
@@ -29,8 +32,8 @@ async def get_trashed_messages(request: Request) -> TrashGetResponse:
         )
 
     return TrashGetResponse(
-        entries=result,
-        metadata={},
+        entries=entries,
+        metadata=build_box_metadata(filters, total, len(entries)),
     )
 
 

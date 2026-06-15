@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel
+from pydantic import AfterValidator, BaseModel, Field
 
 from mail_protocol.core.lists import MAILListPolicy
 from mail_protocol.core.messages import MAILMessage
@@ -205,3 +205,23 @@ class ListMemberPostRequest(BaseModel):
     """
 
     member_address: Annotated[str, AfterValidator(validate_mail_address)]
+
+
+#
+# Query parameters
+#
+class BoxFilterParams(BaseModel):
+    """
+    Query parameters for "GET box" endpoints (i.e. inbox, outbox, trash).
+    """
+
+    model_config = {"extra": "forbid"}
+
+    limit: int = Field(20, gt=0, le=100)
+    offset: int = Field(0, ge=0)
+    # sent_at: timestamp when the MAIL message was sent
+    # entered_at: timestamp when the message entered the user's box
+    sort_by: Literal["sent_at", "entered_at"] = "entered_at"
+    # asc: ascending
+    # desc: descending
+    order: Literal["asc", "desc"] = "desc"

@@ -12,6 +12,7 @@ from mail_protocol.network.requests import (
     AdminWebhooksPatchRequest,
     AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
+    BoxFilterParams,
     DaemonDeliverLocalRequest,
     DraftPostRequest,
     DraftSendPostRequest,
@@ -21,6 +22,27 @@ from mail_protocol.network.requests import (
 # NOTE: the except clauses below catch ValueError, which covers both
 # pydantic.ValidationError and json.JSONDecodeError — an unparseable
 # body must 422 the same way an invalid one does.
+
+
+#
+# Query parameter validators
+#
+async def validate_box_filter_params(request: Request) -> BoxFilterParams:
+    """
+    Ensure the query string is valid for the "GET box" endpoints
+    (`GET /inbox`, `GET /outbox`, `GET /trash`, `GET /drafts`).
+
+    `BoxFilterParams` declares `extra="forbid"`, so an unknown query
+    parameter 422s the same way an out-of-bounds `limit` does. Values
+    arrive as strings; pydantic coerces and bounds-checks them.
+    """
+
+    try:
+        return BoxFilterParams.model_validate(dict(request.query_params))
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422, detail=f"query parameter validation failed: {e}"
+        )
 
 
 #
