@@ -56,12 +56,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthPasswordResetResponse'
-  /swarms/:
+  /swarms:
     get:
       tags:
       - swarms
       summary: Get basic server information and metadata
-      operationId: get_swarms_swarms__get
+      operationId: get_swarms_swarms_get
       responses:
         '200':
           description: Successful Response
@@ -95,12 +95,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SwarmHealthGetResponse'
-  /inbox/:
+  /inbox:
     get:
       tags:
       - inbox
       summary: Get a list of inbox messages
-      operationId: get_inbox_inbox__get
+      operationId: get_inbox_inbox_get
       responses:
         '200':
           description: Successful Response
@@ -133,12 +133,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InboxMessageDeleteResponse'
-  /outbox/:
+  /outbox:
     get:
       tags:
       - outbox
       summary: Get a list of outbox messages
-      operationId: get_outbox_outbox__get
+      operationId: get_outbox_outbox_get
       responses:
         '200':
           description: Successful Response
@@ -159,12 +159,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OutboxMessageGetResponse'
-  /drafts/:
+  /drafts:
     get:
       tags:
       - drafts
       summary: Get a list of message drafts
-      operationId: get_drafts_drafts__get
+      operationId: get_drafts_drafts_get
       responses:
         '200':
           description: Successful Response
@@ -176,7 +176,7 @@ paths:
       tags:
       - drafts
       summary: Create a new message draft
-      operationId: post_draft_drafts__post
+      operationId: post_draft_drafts_post
       responses:
         '200':
           description: Successful Response
@@ -222,12 +222,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DraftSendPostResponse'
-  /trash/:
+  /trash:
     get:
       tags:
       - trash
       summary: Get a list of messages in trash
-      operationId: get_trashed_messages_trash__get
+      operationId: get_trashed_messages_trash_get
       responses:
         '200':
           description: Successful Response

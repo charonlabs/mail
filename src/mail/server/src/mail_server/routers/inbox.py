@@ -16,7 +16,7 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
 
 
 @router.get(
-    "/",
+    "",
     summary="Get a list of inbox messages",
     response_model=InboxGetResponse,
 )

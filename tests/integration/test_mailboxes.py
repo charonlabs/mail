@@ -18,7 +18,7 @@ OTHER_USER = "user:bob@localhost"
 
 
 def test_inbox_starts_empty(app_client: TestClient, headers_for) -> None:
-    response = app_client.get("/inbox/", headers=headers_for(USER))
+    response = app_client.get("/inbox", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["entries"] == []
 
@@ -27,7 +27,7 @@ def test_inbox_lists_delivered_message(
     app_client: TestClient, headers_for, deliver_message
 ) -> None:
     message_id = deliver_message(USER, [OTHER_USER], subject="Greetings")
-    response = app_client.get("/inbox/", headers=headers_for(OTHER_USER))
+    response = app_client.get("/inbox", headers=headers_for(OTHER_USER))
     assert response.status_code == 200
     entries = response.json()["entries"]
     assert len(entries) == 1
@@ -69,7 +69,7 @@ def test_inbox_open_isolated_between_users(
 
 
 def test_outbox_starts_empty(app_client: TestClient, headers_for) -> None:
-    response = app_client.get("/outbox/", headers=headers_for(USER))
+    response = app_client.get("/outbox", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["entries"] == []
 
@@ -78,7 +78,7 @@ def test_outbox_entry_created_on_send_and_updated_on_delivery(
     app_client: TestClient, headers_for, deliver_message
 ) -> None:
     message_id = deliver_message(USER, [OTHER_USER])
-    response = app_client.get("/outbox/", headers=headers_for(USER))
+    response = app_client.get("/outbox", headers=headers_for(USER))
     assert response.status_code == 200
     entries = response.json()["entries"]
     assert len(entries) == 1
@@ -118,14 +118,14 @@ def test_outbox_isolated_between_users(
 
 
 def test_drafts_start_empty(app_client: TestClient, headers_for) -> None:
-    response = app_client.get("/drafts/", headers=headers_for(USER))
+    response = app_client.get("/drafts", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["entries"] == []
 
 
 def test_post_draft_creates_entry(app_client: TestClient, headers_for) -> None:
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "A subject", "body": "A body"},
         headers=headers_for(USER),
     )
@@ -141,7 +141,7 @@ def test_post_draft_creates_entry(app_client: TestClient, headers_for) -> None:
 
 def test_post_draft_rejects_missing_field(app_client: TestClient, headers_for) -> None:
     response = app_client.post(
-        "/drafts/", json={"subject": "no body"}, headers=headers_for(USER)
+        "/drafts", json={"subject": "no body"}, headers=headers_for(USER)
     )
     assert response.status_code == 422
 
@@ -150,7 +150,7 @@ def test_post_draft_rejects_overlong_subject(
     app_client: TestClient, headers_for
 ) -> None:
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "s" * (MESSAGE_SUBJECT_LEN_MAX + 1), "body": "A body"},
         headers=headers_for(USER),
     )
@@ -159,7 +159,7 @@ def test_post_draft_rejects_overlong_subject(
 
 def test_post_draft_rejects_empty_subject(app_client: TestClient, headers_for) -> None:
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "", "body": "A body"},
         headers=headers_for(USER),
     )
@@ -172,7 +172,7 @@ def test_post_draft_rejects_unparseable_body(
     """An unparseable JSON body must 422 like an invalid one (not 500)."""
 
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         content=b"not json",
         headers={**headers_for(USER), "Content-Type": "application/json"},
     )
@@ -189,7 +189,7 @@ def test_get_draft_unknown_id_returns_404(app_client: TestClient, headers_for) -
 
 def test_drafts_isolated_between_users(app_client: TestClient, headers_for) -> None:
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Private", "body": "Draft"},
         headers=headers_for(USER),
     )
@@ -202,7 +202,7 @@ def test_send_draft_creates_message_and_buffers_it(
     app_client: TestClient, headers_for, backend: MemoryBackend
 ) -> None:
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Outgoing", "body": "Payload"},
         headers=headers_for(USER),
     )
@@ -228,7 +228,7 @@ def test_send_draft_rejects_empty_recipients(
     """SPEC.md §7.3: recipients MUST contain at least 1 entry."""
 
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Outgoing", "body": "Payload"},
         headers=headers_for(USER),
     )
@@ -246,7 +246,7 @@ def test_send_draft_rejects_invalid_recipients(
     app_client: TestClient, headers_for
 ) -> None:
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Outgoing", "body": "Payload"},
         headers=headers_for(USER),
     )
@@ -291,7 +291,7 @@ def _seed_trash(backend: MemoryBackend, owner: str) -> str:
 
 
 def test_trash_starts_empty(app_client: TestClient, headers_for) -> None:
-    response = app_client.get("/trash/", headers=headers_for(USER))
+    response = app_client.get("/trash", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["entries"] == []
 
@@ -300,7 +300,7 @@ def test_trash_lists_seeded_entry(
     app_client: TestClient, headers_for, backend: MemoryBackend
 ) -> None:
     message_id = _seed_trash(backend, USER)
-    response = app_client.get("/trash/", headers=headers_for(USER))
+    response = app_client.get("/trash", headers=headers_for(USER))
     assert response.status_code == 200
     entries = response.json()["entries"]
     assert len(entries) == 1
@@ -375,7 +375,7 @@ def test_box_metadata_reports_pagination_defaults(
 ) -> None:
     """An empty box still echoes the applied (default) filters."""
 
-    response = app_client.get("/inbox/", headers=headers_for(USER))
+    response = app_client.get("/inbox", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["metadata"] == {
         "total": 0,
@@ -390,7 +390,7 @@ def test_box_metadata_reports_pagination_defaults(
 def test_box_rejects_unknown_query_param(app_client: TestClient, headers_for) -> None:
     """`extra="forbid"` makes an unknown query param a 422."""
 
-    response = app_client.get("/inbox/?bogus=1", headers=headers_for(USER))
+    response = app_client.get("/inbox?bogus=1", headers=headers_for(USER))
     assert response.status_code == 422
 
 
@@ -408,7 +408,7 @@ def test_box_rejects_unknown_query_param(app_client: TestClient, headers_for) ->
 def test_box_rejects_invalid_query_params(
     app_client: TestClient, headers_for, query: str
 ) -> None:
-    response = app_client.get(f"/inbox/?{query}", headers=headers_for(USER))
+    response = app_client.get(f"/inbox?{query}", headers=headers_for(USER))
     assert response.status_code == 422
 
 
@@ -417,7 +417,7 @@ def test_box_pagination_slices_and_counts(
 ) -> None:
     ids = _seed_trash_n(backend, USER, 5)  # oldest → newest
 
-    response = app_client.get("/trash/?limit=2&offset=0", headers=headers_for(USER))
+    response = app_client.get("/trash?limit=2&offset=0", headers=headers_for(USER))
     assert response.status_code == 200
     body = response.json()
     # default sort is entered_at (trashed_at) descending → newest first
@@ -425,7 +425,7 @@ def test_box_pagination_slices_and_counts(
     assert body["metadata"]["total"] == 5
     assert body["metadata"]["returned"] == 2
 
-    response = app_client.get("/trash/?limit=2&offset=2", headers=headers_for(USER))
+    response = app_client.get("/trash?limit=2&offset=2", headers=headers_for(USER))
     assert [e["message_id"] for e in response.json()["entries"]] == [ids[2], ids[1]]
 
 
@@ -434,7 +434,7 @@ def test_box_sort_order_ascending(
 ) -> None:
     ids = _seed_trash_n(backend, USER, 3)
 
-    response = app_client.get("/trash/?order=asc", headers=headers_for(USER))
+    response = app_client.get("/trash?order=asc", headers=headers_for(USER))
     assert response.status_code == 200
     assert [e["message_id"] for e in response.json()["entries"]] == ids
 
@@ -444,7 +444,7 @@ def test_box_offset_past_end_returns_empty_page(
 ) -> None:
     _seed_trash_n(backend, USER, 3)
 
-    response = app_client.get("/trash/?offset=10", headers=headers_for(USER))
+    response = app_client.get("/trash?offset=10", headers=headers_for(USER))
     assert response.status_code == 200
     body = response.json()
     assert body["entries"] == []
@@ -462,14 +462,14 @@ def test_box_sort_by_sent_at_uses_message_send_time(
 
     ids = _seed_trash_n(backend, USER, 3)
 
-    default = app_client.get("/trash/", headers=headers_for(USER))
+    default = app_client.get("/trash", headers=headers_for(USER))
     assert [e["message_id"] for e in default.json()["entries"]] == [
         ids[2],
         ids[1],
         ids[0],
     ]
 
-    by_sent = app_client.get("/trash/?sort_by=sent_at", headers=headers_for(USER))
+    by_sent = app_client.get("/trash?sort_by=sent_at", headers=headers_for(USER))
     assert by_sent.status_code == 200
     assert [e["message_id"] for e in by_sent.json()["entries"]] == [
         ids[0],
@@ -481,10 +481,10 @@ def test_box_sort_by_sent_at_uses_message_send_time(
 def test_drafts_reject_sort_by_sent_at(app_client: TestClient, headers_for) -> None:
     """Drafts have no send time, so `sort_by=sent_at` must 422 (not silently fall back)."""
 
-    response = app_client.get("/drafts/?sort_by=sent_at", headers=headers_for(USER))
+    response = app_client.get("/drafts?sort_by=sent_at", headers=headers_for(USER))
     assert response.status_code == 422
     # other boxes still accept it
     assert (
-        app_client.get("/inbox/?sort_by=sent_at", headers=headers_for(USER)).status_code
+        app_client.get("/inbox?sort_by=sent_at", headers=headers_for(USER)).status_code
         == 200
     )

@@ -26,7 +26,7 @@ def cmd_drafts(args: Namespace) -> None:
 
     # 2. hit the server endpoint `GET /drafts`
     response = httpx.get(
-        url=f"{MAIL_SERVER}/drafts/",
+        url=f"{MAIL_SERVER}/drafts",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",

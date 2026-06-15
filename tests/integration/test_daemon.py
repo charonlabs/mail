@@ -11,7 +11,7 @@ DAEMON = "daemon:dummy@localhost"
 
 def _compose_and_send(client: TestClient, headers: dict[str, str]) -> str:
     response = client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Buffered", "body": "Awaiting delivery"},
         headers=headers,
     )
@@ -31,16 +31,12 @@ def test_clear_message_buffer_returns_pending_ids_once(
     message_id = _compose_and_send(app_client, headers_for(USER))
     daemon_headers = headers_for(DAEMON)
 
-    response = app_client.post(
-        "/daemon/message-buffer/clear", headers=daemon_headers
-    )
+    response = app_client.post("/daemon/message-buffer/clear", headers=daemon_headers)
     assert response.status_code == 200
     assert response.json()["message_ids"] == [message_id]
 
     # The buffer is drained; a second clear returns nothing.
-    response = app_client.post(
-        "/daemon/message-buffer/clear", headers=daemon_headers
-    )
+    response = app_client.post("/daemon/message-buffer/clear", headers=daemon_headers)
     assert response.status_code == 200
     assert response.json()["message_ids"] == []
 
@@ -101,7 +97,7 @@ def test_deliver_local_skips_unknown_recipient(
 
     user_headers = headers_for(USER)
     response = app_client.post(
-        "/drafts/",
+        "/drafts",
         json={"subject": "Mixed", "body": "One good, one ghost"},
         headers=user_headers,
     )

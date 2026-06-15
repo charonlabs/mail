@@ -26,7 +26,7 @@ def cmd_outbox(args: Namespace) -> None:
 
     # 2. hit the server endpoint `GET /outbox`
     response = httpx.get(
-        url=f"{MAIL_SERVER}/outbox/",
+        url=f"{MAIL_SERVER}/outbox",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",

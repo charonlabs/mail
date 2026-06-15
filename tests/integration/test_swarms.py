@@ -35,7 +35,7 @@ def test_health_reports_ok_without_auth(app_client: TestClient) -> None:
 
 
 @pytest.mark.parametrize(
-    "path", ["/swarms/", f"/swarms/{SWARM}", f"/swarms/{SWARM}/health"]
+    "path", ["/swarms", f"/swarms/{SWARM}", f"/swarms/{SWARM}/health"]
 )
 def test_swarm_endpoints_reject_missing_token(
     app_client: TestClient, path: str
@@ -44,10 +44,8 @@ def test_swarm_endpoints_reject_missing_token(
     assert response.status_code == 401
 
 
-def test_get_swarms_lists_seeded_swarm(
-    app_client: TestClient, headers_for
-) -> None:
-    response = app_client.get("/swarms/", headers=headers_for(USER))
+def test_get_swarms_lists_seeded_swarm(app_client: TestClient, headers_for) -> None:
+    response = app_client.get("/swarms", headers=headers_for(USER))
     assert response.status_code == 200
     swarms = response.json()["swarms"]
     assert len(swarms) == 1
@@ -60,17 +58,13 @@ def test_get_swarm_by_name(app_client: TestClient, headers_for) -> None:
     assert response.json()["swarm"]["name"] == SWARM
 
 
-def test_get_swarm_unknown_returns_404(
-    app_client: TestClient, headers_for
-) -> None:
+def test_get_swarm_unknown_returns_404(app_client: TestClient, headers_for) -> None:
     response = app_client.get("/swarms/nonexistent", headers=headers_for(USER))
     assert response.status_code == 404
 
 
 def test_get_swarm_health(app_client: TestClient, headers_for) -> None:
-    response = app_client.get(
-        f"/swarms/{SWARM}/health", headers=headers_for(USER)
-    )
+    response = app_client.get(f"/swarms/{SWARM}/health", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
@@ -78,7 +72,5 @@ def test_get_swarm_health(app_client: TestClient, headers_for) -> None:
 def test_get_swarm_health_unknown_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
-    response = app_client.get(
-        "/swarms/nonexistent/health", headers=headers_for(USER)
-    )
+    response = app_client.get("/swarms/nonexistent/health", headers=headers_for(USER))
     assert response.status_code == 404

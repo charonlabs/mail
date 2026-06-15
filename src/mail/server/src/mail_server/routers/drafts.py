@@ -22,7 +22,7 @@ router = APIRouter(prefix="/drafts", tags=["drafts"])
 
 
 @router.get(
-    "/", summary="Get a list of message drafts", response_model=DraftsGetResponse
+    "", summary="Get a list of message drafts", response_model=DraftsGetResponse
 )
 async def get_drafts(request: Request) -> DraftsGetResponse:
     backend = request.app.state.backend
@@ -46,9 +46,7 @@ async def get_drafts(request: Request) -> DraftsGetResponse:
     )
 
 
-@router.post(
-    "/", summary="Create a new message draft", response_model=DraftPostResponse
-)
+@router.post("", summary="Create a new message draft", response_model=DraftPostResponse)
 async def post_draft(request: Request) -> DraftPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)

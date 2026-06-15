@@ -26,7 +26,7 @@ def cmd_swarm_list(args: Namespace) -> None:
 
     # 2. Attempt to get the list of swarms on the MAIL server
     response = httpx.get(
-        url=f"{MAIL_SERVER}/swarms/",
+        url=f"{MAIL_SERVER}/swarms",
         headers={
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
             "Authorization": f"Bearer {MAIL_TOKEN}",

@@ -26,7 +26,7 @@ def cmd_inbox(args: Namespace) -> None:
 
     # 2. hit the server endpoint `GET /inbox`
     response = httpx.get(
-        url=f"{MAIL_SERVER}/inbox/",
+        url=f"{MAIL_SERVER}/inbox",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/trash", tags=["trash"])
 
 
 @router.get(
-    "/", summary="Get a list of messages in trash", response_model=TrashGetResponse
+    "", summary="Get a list of messages in trash", response_model=TrashGetResponse
 )
 async def get_trashed_messages(request: Request) -> TrashGetResponse:
     backend = request.app.state.backend

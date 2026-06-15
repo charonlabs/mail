@@ -12,7 +12,7 @@ router = APIRouter(prefix="/outbox", tags=["outbox"])
 
 
 @router.get(
-    "/", summary="Get a list of outbox messages", response_model=OutboxGetResponse
+    "", summary="Get a list of outbox messages", response_model=OutboxGetResponse
 )
 async def get_outbox(request: Request) -> OutboxGetResponse:
     backend = request.app.state.backend

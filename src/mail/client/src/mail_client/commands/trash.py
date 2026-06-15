@@ -26,7 +26,7 @@ def cmd_trash(args: Namespace) -> None:
 
     # 2. hit the server endpoint `GET /trash`
     response = httpx.get(
-        url=f"{MAIL_SERVER}/trash/",
+        url=f"{MAIL_SERVER}/trash",
         headers={
             "Authorization": f"Bearer {MAIL_TOKEN}",
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
