@@ -58,7 +58,30 @@ def test_mail_server_help_does_not_import_runtime_configuration() -> None:
 
     assert "usage: mail-server [option]..." in help_text
     assert "--host HOST" in help_text
+    assert "--memory-save-interval SECONDS" in help_text
     assert "mail-server --host 0.0.0.0 --port 8865" in help_text
+
+
+def test_mail_server_memory_save_interval_uses_env_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAIL_MEMORY_SAVE_INTERVAL_SECONDS", "12.5")
+
+    args = build_server_parser().parse_args([])
+
+    assert args.memory_save_interval == 12.5
+
+
+def test_mail_server_memory_save_interval_rejects_negative_value(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = build_server_parser()
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["--memory-save-interval", "-1"])
+
+    assert exc_info.value.code == 2
+    assert "must be non-negative" in capsys.readouterr().err
 
 
 def test_mail_daemon_help_has_readable_log_options() -> None:

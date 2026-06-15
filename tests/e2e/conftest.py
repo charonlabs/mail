@@ -86,15 +86,23 @@ class E2EStack:
             path.name: path.read_text().strip() for path in secrets_dir.iterdir()
         }
 
-    def start_server(self, timeout: float = 20.0) -> None:
+    def start_server(
+        self,
+        timeout: float = 20.0,
+        memory_save_interval: float | None = None,
+    ) -> None:
+        command = [
+            str(VENV_BIN / "mail-server"),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self.port),
+        ]
+        if memory_save_interval is not None:
+            command.extend(["--memory-save-interval", str(memory_save_interval)])
+
         self.server = subprocess.Popen(
-            [
-                str(VENV_BIN / "mail-server"),
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(self.port),
-            ],
+            command,
             env=self.env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -117,6 +125,13 @@ class E2EStack:
         # SIGTERM lets uvicorn run the lifespan shutdown, which persists
         # backend state to the deployment dir.
         self.server.terminate()
+        self.server.wait(timeout=15)
+        self.server = None
+
+    def kill_server(self) -> None:
+        if self.server is None:
+            return
+        self.server.kill()
         self.server.wait(timeout=15)
         self.server = None
 

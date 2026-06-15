@@ -11,6 +11,7 @@ so a serialization change can't silently lose a collection.
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry
 from mail_protocol.core.inbox import MAILInboxEntrySummary
 from mail_protocol.core.messages import MAILMessage
@@ -40,6 +41,25 @@ def _message() -> MAILMessage:
         sent_at=NOW,
         metadata={},
     )
+
+
+def test_atomic_write_preserves_target_when_replace_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "state"
+    target.write_text("old", encoding="utf-8")
+
+    def fail_replace(src: str, dst: str) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(memory_fs.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        memory_fs._atomic_write_text(target, "new")
+
+    assert target.read_text(encoding="utf-8") == "old"
+    assert list(tmp_path.glob(".state.*.tmp")) == []
 
 
 async def test_user_agents_roundtrip(deployment_dir: Path) -> None:
@@ -157,6 +177,17 @@ async def test_webhooks_roundtrip(deployment_dir: Path) -> None:
     }
     await memory_fs.save_webhooks(record)
     assert await memory_fs.load_webhooks() == record
+
+
+async def test_save_directory_snapshot_removes_stale_files(
+    deployment_dir: Path,
+) -> None:
+    stale = deployment_dir / "messages" / "66666666-6666-4666-8666-666666666666"
+    stale.write_text(_message().model_dump_json(), encoding="utf-8")
+
+    await memory_fs.save_messages({})
+
+    assert not stale.exists()
 
 
 async def test_empty_deployment_loads_empty_collections(
