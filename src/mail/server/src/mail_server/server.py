@@ -133,7 +133,9 @@ def run_server(args: Namespace) -> None:
     match args.backend:
         case "memory" | "mem":
             global _backend
-            _backend = MemoryBackend()
+            _backend = MemoryBackend(
+                persistence_interval_seconds=getattr(args, "memory_save_interval", 0)
+            )
         case _:
             raise ValueError(f"invalid backend type: {args.backend}")
 

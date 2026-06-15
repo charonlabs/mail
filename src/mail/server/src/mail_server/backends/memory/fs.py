@@ -2,6 +2,8 @@
 # Copyright (c) 2026 Addison Kline
 
 import logging
+import os
+import tempfile
 from os import scandir
 from pathlib import Path
 
@@ -24,6 +26,87 @@ from mail_protocol.core.webhooks import MAILWebhook
 logger = logging.getLogger(__name__)
 
 DEPLOYMENT_PATH = Path.home().joinpath(".mail-swarms", "deployments", "default")
+
+
+def _fsync_dir(path: Path) -> None:
+    """
+    Best-effort fsync for a directory after atomic file replacement.
+    """
+
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return
+
+    try:
+        os.fsync(fd)
+    except OSError:
+        logger.debug("failed to fsync directory %s", path, exc_info=True)
+    finally:
+        os.close(fd)
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """
+    Atomically replace ``path`` with ``content``.
+
+    The temporary file is created in the same directory so ``os.replace`` is an
+    atomic rename on the target filesystem.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(content)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        os.replace(tmp_path, path)
+        _fsync_dir(path.parent)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            logger.debug("failed to remove temporary file %s", tmp_path, exc_info=True)
+        raise
+
+
+def _remove_stale_files(directory: Path, expected_names: set[str]) -> None:
+    """
+    Remove files in ``directory`` that are no longer present in a snapshot.
+    """
+
+    removed = False
+    with scandir(directory) as entries:
+        for entry in entries:
+            if entry.is_file() and entry.name not in expected_names:
+                Path(entry.path).unlink()
+                removed = True
+
+    if removed:
+        _fsync_dir(directory)
+
+
+def _save_directory_snapshot(directory: Path, files: dict[str, str]) -> None:
+    """
+    Save a complete directory-backed collection snapshot.
+    """
+
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, content in files.items():
+        _atomic_write_text(directory.joinpath(name), content)
+    _remove_stale_files(directory, set(files))
 
 
 #
@@ -503,7 +586,7 @@ async def load_webhooks() -> dict[str, MAILWebhook]:
 
 #
 # Save memory backend to the local filesystem
-# (on server shutdown)
+# (on server shutdown and periodic checkpoints)
 #
 async def save_user_agents(user_agents: dict[str, MAILUserAgentInBackend]) -> None:
     """
@@ -512,12 +595,13 @@ async def save_user_agents(user_agents: dict[str, MAILUserAgentInBackend]) -> No
 
     logger.info(f"saving {len(user_agents)} user_agents...")
 
-    user_agents_path = DEPLOYMENT_PATH.joinpath("user_agents")
-    for address, user_agent in user_agents.items():
-        ua_path = user_agents_path.joinpath(address)
-        with open(ua_path, "w") as ua_file:
-            content = user_agent.model_dump_json()
-            ua_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("user_agents"),
+        {
+            address: user_agent.model_dump_json()
+            for address, user_agent in user_agents.items()
+        },
+    )
 
 
 async def save_swarms(swarms: dict[str, MAILSwarm]) -> None:
@@ -527,12 +611,10 @@ async def save_swarms(swarms: dict[str, MAILSwarm]) -> None:
 
     logger.info(f"saving {len(swarms)} swarms...")
 
-    swarms_path = DEPLOYMENT_PATH.joinpath("swarms")
-    for name, swarm in swarms.items():
-        swarm_path = swarms_path.joinpath(name)
-        with open(swarm_path, "w") as swarm_file:
-            content = swarm.model_dump_json()
-            swarm_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("swarms"),
+        {name: swarm.model_dump_json() for name, swarm in swarms.items()},
+    )
 
 
 async def save_messages(messages: dict[str, MAILMessage]) -> None:
@@ -542,12 +624,10 @@ async def save_messages(messages: dict[str, MAILMessage]) -> None:
 
     logger.info(f"saving {len(messages)} messages...")
 
-    messages_path = DEPLOYMENT_PATH.joinpath("messages")
-    for msg_id, message in messages.items():
-        msg_path = messages_path.joinpath(msg_id)
-        with open(msg_path, "w") as msg_file:
-            content = message.model_dump_json()
-            msg_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("messages"),
+        {msg_id: message.model_dump_json() for msg_id, message in messages.items()},
+    )
 
 
 async def save_inbox_entries(inbox_entries: dict[str, MAILInboxEntrySummary]) -> None:
@@ -557,12 +637,13 @@ async def save_inbox_entries(inbox_entries: dict[str, MAILInboxEntrySummary]) ->
 
     logger.info(f"saving {len(inbox_entries)} inbox_entries...")
 
-    inbox_entries_path = DEPLOYMENT_PATH.joinpath("inbox_entries")
-    for msg_id, inbox_entry in inbox_entries.items():
-        ie_path = inbox_entries_path.joinpath(msg_id)
-        with open(ie_path, "w") as ie_file:
-            content = inbox_entry.model_dump_json()
-            ie_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("inbox_entries"),
+        {
+            msg_id: inbox_entry.model_dump_json()
+            for msg_id, inbox_entry in inbox_entries.items()
+        },
+    )
 
 
 async def save_inboxes(inboxes: dict[str, list[str]]) -> None:
@@ -572,12 +653,13 @@ async def save_inboxes(inboxes: dict[str, list[str]]) -> None:
 
     logger.info(f"saving {len(inboxes)} inboxes...")
 
-    inboxes_path = DEPLOYMENT_PATH.joinpath("inboxes")
-    for address, ie_ids in inboxes.items():
-        inbox_path = inboxes_path.joinpath(address)
-        with open(inbox_path, "w") as inbox_file:
-            for ie_id in ie_ids:
-                inbox_file.write(f"{ie_id}\n")
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("inboxes"),
+        {
+            address: "".join(f"{ie_id}\n" for ie_id in ie_ids)
+            for address, ie_ids in inboxes.items()
+        },
+    )
 
 
 async def save_outbox_entries(
@@ -589,12 +671,13 @@ async def save_outbox_entries(
 
     logger.info(f"saving {len(outbox_entries)} outbox_entries...")
 
-    outbox_entries_path = DEPLOYMENT_PATH.joinpath("outbox_entries")
-    for msg_id, outbox_entry in outbox_entries.items():
-        oe_path = outbox_entries_path.joinpath(msg_id)
-        with open(oe_path, "w") as oe_file:
-            content = outbox_entry.model_dump_json()
-            oe_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("outbox_entries"),
+        {
+            msg_id: outbox_entry.model_dump_json()
+            for msg_id, outbox_entry in outbox_entries.items()
+        },
+    )
 
 
 async def save_outboxes(outboxes: dict[str, list[str]]) -> None:
@@ -604,12 +687,13 @@ async def save_outboxes(outboxes: dict[str, list[str]]) -> None:
 
     logger.info(f"saving {len(outboxes)} outboxes...")
 
-    outboxes_path = DEPLOYMENT_PATH.joinpath("outboxes")
-    for address, oe_ids in outboxes.items():
-        outbox_path = outboxes_path.joinpath(address)
-        with open(outbox_path, "w") as outbox_file:
-            for oe_id in oe_ids:
-                outbox_file.write(f"{oe_id}\n")
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("outboxes"),
+        {
+            address: "".join(f"{oe_id}\n" for oe_id in oe_ids)
+            for address, oe_ids in outboxes.items()
+        },
+    )
 
 
 async def save_draft_entries(
@@ -621,12 +705,13 @@ async def save_draft_entries(
 
     logger.info(f"saving {len(draft_entries)} draft_entries...")
 
-    draft_entries_path = DEPLOYMENT_PATH.joinpath("draft_entries")
-    for draft_id, draft_entry in draft_entries.items():
-        de_path = draft_entries_path.joinpath(draft_id)
-        with open(de_path, "w") as de_file:
-            content = draft_entry.model_dump_json()
-            de_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("draft_entries"),
+        {
+            draft_id: draft_entry.model_dump_json()
+            for draft_id, draft_entry in draft_entries.items()
+        },
+    )
 
 
 async def save_drafts(drafts: dict[str, list[str]]) -> None:
@@ -636,12 +721,13 @@ async def save_drafts(drafts: dict[str, list[str]]) -> None:
 
     logger.info(f"saving {len(drafts)} drafts...")
 
-    draft_boxes_path = DEPLOYMENT_PATH.joinpath("drafts")
-    for address, draft_ids in drafts.items():
-        drafts_path = draft_boxes_path.joinpath(address)
-        with open(drafts_path, "w") as drafts_file:
-            for draft_id in draft_ids:
-                drafts_file.write(f"{draft_id}\n")
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("drafts"),
+        {
+            address: "".join(f"{draft_id}\n" for draft_id in draft_ids)
+            for address, draft_ids in drafts.items()
+        },
+    )
 
 
 async def save_trash_entries(trash_entries: dict[str, MAILTrashEntry]) -> None:
@@ -651,12 +737,13 @@ async def save_trash_entries(trash_entries: dict[str, MAILTrashEntry]) -> None:
 
     logger.info(f"saving {len(trash_entries)} trash_entries...")
 
-    trash_entries_path = DEPLOYMENT_PATH.joinpath("trash_entries")
-    for msg_id, trash_entry in trash_entries.items():
-        te_path = trash_entries_path.joinpath(msg_id)
-        with open(te_path, "w") as te_file:
-            content = trash_entry.model_dump_json()
-            te_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("trash_entries"),
+        {
+            msg_id: trash_entry.model_dump_json()
+            for msg_id, trash_entry in trash_entries.items()
+        },
+    )
 
 
 async def save_trashes(trashes: dict[str, list[str]]) -> None:
@@ -666,12 +753,13 @@ async def save_trashes(trashes: dict[str, list[str]]) -> None:
 
     logger.info(f"saving {len(trashes)} trashes...")
 
-    trash_boxes_path = DEPLOYMENT_PATH.joinpath("trashes")
-    for address, te_ids in trashes.items():
-        trash_path = trash_boxes_path.joinpath(address)
-        with open(trash_path, "w") as trash_file:
-            for te_id in te_ids:
-                trash_file.write(f"{te_id}\n")
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("trashes"),
+        {
+            address: "".join(f"{te_id}\n" for te_id in te_ids)
+            for address, te_ids in trashes.items()
+        },
+    )
 
 
 async def save_lists(lists: dict[str, MAILListInBackend]) -> None:
@@ -681,12 +769,13 @@ async def save_lists(lists: dict[str, MAILListInBackend]) -> None:
 
     logger.info(f"saving {len(lists)} lists...")
 
-    lists_path = DEPLOYMENT_PATH.joinpath("lists")
-    for address, mail_list in lists.items():
-        list_path = lists_path.joinpath(address)
-        with open(list_path, "w") as list_file:
-            content = mail_list.model_dump_json()
-            list_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("lists"),
+        {
+            address: mail_list.model_dump_json()
+            for address, mail_list in lists.items()
+        },
+    )
 
 
 async def save_message_buffer(message_buffer: list[str]) -> None:
@@ -696,10 +785,10 @@ async def save_message_buffer(message_buffer: list[str]) -> None:
 
     logger.info(f"saving {len(message_buffer)} messages to buffer...")
 
-    msg_buf_path = DEPLOYMENT_PATH.joinpath("message_buffer.lock")
-    with open(msg_buf_path, "w") as msg_buf_file:
-        for msg_id in message_buffer:
-            msg_buf_file.write(f"{msg_id}\n")
+    _atomic_write_text(
+        DEPLOYMENT_PATH.joinpath("message_buffer.lock"),
+        "".join(f"{msg_id}\n" for msg_id in message_buffer),
+    )
 
 
 async def save_webhooks(webhooks: dict[str, MAILWebhook]) -> None:
@@ -709,9 +798,10 @@ async def save_webhooks(webhooks: dict[str, MAILWebhook]) -> None:
 
     logger.info(f"saving {len(webhooks)} webhooks...")
 
-    webhooks_path = DEPLOYMENT_PATH.joinpath("webhooks")
-    for webhook in webhooks.values():
-        wh_path = webhooks_path.joinpath(webhook.webhook_id)
-        with open(wh_path, "w") as wh_file:
-            content = webhook.model_dump_json()
-            wh_file.write(content)
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("webhooks"),
+        {
+            webhook.webhook_id: webhook.model_dump_json()
+            for webhook in webhooks.values()
+        },
+    )

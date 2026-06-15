@@ -116,6 +116,50 @@ def test_persistence_across_restart(e2e_stack) -> None:
     assert any(e["message_id"] == message_id for e in outbox["entries"])
 
 
+def test_periodic_persistence_survives_abrupt_server_exit(e2e_stack) -> None:
+    e2e_stack.stop_server()
+    e2e_stack.start_server(memory_save_interval=0.2)
+
+    alice = e2e_stack.login(USER)
+    bob = e2e_stack.login(OTHER_USER)
+
+    draft = e2e_stack.cli_json(
+        "compose", "Checkpointed", "Survives abrupt exit.", token=alice
+    )
+    sent = e2e_stack.cli_json(
+        "send", draft["entry"]["draft"]["draft_id"], OTHER_USER, token=alice
+    )
+    message_id = sent["message"]["message_id"]
+
+    def bob_has_mail() -> bool:
+        inbox = e2e_stack.cli_json("inbox", token=bob)
+        return any(e["message_id"] == message_id for e in inbox["entries"])
+
+    with e2e_stack.daemon_running():
+        e2e_stack.wait_for(bob_has_mail)
+
+    deployment = e2e_stack.home / ".mail-swarms" / "deployments" / "default"
+
+    def checkpoint_written() -> bool:
+        inbox_path = deployment / "inboxes" / OTHER_USER
+        return (
+            (deployment / "messages" / message_id).exists()
+            and (deployment / "inbox_entries" / message_id).exists()
+            and inbox_path.exists()
+            and message_id in inbox_path.read_text(encoding="utf-8").splitlines()
+        )
+
+    e2e_stack.wait_for(checkpoint_written, timeout=10.0)
+
+    e2e_stack.kill_server()
+    e2e_stack.start_server(memory_save_interval=0)
+
+    opened = e2e_stack.cli_json("inbox-open", message_id, token=bob)
+    assert opened["entry"]["message"]["body"] == "Survives abrupt exit."
+    outbox = e2e_stack.cli_json("outbox", token=alice)
+    assert any(e["message_id"] == message_id for e in outbox["entries"])
+
+
 def test_auth_journey(e2e_stack) -> None:
     # Ping needs no credentials.
     result = e2e_stack.cli("ping")

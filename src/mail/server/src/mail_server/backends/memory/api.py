@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+import time
 import uuid
 from collections.abc import Callable
 from copy import deepcopy
@@ -115,6 +116,125 @@ class MemoryBackend(MAILServerBackend):
     """
     A generic base class for the MAIL server backend.
     """
+
+    def __init__(self, persistence_interval_seconds: float = 0) -> None:
+        """
+        Initialize the in-memory backend and persistence lifecycle state.
+        """
+
+        if persistence_interval_seconds < 0:
+            raise ValueError("persistence interval must be non-negative")
+
+        self.persistence_interval_seconds = persistence_interval_seconds
+        self._persistence_lock = asyncio.Lock()
+        self._checkpoint_task: asyncio.Task[None] | None = None
+
+    def _snapshot_persistence_state(self) -> dict[str, Any]:
+        """
+        Build a stable snapshot of all collections persisted to disk.
+        """
+
+        return {
+            "user_agents": dict(self.user_agents),
+            "swarms": dict(self.swarms),
+            "messages": dict(self.messages),
+            "inbox_entries": dict(self.inbox_entries),
+            "inboxes": {address: list(ids) for address, ids in self.inboxes.items()},
+            "outbox_entries": dict(self.outbox_entries),
+            "outboxes": {address: list(ids) for address, ids in self.outboxes.items()},
+            "draft_entries": dict(self.draft_entries),
+            "drafts": {address: list(ids) for address, ids in self.drafts.items()},
+            "trash_entries": dict(self.trash_entries),
+            "trashes": {address: list(ids) for address, ids in self.trashes.items()},
+            "message_buffer": list(self.message_buffer),
+            "webhooks": dict(self.webhooks),
+            "lists": dict(self.lists),
+        }
+
+    async def persist(self, *, reason: str = "manual") -> None:
+        """
+        Persist the current in-memory state to the local filesystem.
+        """
+
+        async with self._persistence_lock:
+            started_at = time.monotonic()
+            snapshot = self._snapshot_persistence_state()
+            logger.info("persisting memory backend state: reason=%s", reason)
+
+            await save_user_agents(snapshot["user_agents"])
+            await save_swarms(snapshot["swarms"])
+            await save_messages(snapshot["messages"])
+            await save_inbox_entries(snapshot["inbox_entries"])
+            await save_inboxes(snapshot["inboxes"])
+            await save_outbox_entries(snapshot["outbox_entries"])
+            await save_outboxes(snapshot["outboxes"])
+            await save_draft_entries(snapshot["draft_entries"])
+            await save_drafts(snapshot["drafts"])
+            await save_trash_entries(snapshot["trash_entries"])
+            await save_trashes(snapshot["trashes"])
+            await save_message_buffer(snapshot["message_buffer"])
+            await save_webhooks(snapshot["webhooks"])
+            await save_lists(snapshot["lists"])
+
+            elapsed = time.monotonic() - started_at
+            logger.info(
+                "memory backend state persisted: reason=%s elapsed=%.3fs",
+                reason,
+                elapsed,
+            )
+
+    async def _checkpoint_loop(self) -> None:
+        """
+        Periodically persist the memory backend until shutdown.
+        """
+
+        logger.info(
+            "memory backend periodic checkpoint task started: interval=%ss",
+            self.persistence_interval_seconds,
+        )
+        try:
+            while True:
+                await asyncio.sleep(self.persistence_interval_seconds)
+                try:
+                    await self.persist(reason="periodic")
+                except Exception:
+                    logger.exception("memory backend periodic checkpoint failed")
+        finally:
+            logger.info("memory backend periodic checkpoint task stopped")
+
+    def _start_periodic_checkpoint(self) -> None:
+        """
+        Start periodic persistence if configured.
+        """
+
+        if self.persistence_interval_seconds <= 0:
+            return
+        if self._checkpoint_task is not None and not self._checkpoint_task.done():
+            return
+
+        self._checkpoint_task = asyncio.create_task(
+            self._checkpoint_loop(),
+            name="mail-memory-backend-checkpoint",
+        )
+
+    async def _stop_periodic_checkpoint(self) -> None:
+        """
+        Stop periodic persistence before final shutdown persistence.
+        """
+
+        task = self._checkpoint_task
+        self._checkpoint_task = None
+        if task is None:
+            return
+
+        if not task.done():
+            task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("memory backend periodic checkpoint task failed")
 
     #
     # Lifecyle handlers
@@ -232,6 +352,8 @@ class MemoryBackend(MAILServerBackend):
             if isinstance(host, str):
                 self.host = host
 
+        self._start_periodic_checkpoint()
+
         logger.info("backend initialization complete")
 
     async def on_server_shutdown(self, **kwargs: Any) -> None:
@@ -241,20 +363,8 @@ class MemoryBackend(MAILServerBackend):
 
         logger.info("shutting down backend...")
 
-        await save_user_agents(self.user_agents)
-        await save_swarms(self.swarms)
-        await save_messages(self.messages)
-        await save_inbox_entries(self.inbox_entries)
-        await save_inboxes(self.inboxes)
-        await save_outbox_entries(self.outbox_entries)
-        await save_outboxes(self.outboxes)
-        await save_draft_entries(self.draft_entries)
-        await save_drafts(self.drafts)
-        await save_trash_entries(self.trash_entries)
-        await save_trashes(self.trashes)
-        await save_message_buffer(self.message_buffer)
-        await save_webhooks(self.webhooks)
-        await save_lists(self.lists)
+        await self._stop_periodic_checkpoint()
+        await self.persist(reason="shutdown")
 
         logger.info("backend shutdown complete")
 
