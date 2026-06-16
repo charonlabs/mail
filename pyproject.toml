@@ -1,14 +1,16 @@
 [project]
 name = "mail-swarms"
-version = "2.0.0"
+version = "2.0.1"
 description = "Multi-Agent Interface Layer v2 workspace meta-package"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "mail-client>=2.0.0",
-    "mail-server>=2.0.0",
-    "mail-daemon>=2.0.0",
-    "mail-protocol>=2.0.0",
+    # Lockstep meta-package: pin members to this exact release. Bump all five
+    # versions together (see scripts/bump-version or `uv version --package`).
+    "mail-swarms-client==2.0.1",
+    "mail-swarms-server==2.0.1",
+    "mail-swarms-daemon==2.0.1",
+    "mail-swarms-protocol==2.0.1",
 ]
 license = "Apache-2.0"
 classifiers = [
@@ -48,38 +50,26 @@ legacy = [
     "fastmcp>=2.12.5",
     "asyncpg>=0.31.0",
 ]
-protocol = ["mail-protocol>=2.0.0"]
-server = ["mail-server>=2.0.0", "mail-protocol>=2.0.0"]
-client = ["mail-client>=2.0.0", "mail-protocol>=2.0.0"]
-daemon = ["mail-daemon>=2.0.0", "mail-protocol>=2.0.0"]
+protocol = ["mail-swarms-protocol==2.0.1"]
+server = ["mail-swarms-server==2.0.1", "mail-swarms-protocol==2.0.1"]
+client = ["mail-swarms-client==2.0.1", "mail-swarms-protocol==2.0.1"]
+daemon = ["mail-swarms-daemon==2.0.1", "mail-swarms-protocol==2.0.1"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+# `mail-swarms` is a thin meta-package: it ships no code of its own, it only
+# pins the four member distributions. The actual implementation lives in
+# `mail-swarms-client`/`-server`/`-daemon`/`-protocol` (which still import as
+# `mail_client`/`mail_server`/…), and the v1 `mail` / `mail.legacy` namespace is
+# intentionally NOT published here.
 [tool.hatch.build.targets.wheel]
-packages = ["src/mail"]
+bypass-selection = true
 
 [tool.hatch.build.targets.sdist]
-# Avoid slow sdist builds by skipping large, non-distribution directories.
-exclude = [
-    "ui/node_modules",
-    "ui/.next",
-    "ui/.turbo",
-    "src/mail/legacy/ui/node_modules",
-    "src/mail/legacy/ui/.next",
-    "src/mail/legacy/ui/.turbo",
-    "src/mail/legacy/ui/out",
-    "src/mail/legacy/ui/build",
-    ".venv",
-    "dist",
-    "logs",
-    ".mypy_cache",
-    ".ruff_cache",
-    ".pytest_cache",
-    ".coverage*",
-    "**/__pycache__",
-]
+# Keep the sdist minimal — no member source trees, no 1.5 GB legacy/ tree.
+only-include = ["README.md"]
 
 [tool.mypy]
 ignore_missing_imports=true
@@ -124,10 +114,10 @@ indent-style = "space"
 extend-select = ["TID252", "I", "UP"]
 
 [tool.uv.sources]
-mail-protocol = { workspace = true }
-mail-server = { workspace = true }
-mail-client = { workspace = true }
-mail-daemon = { workspace = true }
+mail-swarms-protocol = { workspace = true }
+mail-swarms-server = { workspace = true }
+mail-swarms-client = { workspace = true }
+mail-swarms-daemon = { workspace = true }
 
 [tool.uv.workspace]
 members = [

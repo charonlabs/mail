@@ -5247,42 +5247,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## `mail-client==2.0.0`
-CLI client for interacting with MAIL servers
-### License field:
-(license metadata not found)
-### Warning:
-No license metadata discovered; manual review needed.
-
-## `mail-daemon==2.0.0`
-Daemon implementation for the Multi-Agent Interface Layer (MAIL)
-### License field:
-(license metadata not found)
-### Warning:
-No license metadata discovered; manual review needed.
-
-## `mail-protocol==2.0.0`
-Types and constants for the Multi-Agent Interface Layer (MAIL) protocol
-### License field:
-(license metadata not found)
-### Warning:
-No license metadata discovered; manual review needed.
-
-## `mail-server==2.0.0`
-FastAPI server for the Multi-Agent Interface Layer (MAIL)
-### License field:
-(license metadata not found)
-### Warning:
-No license metadata discovered; manual review needed.
-
-## `mail-swarms==2.0.0`
+## `mail-swarms==2.0.1`
 Multi-Agent Interface Layer v2 workspace meta-package
 ### License field:
 Apache-2.0
 ### Classifiers:
 License :: OSI Approved :: Apache Software License
 
-### License Text (`mail_swarms-2.0.0.dist-info/licenses/LICENSE`)
+### License Text (`mail_swarms-2.0.1.dist-info/licenses/LICENSE`)
 
 ```text
 Apache License
@@ -5488,7 +5460,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### License Text (`mail_swarms-2.0.0.dist-info/licenses/NOTICE`)
+### License Text (`mail_swarms-2.0.1.dist-info/licenses/NOTICE`)
 
 ```text
 MAIL Project
@@ -5501,6 +5473,34 @@ Licensed under the Apache License, Version 2.0.
 Third-party notices and attributions may be included by their respective
 projects and licenses in their source files or package metadata.
 ```
+
+## `mail-swarms-client==2.0.1`
+CLI client for interacting with MAIL servers
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-swarms-daemon==2.0.1`
+Daemon implementation for the Multi-Agent Interface Layer (MAIL)
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-swarms-protocol==2.0.1`
+Types and constants for the Multi-Agent Interface Layer (MAIL) protocol
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
+
+## `mail-swarms-server==2.0.1`
+FastAPI server for the Multi-Agent Interface Layer (MAIL)
+### License field:
+(license metadata not found)
+### Warning:
+No license metadata discovered; manual review needed.
 
 ## `markdown-it-py==4.0.0`
 Python port of markdown-it. Markdown parsing, done right!
@@ -9718,6 +9718,85 @@ Copyright 2014 Ian Cordasco, Cory Benfield
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+```
+
+## `respx==0.23.1`
+A utility for mocking out the Python HTTPX and HTTP Core libraries.
+### License field:
+BSD-3-Clause
+### Classifiers:
+License :: OSI Approved :: BSD License
+### Home page:
+https://lundberg.github.io/respx/
+### Author:
+Jonas Lundberg
+
+### License Text (`LICENSE.md`)
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2019, 5 Monkeys Agency AB
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### License Text (`respx-0.23.1.dist-info/LICENSE.md`)
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2019, 5 Monkeys Agency AB
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 ## `rfc3339-validator==0.1.4`

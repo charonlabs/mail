@@ -27,16 +27,16 @@ def build_box_metadata(
 
 def get_mail_server_version() -> str:
     """
-    Get the version of `mail-server` from package metadata.
+    Get the version of `mail-swarms-server` from package metadata.
     """
 
-    version = metadata.version("mail-server")
+    version = metadata.version("mail-swarms-server")
     return version
 
 
 def get_mail_protocol_version() -> str:
     """
-    Get the version of the MAIL protocol being used by `mail-server`.
+    Get the version of the MAIL protocol being used by `mail-swarms-server`.
     """
 
     mail_server_v = get_mail_server_version()

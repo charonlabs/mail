@@ -1,6 +1,6 @@
 [project]
-name = "mail-server"
-version = "2.0.0"
+name = "mail-swarms-server"
+version = "2.0.1"
 description = "FastAPI server for the Multi-Agent Interface Layer (MAIL)"
 readme = "README.md"
 authors = [
@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.12.15",
     "fastapi>=0.116.1",
-    "mail-protocol>=2.0.0",
+    "mail-swarms-protocol==2.0.1",
     "pwdlib[argon2]>=0.3.0",
     "pydantic>=2.11.7",
     "pyjwt>=2.10.1",
@@ -31,4 +31,4 @@ build-backend = "hatchling.build"
 packages = ["src/mail_server"]
 
 [tool.uv.sources]
-mail-protocol = { workspace = true }
+mail-swarms-protocol = { workspace = true }

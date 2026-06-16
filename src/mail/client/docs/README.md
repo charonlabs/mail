@@ -1,6 +1,6 @@
-# mail-client Documentation Index
+# mail-swarms-client Documentation Index
 
-This document is an index for all `mail-client` documentation.
+This document is an index for all `mail-swarms-client` documentation.
 
 ## Tutorials
 

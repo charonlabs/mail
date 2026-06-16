@@ -9,10 +9,10 @@ runtime is archived under `src/mail/legacy`.
 
 ## Active v2 Packages
 
-- `src/mail/protocol` - shared protocol types and constants (`mail-protocol`)
-- `src/mail/server` - FastAPI server implementation (`mail-server`)
-- `src/mail/client` - command-line client (`mail-client`)
-- `src/mail/daemon` - daemon implementation (`mail-daemon`)
+- `src/mail/protocol` - shared protocol types and constants (`mail-swarms-protocol`)
+- `src/mail/server` - FastAPI server implementation (`mail-swarms-server`)
+- `src/mail/client` - command-line client (`mail-swarms-client`)
+- `src/mail/daemon` - daemon implementation (`mail-swarms-daemon`)
 
 ## Repository Layout
 
@@ -21,10 +21,10 @@ mail/
 ├── docs/                 # v2 repository-level docs
 ├── spec/                 # protocol specification and schemas
 ├── src/mail/
-│   ├── protocol/         # mail-protocol package
-│   ├── server/           # mail-server package
-│   ├── client/           # mail-client package
-│   ├── daemon/           # mail-daemon package
+│   ├── protocol/         # mail-swarms-protocol package
+│   ├── server/           # mail-swarms-server package
+│   ├── client/           # mail-swarms-client package
+│   ├── daemon/           # mail-swarms-daemon package
 │   └── legacy/           # archived MAIL v1 runtime, docs, config, and UI
 ├── tests/                # active MAIL v2 test suite
 ├── scripts/              # repository maintenance scripts

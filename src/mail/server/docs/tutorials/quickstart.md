@@ -1,6 +1,6 @@
-# `mail-server` Quickstart Guide
+# `mail-swarms-server` Quickstart Guide
 
-This document serves as a tutorial on how to get started with `mail-server`.
+This document serves as a tutorial on how to get started with `mail-swarms-server`.
 
 ## Prerequesites
 

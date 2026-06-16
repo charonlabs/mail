@@ -1,6 +1,6 @@
 [project]
-name = "mail-protocol"
-version = "2.0.0"
+name = "mail-swarms-protocol"
+version = "2.0.1"
 description = "Types and constants for the Multi-Agent Interface Layer (MAIL) protocol"
 readme = "README.md"
 authors = [

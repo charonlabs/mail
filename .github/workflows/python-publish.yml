@@ -1,16 +1,18 @@
-# This workflow will upload a Python Package to PyPI when a release is created
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+# This workflow uploads the MAIL Python packages to PyPI when a (non-prerelease)
+# GitHub Release is published.
+#
+# MAIL ships as five lockstep distributions built from one uv workspace:
+#   mail-swarms (thin meta) -> mail-swarms-client, mail-swarms-server,
+#                              mail-swarms-daemon, mail-swarms-protocol
+# All five share a single version and are published together.
 
 name: Upload Python Package
 
 on:
   release:
-    types: [published]
+    # `released` fires only when a non-prerelease is published (or a prerelease
+    # is promoted to a full release); prereleases never trigger this workflow.
+    types: [released]
 
 permissions:
   contents: read
@@ -18,19 +20,43 @@ permissions:
 jobs:
   release-build:
     runs-on: ubuntu-latest
+    # Defense-in-depth: skip the run for any release still flagged as a prerelease.
+    if: ${{ !github.event.release.prerelease }}
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
-      - name: Build release distributions
+      - name: Verify release tag matches package versions
         run: |
-          # NOTE: put your own distribution build steps here.
-          python -m pip install build
-          python -m build
+          # Normalize "v2.0.1" -> "2.0.1"; every package must match exactly so a
+          # mis-tagged release fails loudly instead of publishing a wrong version.
+          tag="${RELEASE_TAG#v}"
+          echo "Release tag (normalized): $tag"
+          fail=0
+          for f in pyproject.toml \
+                   src/mail/client/pyproject.toml \
+                   src/mail/server/pyproject.toml \
+                   src/mail/daemon/pyproject.toml \
+                   src/mail/protocol/pyproject.toml; do
+            ver="$(sed -nE 's/^version = "([^"]+)"$/\1/p' "$f" | head -1)"
+            if [ "$ver" != "$tag" ]; then
+              echo "::error file=$f::version is '$ver' but release tag is '$tag'"
+              fail=1
+            else
+              echo "ok: $f = $ver"
+            fi
+          done
+          exit "$fail"
+
+      - name: Build all workspace packages
+        run: uv build --all-packages
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
@@ -46,16 +72,10 @@ jobs:
       # IMPORTANT: this permission is mandatory for trusted publishing
       id-token: write
 
-    # Dedicated environments with protections for publishing are strongly recommended.
-    # For more information, see: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment#deployment-protection-rules
+    # Dedicated environment with protections for publishing.
     environment:
       name: pypi
-      # OPTIONAL: uncomment and update to include your PyPI project URL in the deployment status:
       url: https://pypi.org/p/mail-swarms
-      #
-      # ALTERNATIVE: if your GitHub Release name is the PyPI project version string
-      # ALTERNATIVE: exactly, uncomment the following line instead:
-      # url: https://pypi.org/project/YOURPROJECT/${{ github.event.release.name }}
 
     steps:
       - name: Retrieve release distributions
@@ -64,7 +84,15 @@ jobs:
           name: release-dists
           path: dist/
 
+      # Publishes every dist in dist/ (all five packages). PyPI matches each file
+      # to its project and verifies this repo/workflow/environment is a trusted
+      # publisher for THAT project, so every project needs a trusted publisher
+      # configured pointing at this workflow + the `pypi` env.
       - name: Publish release distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          # Idempotent: skip files already on PyPI instead of failing. Lets a
+          # re-run (or a version published out-of-band) succeed rather than erroring
+          # on PyPI's no-reupload rule.
+          skip-existing: true

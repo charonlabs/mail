@@ -1,3 +1,3 @@
-# mail-server
+# mail-swarms-server
 
 TODO

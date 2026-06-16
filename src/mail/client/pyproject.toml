@@ -1,6 +1,6 @@
 [project]
-name = "mail-client"
-version = "2.0.0"
+name = "mail-swarms-client"
+version = "2.0.1"
 description = "CLI client for interacting with MAIL servers"
 readme = "README.md"
 authors = [
@@ -10,7 +10,7 @@ requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.11.7",
-    "mail-protocol>=2.0.0",
+    "mail-swarms-protocol==2.0.1",
     "rich>=14.1.0",
     "dotenv>=0.9.9",
 ]
