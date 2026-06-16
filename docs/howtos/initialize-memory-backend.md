@@ -12,18 +12,6 @@ credentials for development.
 The repository is cloned, dependencies are installed, and the reader wants local
 server state for `mail-server --backend memory`.
 
-## Steps to Cover
-
-1. Run `uv run backend-init`.
-2. Customize deployment, swarm, host, agents, daemons, users, or admins.
-3. Locate generated credential files.
-4. Remove or protect plaintext password files after capture.
-5. Reinitialize clean state when needed.
-
-## Validation
-
-The server starts successfully and the generated user-agents can authenticate.
-
 ## Steps
 
 ### 1. Run `backend-init`
