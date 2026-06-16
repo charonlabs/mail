@@ -193,3 +193,20 @@ the field placement on the wire.
 - `src/mail/client/src/mail_client/commands/list_member_post.py`
 - `src/mail/server/src/mail_server/routers/lists.py`
 - `src/mail/protocol/src/mail_protocol/core/lists.py`
+<<<<<<< HEAD
+=======
+
+## Steps to Cover
+
+1. List available mailing lists.
+2. Inspect one list by address.
+3. Create a list as an admin.
+4. Subscribe and unsubscribe as a user-agent.
+5. Add or remove members as an admin.
+6. Send a message to a list address.
+
+## Validation
+
+List membership changes are reflected in list lookup and list-address sends
+deliver to expected recipients.
+>>>>>>> 4bed686 (docs: rebased v2 docs branch with main)

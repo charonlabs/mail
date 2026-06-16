@@ -120,3 +120,18 @@ TODO
 - `src/mail/server/src/mail_server/backend_init.py`
 - `src/mail/server/src/mail_server/backends/memory/init.py`
 - `src/mail/server/docs/tutorials/quickstart.md`
+<<<<<<< HEAD
+=======
+
+## Steps to Cover
+
+1. Run `uv run backend-init`.
+2. Customize deployment, swarm, host, agents, daemons, users, or admins.
+3. Locate generated credential files.
+4. Remove or protect plaintext password files after capture.
+5. Reinitialize clean state when needed.
+
+## Validation
+
+The server starts successfully and the generated user-agents can authenticate.
+>>>>>>> 4bed686 (docs: rebased v2 docs branch with main)
