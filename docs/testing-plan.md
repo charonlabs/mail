@@ -2,8 +2,9 @@
 
 **Status:** In effect — Phases 0–5 landed
 **Date:** 2026-06-12
-**Scope:** The v2 packages (`mail-protocol`, `mail-server`, `mail-daemon`,
-`mail-client`) and the repository-level `tests/` suite. The legacy suite under
+**Scope:** The v2 packages (`mail-swarms-protocol`, `mail-swarms-server`,
+`mail-swarms-daemon`, `mail-swarms-client`) and the repository-level `tests/`
+suite. The legacy suite under
 `src/mail/legacy/tests/` is out of scope and remains frozen.
 
 ---

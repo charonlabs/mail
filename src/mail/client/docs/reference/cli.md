@@ -1,6 +1,6 @@
-# `mail-client` CLI Reference
+# `mail-swarms-client` CLI Reference
 
-This document serves as a reference to the `mail-client` CLI.
+This document serves as a reference to the `mail-swarms-client` CLI.
 
 ## Usage
 

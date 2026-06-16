@@ -1,6 +1,6 @@
-# `mail-client` Quickstart Guide
+# `mail-swarms-client` Quickstart Guide
 
-This document serves as a tutorial on how to get started with `mail-client`.
+This document serves as a tutorial on how to get started with `mail-swarms-client`.
 
 ## Prerequesites
 
@@ -81,5 +81,5 @@ This includes the message's unique ID.
 
 ## See Also
 
-- `mail-client` CLI reference: [reference/cli.md](/docs/reference/cli.md)
-- `mail-client` admin panel CLI refernece: [reference/admin-panel.md](/docs/reference/admin-panel.md)
+- `mail-swarms-client` CLI reference: [reference/cli.md](/docs/reference/cli.md)
+- `mail-swarms-client` admin panel CLI refernece: [reference/admin-panel.md](/docs/reference/admin-panel.md)

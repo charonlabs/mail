@@ -8,11 +8,11 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "mail-client",
-    "mail-daemon",
-    "mail-protocol",
-    "mail-server",
     "mail-swarms",
+    "mail-swarms-client",
+    "mail-swarms-daemon",
+    "mail-swarms-protocol",
+    "mail-swarms-server",
 ]
 
 [[package]]
@@ -1250,106 +1250,24 @@ wheels = [
 ]
 
 [[package]]
-name = "mail-client"
-version = "2.0.0"
-source = { editable = "src/mail/client" }
-dependencies = [
-    { name = "dotenv" },
-    { name = "httpx" },
-    { name = "mail-protocol" },
-    { name = "pydantic" },
-    { name = "rich" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mail-protocol", editable = "src/mail/protocol" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "rich", specifier = ">=14.1.0" },
-]
-
-[[package]]
-name = "mail-daemon"
-version = "2.0.0"
-source = { editable = "src/mail/daemon" }
-dependencies = [
-    { name = "httpx" },
-    { name = "mail-protocol" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mail-protocol", editable = "src/mail/protocol" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-]
-
-[[package]]
-name = "mail-protocol"
-version = "2.0.0"
-source = { editable = "src/mail/protocol" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "validators" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "validators", specifier = ">=0.35.0" },
-]
-
-[[package]]
-name = "mail-server"
-version = "2.0.0"
-source = { editable = "src/mail/server" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "fastapi" },
-    { name = "mail-protocol" },
-    { name = "pwdlib", extra = ["argon2"] },
-    { name = "pydantic" },
-    { name = "pyjwt" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.12.15" },
-    { name = "fastapi", specifier = ">=0.116.1" },
-    { name = "mail-protocol", editable = "src/mail/protocol" },
-    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pyjwt", specifier = ">=2.10.1" },
-    { name = "python-dotenv", specifier = ">=1.1.1" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "uvicorn", specifier = ">=0.35.0" },
-]
-
-[[package]]
 name = "mail-swarms"
-version = "2.0.0"
+version = "2.0.1"
 source = { editable = "." }
 dependencies = [
-    { name = "mail-client" },
-    { name = "mail-daemon" },
-    { name = "mail-protocol" },
-    { name = "mail-server" },
+    { name = "mail-swarms-client" },
+    { name = "mail-swarms-daemon" },
+    { name = "mail-swarms-protocol" },
+    { name = "mail-swarms-server" },
 ]
 
 [package.optional-dependencies]
 client = [
-    { name = "mail-client" },
-    { name = "mail-protocol" },
+    { name = "mail-swarms-client" },
+    { name = "mail-swarms-protocol" },
 ]
 daemon = [
-    { name = "mail-daemon" },
-    { name = "mail-protocol" },
+    { name = "mail-swarms-daemon" },
+    { name = "mail-swarms-protocol" },
 ]
 legacy = [
     { name = "aiohttp" },
@@ -1376,11 +1294,11 @@ legacy = [
     { name = "uvicorn" },
 ]
 protocol = [
-    { name = "mail-protocol" },
+    { name = "mail-swarms-protocol" },
 ]
 server = [
-    { name = "mail-protocol" },
-    { name = "mail-server" },
+    { name = "mail-swarms-protocol" },
+    { name = "mail-swarms-server" },
 ]
 
 [package.dev-dependencies]
@@ -1408,17 +1326,17 @@ requires-dist = [
     { name = "langgraph", marker = "extra == 'legacy'", specifier = ">=0.6.3" },
     { name = "langmem", marker = "extra == 'legacy'", specifier = ">=0.0.29" },
     { name = "litellm", marker = "extra == 'legacy'", specifier = ">=1.76.2" },
-    { name = "mail-client", editable = "src/mail/client" },
-    { name = "mail-client", marker = "extra == 'client'", editable = "src/mail/client" },
-    { name = "mail-daemon", editable = "src/mail/daemon" },
-    { name = "mail-daemon", marker = "extra == 'daemon'", editable = "src/mail/daemon" },
-    { name = "mail-protocol", editable = "src/mail/protocol" },
-    { name = "mail-protocol", marker = "extra == 'client'", editable = "src/mail/protocol" },
-    { name = "mail-protocol", marker = "extra == 'daemon'", editable = "src/mail/protocol" },
-    { name = "mail-protocol", marker = "extra == 'protocol'", editable = "src/mail/protocol" },
-    { name = "mail-protocol", marker = "extra == 'server'", editable = "src/mail/protocol" },
-    { name = "mail-server", editable = "src/mail/server" },
-    { name = "mail-server", marker = "extra == 'server'", editable = "src/mail/server" },
+    { name = "mail-swarms-client", editable = "src/mail/client" },
+    { name = "mail-swarms-client", marker = "extra == 'client'", editable = "src/mail/client" },
+    { name = "mail-swarms-daemon", editable = "src/mail/daemon" },
+    { name = "mail-swarms-daemon", marker = "extra == 'daemon'", editable = "src/mail/daemon" },
+    { name = "mail-swarms-protocol", editable = "src/mail/protocol" },
+    { name = "mail-swarms-protocol", marker = "extra == 'client'", editable = "src/mail/protocol" },
+    { name = "mail-swarms-protocol", marker = "extra == 'daemon'", editable = "src/mail/protocol" },
+    { name = "mail-swarms-protocol", marker = "extra == 'protocol'", editable = "src/mail/protocol" },
+    { name = "mail-swarms-protocol", marker = "extra == 'server'", editable = "src/mail/protocol" },
+    { name = "mail-swarms-server", editable = "src/mail/server" },
+    { name = "mail-swarms-server", marker = "extra == 'server'", editable = "src/mail/server" },
     { name = "numpydoc", marker = "extra == 'legacy'", specifier = ">=1.9.0" },
     { name = "openai", marker = "extra == 'legacy'", specifier = ">=1.106.1" },
     { name = "pydantic", marker = "extra == 'legacy'", specifier = ">=2.11.7" },
@@ -1445,6 +1363,88 @@ dev = [
     { name = "respx", specifier = ">=0.23.1" },
     { name = "ruff", specifier = ">=0.12.12" },
     { name = "tqdm", specifier = ">=4.67.1" },
+]
+
+[[package]]
+name = "mail-swarms-client"
+version = "2.0.1"
+source = { editable = "src/mail/client" }
+dependencies = [
+    { name = "dotenv" },
+    { name = "httpx" },
+    { name = "mail-swarms-protocol" },
+    { name = "pydantic" },
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dotenv", specifier = ">=0.9.9" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mail-swarms-protocol", editable = "src/mail/protocol" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "rich", specifier = ">=14.1.0" },
+]
+
+[[package]]
+name = "mail-swarms-daemon"
+version = "2.0.1"
+source = { editable = "src/mail/daemon" }
+dependencies = [
+    { name = "httpx" },
+    { name = "mail-swarms-protocol" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "mail-swarms-protocol", editable = "src/mail/protocol" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+]
+
+[[package]]
+name = "mail-swarms-protocol"
+version = "2.0.1"
+source = { editable = "src/mail/protocol" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "validators" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "validators", specifier = ">=0.35.0" },
+]
+
+[[package]]
+name = "mail-swarms-server"
+version = "2.0.1"
+source = { editable = "src/mail/server" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "fastapi" },
+    { name = "mail-swarms-protocol" },
+    { name = "pwdlib", extra = ["argon2"] },
+    { name = "pydantic" },
+    { name = "pyjwt" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.12.15" },
+    { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "mail-swarms-protocol", editable = "src/mail/protocol" },
+    { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
+    { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "pyjwt", specifier = ">=2.10.1" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 
 [[package]]

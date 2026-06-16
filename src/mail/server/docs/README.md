@@ -1,10 +1,10 @@
-# `mail-server` Documentation Index
+# `mail-swarms-server` Documentation Index
 
-This document serves as the root documentation file for the `mail-server` Python package.
+This document serves as the root documentation file for the `mail-swarms-server` Python package.
 
 ## Tutorials
 
-- **`mail-server` quickstart**: [tutorials/quickstart.md](tutorials/quickstart.md)
+- **`mail-swarms-server` quickstart**: [tutorials/quickstart.md](tutorials/quickstart.md)
 
 ## Reference Docs
 

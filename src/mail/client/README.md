@@ -1,3 +1,3 @@
-# mail-client
+# mail-swarms-client
 
 TODO

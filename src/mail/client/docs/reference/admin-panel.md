@@ -1,6 +1,6 @@
-# `mail-client` Admin Panel CLI Reference
+# `mail-swarms-client` Admin Panel CLI Reference
 
-This document serves as a reference to the `mail-client` administrator panel CLI.
+This document serves as a reference to the `mail-swarms-client` administrator panel CLI.
 
 ## Usage
 
