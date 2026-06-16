@@ -12,13 +12,10 @@ The reader builds the smallest useful MAIL HTTP client: authenticate, call
 Developers integrating MAIL into tools that should not shell out to the `mail`
 CLI.
 
-## Source Material
+## Not Here
 
-- `spec/openapi.yaml`
-- `src/mail/protocol/src/mail_protocol/network/requests.py`
-- `src/mail/protocol/src/mail_protocol/network/responses.py`
-- `src/mail/server/src/mail_server/routers/auth.py`
-- `src/mail/server/src/mail_server/routers/drafts.py`
+- Full endpoint listings belong in [HTTP API](../references/http-api.md).
+- Protocol motivation belongs in [MAIL v2 Overview](../explanations/mail-v2-overview.md).
 
 ## Draft Outline
 
@@ -29,7 +26,10 @@ CLI.
 5. Send the draft with `POST /drafts/{draft_id}/send`.
 6. Parse success and validation errors.
 
-## Not Here
+## Source Material
 
-- Full endpoint listings belong in [HTTP API](../references/http-api.md).
-- Protocol motivation belongs in [MAIL v2 Overview](../explanations/mail-v2-overview.md).
+- `spec/openapi.yaml`
+- `src/mail/protocol/src/mail_protocol/network/requests.py`
+- `src/mail/protocol/src/mail_protocol/network/responses.py`
+- `src/mail/server/src/mail_server/routers/auth.py`
+- `src/mail/server/src/mail_server/routers/drafts.py`
