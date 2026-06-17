@@ -274,11 +274,13 @@ def test_send_unknown_draft_returns_404(app_client: TestClient, headers_for) -> 
 
 def _seed_trash(backend: MemoryBackend, owner: str) -> str:
     message = MAILMessage(
+        mail_version="2.0",
         message_id="22222222-2222-4222-8222-222222222222",
         sender="sage@chorus@localhost",
         recipients=[owner],
         subject="Trashed",
         body="This message was moved to trash.",
+        tags=[],
         sent_at=datetime(2026, 6, 11, tzinfo=UTC),
         metadata={},
     )
@@ -352,11 +354,13 @@ def _seed_trash_n(backend: MemoryBackend, owner: str, n: int) -> list[str]:
     for i in range(n):
         message_id = f"{i:08d}-2222-4222-8222-222222222222"
         message = MAILMessage(
+            mail_version="2.0",
             message_id=message_id,
             sender="sage@chorus@localhost",
             recipients=[owner],
             subject=f"Trashed {i}",
             body="body",
+            tags=[],
             sent_at=datetime(2026, 6, 1, 12, n - i, tzinfo=UTC),  # decreasing
             metadata={},
         )

@@ -68,11 +68,13 @@ async def test_undeliverable_message_is_preserved_and_logged(
 
     message_id = "66666666-6666-4666-8666-666666666666"
     message = MAILMessage(
+        mail_version="2.0",
         message_id=message_id,
         sender="user:alice@localhost",
         recipients=["ghost@nowhere@localhost"],
         subject="Undeliverable",
         body="No such recipient.",
+        tags=[],
         sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
         metadata={},
     )

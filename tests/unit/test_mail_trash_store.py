@@ -22,11 +22,13 @@ def _make_user_agent() -> MAILUserAgent:
 
 def _make_message() -> MAILMessage:
     return MAILMessage(
+        mail_version="2.0",
         message_id="11111111-1111-4111-8111-111111111111",
         sender="philosopher@chorus@localhost",
         recipients=["user:ryan@localhost"],
         subject="Trash lookup",
         body="This message should be read from trash, not drafts.",
+        tags=[],
         sent_at=datetime(2026, 6, 10, tzinfo=UTC),
         metadata={},
     )

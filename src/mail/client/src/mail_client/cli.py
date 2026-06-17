@@ -22,6 +22,7 @@ from mail_client.commands import (
     cmd_outbox,
     cmd_outbox_open,
     cmd_ping,
+    cmd_reply,
     cmd_send,
     cmd_swarm_get,
     cmd_swarm_list,
@@ -73,6 +74,7 @@ COMMAND_GROUPS = [
         [
             ("compose (c)", "Draft a new MAIL message."),
             ("send (s)", "Send a drafted message."),
+            ("reply (r)", "Reply to an inbox message by ID."),
             ("inbox (i)", "List your inbox messages."),
             ("inbox-open (open, o)", "Open an inbox message by ID."),
             ("outbox (O)", "List your sent messages."),
@@ -106,7 +108,24 @@ EXAMPLES = [
     'mail compose "Status update" "The migration is complete."',
     "mail send <draft-id> user@example",
     "mail inbox-open <message-id>",
+    'mail reply <message-id> "Thanks, acknowledged."',
 ]
+
+
+def _add_tags_arg(parser: argparse.ArgumentParser) -> None:
+    """
+    Register the shared ``--tags`` flag for message-creating commands
+    (compose, send, reply). Tags are slug strings used to categorize a
+    message; the default is an empty list (no tags).
+    """
+
+    parser.add_argument(
+        "--tags",
+        nargs="*",
+        default=[],
+        metavar="TAG",
+        help="slug string tag(s) to attach to the message",
+    )
 
 
 def _add_box_filter_args(box_parser: argparse.ArgumentParser) -> None:
@@ -203,6 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     compose_p.add_argument("subject", help="the subject line of the message to draft")
     compose_p.add_argument("body", help="the body of the message to draft")
+    _add_tags_arg(compose_p)
     compose_p.set_defaults(func=cmd_compose, cmd="compose")
 
     # command `send`
@@ -218,7 +238,27 @@ def build_parser() -> argparse.ArgumentParser:
     send_p.add_argument(
         "to", nargs="+", help="the address(es) to deliver this message to"
     )
+    _add_tags_arg(send_p)
     send_p.set_defaults(func=cmd_send, cmd="send")
+
+    # command `reply`
+    reply_d = "reply to an existing inbox message"
+    reply_p = subparsers.add_parser(
+        "reply",
+        aliases=["r"],
+        prog="mail reply",
+        help=reply_d,
+        description=reply_d,
+    )
+    reply_p.add_argument("message_id", help="the ID of the inbox message to reply to")
+    reply_p.add_argument("body", help="the body of the reply")
+    reply_p.add_argument(
+        "--subject",
+        default=None,
+        help="the subject of the reply (default: 'Re: <original subject>')",
+    )
+    _add_tags_arg(reply_p)
+    reply_p.set_defaults(func=cmd_reply, cmd="reply")
 
     # command `inbox`
     inbox_d = "open your MAIL inbox"

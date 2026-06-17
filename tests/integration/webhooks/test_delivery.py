@@ -44,11 +44,13 @@ RETRY_LADDER = [1, 30, 300, 3600, 6 * 3600]
 @pytest.fixture
 def message() -> MAILMessage:
     return MAILMessage(
+        mail_version="2.0",
         message_id=MESSAGE_ID,
         sender=SENDER,
         recipients=[RECIPIENT],
         subject="Webhook test",
         body="A body worth signing.",
+        tags=[],
         sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
         metadata={},
     )
@@ -109,6 +111,36 @@ async def test_delivery_posts_expected_payload(
     assert payload_message["body"] == "A body worth signing."
     assert payload_message["swarm"] == "chorus"
     assert payload_message["metadata"] == {}
+    # A non-reply, untagged message carries the empty defaults.
+    assert payload_message["reply_to"] is None
+    assert payload_message["tags"] == []
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_delivery_payload_carries_reply_to_and_tags(
+    pipeline_backend: MemoryBackend,
+) -> None:
+    original_id = "44444444-4444-4444-4444-444444444444"
+    message = MAILMessage(
+        mail_version="2.0",
+        message_id=MESSAGE_ID,
+        reply_to=original_id,
+        sender=SENDER,
+        recipients=[RECIPIENT],
+        subject="Re: Webhook test",
+        body="A reply worth signing.",
+        tags=["urgent", "project-x"],
+        sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
+        metadata={},
+    )
+    route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
+    await _fire(pipeline_backend, message)
+
+    payload_message = json.loads(route.calls[0].request.content)["message"]
+    # reply_to is surfaced in the same msg_-prefixed form as message_id.
+    assert payload_message["reply_to"] == f"msg_{original_id}"
+    assert payload_message["tags"] == ["urgent", "project-x"]
 
 
 @respx.mock
@@ -180,9 +212,7 @@ async def test_5xx_retries_until_success(
     assert recorded_sleeps == RETRY_LADDER[:2]
 
     # The event id is stable across attempts (receiver-side dedup key).
-    event_ids = {
-        call.request.headers["X-MAIL-Event-Id"] for call in route.calls
-    }
+    event_ids = {call.request.headers["X-MAIL-Event-Id"] for call in route.calls}
     assert len(event_ids) == 1
 
 
@@ -271,11 +301,13 @@ async def test_daemon_deliver_local_fires_registered_webhook(
     )
     backend.inboxes[RECIPIENT] = []
     message = MAILMessage(
+        mail_version="2.0",
         message_id=MESSAGE_ID,
         sender=SENDER,
         recipients=[RECIPIENT],
         subject="Wired",
         body="Through the whole pipeline.",
+        tags=[],
         sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
         metadata={},
     )
@@ -337,11 +369,13 @@ async def test_delivery_to_non_agent_recipient_fires_no_webhook(
     )
     backend.inboxes[user_address] = []
     message = MAILMessage(
+        mail_version="2.0",
         message_id=MESSAGE_ID,
         sender="user:bob@localhost",
         recipients=[user_address],
         subject="No hook",
         body="Delivered silently.",
+        tags=[],
         sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
         metadata={},
     )

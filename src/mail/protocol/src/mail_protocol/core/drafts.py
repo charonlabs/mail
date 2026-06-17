@@ -10,6 +10,7 @@ from mail_protocol.core.validators import (
     validate_mail_address,
     validate_message_body,
     validate_message_subject,
+    validate_message_tags,
     validate_uuid,
 )
 
@@ -18,6 +19,10 @@ class MAILDraft(BaseModel):
     """
     A draft of an individual MAIL message.
     Does not yet account for intended recipients.
+
+    `reply_to` and `tags` carry forward onto the `MAILMessage` produced when
+    the draft is sent. Both default to "no value" so drafts persisted before
+    these fields existed remain loadable.
     """
 
     draft_id: Annotated[str, AfterValidator(validate_uuid)]
@@ -25,6 +30,8 @@ class MAILDraft(BaseModel):
     body: Annotated[str, AfterValidator(validate_message_body)]
     created_at: datetime
     updated_at: datetime | None = None
+    reply_to: Annotated[str, AfterValidator(validate_uuid)] | None = None
+    tags: Annotated[list[str], AfterValidator(validate_message_tags)] = []
 
 
 class MAILDraftsEntrySummary(BaseModel):

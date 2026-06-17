@@ -44,6 +44,9 @@
   * [7.5 Message Bodies](#75-message-bodies)
   * [7.6 Timestamps](#76-timestamps)
   * [7.7 Message Metadata](#77-message-metadata)
+  * [7.8 Protocol Version](#78-protocol-version)
+  * [7.9 Replies](#79-replies)
+  * [7.10 Message Tags](#710-message-tags)
 * [8 Delivery](#8-delivery)
   * [8.1 Pre-Send Errors](#81-pre-send-errors)
   * [8.2 Post-Send Errors](#82-post-send-errors)
@@ -217,6 +220,18 @@ Every MAIL message MUST contain the timestamp string of the time it was sent by 
 
 Every MAIL message MUST contain a field for implementer-defined message metadata, defined by `metadata`. This value MAY be an empty object (`{}`). Implementer-defined message data MUST be stored in the `metadata` field, rather than in the top level of the `MAILMessage` object itself.
 
+### 7.8. Protocol Version
+
+Every MAIL message MUST declare the version of the MAIL protocol it conforms to, keyed by `mail_version`. This value MUST be a protocol version string per [Section 10](#10-versioning). For this revision of the protocol, the value MUST be `"2.0"`.
+
+### 7.9. Replies
+
+A MAIL message MAY indicate that it is a reply to an earlier message, keyed by `reply_to`. When present, this value MUST be the `message_id` (a [UUID][rfc-9562] per [Section 7.1](#71-message-ids)) of the message being replied to. When the field is absent or `null`, the message is not a reply. Implementers SHOULD reject a `reply_to` value that is not a well-formed message ID; they are NOT required to verify that the referenced message exists.
+
+### 7.10. Message Tags
+
+Every MAIL message MUST contain a field for sender-defined tags, keyed by `tags`. This value is an array of strings and MAY be empty (`[]`). Each tag MUST be a slug string: lowercase alphanumeric characters separated by single hyphens (matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`). The reference implementation enforces a per-tag length of 1–32 characters. Tags are advisory metadata used to categorize messages; their interpretation is implementer-defined.
+
 ## 8. Delivery
 
 When a user-agent creates and sends a MAIL message, the new message is stored on the MAIL server, but is not yet delivered to the specified recipient(s).
@@ -226,6 +241,7 @@ Said message MUST be delivered to its intended recipient(s) by an authorized MAI
 
 If an authorized user-agent attempts to create a message with a malformed subject (per [Section 7.4](#74-message-subjects)), the desired message MUST NOT be created and the user-agent MUST be notified.
 If an authorized user-agent attempts to create a message with a malformed body (per [Section 7.5](#75-message-bodies)), the desired message MUST NOT be created and the user-agent MUST be notified.
+If an authorized user-agent attempts to create a message with one or more malformed tags (per [Section 7.10](#710-message-tags)), the desired message MUST NOT be created and the user-agent MUST be notified.
 If an authorized user-agent's message contains one or more malformed MAIL addresses (per [Section 6](#6-addresses)), the message MUST NOT be delivered and the sending user-agent MUST be notified.
 
 ### 8.2. Post-Send Errors

@@ -26,6 +26,7 @@ def cmd_send(args: Namespace) -> None:
     # 2. hit the server endpoint `POST /drafts/{draft_id}/send`
     payload = DraftSendPostRequest(
         recipients=args.to,
+        tags=args.tags,
     )
     response = httpx.post(
         url=f"{MAIL_SERVER}/drafts/{args.draft_id}/send",
@@ -72,4 +73,8 @@ def _print_text(response_obj: DraftSendPostResponse) -> None:
     for recipient in message.recipients:
         print(f"- {recipient}")
     print(f"Subject: {message.subject}")
+    if message.reply_to is not None:
+        print(f"In Reply To: {message.reply_to}")
+    if message.tags:
+        print(f"Tags: {', '.join(message.tags)}")
     print(f"Body:\n{message.body}\n")

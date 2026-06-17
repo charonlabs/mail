@@ -67,6 +67,10 @@ def _print_text(response_obj: InboxMessageGetResponse) -> None:
     for recipient in message.recipients:
         print(f"- {recipient}")
     print(f"Subject: {message.subject}")
+    if message.reply_to is not None:
+        print(f"In Reply To: {message.reply_to}")
+    if message.tags:
+        print(f"Tags: {', '.join(message.tags)}")
     print(f"Body:\n{message.body}\n")
     print("=== Inbox Entry Data ===")
     print(f"Received At: {entry.received_at}")
