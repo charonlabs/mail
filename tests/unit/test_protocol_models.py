@@ -22,11 +22,13 @@ UUID = "55555555-5555-4555-8555-555555555555"
 
 def _message() -> MAILMessage:
     return MAILMessage(
+        mail_version="2.0",
         message_id=UUID,
         sender="user:alice@localhost",
         recipients=["sage@chorus@localhost"],
         subject="Hello",
         body="A body worth summarizing.",
+        tags=[],
         sent_at=NOW,
         metadata={"k": "v"},
     )

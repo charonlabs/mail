@@ -27,6 +27,7 @@ def cmd_compose(args: Namespace) -> None:
     payload = DraftPostRequest(
         subject=args.subject,
         body=args.body,
+        tags=args.tags,
     )
     response = httpx.post(
         url=f"{MAIL_SERVER}/drafts",
@@ -70,6 +71,10 @@ def _print_text(response_obj: DraftPostResponse) -> None:
     print(f"Draft ID: {draft.draft_id}")
     print(f"Created At: {draft.created_at}")
     print(f"Subject: {draft.subject}")
+    if draft.reply_to is not None:
+        print(f"In Reply To: {draft.reply_to}")
+    if draft.tags:
+        print(f"Tags: {', '.join(draft.tags)}")
     print(f"Body:\n{draft.body}\n")
     print("=== Entry Data ===")
     print(f"Sent At: {entry.sent_at}")

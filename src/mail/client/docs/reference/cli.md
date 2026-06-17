@@ -12,8 +12,9 @@ mail [option]... <command> [argument]...
 
 ### Core MAIL Operations
 
-- `compose`: Draft a new MAIL message.
-- `send`: Send an existing draft by ID to the specified recipient(s).
+- `compose`: Draft a new MAIL message. Accepts `--tags TAG...` to attach slug tags.
+- `send`: Send an existing draft by ID to the specified recipient(s). Accepts `--tags TAG...`, which are merged with the draft's tags.
+- `reply`: Reply to an existing inbox message by ID. Addresses the reply to the original sender and defaults the subject to `Re: <original subject>`. Accepts `--subject SUBJECT` and `--tags TAG...`.
 - `inbox`: Open your MAIL inbox.
 - `inbox-open`: Open a specific message by ID in your MAIL inbox.
 - `outbox`: Open your MAIL outbox.
@@ -46,3 +47,20 @@ mail [option]... <command> [argument]...
 - `-o`/`--output`: Choose the style of console output for this command.
   - **Default**: `text`
   - **Choices**: `text`, `json`
+
+## Examples
+
+Draft and send a message with tags:
+
+```bash
+mail compose "Status update" "All systems nominal." --tags weekly status
+mail send <draft_id> sage@chorus@localhost --tags urgent
+```
+
+Reply to a message in your inbox (replies to the original sender, subject
+defaults to `Re: <original subject>`):
+
+```bash
+mail reply <message_id> "Thanks, acknowledged."
+mail reply <message_id> "See attached." --subject "Follow-up" --tags project-x
+```

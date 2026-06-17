@@ -16,11 +16,13 @@ from mail_protocol.core.validators import (
     validate_message_body,
     validate_message_recipients,
     validate_message_subject,
+    validate_message_tags,
     validate_swarm_description,
     validate_swarm_keywords,
     validate_swarm_name,
     validate_url,
     validate_user_name,
+    validate_uuid,
     validate_uuids,
     validate_webhook_event_types,
 )
@@ -54,19 +56,30 @@ class DraftPostRequest(BaseModel):
     """
     Corresponds to `POST /drafts/`.
     Contains relevant information for creating a new MAIL message draft.
+
+    `reply_to` optionally references the `message_id` of the message this
+    draft is replying to. `tags` is an optional list of sender-defined slug
+    strings used to categorize the eventual message.
     """
 
     subject: Annotated[str, AfterValidator(validate_message_subject)]
     body: Annotated[str, AfterValidator(validate_message_body)]
+    reply_to: Annotated[str, AfterValidator(validate_uuid)] | None = None
+    tags: Annotated[list[str], AfterValidator(validate_message_tags)] = []
 
 
 class DraftSendPostRequest(BaseModel):
     """
     Corresponds to `POST /drafts/{draft_id}/send`.
     Contains relevant information for sending an existing draft as a MAIL message.
+
+    `tags` is an optional list of sender-defined slug strings; any tags
+    supplied here are merged (union, order-preserving) with the tags already
+    stored on the draft.
     """
 
     recipients: Annotated[list[str], AfterValidator(validate_message_recipients)]
+    tags: Annotated[list[str], AfterValidator(validate_message_tags)] = []
 
 
 #

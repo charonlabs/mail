@@ -67,11 +67,13 @@ def _seed_message(
 ) -> MAILMessage:
     now = datetime(2026, 6, 6, 12, 0, tzinfo=UTC)
     message = MAILMessage(
+        mail_version="2.0",
         message_id="22222222-2222-2222-2222-222222222222",
         sender=SENDER,
         recipients=recipients,
         subject="Daily briefing",
         body="Body text.",
+        tags=[],
         sent_at=now,
         metadata={},
     )
@@ -295,7 +297,9 @@ async def test_handle_webhook_delivered_skips_non_agent_recipients(
 
     fired: list[tuple[str, MAILMessage]] = []
 
-    async def fake_handle_webhook_delivered_for_url(*, url, recipient, message, secret, list_address=None):
+    async def fake_handle_webhook_delivered_for_url(
+        *, url, recipient, message, secret, list_address=None
+    ):
         fired.append((recipient, message))
 
     monkeypatch.setattr(
@@ -305,17 +309,23 @@ async def test_handle_webhook_delivered_skips_non_agent_recipients(
     )
 
     msg = MAILMessage(
+        mail_version="2.0",
         message_id="33333333-3333-3333-3333-333333333333",
         sender=SENDER,
         recipients=[ALICE],
         subject="s",
         body="b",
+        tags=[],
         sent_at=datetime(2026, 6, 12, tzinfo=UTC),
         metadata={},
     )
 
     # Non-agent recipients: no webhook task is created.
-    for non_agent in ["admin:ryan@chrn.ai", "user:dummy@chrn.ai", "daemon:first@chrn.ai"]:
+    for non_agent in [
+        "admin:ryan@chrn.ai",
+        "user:dummy@chrn.ai",
+        "daemon:first@chrn.ai",
+    ]:
         await backend._handle_webhook_delivered(recipient=non_agent, message=msg)
 
     # Agent recipient: webhook task IS created.
@@ -326,6 +336,7 @@ async def test_handle_webhook_delivered_skips_non_agent_recipients(
     # backend's _handle_webhook_delivered scheduling them as Tasks. Give
     # the loop one tick.
     import asyncio as _asyncio
+
     await _asyncio.sleep(0)
 
     fired_recipients = [r for r, _ in fired]

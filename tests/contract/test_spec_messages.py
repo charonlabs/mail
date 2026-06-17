@@ -20,11 +20,13 @@ from pydantic import ValidationError
 
 def make_message(**overrides: Any) -> MAILMessage:
     fields: dict[str, Any] = {
+        "mail_version": "2.0",
         "message_id": "55555555-5555-4555-8555-555555555555",
         "sender": "user:alice@localhost",
         "recipients": ["sage@chorus@localhost"],
         "subject": "A subject",
         "body": "A body.",
+        "tags": [],
         "sent_at": datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
         "metadata": {},
     }
@@ -142,11 +144,69 @@ def test_metadata_field_is_required_but_may_be_empty() -> None:
     assert make_message(metadata={}).metadata == {}
     with pytest.raises(ValidationError):
         MAILMessage(
+            mail_version="2.0",
             message_id="55555555-5555-4555-8555-555555555555",
             sender="user:alice@localhost",
             recipients=["sage@chorus@localhost"],
             subject="A subject",
             body="A body.",
+            tags=[],
             sent_at=datetime(2026, 6, 12, 9, 0, tzinfo=UTC),
             # metadata intentionally omitted
         )
+
+
+# ─── §7.8 Protocol Version ─────────────────────────────────────────
+
+
+def test_mail_version_must_be_present_and_2_0() -> None:
+    """§7.8: every message MUST carry mail_version, pinned to "2.0"."""
+
+    assert make_message().mail_version == "2.0"
+    with pytest.raises(ValidationError):
+        make_message(mail_version="1.0")
+
+
+# ─── §7.9 Reply References ─────────────────────────────────────────
+
+
+def test_reply_to_defaults_to_none() -> None:
+    """§7.9: reply_to is optional; absent means the message is not a reply."""
+
+    assert make_message().reply_to is None
+
+
+def test_reply_to_accepts_uuid() -> None:
+    """§7.9: when present, reply_to MUST be the UUID of another message."""
+
+    original_id = "66666666-6666-4666-8666-666666666666"
+    assert make_message(reply_to=original_id).reply_to == original_id
+
+
+def test_reply_to_rejects_non_uuid() -> None:
+    """§7.9: a malformed reply_to MUST be rejected."""
+
+    with pytest.raises(ValidationError):
+        make_message(reply_to="not-a-uuid")
+
+
+# ─── §7.10 Tags ────────────────────────────────────────────────────
+
+
+def test_tags_may_be_empty() -> None:
+    """§7.10: tags MUST be present; it MAY be an empty list."""
+
+    assert make_message(tags=[]).tags == []
+
+
+def test_tags_accept_slug_strings() -> None:
+    """§7.10: each tag MUST be a slug string."""
+
+    assert make_message(tags=["urgent", "project-x"]).tags == ["urgent", "project-x"]
+
+
+def test_tags_reject_non_slug() -> None:
+    """§7.10: non-slug tags (spaces, uppercase, etc.) MUST be rejected."""
+
+    with pytest.raises(ValidationError):
+        make_message(tags=["Not A Slug"])

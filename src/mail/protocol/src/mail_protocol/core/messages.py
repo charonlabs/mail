@@ -2,7 +2,7 @@
 # Copyright (c) 2025-26 Addison Kline
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel
 
@@ -11,6 +11,7 @@ from mail_protocol.core.validators import (
     validate_message_body,
     validate_message_recipients,
     validate_message_subject,
+    validate_message_tags,
     validate_uuid,
 )
 
@@ -33,11 +34,14 @@ class MAILMessage(BaseModel):
     A constructed message to be delivered via MAIL.
     """
 
+    mail_version: Literal["2.0"]
     message_id: Annotated[str, AfterValidator(validate_uuid)]
+    reply_to: Annotated[str, AfterValidator(validate_uuid)] | None = None
     sender: Annotated[str, AfterValidator(validate_mail_address)]
     recipients: Annotated[list[str], AfterValidator(validate_message_recipients)]
     subject: Annotated[str, AfterValidator(validate_message_subject)]
     body: Annotated[str, AfterValidator(validate_message_body)]
+    tags: Annotated[list[str], AfterValidator(validate_message_tags)]
     sent_at: datetime
     metadata: dict[str, Any]
 

@@ -631,6 +631,8 @@ class MemoryBackend(MAILServerBackend):
             body=payload.body,
             created_at=datetime.now(UTC),
             updated_at=None,
+            reply_to=payload.reply_to,
+            tags=payload.tags,
         )
         draft_entry = MAILDraftsEntry(draft=draft, sent_at=None)
 
@@ -695,12 +697,21 @@ class MemoryBackend(MAILServerBackend):
         draft = draft_entry.draft
 
         message_id = str(uuid.uuid4())  # make this different from draft_id
+        # Tags on the draft and tags supplied at send time are merged as an
+        # order-preserving union: draft tags first, then any new send tags.
+        tags = list(draft.tags)
+        for tag in payload.tags:
+            if tag not in tags:
+                tags.append(tag)
         message = MAILMessage(
+            mail_version="2.0",
             message_id=message_id,
+            reply_to=draft.reply_to,
             sender=ua_address,
             recipients=payload.recipients,
             subject=draft.subject,
             body=draft.body,
+            tags=tags,
             sent_at=datetime.now(UTC),
             metadata={},
         )

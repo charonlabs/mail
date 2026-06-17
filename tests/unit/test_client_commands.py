@@ -21,6 +21,7 @@ from mail_client.commands import (
     cmd_inbox,
     cmd_login,
     cmd_ping,
+    cmd_reply,
     cmd_send,
 )
 
@@ -164,11 +165,16 @@ def test_compose_posts_draft_payload(client_env, capsys: pytest.CaptureFixture) 
             },
         )
     )
-    cmd_compose(Namespace(output="text", subject="A subject", body="A body."))
+    cmd_compose(Namespace(output="text", subject="A subject", body="A body.", tags=[]))
 
     request = route.calls[0].request
     assert request.headers["Authorization"] == f"Bearer {TOKEN}"
-    assert json.loads(request.content) == {"subject": "A subject", "body": "A body."}
+    assert json.loads(request.content) == {
+        "subject": "A subject",
+        "body": "A body.",
+        "reply_to": None,
+        "tags": [],
+    }
     assert "Draft ID: 55555555-5555-4555-8555-555555555555" in capsys.readouterr().out
 
 
@@ -177,7 +183,7 @@ def test_compose_rejects_invalid_subject_before_any_request(client_env) -> None:
     no request reaches the server (SPEC.md §8.1)."""
 
     with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
-        cmd_compose(Namespace(output="text", subject="", body="A body."))
+        cmd_compose(Namespace(output="text", subject="", body="A body.", tags=[]))
 
 
 # ─── send ──────────────────────────────────────────────────────────
@@ -189,21 +195,30 @@ def test_send_posts_recipients_to_draft_endpoint(
 ) -> None:
     draft_id = "55555555-5555-4555-8555-555555555555"
     message = {
+        "mail_version": "2.0",
         "message_id": "66666666-6666-4666-8666-666666666666",
         "sender": "user:alice@localhost",
         "recipients": ["sage@chorus@localhost"],
         "subject": "A subject",
         "body": "A body.",
+        "tags": [],
         "sent_at": "2026-06-12T09:00:00+00:00",
         "metadata": {},
     }
     route = respx.post(f"{SERVER}/drafts/{draft_id}/send").mock(
         return_value=httpx.Response(200, json={"message": message, "metadata": {}})
     )
-    cmd_send(Namespace(output="text", draft_id=draft_id, to=["sage@chorus@localhost"]))
+    cmd_send(
+        Namespace(
+            output="text", draft_id=draft_id, to=["sage@chorus@localhost"], tags=[]
+        )
+    )
 
     request = route.calls[0].request
-    assert json.loads(request.content) == {"recipients": ["sage@chorus@localhost"]}
+    assert json.loads(request.content) == {
+        "recipients": ["sage@chorus@localhost"],
+        "tags": [],
+    }
     out = capsys.readouterr().out
     assert "- sage@chorus@localhost" in out
 
@@ -216,5 +231,167 @@ def test_send_raises_on_non_200(client_env) -> None:
     )
     with pytest.raises(RuntimeError, match="404"):
         cmd_send(
-            Namespace(output="text", draft_id=draft_id, to=["sage@chorus@localhost"])
+            Namespace(
+                output="text",
+                draft_id=draft_id,
+                to=["sage@chorus@localhost"],
+                tags=[],
+            )
+        )
+
+
+# ─── reply ─────────────────────────────────────────────────────────
+
+
+def _inbox_entry(message: dict) -> dict:
+    return {
+        "entry": {
+            "message": message,
+            "received_at": "2026-06-12T09:05:00+00:00",
+            "delivered_by": "daemon:worker@localhost",
+        },
+        "metadata": {},
+    }
+
+
+ORIGINAL_ID = "66666666-6666-4666-8666-666666666666"
+ORIGINAL_MESSAGE = {
+    "mail_version": "2.0",
+    "message_id": ORIGINAL_ID,
+    "sender": "philosopher@chorus@localhost",
+    "recipients": ["user:alice@localhost"],
+    "subject": "Original subject",
+    "body": "The original body.",
+    "tags": [],
+    "sent_at": "2026-06-12T09:00:00+00:00",
+    "metadata": {},
+}
+
+
+def _mock_reply_routes(draft_id: str, reply_message: dict):
+    """Register the three calls a reply makes: fetch, draft, send."""
+
+    inbox_route = respx.get(f"{SERVER}/inbox/{ORIGINAL_ID}").mock(
+        return_value=httpx.Response(200, json=_inbox_entry(ORIGINAL_MESSAGE))
+    )
+    draft = {
+        "draft_id": draft_id,
+        "subject": reply_message["subject"],
+        "body": reply_message["body"],
+        "created_at": "2026-06-12T09:10:00+00:00",
+        "updated_at": None,
+        "reply_to": ORIGINAL_ID,
+        "tags": reply_message["tags"],
+    }
+    draft_route = respx.post(f"{SERVER}/drafts").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {"draft": draft, "sent_at": None, "sent_by": None},
+                "metadata": {},
+            },
+        )
+    )
+    send_route = respx.post(f"{SERVER}/drafts/{draft_id}/send").mock(
+        return_value=httpx.Response(
+            200, json={"message": reply_message, "metadata": {}}
+        )
+    )
+    return inbox_route, draft_route, send_route
+
+
+@respx.mock
+def test_reply_defaults_subject_recipient_and_reply_to(
+    client_env, capsys: pytest.CaptureFixture
+) -> None:
+    draft_id = "55555555-5555-4555-8555-555555555555"
+    reply_message = {
+        "mail_version": "2.0",
+        "message_id": "77777777-7777-4777-8777-777777777777",
+        "reply_to": ORIGINAL_ID,
+        "sender": "user:alice@localhost",
+        "recipients": ["philosopher@chorus@localhost"],
+        "subject": "Re: Original subject",
+        "body": "My reply.",
+        "tags": [],
+        "sent_at": "2026-06-12T09:11:00+00:00",
+        "metadata": {},
+    }
+    _, draft_route, send_route = _mock_reply_routes(draft_id, reply_message)
+
+    cmd_reply(
+        Namespace(
+            output="text",
+            message_id=ORIGINAL_ID,
+            body="My reply.",
+            subject=None,
+            tags=[],
+        )
+    )
+
+    # The draft references the original and defaults the subject to "Re: ...".
+    draft_body = json.loads(draft_route.calls[0].request.content)
+    assert draft_body == {
+        "subject": "Re: Original subject",
+        "body": "My reply.",
+        "reply_to": ORIGINAL_ID,
+        "tags": [],
+    }
+    # The reply is addressed back to the original sender.
+    send_body = json.loads(send_route.calls[0].request.content)
+    assert send_body == {
+        "recipients": ["philosopher@chorus@localhost"],
+        "tags": [],
+    }
+    out = capsys.readouterr().out
+    assert "Reply Sent" in out
+    assert f"In Reply To: {ORIGINAL_ID}" in out
+
+
+@respx.mock
+def test_reply_honors_explicit_subject_and_tags(
+    client_env, capsys: pytest.CaptureFixture
+) -> None:
+    draft_id = "55555555-5555-4555-8555-555555555555"
+    reply_message = {
+        "mail_version": "2.0",
+        "message_id": "77777777-7777-4777-8777-777777777777",
+        "reply_to": ORIGINAL_ID,
+        "sender": "user:alice@localhost",
+        "recipients": ["philosopher@chorus@localhost"],
+        "subject": "Custom subject",
+        "body": "My reply.",
+        "tags": ["urgent", "project-x"],
+        "sent_at": "2026-06-12T09:11:00+00:00",
+        "metadata": {},
+    }
+    _, draft_route, _ = _mock_reply_routes(draft_id, reply_message)
+
+    cmd_reply(
+        Namespace(
+            output="text",
+            message_id=ORIGINAL_ID,
+            body="My reply.",
+            subject="Custom subject",
+            tags=["urgent", "project-x"],
+        )
+    )
+
+    draft_body = json.loads(draft_route.calls[0].request.content)
+    assert draft_body["subject"] == "Custom subject"
+    assert draft_body["tags"] == ["urgent", "project-x"]
+
+
+@respx.mock
+def test_reply_raises_when_original_missing(client_env) -> None:
+    respx.get(f"{SERVER}/inbox/{ORIGINAL_ID}").mock(return_value=httpx.Response(404))
+    with pytest.raises(RuntimeError, match="404"):
+        cmd_reply(
+            Namespace(
+                output="text",
+                message_id=ORIGINAL_ID,
+                body="My reply.",
+                subject=None,
+                tags=[],
+            )
         )
