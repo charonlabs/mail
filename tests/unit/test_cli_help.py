@@ -28,6 +28,7 @@ def test_mail_help_uses_categorized_command_sections() -> None:
     assert "{ping,p,login" not in help_text
     assert 'mail compose "Status update"' in help_text
     assert "reply (r)" in help_text
+    assert "forward (f)" in help_text
 
 
 def test_mail_admin_help_uses_categorized_command_sections() -> None:

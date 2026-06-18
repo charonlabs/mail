@@ -15,6 +15,7 @@ mail [option]... <command> [argument]...
 - `compose`: Draft a new MAIL message. Accepts `--tags TAG...` to attach slug tags.
 - `send`: Send an existing draft by ID to the specified recipient(s). Accepts `--tags TAG...`, which are merged with the draft's tags.
 - `reply`: Reply to an existing inbox message by ID. Addresses the reply to the original sender and defaults the subject to `Re: <original subject>`. Accepts `--subject SUBJECT` and `--tags TAG...`.
+- `forward`: Forward an existing inbox message by ID to one or more new recipient(s). Encodes the original message (sender, recipients, subject, and body) into the forwarded body and defaults the subject to `Fwd: <original subject>`. Accepts `--note NOTE` to prepend a note above the forwarded message, plus `--subject SUBJECT` and `--tags TAG...`.
 - `inbox`: Open your MAIL inbox.
 - `inbox-open`: Open a specific message by ID in your MAIL inbox.
 - `outbox`: Open your MAIL outbox.
@@ -63,4 +64,13 @@ defaults to `Re: <original subject>`):
 ```bash
 mail reply <message_id> "Thanks, acknowledged."
 mail reply <message_id> "See attached." --subject "Follow-up" --tags project-x
+```
+
+Forward a message from your inbox to new recipient(s) (the original message is
+encoded into the forwarded body, subject defaults to `Fwd: <original subject>`):
+
+```bash
+mail forward <message_id> sage@chorus@localhost
+mail forward <message_id> sage@chorus@localhost philosopher@chorus@localhost \
+  --note "Please take a look." --subject "Heads up" --tags fyi
 ```
