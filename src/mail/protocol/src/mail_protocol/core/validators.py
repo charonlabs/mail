@@ -18,6 +18,8 @@ from mail_protocol.core.constants import (
     MESSAGE_BODY_LEN_MIN,
     MESSAGE_SUBJECT_LEN_MAX,
     MESSAGE_SUBJECT_LEN_MIN,
+    MESSAGE_TAG_LEN_MAX,
+    MESSAGE_TAG_LEN_MIN,
     SWARM_DESCRIPTION_LEN_MAX,
     SWARM_DESCRIPTION_LEN_MIN,
     SWARM_KEYWORD_LEN_MAX,
@@ -105,9 +107,7 @@ def validate_mail_address(address: str) -> str:
                 case _ if prefix == LIST_ADDRESS_PREFIX:
                     validate_list_name(identifier)
                 case _:
-                    raise ValueError(
-                        f"invalid MAIL address structure: {address}"
-                    )
+                    raise ValueError(f"invalid MAIL address structure: {address}")
         else:
             # No prefix → agent address.
             validate_agent_name(first)
@@ -158,6 +158,37 @@ def validate_message_recipients(addresses: list[str]) -> list[str]:
     if len(addresses) < 1:
         raise ValueError("message recipients must contain at least 1 entry")
     return validate_mail_addresses(addresses)
+
+
+def validate_message_tag(tag: str) -> str:
+    """
+    Ensure that the given string is a valid MAIL message tag.
+    """
+
+    if len(tag) < MESSAGE_TAG_LEN_MIN:
+        raise ValueError(
+            f"message tag must be at least {MESSAGE_TAG_LEN_MIN} characters long"
+        )
+    if len(tag) > MESSAGE_TAG_LEN_MAX:
+        raise ValueError(
+            f"message tag must be no longer than {MESSAGE_TAG_LEN_MAX} characters"
+        )
+    if not string_is_slug(tag):
+        raise ValueError("message tag must be a slug string")
+
+    return tag
+
+
+def validate_message_tags(tags: list[str]) -> list[str]:
+    """
+    Ensure that the given list is a valid list of MAIL message tags.
+    Can be of length 0.
+    """
+
+    for tag in tags:
+        validate_message_tag(tag)
+
+    return tags
 
 
 def validate_local_address(address: str) -> str:

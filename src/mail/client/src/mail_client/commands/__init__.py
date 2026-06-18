@@ -26,6 +26,7 @@ from .login import cmd_login
 from .outbox import cmd_outbox
 from .outbox_open import cmd_outbox_open
 from .ping import cmd_ping
+from .reply import cmd_reply
 from .send import cmd_send
 from .swarm_delete import cmd_swarm_delete
 from .swarm_get import cmd_swarm_get
@@ -73,6 +74,7 @@ __all__ = [
     "cmd_outbox",
     "cmd_outbox_open",
     "cmd_ping",
+    "cmd_reply",
     "cmd_send",
     "cmd_swarm_delete",
     "cmd_swarm_get",

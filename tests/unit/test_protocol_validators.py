@@ -67,6 +67,37 @@ def test_validate_mail_addresses_permits_empty_list() -> None:
     assert v.validate_mail_addresses([]) == []
 
 
+# ─── message tags (SPEC.md §7.10) ──────────────────────────────────
+
+
+@pytest.mark.parametrize("value", ["urgent", "project-x", "a", "v2-0", "x" * 32])
+def test_validate_message_tag_accepts_slugs(value: str) -> None:
+    assert v.validate_message_tag(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "Urgent", "has space", "trailing-", "-leading", "under_score", "x" * 33],
+)
+def test_validate_message_tag_rejects_non_slugs(value: str) -> None:
+    with pytest.raises(ValueError):
+        v.validate_message_tag(value)
+
+
+def test_validate_message_tags_permits_empty_list() -> None:
+    assert v.validate_message_tags([]) == []
+
+
+def test_validate_message_tags_accepts_list_of_slugs() -> None:
+    tags = ["urgent", "project-x"]
+    assert v.validate_message_tags(tags) == tags
+
+
+def test_validate_message_tags_rejects_any_invalid_member() -> None:
+    with pytest.raises(ValueError):
+        v.validate_message_tags(["urgent", "Not A Slug"])
+
+
 # ─── local addresses (agent@swarm) ─────────────────────────────────
 
 

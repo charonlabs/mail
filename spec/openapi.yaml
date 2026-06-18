@@ -1573,6 +1573,17 @@ components:
             format: date-time
           - type: 'null'
           title: Updated At
+        reply_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reply To
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+          default: []
       type: object
       required:
       - draft_id
@@ -1582,7 +1593,14 @@ components:
       title: MAILDraft
       description: 'A draft of an individual MAIL message.
 
-        Does not yet account for intended recipients.'
+        Does not yet account for intended recipients.
+
+
+        `reply_to` and `tags` carry forward onto the `MAILMessage` produced when
+
+        the draft is sent. Both default to "no value" so drafts persisted before
+
+        these fields existed remain loadable.'
     MAILDraftsEntry:
       properties:
         draft:
@@ -1777,9 +1795,18 @@ components:
         protocol layer but are rejected at the endpoint layer.'
     MAILMessage:
       properties:
+        mail_version:
+          type: string
+          const: '2.0'
+          title: Mail Version
         message_id:
           type: string
           title: Message Id
+        reply_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reply To
         sender:
           type: string
           title: Sender
@@ -1794,6 +1821,11 @@ components:
         body:
           type: string
           title: Body
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
         sent_at:
           type: string
           format: date-time
@@ -1804,11 +1836,13 @@ components:
           title: Metadata
       type: object
       required:
+      - mail_version
       - message_id
       - sender
       - recipients
       - subject
       - body
+      - tags
       - sent_at
       - metadata
       title: MAILMessage

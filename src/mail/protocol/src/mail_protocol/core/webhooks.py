@@ -10,6 +10,7 @@ from mail_protocol.core.validators import (
     validate_mail_address,
     validate_message_body,
     validate_message_subject,
+    validate_message_tags,
     validate_swarm_name,
     validate_url,
     validate_webhook_event_types,
@@ -37,10 +38,12 @@ class MAILMessageInWebhook(BaseModel):
     """
 
     message_id: Annotated[str, AfterValidator(validate_webhook_message_id)]
+    reply_to: Annotated[str, AfterValidator(validate_webhook_message_id)] | None = None
     sender: Annotated[str, AfterValidator(validate_mail_address)]
     recipient: Annotated[str, AfterValidator(validate_mail_address)]
     subject: Annotated[str, AfterValidator(validate_message_subject)]
     body: Annotated[str, AfterValidator(validate_message_body)]
+    tags: Annotated[list[str], AfterValidator(validate_message_tags)] = []
     sent_at: datetime
     swarm: Annotated[str, AfterValidator(validate_swarm_name)]
     metadata: dict[str, Any]

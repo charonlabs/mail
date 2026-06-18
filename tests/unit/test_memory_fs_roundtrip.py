@@ -33,11 +33,13 @@ AGENT = "sage@chorus@localhost"
 
 def _message() -> MAILMessage:
     return MAILMessage(
+        mail_version="2.0",
         message_id=UUID,
         sender=USER,
         recipients=[AGENT],
         subject="Persisted",
         body="Survives a save/load cycle.",
+        tags=[],
         sent_at=NOW,
         metadata={},
     )

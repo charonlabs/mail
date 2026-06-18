@@ -686,10 +686,15 @@ class MAILServerBackend(Protocol):
                 # MAILMessage stores a bare UUID; the webhook payload's
                 # message_id is the prefixed form per validate_webhook_message_id.
                 message_id=f"msg_{message.message_id}",
+                # reply_to, when set, is carried in the same prefixed form.
+                reply_to=(
+                    f"msg_{message.reply_to}" if message.reply_to is not None else None
+                ),
                 sender=message.sender,
                 recipient=recipient,
                 subject=message.subject,
                 body=message.body,
+                tags=message.tags,
                 sent_at=message.sent_at,
                 swarm=recipient.split("@")[1],
                 metadata=metadata,
