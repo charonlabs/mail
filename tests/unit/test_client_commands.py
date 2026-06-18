@@ -18,6 +18,7 @@ import pytest
 import respx
 from mail_client.commands import (
     cmd_compose,
+    cmd_forward,
     cmd_inbox,
     cmd_login,
     cmd_ping,
@@ -391,6 +392,153 @@ def test_reply_raises_when_original_missing(client_env) -> None:
                 output="text",
                 message_id=ORIGINAL_ID,
                 body="My reply.",
+                subject=None,
+                tags=[],
+            )
+        )
+
+
+# ─── forward ───────────────────────────────────────────────────────
+
+
+def _mock_forward_routes(draft_id: str, forwarded_message: dict):
+    """Register the three calls a forward makes: fetch, draft, send."""
+
+    inbox_route = respx.get(f"{SERVER}/inbox/{ORIGINAL_ID}").mock(
+        return_value=httpx.Response(200, json=_inbox_entry(ORIGINAL_MESSAGE))
+    )
+    draft = {
+        "draft_id": draft_id,
+        "subject": forwarded_message["subject"],
+        "body": forwarded_message["body"],
+        "created_at": "2026-06-12T09:10:00+00:00",
+        "updated_at": None,
+        "reply_to": None,
+        "tags": forwarded_message["tags"],
+    }
+    draft_route = respx.post(f"{SERVER}/drafts").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {"draft": draft, "sent_at": None, "sent_by": None},
+                "metadata": {},
+            },
+        )
+    )
+    send_route = respx.post(f"{SERVER}/drafts/{draft_id}/send").mock(
+        return_value=httpx.Response(
+            200, json={"message": forwarded_message, "metadata": {}}
+        )
+    )
+    return inbox_route, draft_route, send_route
+
+
+@respx.mock
+def test_forward_defaults_subject_and_encodes_original(
+    client_env, capsys: pytest.CaptureFixture
+) -> None:
+    draft_id = "55555555-5555-4555-8555-555555555555"
+    forwarded_message = {
+        "mail_version": "2.0",
+        "message_id": "77777777-7777-4777-8777-777777777777",
+        "reply_to": None,
+        "sender": "user:alice@localhost",
+        "recipients": ["sage@chorus@localhost"],
+        "subject": "Fwd: Original subject",
+        "body": "encoded",
+        "tags": [],
+        "sent_at": "2026-06-12T09:11:00+00:00",
+        "metadata": {},
+    }
+    _, draft_route, send_route = _mock_forward_routes(draft_id, forwarded_message)
+
+    cmd_forward(
+        Namespace(
+            output="text",
+            message_id=ORIGINAL_ID,
+            to=["sage@chorus@localhost"],
+            note=None,
+            subject=None,
+            tags=[],
+        )
+    )
+
+    # The draft defaults the subject to "Fwd: ..." and is NOT a reply.
+    draft_body = json.loads(draft_route.calls[0].request.content)
+    assert draft_body["subject"] == "Fwd: Original subject"
+    assert draft_body["reply_to"] is None
+    # The encoded body carries the original sender, recipients, and content.
+    assert "---------- Forwarded message ----------" in draft_body["body"]
+    assert f"From: {ORIGINAL_MESSAGE['sender']}" in draft_body["body"]
+    assert "To: user:alice@localhost" in draft_body["body"]
+    assert ORIGINAL_MESSAGE["body"] in draft_body["body"]
+    # No note was supplied, so the body starts with the forwarded block.
+    assert draft_body["body"].startswith("---------- Forwarded message ----------")
+
+    # The forward is addressed to the user-specified recipient(s).
+    send_body = json.loads(send_route.calls[0].request.content)
+    assert send_body == {
+        "recipients": ["sage@chorus@localhost"],
+        "tags": [],
+    }
+    out = capsys.readouterr().out
+    assert "Message Forwarded" in out
+
+
+@respx.mock
+def test_forward_honors_note_subject_and_tags(
+    client_env, capsys: pytest.CaptureFixture
+) -> None:
+    draft_id = "55555555-5555-4555-8555-555555555555"
+    forwarded_message = {
+        "mail_version": "2.0",
+        "message_id": "77777777-7777-4777-8777-777777777777",
+        "reply_to": None,
+        "sender": "user:alice@localhost",
+        "recipients": ["sage@chorus@localhost", "philosopher@chorus@localhost"],
+        "subject": "Custom subject",
+        "body": "encoded",
+        "tags": ["fyi", "project-x"],
+        "sent_at": "2026-06-12T09:11:00+00:00",
+        "metadata": {},
+    }
+    _, draft_route, send_route = _mock_forward_routes(draft_id, forwarded_message)
+
+    cmd_forward(
+        Namespace(
+            output="text",
+            message_id=ORIGINAL_ID,
+            to=["sage@chorus@localhost", "philosopher@chorus@localhost"],
+            note="Please take a look.",
+            subject="Custom subject",
+            tags=["fyi", "project-x"],
+        )
+    )
+
+    draft_body = json.loads(draft_route.calls[0].request.content)
+    assert draft_body["subject"] == "Custom subject"
+    assert draft_body["tags"] == ["fyi", "project-x"]
+    # The note is prepended above the forwarded block.
+    assert draft_body["body"].startswith("Please take a look.\n\n")
+    assert "---------- Forwarded message ----------" in draft_body["body"]
+
+    send_body = json.loads(send_route.calls[0].request.content)
+    assert send_body["recipients"] == [
+        "sage@chorus@localhost",
+        "philosopher@chorus@localhost",
+    ]
+
+
+@respx.mock
+def test_forward_raises_when_original_missing(client_env) -> None:
+    respx.get(f"{SERVER}/inbox/{ORIGINAL_ID}").mock(return_value=httpx.Response(404))
+    with pytest.raises(RuntimeError, match="404"):
+        cmd_forward(
+            Namespace(
+                output="text",
+                message_id=ORIGINAL_ID,
+                to=["sage@chorus@localhost"],
+                note=None,
                 subject=None,
                 tags=[],
             )

@@ -79,6 +79,30 @@ uv run mail send <draft_id> supervisor@default@example.com
 You should then see the MAIL message created and sent to the `supervisor@default@example.com`.
 This includes the message's unique ID.
 
+## Forward a Message
+
+If a message in your inbox is relevant to other user-agents, you can forward it
+to one or more new recipients with the `forward` command.
+MAIL encodes the original message (its sender, recipients, subject, and body) into
+the forwarded message's body, and defaults the subject to `Fwd: <original subject>`.
+To forward an inbox message to `sage@chorus@example.com`:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail forward <message_id> sage@chorus@example.com
+```
+
+You can supply multiple recipients, prepend your own note with `--note`, and
+override the subject with `--subject`:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail forward <message_id> sage@chorus@example.com philosopher@chorus@example.com \
+  --note "Please take a look."
+```
+
 ## See Also
 
 - `mail-swarms-client` CLI reference: [reference/cli.md](/docs/reference/cli.md)
