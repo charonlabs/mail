@@ -12,6 +12,7 @@ from mail_client.commands import (
     cmd_compose,
     cmd_drafts,
     cmd_drafts_open,
+    cmd_forward,
     cmd_inbox,
     cmd_inbox_open,
     cmd_list_get,
@@ -75,6 +76,7 @@ COMMAND_GROUPS = [
             ("compose (c)", "Draft a new MAIL message."),
             ("send (s)", "Send a drafted message."),
             ("reply (r)", "Reply to an inbox message by ID."),
+            ("forward (f)", "Forward an inbox message to new recipient(s)."),
             ("inbox (i)", "List your inbox messages."),
             ("inbox-open (open, o)", "Open an inbox message by ID."),
             ("outbox (O)", "List your sent messages."),
@@ -109,13 +111,14 @@ EXAMPLES = [
     "mail send <draft-id> user@example",
     "mail inbox-open <message-id>",
     'mail reply <message-id> "Thanks, acknowledged."',
+    "mail forward <message-id> sage@chorus@localhost",
 ]
 
 
 def _add_tags_arg(parser: argparse.ArgumentParser) -> None:
     """
     Register the shared ``--tags`` flag for message-creating commands
-    (compose, send, reply). Tags are slug strings used to categorize a
+    (compose, send, reply, forward). Tags are slug strings used to categorize a
     message; the default is an empty list (no tags).
     """
 
@@ -259,6 +262,34 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_tags_arg(reply_p)
     reply_p.set_defaults(func=cmd_reply, cmd="reply")
+
+    # command `forward`
+    forward_d = "forward an existing inbox message to new recipient(s)"
+    forward_p = subparsers.add_parser(
+        "forward",
+        aliases=["f"],
+        prog="mail forward",
+        help=forward_d,
+        description=forward_d,
+    )
+    forward_p.add_argument(
+        "message_id", help="the ID of the inbox message to forward"
+    )
+    forward_p.add_argument(
+        "to", nargs="+", help="the address(es) to forward this message to"
+    )
+    forward_p.add_argument(
+        "--note",
+        default=None,
+        help="an optional note to prepend above the forwarded message",
+    )
+    forward_p.add_argument(
+        "--subject",
+        default=None,
+        help="the subject of the forward (default: 'Fwd: <original subject>')",
+    )
+    _add_tags_arg(forward_p)
+    forward_p.set_defaults(func=cmd_forward, cmd="forward")
 
     # command `inbox`
     inbox_d = "open your MAIL inbox"
