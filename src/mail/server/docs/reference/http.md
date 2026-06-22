@@ -37,6 +37,7 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 - `GET /drafts/`: Get a list of message drafts in the logged-in user-agent's draft box.
 - `POST /drafts/`: Create a new message draft to be stored in the logged-in user-agent's draft box.
 - `GET /drafts/{draft_id}`: Get a specific message draft by ID from the logged-in user-agent's draft box.
+- `PATCH /drafts/{draft_id}`: Update fields on a specific message draft by ID in the logged-in user-agent's draft box.
 - `DELETE /drafts/{draft_id}`: Delete a specific message draft by ID from the logged-in user-agent's draft box.
 - `POST /drafts/{draft_id}/send`: Send a message from a draft by ID in the logged-in user-agent's draft box.
 

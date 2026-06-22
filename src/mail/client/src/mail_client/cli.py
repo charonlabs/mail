@@ -12,6 +12,7 @@ from mail_client.commands import (
     cmd_compose,
     cmd_drafts,
     cmd_drafts_open,
+    cmd_drafts_patch,
     cmd_forward,
     cmd_inbox,
     cmd_inbox_open,
@@ -83,6 +84,7 @@ COMMAND_GROUPS = [
             ("outbox-open (Oopen, Oo)", "Open an outbox message by ID."),
             ("drafts (d)", "List message drafts."),
             ("drafts-open (do)", "Open a draft by ID."),
+            ("draft-edit (de)", "Edit an existing draft by ID."),
             ("trash (t)", "List trashed messages."),
             ("trash-open (to)", "Open a trashed message by ID."),
         ],
@@ -128,6 +130,23 @@ def _add_tags_arg(parser: argparse.ArgumentParser) -> None:
         default=[],
         metavar="TAG",
         help="slug string tag(s) to attach to the message",
+    )
+
+
+def _add_body_file_arg(parser: argparse.ArgumentParser) -> None:
+    """
+    Register the shared ``-F``/``--body-file`` flag for draft-creating commands
+    (compose, draft-edit). The flag names a path whose UTF-8 contents become the
+    message body, as an alternative to passing the body inline.
+    """
+
+    parser.add_argument(
+        "-F",
+        "--body-file",
+        dest="body_file",
+        default=None,
+        metavar="PATH",
+        help="read the message body from the file at this path",
     )
 
 
@@ -224,7 +243,13 @@ def build_parser() -> argparse.ArgumentParser:
         description=compose_d,
     )
     compose_p.add_argument("subject", help="the subject line of the message to draft")
-    compose_p.add_argument("body", help="the body of the message to draft")
+    compose_p.add_argument(
+        "body",
+        nargs="?",
+        default=None,
+        help="the body of the message to draft (omit when using --body-file)",
+    )
+    _add_body_file_arg(compose_p)
     _add_tags_arg(compose_p)
     compose_p.set_defaults(func=cmd_compose, cmd="compose")
 
@@ -354,6 +379,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     drafts_open_p.add_argument("draft_id", help="the ID of the drafted message to open")
     drafts_open_p.set_defaults(func=cmd_drafts_open, cmd="drafts-open")
+
+    # command `draft-edit`
+    draft_edit_d = "edit fields on an existing message draft by ID"
+    draft_edit_p = subparsers.add_parser(
+        "draft-edit",
+        aliases=["de"],
+        prog="mail draft-edit",
+        help=draft_edit_d,
+        description=draft_edit_d,
+    )
+    draft_edit_p.add_argument("draft_id", help="the ID of the draft to edit")
+    draft_edit_p.add_argument(
+        "body",
+        nargs="?",
+        default=None,
+        help="the new body of the draft (omit to leave it unchanged)",
+    )
+    draft_edit_p.add_argument(
+        "--subject",
+        default=None,
+        help="the new subject of the draft (omit to leave it unchanged)",
+    )
+    _add_body_file_arg(draft_edit_p)
+    draft_edit_p.add_argument(
+        "--reply-to",
+        dest="reply_to",
+        default=None,
+        help="the message ID this draft replies to (omit to leave it unchanged)",
+    )
+    draft_edit_p.add_argument(
+        "--tags",
+        nargs="*",
+        default=None,
+        metavar="TAG",
+        help="replace the draft's tags (pass with no values to clear all tags)",
+    )
+    draft_edit_p.set_defaults(func=cmd_drafts_patch, cmd="draft-edit")
 
     # command `trash`
     trash_d = "list your existing trashed messages"
