@@ -68,6 +68,23 @@ class DraftPostRequest(BaseModel):
     tags: Annotated[list[str], AfterValidator(validate_message_tags)] = []
 
 
+class DraftPatchRequest(BaseModel):
+    """
+    Corresponds to `PATCH /drafts/{draft_id}`.
+    Contains the fields to update on an existing MAIL message draft.
+
+    Every field is optional: a field left unset (``None``) is not modified,
+    so callers can patch a single field without resending the rest. The one
+    asymmetry is ``tags`` — sending ``tags: []`` clears all tags, while
+    omitting ``tags`` leaves the existing tags untouched.
+    """
+
+    subject: Annotated[str, AfterValidator(validate_message_subject)] | None = None
+    body: Annotated[str, AfterValidator(validate_message_body)] | None = None
+    reply_to: Annotated[str, AfterValidator(validate_uuid)] | None = None
+    tags: Annotated[list[str], AfterValidator(validate_message_tags)] | None = None
+
+
 class DraftSendPostRequest(BaseModel):
     """
     Corresponds to `POST /drafts/{draft_id}/send`.

@@ -40,6 +40,7 @@ from mail_protocol.network.requests import (
     BoxFilterParams,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
+    DraftPatchRequest,
     DraftPostRequest,
     DraftSendPostRequest,
 )
@@ -662,6 +663,56 @@ class MemoryBackend(MAILServerBackend):
             raise ValueError(f"draft with ID {draft_id} not found in draft box entries")
 
         return draft_entry
+
+    async def patch_draft(
+        self,
+        user_agent: MAILUserAgent,
+        draft_id: str,
+        payload: DraftPatchRequest,
+    ) -> MAILDraftsEntry:
+        """
+        Update mutable fields on an existing message draft for this user-agent.
+
+        Only the fields supplied on ``payload`` are modified; ``updated_at`` is
+        refreshed whenever a successful edit is applied.
+        """
+
+        ua_address = user_agent.get_address()
+        draft_ids = self.drafts.get(ua_address)
+        if draft_ids is None:
+            raise ValueError(f"no drafts box found for address {ua_address}")
+        if draft_id not in draft_ids:
+            raise ValueError(
+                f"draft with ID {draft_id} not found in draft box at address {ua_address}"
+            )
+
+        draft_entry = self.draft_entries.get(draft_id)
+        if draft_entry is None:
+            raise ValueError(f"draft with ID {draft_id} not found in draft box entries")
+
+        # Only the fields explicitly supplied on the request are modified. A
+        # field left unset (``None``) is not part of the update — except
+        # ``tags``, where an empty list is a deliberate "clear all tags".
+        updated_fields: dict[str, Any] = {}
+        if payload.subject is not None:
+            updated_fields["subject"] = payload.subject
+        if payload.body is not None:
+            updated_fields["body"] = payload.body
+        if payload.reply_to is not None:
+            updated_fields["reply_to"] = payload.reply_to
+        if payload.tags is not None:
+            updated_fields["tags"] = payload.tags
+
+        if not updated_fields:
+            return draft_entry
+
+        updated_draft = draft_entry.draft.model_copy(
+            update={**updated_fields, "updated_at": datetime.now(UTC)}
+        )
+        updated_entry = draft_entry.model_copy(update={"draft": updated_draft})
+        self.draft_entries[draft_id] = updated_entry
+
+        return updated_entry
 
     async def delete_draft(
         self, user_agent: MAILUserAgent, draft_id: str

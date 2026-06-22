@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from mail_protocol.network.responses import (
     DraftDeleteResponse,
     DraftGetResponse,
+    DraftPatchResponse,
     DraftPostResponse,
     DraftSendPostResponse,
     DraftsGetResponse,
@@ -14,6 +15,7 @@ from mail_server.auth import validate_user_agent
 from mail_server.utils import build_box_metadata
 from mail_server.validators import (
     validate_box_filter_params,
+    validate_patch_draft_request,
     validate_post_draft_request,
     validate_post_draft_send_request,
 )
@@ -76,6 +78,31 @@ async def get_draft(request: Request) -> DraftGetResponse:
         )
 
     return DraftGetResponse(
+        entry=result,
+        metadata={},
+    )
+
+
+@router.patch(
+    "/{draft_id}",
+    summary="Update a specific message draft by ID",
+    response_model=DraftPatchResponse,
+)
+async def patch_draft(request: Request) -> DraftPatchResponse:
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    payload = await validate_patch_draft_request(request)
+    draft_id = request.path_params.get("draft_id")
+    try:
+        result = await backend.patch_draft(
+            user_agent=user_agent, draft_id=draft_id, payload=payload
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail=f"draft with ID {draft_id} not found"
+        )
+
+    return DraftPatchResponse(
         entry=result,
         metadata={},
     )

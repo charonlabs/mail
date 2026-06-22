@@ -61,6 +61,14 @@ MAIL_TOKEN=... \
 uv run mail compose "Hello, world!" "This is a test message body"
 ```
 
+For a longer body, read it from a file instead of passing it inline with `-F`/`--body-file`:
+
+```bash
+MAIL_SERVER=... \
+MAIL_TOKEN=... \
+uv run mail compose "Hello, world!" --body-file my-message-body.md
+```
+
 You should then see the newly-created draft printed to the console.
 This includes the draft's unique ID; copy this for use in subsequent operations.
 

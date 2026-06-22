@@ -18,6 +18,7 @@ import pytest
 import respx
 from mail_client.commands import (
     cmd_compose,
+    cmd_drafts_patch,
     cmd_forward,
     cmd_inbox,
     cmd_login,
@@ -166,7 +167,11 @@ def test_compose_posts_draft_payload(client_env, capsys: pytest.CaptureFixture) 
             },
         )
     )
-    cmd_compose(Namespace(output="text", subject="A subject", body="A body.", tags=[]))
+    cmd_compose(
+        Namespace(
+            output="text", subject="A subject", body="A body.", body_file=None, tags=[]
+        )
+    )
 
     request = route.calls[0].request
     assert request.headers["Authorization"] == f"Bearer {TOKEN}"
@@ -179,12 +184,129 @@ def test_compose_posts_draft_payload(client_env, capsys: pytest.CaptureFixture) 
     assert "Draft ID: 55555555-5555-4555-8555-555555555555" in capsys.readouterr().out
 
 
+@respx.mock
+def test_compose_reads_body_from_file(
+    client_env, tmp_path, capsys: pytest.CaptureFixture
+) -> None:
+    body_path = tmp_path / "message.md"
+    body_path.write_text("Body from a file.", encoding="utf-8")
+    route = respx.post(f"{SERVER}/drafts").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "draft": {
+                        "draft_id": "55555555-5555-4555-8555-555555555555",
+                        "subject": "A subject",
+                        "body": "Body from a file.",
+                        "created_at": "2026-06-12T09:00:00+00:00",
+                        "updated_at": None,
+                    },
+                    "sent_at": None,
+                    "sent_by": None,
+                },
+                "metadata": {},
+            },
+        )
+    )
+    cmd_compose(
+        Namespace(
+            output="text",
+            subject="A subject",
+            body=None,
+            body_file=str(body_path),
+            tags=[],
+        )
+    )
+
+    assert json.loads(route.calls[0].request.content)["body"] == "Body from a file."
+
+
+def test_compose_rejects_both_body_and_body_file(client_env, tmp_path) -> None:
+    body_path = tmp_path / "message.md"
+    body_path.write_text("From file.", encoding="utf-8")
+    with pytest.raises(Exception):  # noqa: B017 — ValueError from resolve_body
+        cmd_compose(
+            Namespace(
+                output="text",
+                subject="A subject",
+                body="Inline.",
+                body_file=str(body_path),
+                tags=[],
+            )
+        )
+
+
+def test_compose_rejects_missing_body(client_env) -> None:
+    with pytest.raises(Exception):  # noqa: B017 — ValueError from resolve_body
+        cmd_compose(
+            Namespace(
+                output="text", subject="A subject", body=None, body_file=None, tags=[]
+            )
+        )
+
+
 def test_compose_rejects_invalid_subject_before_any_request(client_env) -> None:
     """A malformed subject fails DraftPostRequest validation locally —
     no request reaches the server (SPEC.md §8.1)."""
 
     with pytest.raises(Exception):  # noqa: B017 — pydantic ValidationError
-        cmd_compose(Namespace(output="text", subject="", body="A body.", tags=[]))
+        cmd_compose(
+            Namespace(
+                output="text", subject="", body="A body.", body_file=None, tags=[]
+            )
+        )
+
+
+# ─── draft-edit ────────────────────────────────────────────────────
+
+
+@respx.mock
+def test_draft_edit_patches_supplied_fields(
+    client_env, capsys: pytest.CaptureFixture
+) -> None:
+    draft_id = "55555555-5555-4555-8555-555555555555"
+    route = respx.patch(f"{SERVER}/drafts/{draft_id}").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "entry": {
+                    "draft": {
+                        "draft_id": draft_id,
+                        "subject": "New subject",
+                        "body": "Old body.",
+                        "created_at": "2026-06-12T09:00:00+00:00",
+                        "updated_at": "2026-06-12T10:00:00+00:00",
+                        "tags": ["x"],
+                    },
+                    "sent_at": None,
+                    "sent_by": None,
+                },
+                "metadata": {},
+            },
+        )
+    )
+    cmd_drafts_patch(
+        Namespace(
+            output="text",
+            draft_id=draft_id,
+            subject="New subject",
+            body=None,
+            body_file=None,
+            reply_to=None,
+            tags=None,
+        )
+    )
+
+    request = route.calls[0].request
+    assert request.method == "PATCH"
+    assert json.loads(request.content) == {
+        "subject": "New subject",
+        "body": None,
+        "reply_to": None,
+        "tags": None,
+    }
+    assert "Subject: New subject" in capsys.readouterr().out
 
 
 # ─── send ──────────────────────────────────────────────────────────

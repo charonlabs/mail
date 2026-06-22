@@ -12,7 +12,7 @@ mail [option]... <command> [argument]...
 
 ### Core MAIL Operations
 
-- `compose`: Draft a new MAIL message. Accepts `--tags TAG...` to attach slug tags.
+- `compose`: Draft a new MAIL message. The body may be passed inline or read from a file with `-F`/`--body-file PATH` (provide exactly one). Accepts `--tags TAG...` to attach slug tags.
 - `send`: Send an existing draft by ID to the specified recipient(s). Accepts `--tags TAG...`, which are merged with the draft's tags.
 - `reply`: Reply to an existing inbox message by ID. Addresses the reply to the original sender and defaults the subject to `Re: <original subject>`. Accepts `--subject SUBJECT` and `--tags TAG...`.
 - `forward`: Forward an existing inbox message by ID to one or more new recipient(s). Encodes the original message (sender, recipients, subject, and body) into the forwarded body and defaults the subject to `Fwd: <original subject>`. Accepts `--note NOTE` to prepend a note above the forwarded message, plus `--subject SUBJECT` and `--tags TAG...`.
@@ -22,6 +22,7 @@ mail [option]... <command> [argument]...
 - `outbox-open`: Open a specific message by ID in your MAIL outbox.
 - `drafts`: List your existing MAIL message drafts.
 - `drafts-open`: Open a specific existing draft by ID.
+- `draft-edit`: Edit fields on an existing draft by ID. Accepts a new body inline or via `-F`/`--body-file PATH`, plus `--subject SUBJECT`, `--reply-to ID`, and `--tags TAG...` (pass `--tags` with no values to clear all tags). Omitted fields are left unchanged.
 - `trash`: Open your MAIL trash box.
 - `trash-open`: Open a specific message by ID in your MAIL trash box.
 

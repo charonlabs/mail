@@ -41,6 +41,7 @@ from mail_protocol.network.requests import (
     BoxFilterParams,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
+    DraftPatchRequest,
     DraftPostRequest,
     DraftSendPostRequest,
 )
@@ -230,6 +231,22 @@ class MAILServerBackend(Protocol):
     ) -> MAILDraftsEntry:
         """
         Get a specific message draft by ID for this user-agent.
+        """
+
+        pass
+
+    @abstractmethod
+    async def patch_draft(
+        self,
+        user_agent: MAILUserAgent,
+        draft_id: str,
+        payload: DraftPatchRequest,
+    ) -> MAILDraftsEntry:
+        """
+        Update mutable fields on an existing message draft for this user-agent.
+
+        Only the fields supplied on ``payload`` are modified; the rest are
+        left untouched. ``updated_at`` is refreshed on any successful edit.
         """
 
         pass
