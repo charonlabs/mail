@@ -3,6 +3,7 @@
 
 import argparse
 
+from mail_protocol.cli_help import add_license_argument
 from mail_protocol.core.validators import (
     validate_agent_names,
     validate_daemon_worker_names,
@@ -21,8 +22,9 @@ def main() -> None:
         prog="backend-init",
         usage="backend-init [option]...",
         description="Initialize the MAIL server backend for use by mail-server",
-        epilog="Copyright (c) 2026 Addison Kline",
+        epilog="Copyright (c) 2025-present MAIL Contributors",
     )
+    add_license_argument(parser)
     parser.add_argument(
         "-t",
         "--type",
