@@ -224,3 +224,6 @@ test-swarm-registry.json
 # plan documents
 .plans/
 .v2_plans/
+
+# draft documents
+.drafts/

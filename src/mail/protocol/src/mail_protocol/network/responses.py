@@ -203,6 +203,16 @@ class DraftGetResponse(BaseModel):
     metadata: dict[str, Any]
 
 
+class DraftPatchResponse(BaseModel):
+    """
+    Corresponds to `PATCH /drafts/{draft_id}`.
+    Contains the updated message draft in the user-agent's drafts box.
+    """
+
+    entry: MAILDraftsEntry
+    metadata: dict[str, Any]
+
+
 class DraftDeleteResponse(BaseModel):
     """
     Corresponds to `DELETE /drafts/{draft_id}`.

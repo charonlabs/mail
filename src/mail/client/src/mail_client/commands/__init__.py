@@ -9,6 +9,7 @@ from .daemon_list import cmd_daemon_list
 from .daemon_post import cmd_daemon_post
 from .drafts import cmd_drafts
 from .drafts_open import cmd_drafts_open
+from .drafts_patch import cmd_drafts_patch
 from .forward import cmd_forward
 from .inbox import cmd_inbox
 from .inbox_open import cmd_inbox_open
@@ -58,6 +59,7 @@ __all__ = [
     "cmd_daemon_post",
     "cmd_drafts",
     "cmd_drafts_open",
+    "cmd_drafts_patch",
     "cmd_forward",
     "cmd_inbox",
     "cmd_inbox_open",

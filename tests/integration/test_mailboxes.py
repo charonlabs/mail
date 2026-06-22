@@ -269,6 +269,147 @@ def test_send_unknown_draft_returns_404(app_client: TestClient, headers_for) -> 
     assert response.status_code == 404
 
 
+def test_patch_draft_updates_fields(app_client: TestClient, headers_for) -> None:
+    response = app_client.post(
+        "/drafts",
+        json={"subject": "Original", "body": "Original body", "tags": ["a"]},
+        headers=headers_for(USER),
+    )
+    draft = response.json()["entry"]["draft"]
+    draft_id = draft["draft_id"]
+    assert draft["updated_at"] is None
+
+    response = app_client.patch(
+        f"/drafts/{draft_id}",
+        json={"subject": "Updated", "body": "Updated body", "tags": ["b", "c"]},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 200
+    updated = response.json()["entry"]["draft"]
+    assert updated["subject"] == "Updated"
+    assert updated["body"] == "Updated body"
+    assert updated["tags"] == ["b", "c"]
+    assert updated["updated_at"] is not None
+    # the change is persisted, not just echoed back
+    response = app_client.get(f"/drafts/{draft_id}", headers=headers_for(USER))
+    assert response.json()["entry"]["draft"]["subject"] == "Updated"
+
+
+def test_patch_draft_partial_leaves_other_fields(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.post(
+        "/drafts",
+        json={"subject": "Keep subject", "body": "Old body", "tags": ["x"]},
+        headers=headers_for(USER),
+    )
+    draft_id = response.json()["entry"]["draft"]["draft_id"]
+
+    response = app_client.patch(
+        f"/drafts/{draft_id}",
+        json={"body": "New body"},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 200
+    updated = response.json()["entry"]["draft"]
+    assert updated["body"] == "New body"
+    assert updated["subject"] == "Keep subject"
+    assert updated["tags"] == ["x"]
+
+
+def test_patch_draft_empty_tags_clears_them(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.post(
+        "/drafts",
+        json={"subject": "Subject", "body": "Body", "tags": ["x", "y"]},
+        headers=headers_for(USER),
+    )
+    draft_id = response.json()["entry"]["draft"]["draft_id"]
+
+    response = app_client.patch(
+        f"/drafts/{draft_id}",
+        json={"tags": []},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 200
+    assert response.json()["entry"]["draft"]["tags"] == []
+
+
+def test_patch_draft_rejects_overlong_subject(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.post(
+        "/drafts",
+        json={"subject": "Subject", "body": "Body"},
+        headers=headers_for(USER),
+    )
+    draft_id = response.json()["entry"]["draft"]["draft_id"]
+
+    response = app_client.patch(
+        f"/drafts/{draft_id}",
+        json={"subject": "x" * (MESSAGE_SUBJECT_LEN_MAX + 1)},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 422
+
+
+def test_patch_draft_unknown_id_returns_404(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.patch(
+        "/drafts/11111111-1111-4111-8111-111111111111",
+        json={"subject": "Updated"},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 404
+
+
+def test_patch_draft_isolated_between_users(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.post(
+        "/drafts",
+        json={"subject": "Private", "body": "Draft"},
+        headers=headers_for(USER),
+    )
+    draft_id = response.json()["entry"]["draft"]["draft_id"]
+
+    response = app_client.patch(
+        f"/drafts/{draft_id}",
+        json={"subject": "Hijacked"},
+        headers=headers_for(OTHER_USER),
+    )
+    assert response.status_code == 404
+
+
+def test_patch_draft_then_send_uses_new_content(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.post(
+        "/drafts",
+        json={"subject": "Original", "body": "Original body"},
+        headers=headers_for(USER),
+    )
+    draft_id = response.json()["entry"]["draft"]["draft_id"]
+
+    app_client.patch(
+        f"/drafts/{draft_id}",
+        json={"subject": "Edited", "body": "Edited body"},
+        headers=headers_for(USER),
+    )
+
+    response = app_client.post(
+        f"/drafts/{draft_id}/send",
+        json={"recipients": [OTHER_USER]},
+        headers=headers_for(USER),
+    )
+    assert response.status_code == 200
+    message = response.json()["message"]
+    assert message["subject"] == "Edited"
+    assert message["body"] == "Edited body"
+
+
 # ─── Trash ─────────────────────────────────────────────────────────
 
 

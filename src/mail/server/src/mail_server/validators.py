@@ -14,6 +14,7 @@ from mail_protocol.network.requests import (
     AuthPasswordResetRequest,
     BoxFilterParams,
     DaemonDeliverLocalRequest,
+    DraftPatchRequest,
     DraftPostRequest,
     DraftSendPostRequest,
     ListMemberPostRequest,
@@ -56,6 +57,20 @@ async def validate_post_draft_request(request: Request) -> DraftPostRequest:
     try:
         body = await request.json()
         return DraftPostRequest.model_validate(body)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_patch_draft_request(request: Request) -> DraftPatchRequest:
+    """
+    Ensure the request payload is valid for `PATCH /drafts/{draft_id}`.
+    """
+
+    try:
+        body = await request.json()
+        return DraftPatchRequest.model_validate(body)
     except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"

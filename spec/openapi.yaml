@@ -209,6 +209,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DraftDeleteResponse'
+    patch:
+      tags:
+      - drafts
+      summary: Update a specific message draft by ID
+      operationId: patch_draft_drafts__draft_id__patch
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftPatchResponse'
   /drafts/{draft_id}/send:
     post:
       tags:
@@ -1294,6 +1306,22 @@ components:
       description: 'Corresponds to `GET /drafts/{draft_id}`.
 
         Contains a specific message draft inside the user-agent''s drafts box.'
+    DraftPatchResponse:
+      properties:
+        entry:
+          $ref: '#/components/schemas/MAILDraftsEntry'
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - entry
+      - metadata
+      title: DraftPatchResponse
+      description: 'Corresponds to `PATCH /drafts/{draft_id}`.
+
+        Contains the updated message draft in the user-agent''s drafts box.'
     DraftPostResponse:
       properties:
         entry:
