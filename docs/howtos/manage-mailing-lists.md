@@ -4,11 +4,24 @@ Status: draft
 
 ## Goal
 
-How to create mailing lists, inspect them, and manage subscriptions or members.
+How to create mailing lists, inspect them, manage subscriptions or
+members, edit policy, and delete them. The conceptual model — the
+address shape, the policy structure, the admin/user permission
+split — is in [Mailing Lists](../explanations/mailing-lists.md);
+this how-to assumes you've at least skimmed it.
 
 ## Starting Point
 
-The reader has credentials with permissions appropriate for the list action.
+The reader has credentials with permissions appropriate for the list
+action. Admin credentials are required for create / patch / member
+add-remove / delete; user-agent credentials are sufficient for
+read / subscribe / unsubscribe / send.
+
+The list address shape is `list:<name>@<swarm>@<host>` — see
+[Addressing Model](../explanations/addressing-model.md). Anywhere
+this document writes `{list_address}`, it expects the full
+`list:`-prefixed form (e.g.,
+`list:announcements@chorus@example.com`).
 
 ## Steps
 
@@ -99,15 +112,78 @@ uv run mail-admin list-member-delete {list_address} {member_address}
 
 If successful, details on the mailing list will be printed to the console.
 
-### 6. Send a message to a list address
+### 6. Update list policy as an admin
 
-If they are authorized to do so, user-agents can send a message to a list address by specifying the list address in the `mail` command `send`:
+Admins can update the policy on an existing list with the
+`mail-admin` command `list-patch`. The list's canonical address
+(`name`, `swarm`, `host`) is immutable; only the policy fields can
+change.
+
+```bash
+MAIL_SERVER={server_url}
+MAIL_TOKEN={admin_jwt}
+uv run mail-admin list-patch {list_address} \
+  --visibility public \
+  --join-policy open \
+  --send-policy open
+```
+
+For v1, only `public` / `open` / `open` are honored; the other
+variants are reserved in the wire format and rejected at the
+endpoint layer with `501`. See [Mailing
+Lists](../explanations/mailing-lists.md#the-policy-shape) for
+context on the deferred variants.
+
+### 7. Delete a list as an admin
+
+To remove an existing list entirely, use `list-delete`:
+
+```bash
+MAIL_SERVER={server_url}
+MAIL_TOKEN={admin_jwt}
+uv run mail-admin list-delete {list_address}
+```
+
+The list is removed from the server and the canonical address
+becomes available for re-creation. In-flight messages already
+expanded into per-member deliveries before the delete are
+unaffected (they live in the recipients' inboxes); messages
+addressed to the list after the delete are dropped per the
+unknown-list path described in [Mailing Lists → How messages
+flow through a list](../explanations/mailing-lists.md#how-messages-flow-through-a-list).
+
+### 8. Send a message to a list address
+
+If they are authorized to do so, user-agents can send a message to
+a list address by specifying the list address in the `mail` command
+`send`:
 
 ```bash
 MAIL_SERVER={server_url}
 MAIL_TOKEN={ua_jwt}
 uv run mail send {draft_id} {list_address}
 ```
+
+The receiving server expands the list and delivers one copy to
+each member's inbox. Each member's webhook (if any) fires with a
+`metadata.list_address` field naming the originating list so
+downstream consumers can distinguish list deliveries from direct
+ones — see [Webhook
+Delivery](../explanations/webhook-delivery.md#payload-shape) for
+the field placement on the wire.
+
+## See also
+
+- [Mailing Lists](../explanations/mailing-lists.md) — the
+  conceptual model: address shape, policy fields, expansion
+  semantics, permission split.
+- [Webhook Delivery](../explanations/webhook-delivery.md) — how
+  list deliveries surface to webhook receivers via
+  `metadata.list_address`.
+- [Addressing Model](../explanations/addressing-model.md) — the
+  full address taxonomy lists sit within.
+- [HTTP API](../references/http-api.md) — the formal route
+  reference for admin and user-agent list endpoints.
 
 ## Source Material
 
