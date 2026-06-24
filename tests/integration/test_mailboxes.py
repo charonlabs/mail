@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
 from mail_protocol.core.constants import MESSAGE_SUBJECT_LEN_MAX
 from mail_protocol.core.messages import MAILMessage
-from mail_protocol.core.trash import MAILTrashEntry
-from mail_server.backends.memory.api import MemoryBackend
 
 USER = "user:alice@localhost"
 OTHER_USER = "user:bob@localhost"
+DAEMON = "daemon:dummy@localhost"
 
 
 # ─── Inbox ─────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ def test_drafts_isolated_between_users(app_client: TestClient, headers_for) -> N
 
 
 def test_send_draft_creates_message_and_buffers_it(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for
 ) -> None:
     response = app_client.post(
         "/drafts",
@@ -219,7 +219,13 @@ def test_send_draft_creates_message_and_buffers_it(
     assert message["recipients"] == [OTHER_USER]
     assert message["subject"] == "Outgoing"
     assert message["message_id"] != draft_id
-    assert message["message_id"] in backend.message_buffer
+
+    # The message is queued for delivery: the daemon's buffer-clear returns it.
+    buffer = app_client.post(
+        "/daemon/message-buffer/clear", headers=headers_for(DAEMON)
+    )
+    assert buffer.status_code == 200
+    assert message["message_id"] in buffer.json()["message_ids"]
 
 
 def test_send_draft_rejects_empty_recipients(
@@ -413,7 +419,7 @@ def test_patch_draft_then_send_uses_new_content(
 # ─── Trash ─────────────────────────────────────────────────────────
 
 
-def _seed_trash(backend: MemoryBackend, owner: str) -> str:
+def _seed_trash(seed_trash: Callable[..., str], owner: str) -> str:
     message = MAILMessage(
         mail_version="2.0",
         message_id="22222222-2222-4222-8222-222222222222",
@@ -425,12 +431,11 @@ def _seed_trash(backend: MemoryBackend, owner: str) -> str:
         sent_at=datetime(2026, 6, 11, tzinfo=UTC),
         metadata={},
     )
-    backend.trash_entries[message.message_id] = MAILTrashEntry(
+    return seed_trash(
+        owner,
         message=message,
         trashed_at=datetime(2026, 6, 11, 12, 0, tzinfo=UTC),
     )
-    backend.trashes[owner].append(message.message_id)
-    return message.message_id
 
 
 def test_trash_starts_empty(app_client: TestClient, headers_for) -> None:
@@ -440,9 +445,9 @@ def test_trash_starts_empty(app_client: TestClient, headers_for) -> None:
 
 
 def test_trash_lists_seeded_entry(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
-    message_id = _seed_trash(backend, USER)
+    message_id = _seed_trash(seed_trash, USER)
     response = app_client.get("/trash", headers=headers_for(USER))
     assert response.status_code == 200
     entries = response.json()["entries"]
@@ -451,9 +456,9 @@ def test_trash_lists_seeded_entry(
 
 
 def test_trash_open_returns_entry(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
-    message_id = _seed_trash(backend, USER)
+    message_id = _seed_trash(seed_trash, USER)
     response = app_client.get(f"/trash/{message_id}", headers=headers_for(USER))
     assert response.status_code == 200
     assert response.json()["entry"]["message"]["subject"] == "Trashed"
@@ -468,9 +473,9 @@ def test_trash_open_unknown_id_returns_404(app_client: TestClient, headers_for) 
 
 
 def test_trash_isolated_between_users(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
-    message_id = _seed_trash(backend, USER)
+    message_id = _seed_trash(seed_trash, USER)
     response = app_client.get(f"/trash/{message_id}", headers=headers_for(OTHER_USER))
     assert response.status_code == 404
 
@@ -478,7 +483,7 @@ def test_trash_isolated_between_users(
 # ─── Box query parameters ──────────────────────────────────────────
 
 
-def _seed_trash_n(backend: MemoryBackend, owner: str, n: int) -> list[str]:
+def _seed_trash_n(seed_trash: Callable[..., str], owner: str, n: int) -> list[str]:
     """
     Seed ``n`` trash entries for ``owner``. ``trashed_at`` *increases* with
     insertion order while the underlying message's ``sent_at`` *decreases*, so
@@ -486,9 +491,9 @@ def _seed_trash_n(backend: MemoryBackend, owner: str, n: int) -> list[str]:
     orders — letting a single seed exercise both. Returns the message IDs in
     insertion order (oldest-trashed first), so ``ids[-1]`` is the newest.
 
-    The message is also registered in ``backend.messages`` because the
-    ``sent_at`` sort resolves send time via that store (as the real local
-    delivery path populates it).
+    The message is registered in the canonical store too (the ``sent_at`` sort
+    resolves send time via that store, as the real local delivery path does);
+    the ``seed_trash`` fixture handles that for whichever backend is active.
     """
 
     ids: list[str] = []
@@ -505,12 +510,11 @@ def _seed_trash_n(backend: MemoryBackend, owner: str, n: int) -> list[str]:
             sent_at=datetime(2026, 6, 1, 12, n - i, tzinfo=UTC),  # decreasing
             metadata={},
         )
-        backend.messages[message_id] = message
-        backend.trash_entries[message_id] = MAILTrashEntry(
+        seed_trash(
+            owner,
             message=message,
             trashed_at=datetime(2026, 6, 11, 12, i, tzinfo=UTC),  # increasing
         )
-        backend.trashes[owner].append(message_id)
         ids.append(message_id)
     return ids
 
@@ -558,9 +562,9 @@ def test_box_rejects_invalid_query_params(
 
 
 def test_box_pagination_slices_and_counts(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
-    ids = _seed_trash_n(backend, USER, 5)  # oldest → newest
+    ids = _seed_trash_n(seed_trash, USER, 5)  # oldest → newest
 
     response = app_client.get("/trash?limit=2&offset=0", headers=headers_for(USER))
     assert response.status_code == 200
@@ -575,9 +579,9 @@ def test_box_pagination_slices_and_counts(
 
 
 def test_box_sort_order_ascending(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
-    ids = _seed_trash_n(backend, USER, 3)
+    ids = _seed_trash_n(seed_trash, USER, 3)
 
     response = app_client.get("/trash?order=asc", headers=headers_for(USER))
     assert response.status_code == 200
@@ -585,9 +589,9 @@ def test_box_sort_order_ascending(
 
 
 def test_box_offset_past_end_returns_empty_page(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
-    _seed_trash_n(backend, USER, 3)
+    _seed_trash_n(seed_trash, USER, 3)
 
     response = app_client.get("/trash?offset=10", headers=headers_for(USER))
     assert response.status_code == 200
@@ -598,14 +602,14 @@ def test_box_offset_past_end_returns_empty_page(
 
 
 def test_box_sort_by_sent_at_uses_message_send_time(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for, seed_trash: Callable[..., str]
 ) -> None:
     """
     `sort_by=sent_at` orders by the underlying message's send time, which the
     seed makes the exact reverse of the default `entered_at` (trashed_at) order.
     """
 
-    ids = _seed_trash_n(backend, USER, 3)
+    ids = _seed_trash_n(seed_trash, USER, 3)
 
     default = app_client.get("/trash", headers=headers_for(USER))
     assert [e["message_id"] for e in default.json()["entries"]] == [

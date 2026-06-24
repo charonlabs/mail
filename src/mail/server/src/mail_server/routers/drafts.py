@@ -114,7 +114,20 @@ async def patch_draft(request: Request) -> DraftPatchResponse:
     response_model=DraftDeleteResponse,
 )
 async def delete_draft(request: Request) -> DraftDeleteResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    draft_id = request.path_params.get("draft_id")
+    try:
+        result = await backend.delete_draft(user_agent=user_agent, draft_id=draft_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail=f"draft with ID {draft_id} not found"
+        )
+
+    return DraftDeleteResponse(
+        entry=result,
+        metadata={},
+    )
 
 
 @router.post(

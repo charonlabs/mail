@@ -67,8 +67,25 @@ async def get_trashed_message(request: Request) -> TrashMessageGetResponse:
     summary="Delete a specific trashed message by ID",
     response_model=TrashMessageDeleteResponse,
 )
-async def delete_trashed_message(message_id: str) -> TrashMessageDeleteResponse:
-    raise NotImplementedError
+async def delete_trashed_message(
+    request: Request, message_id: str
+) -> TrashMessageDeleteResponse:
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    try:
+        result = await backend.delete_trash_message(
+            user_agent=user_agent, message_id=message_id
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no message with ID {message_id} found in trash box",
+        )
+
+    return TrashMessageDeleteResponse(
+        entry=result,
+        metadata={},
+    )
 
 
 @router.post(
@@ -76,5 +93,12 @@ async def delete_trashed_message(message_id: str) -> TrashMessageDeleteResponse:
     summary="Remove all exisisting messages from trash",
     response_model=TrashClearPostResponse,
 )
-async def post_trash_clear() -> TrashClearPostResponse:
-    raise NotImplementedError
+async def post_trash_clear(request: Request) -> TrashClearPostResponse:
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    result = await backend.clear_trash(user_agent=user_agent)
+
+    return TrashClearPostResponse(
+        entries=result,
+        metadata={},
+    )

@@ -8,11 +8,11 @@ Migrated from tests/unit/test_mail_lists_endpoints.py, which wired a
 minimal app with monkeypatched auth; the assertions are unchanged.
 """
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from mail_protocol.core.lists import MAILListInBackend, MAILListPolicy
-from mail_server.backends.memory.api import MemoryBackend
 
 ADMIN_ADDRESS = "admin:ryan@localhost"
 USER_ADDRESS = "user:alice@localhost"
@@ -35,7 +35,11 @@ def _make_post_body(
     return body
 
 
-def _seed_list(backend: MemoryBackend, *, members: list[str] | None = None) -> str:
+def _seed_list(
+    seed_list: Callable[[MAILListInBackend], str],
+    *,
+    members: list[str] | None = None,
+) -> str:
     now = datetime(2026, 6, 4, 0, 0, tzinfo=UTC)
     record = MAILListInBackend(
         name="welfare-discourse",
@@ -48,8 +52,7 @@ def _seed_list(backend: MemoryBackend, *, members: list[str] | None = None) -> s
         created_at=now,
         updated_at=now,
     )
-    backend.lists[record.get_address()] = record
-    return record.get_address()
+    return seed_list(record)
 
 
 # ─── Admin endpoints ───────────────────────────────────────────────
@@ -115,18 +118,22 @@ def test_admin_post_list_duplicate_returns_409(
 
 
 def test_admin_get_lists_returns_all(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    _seed_list(backend)
+    _seed_list(seed_list)
     response = app_client.get("/admin/lists", headers=headers_for(ADMIN_ADDRESS))
     assert response.status_code == 200
     assert len(response.json()["lists"]) == 1
 
 
 def test_admin_get_list_returns_specific(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.get(
         f"/admin/lists/{address}", headers=headers_for(ADMIN_ADDRESS)
     )
@@ -145,9 +152,11 @@ def test_admin_get_list_missing_returns_404(
 
 
 def test_admin_patch_list_updates_policy_no_op_for_open(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.patch(
         f"/admin/lists/{address}",
         json={"policy": MAILListPolicy().model_dump()},
@@ -157,9 +166,11 @@ def test_admin_patch_list_updates_policy_no_op_for_open(
 
 
 def test_admin_patch_list_rejects_closed_policy(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.patch(
         f"/admin/lists/{address}",
         json={"policy": MAILListPolicy(visibility="private").model_dump()},
@@ -169,14 +180,22 @@ def test_admin_patch_list_rejects_closed_policy(
 
 
 def test_admin_delete_list_removes(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.delete(
         f"/admin/lists/{address}", headers=headers_for(ADMIN_ADDRESS)
     )
     assert response.status_code == 200
-    assert address not in backend.lists
+    # The list is gone: a follow-up read 404s.
+    assert (
+        app_client.get(
+            f"/lists/{address}", headers=headers_for(ADMIN_ADDRESS)
+        ).status_code
+        == 404
+    )
 
 
 def test_admin_delete_list_missing_returns_404(
@@ -190,9 +209,11 @@ def test_admin_delete_list_missing_returns_404(
 
 
 def test_admin_add_member(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.post(
         f"/admin/lists/{address}/members",
         json={"member_address": "philosopher@chorus@localhost"},
@@ -203,21 +224,26 @@ def test_admin_add_member(
 
 
 def test_admin_remove_member(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
+    list_members: Callable[..., list[str]],
 ) -> None:
-    address = _seed_list(backend, members=["philosopher@chorus@localhost"])
+    address = _seed_list(seed_list, members=["philosopher@chorus@localhost"])
     response = app_client.delete(
         f"/admin/lists/{address}/members/philosopher@chorus@localhost",
         headers=headers_for(ADMIN_ADDRESS),
     )
     assert response.status_code == 200
-    assert backend.lists[address].members == []
+    assert list_members(address) == []
 
 
 def test_admin_lists_reject_non_admin(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    _seed_list(backend)
+    _seed_list(seed_list)
     response = app_client.get(
         "/admin/lists", headers=headers_for(USER_ADDRESS)
     )
@@ -233,18 +259,22 @@ def test_get_lists_requires_auth(app_client: TestClient) -> None:
 
 
 def test_get_lists_returns_visible_lists(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    _seed_list(backend)
+    _seed_list(seed_list)
     response = app_client.get("/lists", headers=headers_for(USER_ADDRESS))
     assert response.status_code == 200
     assert len(response.json()["lists"]) == 1
 
 
 def test_get_list_specific(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.get(
         f"/lists/{address}", headers=headers_for(USER_ADDRESS)
     )
@@ -263,18 +293,24 @@ def test_get_list_missing_returns_404(
 
 
 def test_subscribe_self(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
+    list_members: Callable[..., list[str]],
 ) -> None:
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.post(
         f"/lists/{address}/subscribe", headers=headers_for(USER_ADDRESS)
     )
     assert response.status_code == 200
-    assert USER_ADDRESS in backend.lists[address].members
+    assert USER_ADDRESS in list_members(address)
 
 
 def test_subscribe_ignores_supplied_member_address(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
+    list_members: Callable[..., list[str]],
 ) -> None:
     """
     Subscribe is body-less: only the authenticated caller is ever
@@ -282,15 +318,16 @@ def test_subscribe_ignores_supplied_member_address(
     no effect on the member list.
     """
 
-    address = _seed_list(backend)
+    address = _seed_list(seed_list)
     response = app_client.post(
         f"/lists/{address}/subscribe",
         json={"member_address": OTHER_USER_ADDRESS},
         headers=headers_for(USER_ADDRESS),
     )
     assert response.status_code == 200
-    assert USER_ADDRESS in backend.lists[address].members
-    assert OTHER_USER_ADDRESS not in backend.lists[address].members
+    members = list_members(address)
+    assert USER_ADDRESS in members
+    assert OTHER_USER_ADDRESS not in members
 
 
 def test_subscribe_missing_list_returns_404(
@@ -304,24 +341,32 @@ def test_subscribe_missing_list_returns_404(
 
 
 def test_unsubscribe_self(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
+    list_members: Callable[..., list[str]],
 ) -> None:
-    address = _seed_list(backend, members=[USER_ADDRESS, OTHER_USER_ADDRESS])
+    address = _seed_list(seed_list, members=[USER_ADDRESS, OTHER_USER_ADDRESS])
     response = app_client.post(
         f"/lists/{address}/unsubscribe", headers=headers_for(USER_ADDRESS)
     )
     assert response.status_code == 200
-    assert USER_ADDRESS not in backend.lists[address].members
-    assert OTHER_USER_ADDRESS in backend.lists[address].members
+    members = list_members(address)
+    assert USER_ADDRESS not in members
+    assert OTHER_USER_ADDRESS in members
 
 
 def test_unsubscribe_uses_authenticated_user(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient,
+    headers_for,
+    seed_list: Callable[[MAILListInBackend], str],
+    list_members: Callable[..., list[str]],
 ) -> None:
-    address = _seed_list(backend, members=[USER_ADDRESS, OTHER_USER_ADDRESS])
+    address = _seed_list(seed_list, members=[USER_ADDRESS, OTHER_USER_ADDRESS])
     response = app_client.post(
         f"/lists/{address}/unsubscribe", headers=headers_for(OTHER_USER_ADDRESS)
     )
     assert response.status_code == 200
-    assert USER_ADDRESS in backend.lists[address].members
-    assert OTHER_USER_ADDRESS not in backend.lists[address].members
+    members = list_members(address)
+    assert USER_ADDRESS in members
+    assert OTHER_USER_ADDRESS not in members

@@ -12,6 +12,9 @@ EXAMPLES = [
     "mail-server --host 0.0.0.0 --port 8865",
     "mail-server --backend memory",
     "mail-server --memory-save-interval 30",
+    "mail-server --backend sqlite",
+    "mail-server --backend sqlite --sqlite-path /var/lib/mail/mail.db",
+    "mail-server --backend sqlite --database-url sqlite:////abs/path/mail.db",
 ]
 
 DEFAULT_MEMORY_SAVE_INTERVAL_SECONDS = 60.0
@@ -60,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-b",
         "--backend",
         metavar="BACKEND",
-        choices=["memory"],
+        choices=["memory", "sqlite"],
         default="memory",
         help="the MAIL server backend to use (default: %(default)s)",
     )
@@ -72,6 +75,24 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "seconds between memory backend filesystem checkpoints; "
             "set 0 to disable (default: %(default)s)"
+        ),
+    )
+    parser.add_argument(
+        "--sqlite-path",
+        metavar="PATH",
+        default=os.getenv("MAIL_SQLITE_PATH"),
+        help=(
+            "sqlite backend database file (env: MAIL_SQLITE_PATH; default: "
+            "~/.mail-swarms/deployments/default/mail.db)"
+        ),
+    )
+    parser.add_argument(
+        "--database-url",
+        metavar="URL",
+        default=os.getenv("MAIL_DATABASE_URL"),
+        help=(
+            "sqlite backend database URL; takes precedence over --sqlite-path "
+            "(env: MAIL_DATABASE_URL)"
         ),
     )
 

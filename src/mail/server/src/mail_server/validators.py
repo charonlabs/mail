@@ -14,6 +14,7 @@ from mail_protocol.network.requests import (
     AuthPasswordResetRequest,
     BoxFilterParams,
     DaemonDeliverLocalRequest,
+    DaemonDeliverRemoteRequest,
     DraftPatchRequest,
     DraftPostRequest,
     DraftSendPostRequest,
@@ -104,6 +105,22 @@ async def validate_deliver_local_request(
     try:
         body = await request.json()
         return DaemonDeliverLocalRequest.model_validate(body)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_deliver_remote_request(
+    request: Request,
+) -> DaemonDeliverRemoteRequest:
+    """
+    Ensure that the request payload is valid for `POST /daemon/deliver/remote`.
+    """
+
+    try:
+        body = await request.json()
+        return DaemonDeliverRemoteRequest.model_validate(body)
     except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"

@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
+import asyncio
 import os
+from collections.abc import Awaitable, Callable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 # mail_server.server reads MAIL_HOST and mail_server.routers.auth reads
@@ -12,7 +15,10 @@ os.environ.setdefault("MAIL_JWT_EXPIRE_MINUTES", "15")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from mail_protocol.core.lists import MAILListInBackend  # noqa: E402
+from mail_protocol.core.messages import MAILMessage  # noqa: E402
 from mail_protocol.core.swarms import MAILSwarm  # noqa: E402
+from mail_protocol.core.trash import MAILTrashEntry  # noqa: E402
 from mail_protocol.core.user_agents import (  # noqa: E402
     MAILAdmin,
     MAILAgent,
@@ -22,7 +28,14 @@ from mail_protocol.core.user_agents import (  # noqa: E402
 )
 from mail_server import server as mail_server_module  # noqa: E402
 from mail_server.auth import get_password_hash  # noqa: E402
+from mail_server.backends.base import MAILServerBackend  # noqa: E402
 from mail_server.backends.memory.api import MemoryBackend  # noqa: E402
+from mail_server.backends.sqlite.api import SQLiteBackend  # noqa: E402
+from mail_server.backends.sqlite.database import Database  # noqa: E402
+from mail_server.backends.sqlite.repositories import (  # noqa: E402
+    BOX_TRASH,
+    MailStore,
+)
 
 HOST = "localhost"
 SWARM = "chorus"
@@ -39,32 +52,33 @@ PASSWORD = "correct-horse-battery-staple"
 # per session instead of once per seeded user-agent per test.
 PASSWORD_HASH = get_password_hash(PASSWORD)
 
+# The integration suite runs against every backend in this list. Backend
+# internals are never touched directly — seeding/assertions go through the
+# public API or the backend-agnostic ``seed_*`` fixtures below — so each test
+# exercises identical behavior on memory and sqlite.
+BACKENDS = ["memory", "sqlite"]
 
-def _seed_cast(backend: MemoryBackend) -> None:
-    """
-    Seed the standard cast: one admin, two users, one agent, one daemon,
-    and one swarm — all sharing PASSWORD. Mirrors what `backend-init`
-    plus admin CRUD calls would provision.
-    """
 
-    cast = {
+def _cast() -> dict[str, MAILUserAgentInBackend]:
+    """The standard cast (one admin, two users, one agent, one daemon)."""
+
+    members = {
         ADMIN: MAILAdmin(ua_type="admin", admin_id="ryan", host=HOST),
         USER: MAILUser(ua_type="user", user_id="alice", host=HOST),
         OTHER_USER: MAILUser(ua_type="user", user_id="bob", host=HOST),
         AGENT: MAILAgent(ua_type="agent", name="sage", swarm=SWARM, host=HOST),
         DAEMON: MAILDaemon(ua_type="daemon", worker_name="dummy", host=HOST),
     }
-    for address, user_agent in cast.items():
-        backend.user_agents[address] = MAILUserAgentInBackend(
-            user_agent=user_agent,
-            hashed_password=PASSWORD_HASH,
+    return {
+        address: MAILUserAgentInBackend(
+            user_agent=user_agent, hashed_password=PASSWORD_HASH
         )
-        backend.inboxes[address] = []
-        backend.outboxes[address] = []
-        backend.drafts[address] = []
-        backend.trashes[address] = []
+        for address, user_agent in members.items()
+    }
 
-    backend.swarms[SWARM] = MAILSwarm(
+
+def _swarm() -> MAILSwarm:
+    return MAILSwarm(
         name=SWARM,
         description="integration test swarm",
         keywords=["testing"],
@@ -73,28 +87,159 @@ def _seed_cast(backend: MemoryBackend) -> None:
     )
 
 
-@pytest.fixture
-def app_client(
-    deployment_dir: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> TestClient:
+def _seed_memory_cast(backend: MemoryBackend) -> None:
+    for address, ua_in_be in _cast().items():
+        backend.user_agents[address] = ua_in_be
+        backend.inboxes[address] = []
+        backend.outboxes[address] = []
+        backend.drafts[address] = []
+        backend.trashes[address] = []
+    backend.swarms[SWARM] = _swarm()
+
+
+def _run_sqlite_write(
+    url: str,
+    mutate: Callable[[MailStore], Awaitable[object]],
+    *,
+    create_schema: bool = False,
+) -> None:
     """
-    The real composed FastAPI app over ASGI with a fresh MemoryBackend,
-    seeded with the standard cast. Auth is NOT monkeypatched — requests
-    must carry real JWTs (see ``token_for`` / ``headers_for``).
+    Apply a write to a file-backed sqlite db via a throwaway engine.
+
+    Per-test seeding can't reuse the app's engine (it is bound to the
+    TestClient's event loop), so we open a short-lived ``Database`` on the same
+    file in a fresh loop. WAL makes the committed rows visible to the app, and
+    seeding is sequential with the HTTP calls, so there is no write contention.
     """
 
-    monkeypatch.setattr(mail_server_module, "_backend", MemoryBackend())
+    async def _run() -> None:
+        db = Database(url)
+        try:
+            if create_schema:
+                await db.create_schema()
+            async with db.session() as session:
+                await mutate(MailStore(session))
+        finally:
+            await db.dispose()
+
+    asyncio.run(_run())
+
+
+async def _seed_sqlite_cast(store: MailStore) -> None:
+    for ua_in_be in _cast().values():
+        await store.user_agents.add(ua_in_be)
+    await store.swarms.add(_swarm())
+
+
+@pytest.fixture(params=BACKENDS)
+def backend_kind(request: pytest.FixtureRequest) -> str:
+    """The backend under test for this parametrization (``memory``/``sqlite``)."""
+
+    return request.param
+
+
+@pytest.fixture
+def app_client(
+    backend_kind: str,
+    deployment_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[TestClient]:
+    """
+    The real composed FastAPI app over ASGI, seeded with the standard cast on
+    the selected backend. Auth is NOT monkeypatched — requests must carry real
+    JWTs (see ``token_for`` / ``headers_for``).
+    """
+
+    if backend_kind == "memory":
+        monkeypatch.setattr(mail_server_module, "_backend", MemoryBackend())
+        with TestClient(mail_server_module.app) as client:
+            _seed_memory_cast(mail_server_module.app.state.backend)
+            yield client
+        return
+
+    # sqlite: seed the cast (and create the schema) before the app starts, so
+    # the rows are already committed when the lifespan runs.
+    db_url = f"sqlite:///{tmp_path / 'mail.db'}"
+    _run_sqlite_write(db_url, _seed_sqlite_cast, create_schema=True)
+    monkeypatch.setattr(mail_server_module, "_backend", SQLiteBackend(url=db_url))
     with TestClient(mail_server_module.app) as client:
-        _seed_cast(client.app.state.backend)
         yield client
 
 
 @pytest.fixture
-def backend(app_client: TestClient) -> MemoryBackend:
+def backend(app_client: TestClient) -> MAILServerBackend:
     """The backend behind ``app_client`` (overrides the root fixture)."""
 
-    return app_client.app.state.backend
+    backend: MAILServerBackend = mail_server_module.app.state.backend
+    return backend
+
+
+@pytest.fixture
+def seed_trash(backend: MAILServerBackend) -> Callable[..., str]:
+    """
+    Backend-agnostic: place ``message`` directly in ``owner``'s trash with the
+    given ``trashed_at`` (and register the message in the canonical store, which
+    the ``sent_at`` sort resolves against). Returns the message id.
+
+    Bypassing the API is deliberate — it lets a test pin ``trashed_at`` and the
+    message's ``sent_at`` independently, which the natural inbox→trash flow
+    (both stamped with the wall clock) cannot.
+    """
+
+    def _seed(owner: str, *, message: MAILMessage, trashed_at: datetime) -> str:
+        entry = MAILTrashEntry(message=message, trashed_at=trashed_at)
+        if isinstance(backend, MemoryBackend):
+            backend.messages[message.message_id] = message
+            backend.trash_entries[message.message_id] = entry
+            backend.trashes.setdefault(owner, []).append(message.message_id)
+        else:
+            assert isinstance(backend, SQLiteBackend)
+
+            async def mutate(store: MailStore) -> None:
+                await store.messages.add(message)
+                await store.boxes.upsert_trash_entry(entry)
+                await store.boxes.add_membership(
+                    owner, BOX_TRASH, message.message_id, trashed_at
+                )
+
+            _run_sqlite_write(backend._db.url, mutate)
+        return message.message_id
+
+    return _seed
+
+
+@pytest.fixture
+def seed_list(backend: MAILServerBackend) -> Callable[[MAILListInBackend], str]:
+    """Backend-agnostic: persist a prebuilt list. Returns its address."""
+
+    def _seed(record: MAILListInBackend) -> str:
+        if isinstance(backend, MemoryBackend):
+            backend.lists[record.get_address()] = record
+        else:
+            assert isinstance(backend, SQLiteBackend)
+
+            async def mutate(store: MailStore) -> None:
+                await store.lists.add(record)
+
+            _run_sqlite_write(backend._db.url, mutate)
+        return record.get_address()
+
+    return _seed
+
+
+@pytest.fixture
+def list_members(
+    app_client: TestClient, headers_for: Callable[..., dict[str, str]]
+) -> Callable[..., list[str]]:
+    """Read a list's members through the public API (backend-agnostic)."""
+
+    def _members(address: str, viewer: str = USER) -> list[str]:
+        response = app_client.get(f"/lists/{address}", headers=headers_for(viewer))
+        assert response.status_code == 200, response.text
+        return response.json()["mail_list"]["members"]
+
+    return _members
 
 
 @pytest.fixture

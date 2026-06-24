@@ -2,7 +2,6 @@
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
 from fastapi.testclient import TestClient
-from mail_server.backends.memory.api import MemoryBackend
 
 ADMIN = "admin:ryan@localhost"
 SWARM = "chorus"
@@ -81,18 +80,20 @@ def test_post_agent_invalid_name_returns_422(
 
 
 def test_delete_agent_removes_account_and_boxes(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for
 ) -> None:
     address = f"sage@{SWARM}@localhost"
     response = app_client.delete(
         f"/admin/agents/sage@{SWARM}", headers=headers_for(ADMIN)
     )
     assert response.status_code == 200
-    assert address not in backend.user_agents
-    assert address not in backend.inboxes
-    assert address not in backend.outboxes
-    assert address not in backend.drafts
-    assert address not in backend.trashes
+    # The account is gone: a follow-up admin read 404s.
+    assert (
+        app_client.get(
+            f"/admin/agents/sage@{SWARM}", headers=headers_for(ADMIN)
+        ).status_code
+        == 404
+    )
 
     # Credentials no longer authenticate.
     response = app_client.post(
@@ -152,11 +153,17 @@ def test_post_daemon_duplicate_returns_409(app_client: TestClient, headers_for) 
 
 
 def test_delete_daemon_removes_account(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for
 ) -> None:
     response = app_client.delete("/admin/daemons/dummy", headers=headers_for(ADMIN))
     assert response.status_code == 200
-    assert "daemon:dummy@localhost" not in backend.user_agents
+    # The account is gone: a follow-up admin read 404s.
+    assert (
+        app_client.get(
+            "/admin/daemons/dummy", headers=headers_for(ADMIN)
+        ).status_code
+        == 404
+    )
 
 
 def test_delete_daemon_unknown_returns_404(app_client: TestClient, headers_for) -> None:
@@ -208,12 +215,17 @@ def test_post_user_duplicate_returns_409(app_client: TestClient, headers_for) ->
 
 
 def test_delete_user_removes_account_and_boxes(
-    app_client: TestClient, headers_for, backend: MemoryBackend
+    app_client: TestClient, headers_for
 ) -> None:
     response = app_client.delete("/admin/users/bob", headers=headers_for(ADMIN))
     assert response.status_code == 200
-    assert "user:bob@localhost" not in backend.user_agents
-    assert "user:bob@localhost" not in backend.inboxes
+    # The account is gone: a follow-up admin read 404s.
+    assert (
+        app_client.get(
+            "/admin/users/bob", headers=headers_for(ADMIN)
+        ).status_code
+        == 404
+    )
 
 
 def test_delete_user_unknown_returns_404(app_client: TestClient, headers_for) -> None:

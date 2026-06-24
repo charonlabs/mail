@@ -49,6 +49,30 @@ All four user-agents listed above have associated plain-text password stored in 
 > Copy the generated passwords and keep them in a safe place.
 > Afterwards, remove the files generated from the backend filesystem.
 
+## `sqlite` Backend Setup
+
+The `sqlite` backend is a durable, transactional alternative to `memory`: a
+committed message survives an abrupt `kill -9`, not just a clean shutdown. To
+initialize one, pass `--type sqlite`:
+
+```bash
+uv run backend-init --type sqlite
+```
+
+This creates a SQLite database at
+`~/.mail-swarms/deployments/default/mail.db` and seeds the same cast as the
+`memory` initializer, writing each generated password to the printed
+`.secrets/` paths. Then run the server against it:
+
+```bash
+uv run mail-server --backend sqlite
+```
+
+The database path can be overridden with `--sqlite-path` / `MAIL_SQLITE_PATH`
+or `--database-url` / `MAIL_DATABASE_URL`. See
+[reference/backends.md](../reference/backends.md) for the full comparison,
+connection settings, and the single-node caveat.
+
 ## Running the Server
 
 With your environment variables configured, try running `mail-server`:

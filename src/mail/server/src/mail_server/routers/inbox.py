@@ -68,4 +68,19 @@ async def open_inbox_message(request: Request) -> InboxMessageGetResponse:
     response_model=InboxMessageDeleteResponse,
 )
 async def delete_inbox_message(request: Request) -> InboxMessageDeleteResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    user_agent = await validate_user_agent(backend=backend, request=request)
+    message_id = request.path_params.get("message_id")
+    try:
+        result = await backend.delete_inbox_message(
+            user_agent=user_agent, message_id=message_id
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=404, detail=f"message with ID {message_id} not found in inbox"
+        )
+
+    return InboxMessageDeleteResponse(
+        entry=result,
+        metadata={},
+    )
