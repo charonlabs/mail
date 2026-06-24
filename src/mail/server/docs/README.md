@@ -9,4 +9,5 @@ This document serves as the root documentation file for the `mail-swarms-server`
 ## Reference Docs
 
 - **`mail-server` CLI reference**: [reference/cli.md](reference/cli.md)
+- **Server backends (`memory` vs `sqlite`)**: [reference/backends.md](reference/backends.md)
 - **MAIL HTTP API reference**: [reference/http.md](reference/http.md)

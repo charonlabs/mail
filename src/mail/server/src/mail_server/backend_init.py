@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Addison Kline
 
 import argparse
+import asyncio
 
 from mail_protocol.cli_help import add_license_argument
 from mail_protocol.core.validators import (
@@ -29,7 +30,7 @@ def main() -> None:
         "-t",
         "--type",
         default="memory",
-        choices=["memory"],
+        choices=["memory", "sqlite"],
         help="the type of backend to initialize (default: %(default)s)",
     )
     parser.add_argument(
@@ -87,10 +88,20 @@ def main() -> None:
         default="example.com",
         help="the host domain or IP address to use (default: %(default)s)",
     )
+    parser.add_argument(
+        "--import-fs",
+        action="store_true",
+        help=(
+            "for --type sqlite: import the existing filesystem (memory) "
+            "deployment of the same name into the new SQLite database instead "
+            "of seeding a fresh cast"
+        ),
+    )
 
     # parse and handle args
     args = parser.parse_args()
     be_type = args.type
+    import_fs = args.import_fs
     deployment = args.deployment
     swarm = args.swarm
     swarm_description = args.swarm_description
@@ -142,6 +153,9 @@ def main() -> None:
     except ValueError as e:
         print(f"invalid host {host}: {e}")
         exit(1)
+    if import_fs and be_type != "sqlite":
+        print("--import-fs is only valid with --type sqlite")
+        exit(1)
 
     # initialize backend
     match be_type:
@@ -157,5 +171,33 @@ def main() -> None:
                 admins=admins,
                 host=host,
             )
+        case "sqlite":
+            # Imported lazily so SQLAlchemy stays off the import path for
+            # memory-only initialization.
+            if import_fs:
+                from mail_server.backends.sqlite.migrate import (
+                    import_memory_deployment,
+                )
+
+                counts = asyncio.run(
+                    import_memory_deployment(deployment=deployment)
+                )
+                print(f"imported filesystem deployment {deployment}: {counts}")
+            else:
+                from mail_server.backends.sqlite.init import init_sqlite_backend
+
+                asyncio.run(
+                    init_sqlite_backend(
+                        deployment=deployment,
+                        swarm=swarm,
+                        swarm_description=swarm_description,
+                        swarm_keywords=swarm_keywords,
+                        agents=agents,
+                        daemons=daemons,
+                        users=users,
+                        admins=admins,
+                        host=host,
+                    )
+                )
         case _:
             raise ValueError(f"invalid backend type: {be_type}")

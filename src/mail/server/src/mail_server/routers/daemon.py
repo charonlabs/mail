@@ -9,7 +9,10 @@ from mail_protocol.network.responses import (
 )
 
 from mail_server.auth import validate_daemon
-from mail_server.validators import validate_deliver_local_request
+from mail_server.validators import (
+    validate_deliver_local_request,
+    validate_deliver_remote_request,
+)
 
 router = APIRouter(prefix="/daemon", tags=["daemon"])
 
@@ -53,4 +56,11 @@ async def deliver_local_messages(request: Request) -> DaemonDeliverLocalResponse
     response_model=DaemonDeliverRemoteResponse,
 )
 async def deliver_remote_messages(request: Request) -> DaemonDeliverRemoteResponse:
-    raise NotImplementedError
+    backend = request.app.state.backend
+    daemon = await validate_daemon(backend=backend, request=request)
+    payload = await validate_deliver_remote_request(request=request)
+    result = await backend.daemon_deliver_remote(daemon=daemon, payload=payload)
+    return DaemonDeliverRemoteResponse(
+        messages=result,
+        metadata={},
+    )
