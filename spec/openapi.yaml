@@ -362,12 +362,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAgentPostResponse'
-  /admin/agents/{agent_address}:
+  /admin/agents/{local_address}:
     get:
       tags:
       - admin
       summary: Get a specific registered agent by local address (name@swarm)
-      operationId: get_agent_admin_agents__agent_address__get
+      operationId: get_agent_admin_agents__local_address__get
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Agent local address (name@swarm); host is implied.
+          examples:
+          - researcher@acme
+          title: Local Address
+        description: Agent local address (name@swarm); host is implied.
       responses:
         '200':
           description: Successful Response
@@ -375,11 +386,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAgentGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
       tags:
       - admin
       summary: Delete an existing MAIL agent on this server
-      operationId: delete_agent_admin_agents__agent_address__delete
+      operationId: delete_agent_admin_agents__local_address__delete
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Agent local address (name@swarm); host is implied.
+          examples:
+          - researcher@acme
+          title: Local Address
+        description: Agent local address (name@swarm); host is implied.
       responses:
         '200':
           description: Successful Response
@@ -387,6 +415,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAgentDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/daemons:
     get:
       tags:
@@ -418,6 +452,17 @@ paths:
       - admin
       summary: Get a specific registered daemon by worker name
       operationId: get_daemon_admin_daemons__worker_name__get
+      parameters:
+      - name: worker_name
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Daemon worker name; prefix and host are implied.
+          examples:
+          - indexer
+          title: Worker Name
+        description: Daemon worker name; prefix and host are implied.
       responses:
         '200':
           description: Successful Response
@@ -425,11 +470,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminDaemonGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
       tags:
       - admin
       summary: Delete an existing MAIL daemon on this server
       operationId: delete_daemon_admin_daemons__worker_name__delete
+      parameters:
+      - name: worker_name
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Daemon worker name; prefix and host are implied.
+          examples:
+          - indexer
+          title: Worker Name
+        description: Daemon worker name; prefix and host are implied.
       responses:
         '200':
           description: Successful Response
@@ -437,6 +499,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminDaemonDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/users:
     get:
       tags:
@@ -468,6 +536,17 @@ paths:
       - admin
       summary: Get a specific registered user by ID
       operationId: get_user_admin_users__user_id__get
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: User id; prefix and host are implied.
+          examples:
+          - addison
+          title: User Id
+        description: User id; prefix and host are implied.
       responses:
         '200':
           description: Successful Response
@@ -475,11 +554,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminUserGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
       tags:
       - admin
       summary: Delete an existing MAIL user on this server
       operationId: delete_user_admin_users__user_id__delete
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: User id; prefix and host are implied.
+          examples:
+          - addison
+          title: User Id
+        description: User id; prefix and host are implied.
       responses:
         '200':
           description: Successful Response
@@ -487,6 +583,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminUserDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/swarms:
     post:
       tags:
@@ -506,6 +608,17 @@ paths:
       - admin
       summary: Delete an existing MAIL swarm on this server by name
       operationId: delete_swarm_admin_swarms__swarm_name__delete
+      parameters:
+      - name: swarm_name
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Swarm name.
+          examples:
+          - acme
+          title: Swarm Name
+        description: Swarm name.
       responses:
         '200':
           description: Successful Response
@@ -513,6 +626,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminSwarmDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/webhooks:
     get:
       tags:
@@ -544,6 +663,17 @@ paths:
       - admin
       summary: Get a specific existing server webhook by ID
       operationId: get_webhook_admin_webhooks__webhook_id__get
+      parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Webhook id (wh_<uuid>).
+          examples:
+          - wh_123e4567-e89b-12d3-a456-426614174000
+          title: Webhook Id
+        description: Webhook id (wh_<uuid>).
       responses:
         '200':
           description: Successful Response
@@ -551,23 +681,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminWebhookGetResponse'
-    delete:
-      tags:
-      - admin
-      summary: Delete an existing webhook by ID from this server
-      operationId: delete_webhook_admin_webhooks__webhook_id__delete
-      responses:
-        '200':
-          description: Successful Response
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminWebhooksDeleteResponse'
+                $ref: '#/components/schemas/HTTPValidationError'
     patch:
       tags:
       - admin
       summary: Update an existing webhook by ID on this server
       operationId: patch_webhook_admin_webhooks__webhook_id__patch
+      parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Webhook id (wh_<uuid>).
+          examples:
+          - wh_123e4567-e89b-12d3-a456-426614174000
+          title: Webhook Id
+        description: Webhook id (wh_<uuid>).
       responses:
         '200':
           description: Successful Response
@@ -575,6 +710,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminWebhooksPatchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - admin
+      summary: Delete an existing webhook by ID from this server
+      operationId: delete_webhook_admin_webhooks__webhook_id__delete
+      parameters:
+      - name: webhook_id
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Webhook id (wh_<uuid>).
+          examples:
+          - wh_123e4567-e89b-12d3-a456-426614174000
+          title: Webhook Id
+        description: Webhook id (wh_<uuid>).
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWebhooksDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/lists:
     get:
       tags:
@@ -600,12 +770,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminListPostResponse'
-  /admin/lists/{list_address}:
+  /admin/lists/{local_address}:
     get:
       tags:
       - admin-lists
-      summary: Get a specific MAIL list by address
-      operationId: admin_get_list_admin_lists__list_address__get
+      summary: Get a specific MAIL list by local address (name@swarm)
+      operationId: admin_get_list_admin_lists__local_address__get
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
       responses:
         '200':
           description: Successful Response
@@ -613,23 +796,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminListGetResponse'
-    delete:
-      tags:
-      - admin-lists
-      summary: Delete a MAIL list
-      operationId: admin_delete_list_admin_lists__list_address__delete
-      responses:
-        '200':
-          description: Successful Response
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminListDeleteResponse'
+                $ref: '#/components/schemas/HTTPValidationError'
     patch:
       tags:
       - admin-lists
       summary: Update a MAIL list's policy
-      operationId: admin_patch_list_admin_lists__list_address__patch
+      operationId: admin_patch_list_admin_lists__local_address__patch
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
       responses:
         '200':
           description: Successful Response
@@ -637,12 +827,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminListPatchResponse'
-  /admin/lists/{list_address}/members:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - admin-lists
+      summary: Delete a MAIL list
+      operationId: admin_delete_list_admin_lists__local_address__delete
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/lists/{local_address}/members:
     post:
       tags:
       - admin-lists
       summary: Admin-add a member to a MAIL list
-      operationId: admin_add_list_member_admin_lists__list_address__members_post
+      operationId: admin_add_list_member_admin_lists__local_address__members_post
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
       responses:
         '200':
           description: Successful Response
@@ -650,12 +890,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListMemberPostResponse'
-  /admin/lists/{list_address}/members/{member_address}:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /admin/lists/{local_address}/members/{member_address}:
     delete:
       tags:
       - admin-lists
       summary: Admin-remove a member from a MAIL list
-      operationId: admin_remove_list_member_admin_lists__list_address__members__member_address__delete
+      operationId: admin_remove_list_member_admin_lists__local_address__members__member_address__delete
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
+      - name: member_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Full MAIL address of the member to remove (may be remote).
+          examples:
+          - user:bob@other-host
+          title: Member Address
+        description: Full MAIL address of the member to remove (may be remote).
       responses:
         '200':
           description: Successful Response
@@ -663,6 +932,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListMemberDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /lists:
     get:
       tags:
@@ -676,12 +951,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListsGetResponse'
-  /lists/{list_address}:
+  /lists/{local_address}:
     get:
       tags:
       - lists
-      summary: Get a specific list
-      operationId: get_list_lists__list_address__get
+      summary: Get a specific list by local address (name@swarm)
+      operationId: get_list_lists__local_address__get
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
       responses:
         '200':
           description: Successful Response
@@ -689,12 +977,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListGetResponse'
-  /lists/{list_address}/subscribe:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /lists/{local_address}/subscribe:
     post:
       tags:
       - lists
       summary: Subscribe to a MAIL list
-      operationId: subscribe_lists__list_address__subscribe_post
+      operationId: subscribe_lists__local_address__subscribe_post
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
       responses:
         '200':
           description: Successful Response
@@ -702,12 +1009,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListMemberPostResponse'
-  /lists/{list_address}/unsubscribe:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /lists/{local_address}/unsubscribe:
     post:
       tags:
       - lists
       summary: Unsubscribe from a MAIL list
-      operationId: unsubscribe_lists__list_address__unsubscribe_post
+      operationId: unsubscribe_lists__local_address__unsubscribe_post
+      parameters:
+      - name: local_address
+        in: path
+        required: true
+        schema:
+          type: string
+          description: 'List local address (name@swarm); the list: prefix and host
+            are implied.'
+          examples:
+          - announce@acme
+          title: Local Address
+        description: 'List local address (name@swarm); the list: prefix and host are
+          implied.'
       responses:
         '200':
           description: Successful Response
@@ -715,6 +1041,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ListMemberDeleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /:
     get:
       summary: Get basic server information and metadata
@@ -752,7 +1084,7 @@ components:
       - agent
       - metadata
       title: AdminAgentDeleteResponse
-      description: 'Corresponds to `DELETE /admin/agent/{agent_address}`.
+      description: 'Corresponds to `DELETE /admin/agents/{local_address}`.
 
         Contains a newly-deleted MAIL agent registered on this server.'
     AdminAgentGetResponse:
@@ -768,7 +1100,7 @@ components:
       - agent
       - metadata
       title: AdminAgentGetResponse
-      description: 'Corresponds to `GET /admin/agents/{agent_address}`.
+      description: 'Corresponds to `GET /admin/agents/{local_address}`.
 
         Contains a specific MAIL agent registered on this server.'
     AdminAgentPostResponse:
@@ -784,7 +1116,7 @@ components:
       - agent
       - metadata
       title: AdminAgentPostResponse
-      description: 'Corresponds to `POST /admin/agent`.
+      description: 'Corresponds to `POST /admin/agents`.
 
         Contains the new MAIL agent registered on this server.'
     AdminAgentsGetResponse:
@@ -887,7 +1219,7 @@ components:
       - mail_list
       - metadata
       title: AdminListDeleteResponse
-      description: Corresponds to `DELETE /admin/lists/{list_address}`.
+      description: Corresponds to `DELETE /admin/lists/{local_address}`.
     AdminListGetResponse:
       properties:
         mail_list:
@@ -901,7 +1233,7 @@ components:
       - mail_list
       - metadata
       title: AdminListGetResponse
-      description: Corresponds to `GET /admin/lists/{list_address}`.
+      description: Corresponds to `GET /admin/lists/{local_address}`.
     AdminListPatchResponse:
       properties:
         mail_list:
@@ -915,7 +1247,7 @@ components:
       - mail_list
       - metadata
       title: AdminListPatchResponse
-      description: Corresponds to `PATCH /admin/lists/{list_address}`.
+      description: Corresponds to `PATCH /admin/lists/{local_address}`.
     AdminListPostResponse:
       properties:
         mail_list:
@@ -1460,7 +1792,7 @@ components:
       - mail_list
       - metadata
       title: ListGetResponse
-      description: Corresponds to `GET /lists/{list_address}`.
+      description: Corresponds to `GET /lists/{local_address}`.
     ListMemberDeleteResponse:
       properties:
         mail_list:
@@ -1474,9 +1806,9 @@ components:
       - mail_list
       - metadata
       title: ListMemberDeleteResponse
-      description: 'Corresponds to `POST /lists/{list_address}/unsubscribe`
+      description: 'Corresponds to `POST /lists/{local_address}/unsubscribe`
 
-        and `DELETE /lists/{list_address}/members/{member_address}`.
+        and `DELETE /admin/lists/{local_address}/members/{member_address}`.
 
         The updated list with the member removed (idempotent — removing a
 
@@ -1494,9 +1826,9 @@ components:
       - mail_list
       - metadata
       title: ListMemberPostResponse
-      description: 'Corresponds to `POST /lists/{list_address}/subscribe` and
+      description: 'Corresponds to `POST /lists/{local_address}/subscribe` and
 
-        `POST /admin/lists/{list_address}/members`. The updated list with
+        `POST /admin/lists/{local_address}/members`. The updated list with
 
         the member appended (idempotent — re-adding an existing member is
 

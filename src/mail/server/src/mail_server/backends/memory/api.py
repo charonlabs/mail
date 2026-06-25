@@ -969,18 +969,18 @@ class MemoryBackend(MAILServerBackend):
     async def admin_get_agent(
         self,
         admin: MAILAdmin,
-        agent_address: str,
+        local_address: str,
     ) -> MAILAgent:
         """
         Get a specific registered agent by local address (agent@swarm).
         """
 
-        full_address = f"{agent_address}@{self.host}"
+        full_address = f"{local_address}@{self.host}"
         agent = self.user_agents.get(full_address)
         if agent is None:
-            raise ValueError(f"no agent found with address {agent_address}")
+            raise ValueError(f"no agent found with address {local_address}")
         if agent.user_agent.ua_type != "agent":
-            raise ValueError(f"invalid agent address: {agent_address}")
+            raise ValueError(f"invalid agent address: {local_address}")
 
         return agent.user_agent
 
@@ -1022,25 +1022,25 @@ class MemoryBackend(MAILServerBackend):
         return agent
 
     async def admin_delete_agent(
-        self, admin: MAILAdmin, agent_address: str
+        self, admin: MAILAdmin, local_address: str
     ) -> MAILAgent:
         """
         Delete an existing MAIL agent by local address (agent@swarm).
         """
 
-        full_address = f"{agent_address}@{self.host}"
+        full_address = f"{local_address}@{self.host}"
         user_agent = self.user_agents.get(full_address)
         if user_agent is None:
-            raise ValueError(f"agent not found: {agent_address}")
+            raise ValueError(f"agent not found: {local_address}")
         if user_agent.user_agent.ua_type != "agent":
-            raise ValueError(f"invalid agent address: {agent_address}")
+            raise ValueError(f"invalid agent address: {local_address}")
 
         agent = self.user_agents.pop(full_address)
         if not isinstance(agent.user_agent, MAILAgent):
             self.user_agents.update(
                 {full_address: agent}
             )  # re-add if invalid this far in
-            raise ValueError(f"invalid agent address: {agent_address}")
+            raise ValueError(f"invalid agent address: {local_address}")
 
         # remove inbox from self.inboxes
         self.inboxes.pop(full_address)

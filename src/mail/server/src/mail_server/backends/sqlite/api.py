@@ -776,16 +776,16 @@ class SQLiteBackend(MAILServerBackend):
         return local_addrs
 
     async def admin_get_agent(
-        self, admin: MAILAdmin, agent_address: str
+        self, admin: MAILAdmin, local_address: str
     ) -> MAILAgent:
-        full_address = f"{agent_address}@{self.host}"
+        full_address = f"{local_address}@{self.host}"
         async with self._db.session() as session:
             agent = await MailStore(session).user_agents.get(full_address)
         if agent is None:
-            raise ValueError(f"no agent found with address {agent_address}")
+            raise ValueError(f"no agent found with address {local_address}")
         inner = agent.user_agent
         if not isinstance(inner, MAILAgent):
-            raise ValueError(f"invalid agent address: {agent_address}")
+            raise ValueError(f"invalid agent address: {local_address}")
         return inner
 
     async def admin_post_agent(
@@ -811,17 +811,17 @@ class SQLiteBackend(MAILServerBackend):
         return agent
 
     async def admin_delete_agent(
-        self, admin: MAILAdmin, agent_address: str
+        self, admin: MAILAdmin, local_address: str
     ) -> MAILAgent:
-        full_address = f"{agent_address}@{self.host}"
+        full_address = f"{local_address}@{self.host}"
         async with self._db.session() as session:
             store = MailStore(session)
             agent = await store.user_agents.get(full_address)
             if agent is None:
-                raise ValueError(f"agent not found: {agent_address}")
+                raise ValueError(f"agent not found: {local_address}")
             inner = agent.user_agent
             if not isinstance(inner, MAILAgent):
-                raise ValueError(f"invalid agent address: {agent_address}")
+                raise ValueError(f"invalid agent address: {local_address}")
             await store.user_agents.delete(full_address)
         return inner
 

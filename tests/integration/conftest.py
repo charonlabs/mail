@@ -211,7 +211,11 @@ def seed_trash(backend: MAILServerBackend) -> Callable[..., str]:
 
 @pytest.fixture
 def seed_list(backend: MAILServerBackend) -> Callable[[MAILListInBackend], str]:
-    """Backend-agnostic: persist a prebuilt list. Returns its address."""
+    """
+    Backend-agnostic: persist a prebuilt list. Returns its *local*
+    address (``name@swarm``) — the form the HTTP API addresses lists by.
+    The backend still keys lists by the full ``list:`` address.
+    """
 
     def _seed(record: MAILListInBackend) -> str:
         if isinstance(backend, MemoryBackend):
@@ -223,7 +227,7 @@ def seed_list(backend: MAILServerBackend) -> Callable[[MAILListInBackend], str]:
                 await store.lists.add(record)
 
             _run_sqlite_write(backend._db.url, mutate)
-        return record.get_address()
+        return f"{record.name}@{record.swarm}"
 
     return _seed
 

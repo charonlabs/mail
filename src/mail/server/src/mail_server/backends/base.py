@@ -60,6 +60,11 @@ class MAILServerBackend(Protocol):
     A generic base class for the MAIL server backend.
     """
 
+    # The host this server answers for (e.g. ``mail.example.com``). Set
+    # during ``on_server_startup``. Routers read this to reconstruct a
+    # full canonical address from a local path-param identifier.
+    host: str
+
     #
     # Lifecyle handlers
     #
@@ -378,7 +383,7 @@ class MAILServerBackend(Protocol):
     async def admin_get_agent(
         self,
         admin: MAILAdmin,
-        agent_address: str,
+        local_address: str,
     ) -> MAILAgent:
         """
         Get a specific registered agent by local address (agent@swarm).
@@ -402,7 +407,7 @@ class MAILServerBackend(Protocol):
     async def admin_delete_agent(
         self,
         admin: MAILAdmin,
-        agent_address: str,
+        local_address: str,
     ) -> MAILAgent:
         """
         Delete an existing MAIL agent by local address (agent@swarm).

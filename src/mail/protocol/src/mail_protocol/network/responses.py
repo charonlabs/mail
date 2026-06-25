@@ -324,7 +324,7 @@ class AdminAgentsGetResponse(BaseModel):
 
 class AdminAgentGetResponse(BaseModel):
     """
-    Corresponds to `GET /admin/agents/{agent_address}`.
+    Corresponds to `GET /admin/agents/{local_address}`.
     Contains a specific MAIL agent registered on this server.
     """
 
@@ -334,7 +334,7 @@ class AdminAgentGetResponse(BaseModel):
 
 class AdminAgentPostResponse(BaseModel):
     """
-    Corresponds to `POST /admin/agent`.
+    Corresponds to `POST /admin/agents`.
     Contains the new MAIL agent registered on this server.
     """
 
@@ -344,7 +344,7 @@ class AdminAgentPostResponse(BaseModel):
 
 class AdminAgentDeleteResponse(BaseModel):
     """
-    Corresponds to `DELETE /admin/agent/{agent_address}`.
+    Corresponds to `DELETE /admin/agents/{local_address}`.
     Contains a newly-deleted MAIL agent registered on this server.
     """
 
@@ -516,7 +516,7 @@ class AdminListsGetResponse(BaseModel):
 
 class AdminListGetResponse(BaseModel):
     """
-    Corresponds to `GET /admin/lists/{list_address}`.
+    Corresponds to `GET /admin/lists/{local_address}`.
     """
 
     mail_list: MAILListInBackend
@@ -534,7 +534,7 @@ class AdminListPostResponse(BaseModel):
 
 class AdminListPatchResponse(BaseModel):
     """
-    Corresponds to `PATCH /admin/lists/{list_address}`.
+    Corresponds to `PATCH /admin/lists/{local_address}`.
     """
 
     mail_list: MAILListInBackend
@@ -543,7 +543,7 @@ class AdminListPatchResponse(BaseModel):
 
 class AdminListDeleteResponse(BaseModel):
     """
-    Corresponds to `DELETE /admin/lists/{list_address}`.
+    Corresponds to `DELETE /admin/lists/{local_address}`.
     """
 
     mail_list: MAILListInBackend
@@ -563,7 +563,7 @@ class ListsGetResponse(BaseModel):
 
 class ListGetResponse(BaseModel):
     """
-    Corresponds to `GET /lists/{list_address}`.
+    Corresponds to `GET /lists/{local_address}`.
     """
 
     mail_list: MAILListInBackend
@@ -572,8 +572,8 @@ class ListGetResponse(BaseModel):
 
 class ListMemberPostResponse(BaseModel):
     """
-    Corresponds to `POST /lists/{list_address}/subscribe` and
-    `POST /admin/lists/{list_address}/members`. The updated list with
+    Corresponds to `POST /lists/{local_address}/subscribe` and
+    `POST /admin/lists/{local_address}/members`. The updated list with
     the member appended (idempotent — re-adding an existing member is
     a no-op).
     """
@@ -584,8 +584,8 @@ class ListMemberPostResponse(BaseModel):
 
 class ListMemberDeleteResponse(BaseModel):
     """
-    Corresponds to `POST /lists/{list_address}/unsubscribe`
-    and `DELETE /lists/{list_address}/members/{member_address}`.
+    Corresponds to `POST /lists/{local_address}/unsubscribe`
+    and `DELETE /admin/lists/{local_address}/members/{member_address}`.
     The updated list with the member removed (idempotent — removing a
     non-member is a no-op).
     """
