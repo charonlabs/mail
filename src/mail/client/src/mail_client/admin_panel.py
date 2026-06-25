@@ -59,7 +59,7 @@ COMMAND_GROUPS = [
         "Daemons",
         [
             ("daemon-list (dl)", "List daemons."),
-            ("daemon-get (dg)", "Get a daemon by local address."),
+            ("daemon-get (dg)", "Get a daemon by worker name."),
             ("daemon-post (dp)", "Create daemon credentials."),
             ("daemon-delete (dd)", "Delete daemon credentials."),
         ],
@@ -235,7 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     daemon_list_p.set_defaults(func=cmd_daemon_list, cmd="daemon-list")
 
     # command `daemon-get`
-    daemon_get_d = "get a specific daemon by local address on the MAIL server"
+    daemon_get_d = "get a specific daemon by worker name on the MAIL server"
     daemon_get_p = subparsers.add_parser(
         "daemon-get",
         aliases=["dg"],
@@ -244,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=daemon_get_d,
     )
     daemon_get_p.add_argument(
-        "local_address", help="the local address of the daemon to get (daemon@swarm)"
+        "worker_name", help="the worker name of the daemon to get"
     )
     daemon_get_p.set_defaults(func=cmd_daemon_get, cmd="daemon-get")
 
@@ -459,7 +459,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=list_get_d,
     )
     list_get_p.add_argument(
-        "list_address", help="the address of the mailing list to get"
+        "list_address",
+        help="the local address of the mailing list to get (name@swarm)",
     )
     list_get_p.set_defaults(func=cmd_list_get_admin, cmd="list-get")
 
@@ -507,7 +508,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=list_delete_d,
     )
     list_delete_p.add_argument(
-        "list_address", help="the address of the mailing list to delete"
+        "list_address",
+        help="the local address of the mailing list to delete (name@swarm)",
     )
     list_delete_p.set_defaults(func=cmd_list_delete, cmd="list-delete")
 
@@ -523,11 +525,12 @@ def build_parser() -> argparse.ArgumentParser:
         description=list_member_post_d,
     )
     list_member_post_p.add_argument(
-        "list_address", help="the MAIL address of the mailing list to add a member to"
+        "list_address",
+        help="the local address of the mailing list to add a member to (name@swarm)",
     )
     list_member_post_p.add_argument(
         "member_address",
-        help="the MAIL address of the member to add to this mailing list",
+        help="the full MAIL address of the member to add to this mailing list",
     )
     list_member_post_p.set_defaults(func=cmd_list_member_post, cmd="list-member-post")
 
@@ -544,11 +547,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     list_member_delete_p.add_argument(
         "list_address",
-        help="the MAIL address of the mailing list to remove a member from",
+        help="the local address of the mailing list to remove a member from (name@swarm)",
     )
     list_member_delete_p.add_argument(
         "member_address",
-        help="the MAIL address of the member to remove from this mailing list",
+        help="the full MAIL address of the member to remove from this mailing list",
     )
     list_member_delete_p.set_defaults(
         func=cmd_list_member_delete, cmd="list-member-delete"

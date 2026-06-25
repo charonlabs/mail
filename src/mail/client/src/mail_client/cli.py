@@ -488,7 +488,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=list_get_d,
     )
     list_get_p.add_argument(
-        "list_address", help="the address of the mailing list to get"
+        "list_address", help="the local address of the mailing list to get (name@swarm)"
     )
     list_get_p.set_defaults(func=cmd_list_get, cmd="list-get")
 
@@ -502,7 +502,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=list_subscribe_d,
     )
     list_subscribe_p.add_argument(
-        "list_address", help="the address of the mailing list to subscribe to"
+        "list_address",
+        help="the local address of the mailing list to subscribe to (name@swarm)",
     )
     list_subscribe_p.set_defaults(func=cmd_list_subscribe, cmd="list-subscribe")
 
@@ -516,7 +517,8 @@ def build_parser() -> argparse.ArgumentParser:
         description=list_unsubscribe_d,
     )
     list_unsubscribe_p.add_argument(
-        "list_address", help="the address of the mailing list to unsubscribe from"
+        "list_address",
+        help="the local address of the mailing list to unsubscribe from (name@swarm)",
     )
     list_unsubscribe_p.set_defaults(func=cmd_list_unsubscribe, cmd="list-unsubscribe")
 

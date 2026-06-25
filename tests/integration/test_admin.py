@@ -29,6 +29,24 @@ def test_get_agent_unknown_returns_404(app_client: TestClient, headers_for) -> N
     assert response.status_code == 404
 
 
+def test_get_agent_malformed_local_address_returns_422(
+    app_client: TestClient, headers_for
+) -> None:
+    # A full address (name@swarm@host) is no longer accepted here: the
+    # path param is the *local* address (name@swarm).
+    response = app_client.get(
+        f"/admin/agents/sage@{SWARM}@localhost", headers=headers_for(ADMIN)
+    )
+    assert response.status_code == 422
+
+
+def test_get_agent_non_slug_returns_422(app_client: TestClient, headers_for) -> None:
+    response = app_client.get(
+        f"/admin/agents/Sage@{SWARM}", headers=headers_for(ADMIN)
+    )
+    assert response.status_code == 422
+
+
 def test_post_agent_creates_and_can_login(
     app_client: TestClient, headers_for, token_for
 ) -> None:
@@ -128,6 +146,13 @@ def test_get_daemon_by_worker_name(app_client: TestClient, headers_for) -> None:
 def test_get_daemon_unknown_returns_404(app_client: TestClient, headers_for) -> None:
     response = app_client.get("/admin/daemons/ghost", headers=headers_for(ADMIN))
     assert response.status_code == 404
+
+
+def test_get_daemon_malformed_worker_name_returns_422(
+    app_client: TestClient, headers_for
+) -> None:
+    response = app_client.get("/admin/daemons/Bad-Name", headers=headers_for(ADMIN))
+    assert response.status_code == 422
 
 
 def test_post_daemon_creates_and_can_login(app_client: TestClient, headers_for) -> None:

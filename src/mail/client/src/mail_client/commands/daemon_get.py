@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 def cmd_daemon_get(args: Namespace) -> None:
     """
-    Get a specific daemon by local address on the MAIL server.
+    Get a specific daemon by worker name on the MAIL server.
     """
 
     # 1. check that required env vars are provided
@@ -24,9 +24,9 @@ def cmd_daemon_get(args: Namespace) -> None:
     if MAIL_TOKEN is None:
         raise ValueError("environment variable MAIL_TOKEN is required")
 
-    # 2. Attempt to get the specific daemon by local address on the MAIL server
+    # 2. Attempt to get the specific daemon by worker name on the MAIL server
     response = httpx.get(
-        url=f"{MAIL_SERVER}/admin/daemons/{args.local_address}",
+        url=f"{MAIL_SERVER}/admin/daemons/{args.worker_name}",
         headers={
             "User-Agent": "Multi-Agent-Interface-Layer-CLI-Client/2.0.0 (github.com/charonlabs/mail)",
             "Authorization": f"Bearer {MAIL_TOKEN}",

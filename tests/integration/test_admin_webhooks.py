@@ -59,10 +59,21 @@ def test_get_webhook_by_id(app_client: TestClient, headers_for) -> None:
 def test_get_webhook_unknown_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
+    # Well-formed (wh_<uuid>) but unknown id → 404.
+    response = app_client.get(
+        "/admin/webhooks/wh_123e4567-e89b-12d3-a456-426614174000",
+        headers=headers_for(ADMIN),
+    )
+    assert response.status_code == 404
+
+
+def test_get_webhook_malformed_id_returns_422(
+    app_client: TestClient, headers_for
+) -> None:
     response = app_client.get(
         "/admin/webhooks/wh_nonexistent", headers=headers_for(ADMIN)
     )
-    assert response.status_code == 404
+    assert response.status_code == 422
 
 
 def test_delete_webhook_removes(app_client: TestClient, headers_for) -> None:
@@ -80,8 +91,10 @@ def test_delete_webhook_removes(app_client: TestClient, headers_for) -> None:
 def test_delete_webhook_unknown_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
+    # Well-formed (wh_<uuid>) but unknown id → 404.
     response = app_client.delete(
-        "/admin/webhooks/wh_nonexistent", headers=headers_for(ADMIN)
+        "/admin/webhooks/wh_123e4567-e89b-12d3-a456-426614174000",
+        headers=headers_for(ADMIN),
     )
     assert response.status_code == 404
 
