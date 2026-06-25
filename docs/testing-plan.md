@@ -85,11 +85,15 @@ three files moves here, alongside:
 
 - `deployment_dir` — `tmp_path`-backed deployment tree;
   monkeypatches `mail_server.backends.memory.fs.DEPLOYMENT_PATH`
-- `backend` — started `MemoryBackend` seeded with a standard cast:
-  one admin, two users, one agent, one daemon, one swarm
+- `backend` — the started backend behind `app_client`, seeded with a standard
+  cast: one admin, two users, one agent, one daemon, one swarm. Parametrized
+  over both backends (`memory` and `sqlite`) via `backend_kind`; tests never
+  touch backend internals — they seed/assert through the public API or the
+  backend-agnostic `seed_trash` / `seed_list` / `list_members` fixtures
 - `app_client` — `TestClient` over the **real** `mail_server.server.app`
   (env vars `MAIL_HOST`, `MAIL_JWT_SECRET_KEY`, `MAIL_JWT_ALGORITHM` set
-  before import), wired to `backend`
+  before import), wired to `backend`. A module may override `backend_kind` to
+  pin one backend (e.g. `test_stubs.py` → memory, `test_gap_fill.py` → sqlite)
 - `token_for(address)` — factory issuing real JWTs via `POST /auth/token`,
   so integration tests exercise real auth instead of monkeypatching it
 - `webhook_receiver` — in-process ASGI app that records deliveries and can be

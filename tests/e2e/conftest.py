@@ -42,6 +42,7 @@ class E2EStack:
 
     def __init__(self, home: Path) -> None:
         self.home = home
+        self.backend = "memory"
         self.port = _free_port()
         self.base_url = f"http://127.0.0.1:{self.port}"
         self.env = {
@@ -57,10 +58,13 @@ class E2EStack:
 
     # ─── provisioning and lifecycle ────────────────────────────────
 
-    def provision(self) -> None:
+    def provision(self, backend: str = "memory") -> None:
+        self.backend = backend
         subprocess.run(
             [
                 str(VENV_BIN / "backend-init"),
+                "--type",
+                backend,
                 "--swarm",
                 SWARM,
                 "--host",
@@ -93,6 +97,8 @@ class E2EStack:
     ) -> None:
         command = [
             str(VENV_BIN / "mail-server"),
+            "--backend",
+            self.backend,
             "--host",
             "127.0.0.1",
             "--port",
@@ -214,6 +220,19 @@ def e2e_stack(tmp_path: Path) -> E2EStack:
     home.mkdir()
     stack = E2EStack(home)
     stack.provision()
+    stack.start_server()
+    yield stack
+    stack.stop_server()
+
+
+@pytest.fixture
+def sqlite_e2e_stack(tmp_path: Path) -> E2EStack:
+    """An e2e stack provisioned and served on the sqlite backend."""
+
+    home = tmp_path / "home"
+    home.mkdir()
+    stack = E2EStack(home)
+    stack.provision(backend="sqlite")
     stack.start_server()
     yield stack
     stack.stop_server()

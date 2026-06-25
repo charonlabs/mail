@@ -24,6 +24,20 @@ stub = pytest.mark.xfail(
 )
 
 
+@pytest.fixture
+def backend_kind() -> str:
+    """
+    Pin this suite to the memory backend.
+
+    These endpoints are ``NotImplementedError`` stubs on the *memory* backend
+    only; the sqlite backend implements them all (its routes are exercised in
+    ``test_gap_fill.py``). Overriding the parametrized fixture from
+    ``conftest.py`` keeps the strict-xfail assertions valid.
+    """
+
+    return "memory"
+
+
 @stub
 def test_delete_inbox_message_moves_to_trash(
     app_client: TestClient, headers_for, deliver_message

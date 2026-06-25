@@ -6,6 +6,7 @@ import os
 import time
 from argparse import Namespace
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -125,17 +126,45 @@ async def get_health() -> HealthGetResponse:
 #
 
 
+def _resolve_sqlite_url(args: Namespace) -> str:
+    """
+    Resolve the sqlite backend database URL from CLI args / env.
+
+    Precedence: ``--database-url`` (full URL) > ``--sqlite-path`` (file path) >
+    the per-deployment default ``~/.mail-swarms/deployments/default/mail.db``.
+    Env fallbacks (``MAIL_DATABASE_URL`` / ``MAIL_SQLITE_PATH``) are applied as
+    the argparse defaults in ``cli.py``.
+    """
+
+    url = getattr(args, "database_url", None)
+    if url:
+        return url
+    path = getattr(args, "sqlite_path", None)
+    if path:
+        return f"sqlite:///{Path(path).expanduser()}"
+
+    # Lazy import keeps SQLAlchemy off the import path for memory-only runs.
+    from mail_server.backends.sqlite.init import default_sqlite_path
+
+    return f"sqlite:///{default_sqlite_path()}"
+
+
 def run_server(args: Namespace) -> None:
     """
     Run the MAIL server from the CLI.
     """
 
+    global _backend
     match args.backend:
         case "memory" | "mem":
-            global _backend
             _backend = MemoryBackend(
                 persistence_interval_seconds=getattr(args, "memory_save_interval", 0)
             )
+        case "sqlite":
+            # Lazy import so SQLAlchemy is only loaded when actually selected.
+            from mail_server.backends.sqlite.api import SQLiteBackend
+
+            _backend = SQLiteBackend(url=_resolve_sqlite_url(args))
         case _:
             raise ValueError(f"invalid backend type: {args.backend}")
 
