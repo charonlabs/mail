@@ -213,7 +213,7 @@ class AdminListPostRequest(BaseModel):
 
 class AdminListPatchRequest(BaseModel):
     """
-    Corresponds to `PATCH /admin/lists/{list_address}`.
+    Corresponds to `PATCH /admin/lists/{local_address}`.
 
     All fields are optional; only the policy is mutable at v1. The
     canonical address (name, swarm, host) is immutable for the life of
@@ -225,8 +225,8 @@ class AdminListPatchRequest(BaseModel):
 
 class ListMemberPostRequest(BaseModel):
     """
-    Corresponds to ``POST /lists/{list_address}/members``
-    and ``POST /admin/lists/{list_address}/members``.
+    Corresponds to ``POST /lists/{local_address}/subscribe``
+    and ``POST /admin/lists/{local_address}/members``.
 
     ``member_address`` is the address being added. For the public
     subscribe path, this must match the authenticated bearer

@@ -12,7 +12,11 @@ ADMIN = "admin:ryan@localhost"
 USER = "user:alice@localhost"
 OTHER_USER = "user:bob@localhost"
 AGENT = "sage@chorus@localhost"
+# Full address: used as a message recipient (delivery resolves the full
+# ``list:`` form). The HTTP list endpoints address the same list by its
+# local form (``name@swarm``).
 LIST_ADDRESS = "list:welfare-discourse@chorus@localhost"
+LIST_LOCAL_ADDRESS = "welfare-discourse@chorus"
 
 
 def test_send_and_read_journey(
@@ -64,7 +68,7 @@ def test_list_fan_out_journey(
 
     # Bob subscribes himself through the public endpoint.
     response = app_client.post(
-        f"/lists/{LIST_ADDRESS}/subscribe", headers=headers_for(OTHER_USER)
+        f"/lists/{LIST_LOCAL_ADDRESS}/subscribe", headers=headers_for(OTHER_USER)
     )
     assert response.status_code == 200
     assert OTHER_USER in response.json()["mail_list"]["members"]

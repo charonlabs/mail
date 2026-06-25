@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Charon Labs (contribution PR)
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Path, Request
 from mail_protocol.core.lists import MAILListPolicy
 from mail_protocol.network.responses import (
     AdminListDeleteResponse,
@@ -16,14 +16,33 @@ from mail_protocol.network.responses import (
 )
 
 from mail_server.auth import validate_admin, validate_user_agent
+from mail_server.backends.base import MAILServerBackend
 from mail_server.validators import (
     validate_admin_patch_list_request,
     validate_admin_post_list_request,
     validate_list_member_post_request,
+    validate_local_address_param,
+    validate_member_address_param,
 )
 
 admin_router = APIRouter(prefix="/admin/lists", tags=["admin-lists"])
 public_router = APIRouter(prefix="/lists", tags=["lists"])
+
+_LOCAL_ADDRESS_PATH = Path(
+    description="List local address (name@swarm); the list: prefix and host are implied.",
+    examples=["announce@acme"],
+)
+
+
+def _full_list_address(backend: MAILServerBackend, local_address: str) -> str:
+    """
+    Reconstruct a list's full canonical ``list:name@swarm@host`` address
+    from the local ``name@swarm`` path param. The path param carries only
+    the local identifier; the ``list:`` prefix is implied by the route and
+    the host by the server.
+    """
+
+    return f"list:{local_address}@{backend.host}"
 
 
 #
@@ -82,14 +101,18 @@ async def admin_get_lists(request: Request) -> AdminListsGetResponse:
 
 
 @admin_router.get(
-    "/{list_address}",
-    summary="Get a specific MAIL list by address",
+    "/{local_address}",
+    summary="Get a specific MAIL list by local address (name@swarm)",
     response_model=AdminListGetResponse,
 )
-async def admin_get_list(request: Request) -> AdminListGetResponse:
+async def admin_get_list(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> AdminListGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
     try:
         result = await backend.admin_get_list(admin=admin, list_address=list_address)
     except ValueError:
@@ -115,14 +138,18 @@ async def admin_post_list(request: Request) -> AdminListPostResponse:
 
 
 @admin_router.patch(
-    "/{list_address}",
+    "/{local_address}",
     summary="Update a MAIL list's policy",
     response_model=AdminListPatchResponse,
 )
-async def admin_patch_list(request: Request) -> AdminListPatchResponse:
+async def admin_patch_list(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> AdminListPatchResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
     payload = await validate_admin_patch_list_request(request=request)
     _reject_unsupported_policy(payload.policy)
     try:
@@ -135,14 +162,18 @@ async def admin_patch_list(request: Request) -> AdminListPatchResponse:
 
 
 @admin_router.delete(
-    "/{list_address}",
+    "/{local_address}",
     summary="Delete a MAIL list",
     response_model=AdminListDeleteResponse,
 )
-async def admin_delete_list(request: Request) -> AdminListDeleteResponse:
+async def admin_delete_list(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> AdminListDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
     try:
         result = await backend.admin_delete_list(admin=admin, list_address=list_address)
     except ValueError:
@@ -151,15 +182,19 @@ async def admin_delete_list(request: Request) -> AdminListDeleteResponse:
 
 
 @admin_router.post(
-    "/{list_address}/members",
+    "/{local_address}/members",
     summary="Admin-add a member to a MAIL list",
     response_model=ListMemberPostResponse,
 )
-async def admin_add_list_member(request: Request) -> ListMemberPostResponse:
+async def admin_add_list_member(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> ListMemberPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     _ = admin  # auth-only; the backend method does not gate by admin
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
     payload = await validate_list_member_post_request(request=request)
     try:
         result = await backend.add_list_member(
@@ -172,16 +207,25 @@ async def admin_add_list_member(request: Request) -> ListMemberPostResponse:
 
 
 @admin_router.delete(
-    "/{list_address}/members/{member_address}",
+    "/{local_address}/members/{member_address}",
     summary="Admin-remove a member from a MAIL list",
     response_model=ListMemberDeleteResponse,
 )
-async def admin_remove_list_member(request: Request) -> ListMemberDeleteResponse:
+async def admin_remove_list_member(
+    request: Request,
+    local_address: str = _LOCAL_ADDRESS_PATH,
+    member_address: str = Path(
+        description="Full MAIL address of the member to remove (may be remote).",
+        examples=["user:bob@other-host"],
+    ),
+) -> ListMemberDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     _ = admin
-    list_address = request.path_params.get("list_address")
-    member_address = request.path_params.get("member_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
+    member_address = validate_member_address_param(member_address)
     try:
         result = await backend.remove_list_member(
             list_address=list_address,
@@ -212,14 +256,18 @@ async def get_lists(request: Request) -> ListsGetResponse:
 
 
 @public_router.get(
-    "/{list_address}",
-    summary="Get a specific list",
+    "/{local_address}",
+    summary="Get a specific list by local address (name@swarm)",
     response_model=ListGetResponse,
 )
-async def get_list(request: Request) -> ListGetResponse:
+async def get_list(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> ListGetResponse:
     backend = request.app.state.backend
     await validate_user_agent(backend=backend, request=request)
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
     try:
         result = await backend.get_list(list_address=list_address)
     except ValueError:
@@ -231,14 +279,18 @@ async def get_list(request: Request) -> ListGetResponse:
 
 
 @public_router.post(
-    "/{list_address}/subscribe",
+    "/{local_address}/subscribe",
     summary="Subscribe to a MAIL list",
     response_model=ListMemberPostResponse,
 )
-async def subscribe(request: Request) -> ListMemberPostResponse:
+async def subscribe(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> ListMemberPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
 
     try:
         existing = await backend.get_list(list_address=list_address)
@@ -262,14 +314,18 @@ async def subscribe(request: Request) -> ListMemberPostResponse:
 
 
 @public_router.post(
-    "/{list_address}/unsubscribe",
+    "/{local_address}/unsubscribe",
     summary="Unsubscribe from a MAIL list",
     response_model=ListMemberDeleteResponse,
 )
-async def unsubscribe(request: Request) -> ListMemberDeleteResponse:
+async def unsubscribe(
+    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+) -> ListMemberDeleteResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    list_address = request.path_params.get("list_address")
+    list_address = _full_list_address(
+        backend, validate_local_address_param(local_address)
+    )
     member_address = user_agent.get_address()
 
     try:

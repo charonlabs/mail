@@ -17,7 +17,10 @@ ADMIN = f"admin:root@{HOST}"
 USER = f"user:alice@{HOST}"
 OTHER_USER = f"user:bob@{HOST}"
 AGENT = f"sage@{SWARM}@{HOST}"
+# Full address: used as a message recipient (delivery resolves the full
+# ``list:`` form). The list HTTP/CLI surface addresses it by local form.
 LIST_ADDRESS = f"list:town-square@{SWARM}@{HOST}"
+LIST_LOCAL_ADDRESS = f"town-square@{SWARM}"
 
 
 def test_send_deliver_read_journey(e2e_stack) -> None:
@@ -67,7 +70,7 @@ def test_list_fan_out_journey(e2e_stack) -> None:
     assert response.status_code == 200, response.text
 
     # Bob subscribes himself through the CLI.
-    subscribed = e2e_stack.cli_json("list-subscribe", LIST_ADDRESS, token=bob)
+    subscribed = e2e_stack.cli_json("list-subscribe", LIST_LOCAL_ADDRESS, token=bob)
     assert OTHER_USER in subscribed["mail_list"]["members"]
 
     draft = e2e_stack.cli_json("compose", "To the square", "Hear ye.", token=alice)

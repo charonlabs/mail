@@ -145,10 +145,22 @@ def test_admin_get_list_missing_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
     response = app_client.get(
-        "/admin/lists/list:nonexistent@chorus@localhost",
+        "/admin/lists/nonexistent@chorus",
         headers=headers_for(ADMIN_ADDRESS),
     )
     assert response.status_code == 404
+
+
+def test_admin_get_list_malformed_local_address_returns_422(
+    app_client: TestClient, headers_for
+) -> None:
+    # The full ``list:`` address is no longer accepted here — the path
+    # param is the list's local address (name@swarm).
+    response = app_client.get(
+        "/admin/lists/list:welfare-discourse@chorus@localhost",
+        headers=headers_for(ADMIN_ADDRESS),
+    )
+    assert response.status_code == 422
 
 
 def test_admin_patch_list_updates_policy_no_op_for_open(
@@ -202,7 +214,7 @@ def test_admin_delete_list_missing_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
     response = app_client.delete(
-        "/admin/lists/list:nonexistent@chorus@localhost",
+        "/admin/lists/nonexistent@chorus",
         headers=headers_for(ADMIN_ADDRESS),
     )
     assert response.status_code == 404
@@ -286,7 +298,7 @@ def test_get_list_missing_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
     response = app_client.get(
-        "/lists/list:nonexistent@chorus@localhost",
+        "/lists/nonexistent@chorus",
         headers=headers_for(USER_ADDRESS),
     )
     assert response.status_code == 404
@@ -334,7 +346,7 @@ def test_subscribe_missing_list_returns_404(
     app_client: TestClient, headers_for
 ) -> None:
     response = app_client.post(
-        "/lists/list:nonexistent@chorus@localhost/subscribe",
+        "/lists/nonexistent@chorus/subscribe",
         headers=headers_for(USER_ADDRESS),
     )
     assert response.status_code == 404

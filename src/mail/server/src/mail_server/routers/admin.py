@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Path, Request
 from mail_protocol.network.responses import (
     AdminAgentDeleteResponse,
     AdminAgentGetResponse,
@@ -32,6 +32,11 @@ from mail_server.validators import (
     validate_admin_post_user_request,
     validate_admin_webhook_patch_request,
     validate_admin_webhook_post_request,
+    validate_local_address_param,
+    validate_swarm_name_param,
+    validate_user_id_param,
+    validate_webhook_id_param,
+    validate_worker_name_param,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -59,18 +64,22 @@ async def get_agents(
 
 
 @router.get(
-    "/agents/{agent_address}",
+    "/agents/{local_address}",
     summary="Get a specific registered agent by local address (name@swarm)",
     response_model=AdminAgentGetResponse,
 )
 async def get_agent(
     request: Request,
+    local_address: str = Path(
+        description="Agent local address (name@swarm); host is implied.",
+        examples=["researcher@acme"],
+    ),
 ) -> AdminAgentGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    agent_address = request.path_params.get("agent_address")
+    local_address = validate_local_address_param(local_address)
     try:
-        result = await backend.admin_get_agent(admin=admin, agent_address=agent_address)
+        result = await backend.admin_get_agent(admin=admin, local_address=local_address)
     except ValueError:
         raise HTTPException(status_code=404, detail="agent not found")
 
@@ -103,19 +112,23 @@ async def post_agent(
 
 
 @router.delete(
-    "/agents/{agent_address}",
+    "/agents/{local_address}",
     summary="Delete an existing MAIL agent on this server",
     response_model=AdminAgentDeleteResponse,
 )
 async def delete_agent(
     request: Request,
+    local_address: str = Path(
+        description="Agent local address (name@swarm); host is implied.",
+        examples=["researcher@acme"],
+    ),
 ) -> AdminAgentDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    agent_address = request.path_params.get("agent_address")
+    local_address = validate_local_address_param(local_address)
     try:
         result = await backend.admin_delete_agent(
-            admin=admin, agent_address=agent_address
+            admin=admin, local_address=local_address
         )
     except ValueError:
         raise HTTPException(status_code=404, detail="agent not found")
@@ -154,10 +167,14 @@ async def get_daemons(
 )
 async def get_daemon(
     request: Request,
+    worker_name: str = Path(
+        description="Daemon worker name; prefix and host are implied.",
+        examples=["indexer"],
+    ),
 ) -> AdminDaemonGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    worker_name = request.path_params.get("worker_name")
+    worker_name = validate_worker_name_param(worker_name)
     try:
         result = await backend.admin_get_daemon(admin=admin, worker_name=worker_name)
     except ValueError:
@@ -198,10 +215,14 @@ async def post_daemon(
 )
 async def delete_daemon(
     request: Request,
+    worker_name: str = Path(
+        description="Daemon worker name; prefix and host are implied.",
+        examples=["indexer"],
+    ),
 ) -> AdminDaemonDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    worker_name = request.path_params.get("worker_name")
+    worker_name = validate_worker_name_param(worker_name)
     try:
         result = await backend.admin_delete_daemon(admin=admin, worker_name=worker_name)
     except ValueError:
@@ -241,10 +262,14 @@ async def get_users(
 )
 async def get_user(
     request: Request,
+    user_id: str = Path(
+        description="User id; prefix and host are implied.",
+        examples=["addison"],
+    ),
 ) -> AdminUserGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    user_id = request.path_params.get("user_id")
+    user_id = validate_user_id_param(user_id)
     try:
         result = await backend.admin_get_user(admin=admin, user_id=user_id)
     except ValueError:
@@ -285,10 +310,14 @@ async def post_user(
 )
 async def delete_user(
     request: Request,
+    user_id: str = Path(
+        description="User id; prefix and host are implied.",
+        examples=["addison"],
+    ),
 ) -> AdminUserDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    user_id = request.path_params.get("user_id")
+    user_id = validate_user_id_param(user_id)
     try:
         result = await backend.admin_delete_user(admin=admin, user_id=user_id)
     except ValueError:
@@ -328,10 +357,16 @@ async def post_swarm(request: Request) -> AdminSwarmPostResponse:
     summary="Delete an existing MAIL swarm on this server by name",
     response_model=AdminSwarmDeleteResponse,
 )
-async def delete_swarm(request: Request) -> AdminSwarmDeleteResponse:
+async def delete_swarm(
+    request: Request,
+    swarm_name: str = Path(
+        description="Swarm name.",
+        examples=["acme"],
+    ),
+) -> AdminSwarmDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    swarm_name = request.path_params.get("swarm_name")
+    swarm_name = validate_swarm_name_param(swarm_name)
     try:
         result = await backend.admin_delete_swarm(admin=admin, swarm_name=swarm_name)
     except ValueError:
@@ -367,10 +402,16 @@ async def get_webhooks(request: Request) -> AdminWebhooksGetResponse:
     summary="Get a specific existing server webhook by ID",
     response_model=AdminWebhookGetResponse,
 )
-async def get_webhook(request: Request) -> AdminWebhookGetResponse:
+async def get_webhook(
+    request: Request,
+    webhook_id: str = Path(
+        description="Webhook id (wh_<uuid>).",
+        examples=["wh_123e4567-e89b-12d3-a456-426614174000"],
+    ),
+) -> AdminWebhookGetResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    webhook_id = request.path_params.get("webhook_id")
+    webhook_id = validate_webhook_id_param(webhook_id)
     try:
         result = await backend.admin_webhook_get(admin=admin, webhook_id=webhook_id)
     except ValueError:
@@ -404,11 +445,17 @@ async def post_webhook(request: Request) -> AdminWebhooksPostResponse:
     summary="Update an existing webhook by ID on this server",
     response_model=AdminWebhooksPatchResponse,
 )
-async def patch_webhook(request: Request) -> AdminWebhooksPatchResponse:
+async def patch_webhook(
+    request: Request,
+    webhook_id: str = Path(
+        description="Webhook id (wh_<uuid>).",
+        examples=["wh_123e4567-e89b-12d3-a456-426614174000"],
+    ),
+) -> AdminWebhooksPatchResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     payload = await validate_admin_webhook_patch_request(request=request)
-    webhook_id = request.path_params.get("webhook_id")
+    webhook_id = validate_webhook_id_param(webhook_id)
     try:
         result = await backend.admin_webhook_patch(
             admin=admin, webhook_id=webhook_id, payload=payload
@@ -427,10 +474,16 @@ async def patch_webhook(request: Request) -> AdminWebhooksPatchResponse:
     summary="Delete an existing webhook by ID from this server",
     response_model=AdminWebhooksDeleteResponse,
 )
-async def delete_webhook(request: Request) -> AdminWebhooksDeleteResponse:
+async def delete_webhook(
+    request: Request,
+    webhook_id: str = Path(
+        description="Webhook id (wh_<uuid>).",
+        examples=["wh_123e4567-e89b-12d3-a456-426614174000"],
+    ),
+) -> AdminWebhooksDeleteResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    webhook_id = request.path_params.get("webhook_id")
+    webhook_id = validate_webhook_id_param(webhook_id)
     try:
         result = await backend.admin_webhook_delete(admin=admin, webhook_id=webhook_id)
     except ValueError:
