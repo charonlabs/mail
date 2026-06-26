@@ -89,10 +89,12 @@ three files moves here, alongside:
   cast: one admin, two users, one agent, one daemon, one swarm. Parametrized
   over both backends (`memory` and `sqlite`) via `backend_kind`; tests never
   touch backend internals — they seed/assert through the public API or the
-  backend-agnostic `seed_trash` / `seed_list` / `list_members` fixtures
+  backend-agnostic `seed_trash` / `seed_list` / `seed_refresh_token` /
+  `list_members` fixtures
 - `app_client` — `TestClient` over the **real** `mail_server.server.app`
-  (env vars `MAIL_HOST`, `MAIL_JWT_SECRET_KEY`, `MAIL_JWT_ALGORITHM` set
-  before import), wired to `backend`. A module may override `backend_kind` to
+  (env vars `MAIL_HOST`, `MAIL_JWT_SECRET_KEY`, `MAIL_JWT_ALGORITHM`,
+  `MAIL_REFRESH_TOKEN_EXPIRE_DAYS` set before import), wired to `backend`. A
+  module may override `backend_kind` to
   pin one backend (e.g. `test_stubs.py` → memory, `test_gap_fill.py` → sqlite)
 - `token_for(address)` — factory issuing real JWTs via `POST /auth/token`,
   so integration tests exercise real auth instead of monkeypatching it

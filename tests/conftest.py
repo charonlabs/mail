@@ -10,6 +10,11 @@ from pathlib import Path
 # mail_server.* imports succeed everywhere.
 os.environ.setdefault("MAIL_JWT_SECRET_KEY", "test-secret-not-used")
 os.environ.setdefault("MAIL_JWT_ALGORITHM", "HS256")
+os.environ.setdefault("MAIL_REFRESH_TOKEN_EXPIRE_DAYS", "30")
+# The TestClient speaks http://testserver; a ``Secure`` cookie would never be
+# sent back over http, so disable the flag for the in-process suites. The
+# secure-by-default behavior is covered by a dedicated unit test.
+os.environ.setdefault("MAIL_COOKIE_SECURE", "false")
 
 import pytest  # noqa: E402
 from mail_server.backends.memory import fs as memory_fs  # noqa: E402
@@ -61,6 +66,7 @@ def deployment_dir(
         "trashes",
         "webhooks",
         "lists",
+        "refresh_tokens",
     ):
         (deployment / subdir).mkdir(parents=True, exist_ok=True)
     (deployment / "message_buffer.lock").touch()

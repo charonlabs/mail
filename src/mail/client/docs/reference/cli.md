@@ -41,7 +41,8 @@ mail [option]... <command> [argument]...
 ### Utility Commands
 
 - `ping`: Attempt to ping the MAIL server at the URL provided.
-- `login`: Log into a MAIL server with valid credentials to obtain a temporary access token.
+- `login`: Log into a MAIL server with valid credentials to obtain a temporary access token (and, for users/admins, a refresh token).
+- `refresh`: Renew your access token from a refresh token (set `MAIL_REFRESH_TOKEN`), without logging in again. The refresh token is rotated, so update `MAIL_REFRESH_TOKEN` with the returned value.
 - `whoami`: View information on the logged-in MAIL user-agent.
 
 ## Top-level Options

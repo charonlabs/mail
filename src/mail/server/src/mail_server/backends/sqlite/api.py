@@ -36,6 +36,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
+from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.constants import LIST_ADDRESS_PREFIX
 from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
@@ -168,6 +169,63 @@ class SQLiteBackend(MAILServerBackend):
                 ua_addr, get_password_hash(payload.new_password)
             )
         return "success"
+
+    #
+    # Refresh token handlers
+    #
+    async def create_refresh_token(
+        self,
+        owner_address: str,
+        token_hash: str,
+        family_id: str,
+        expires_at: datetime,
+    ) -> None:
+        record = RefreshTokenRecord(
+            token_hash=token_hash,
+            family_id=family_id,
+            owner_address=owner_address,
+            issued_at=datetime.now(UTC),
+            expires_at=expires_at,
+        )
+        async with self._db.session() as session:
+            await MailStore(session).refresh_tokens.add(record)
+
+    async def get_refresh_token(self, token_hash: str) -> RefreshTokenRecord | None:
+        async with self._db.session() as session:
+            return await MailStore(session).refresh_tokens.get(token_hash)
+
+    async def rotate_refresh_token(self, old_hash: str, new_hash: str) -> None:
+        async with self._db.session() as session:
+            store = MailStore(session)
+            old = await store.refresh_tokens.get(old_hash)
+            if old is None:
+                raise ValueError(f"refresh token {old_hash} not found")
+            now = datetime.now(UTC)
+            # Carry the family's original ``expires_at`` forward unchanged — the
+            # absolute cap does not slide on rotation.
+            new_record = RefreshTokenRecord(
+                token_hash=new_hash,
+                family_id=old.family_id,
+                owner_address=old.owner_address,
+                issued_at=now,
+                expires_at=old.expires_at,
+            )
+            await store.refresh_tokens.mark_rotated(old_hash, now)
+            await store.refresh_tokens.add(new_record)
+
+    async def revoke_refresh_family(self, family_id: str) -> None:
+        async with self._db.session() as session:
+            await MailStore(session).refresh_tokens.revoke_family(family_id)
+
+    async def revoke_all_refresh_tokens(self, owner_address: str) -> None:
+        async with self._db.session() as session:
+            await MailStore(session).refresh_tokens.revoke_for_owner(owner_address)
+
+    async def purge_expired_refresh_tokens(self) -> int:
+        async with self._db.session() as session:
+            return await MailStore(session).refresh_tokens.purge_expired(
+                datetime.now(UTC)
+            )
 
     #
     # Swarm endpoint handlers

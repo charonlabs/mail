@@ -4,7 +4,7 @@
 import asyncio
 import os
 from collections.abc import Awaitable, Callable, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # mail_server.server reads MAIL_HOST and mail_server.routers.auth reads
@@ -15,6 +15,7 @@ os.environ.setdefault("MAIL_JWT_EXPIRE_MINUTES", "15")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from mail_protocol.core.auth import RefreshTokenRecord  # noqa: E402
 from mail_protocol.core.lists import MAILListInBackend  # noqa: E402
 from mail_protocol.core.messages import MAILMessage  # noqa: E402
 from mail_protocol.core.swarms import MAILSwarm  # noqa: E402
@@ -27,7 +28,7 @@ from mail_protocol.core.user_agents import (  # noqa: E402
     MAILUserAgentInBackend,
 )
 from mail_server import server as mail_server_module  # noqa: E402
-from mail_server.auth import get_password_hash  # noqa: E402
+from mail_server.auth import get_password_hash, hash_refresh_token  # noqa: E402
 from mail_server.backends.base import MAILServerBackend  # noqa: E402
 from mail_server.backends.memory.api import MemoryBackend  # noqa: E402
 from mail_server.backends.sqlite.api import SQLiteBackend  # noqa: E402
@@ -228,6 +229,42 @@ def seed_list(backend: MAILServerBackend) -> Callable[[MAILListInBackend], str]:
 
             _run_sqlite_write(backend._db.url, mutate)
         return f"{record.name}@{record.swarm}"
+
+    return _seed
+
+
+@pytest.fixture
+def seed_refresh_token(backend: MAILServerBackend) -> Callable[..., str]:
+    """
+    Backend-agnostic: persist a refresh token directly so a test can pin its
+    ``expires_at`` / ``family_id`` (impossible through the login API, which
+    always stamps the configured absolute cap). Returns the plaintext token.
+    """
+
+    def _seed(
+        owner: str,
+        token: str,
+        *,
+        expires_at: datetime,
+        family_id: str = "fam_seed",
+    ) -> str:
+        record = RefreshTokenRecord(
+            token_hash=hash_refresh_token(token),
+            family_id=family_id,
+            owner_address=owner,
+            issued_at=datetime.now(UTC),
+            expires_at=expires_at,
+        )
+        if isinstance(backend, MemoryBackend):
+            backend.refresh_tokens[record.token_hash] = record
+        else:
+            assert isinstance(backend, SQLiteBackend)
+
+            async def mutate(store: MailStore) -> None:
+                await store.refresh_tokens.add(record)
+
+            _run_sqlite_write(backend._db.url, mutate)
+        return token
 
     return _seed
 

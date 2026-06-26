@@ -187,8 +187,8 @@ three files moves here, alongside:
 - `backend` — started `MemoryBackend` seeded with a standard cast:
   one admin, two users, one agent, one daemon, one swarm
 - `app_client` — `TestClient` over the **real** `mail_server.server.app`
-  (env vars `MAIL_HOST`, `MAIL_JWT_SECRET_KEY`, `MAIL_JWT_ALGORITHM` set
-  before import), wired to `backend`
+  (env vars `MAIL_HOST`, `MAIL_JWT_SECRET_KEY`, `MAIL_JWT_ALGORITHM`,
+  `MAIL_REFRESH_TOKEN_EXPIRE_DAYS` set before import), wired to `backend`
 - `token_for(address)` — factory issuing real JWTs via `POST /auth/token`,
   so integration tests exercise real auth instead of monkeypatching it
 - `webhook_receiver` — in-process ASGI app that records deliveries and can be

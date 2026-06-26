@@ -28,8 +28,10 @@ See ``src/mail/server/docs/reference/backends.md`` for the backend overview.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
+from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.drafts import MAILDraftsEntry
 from mail_protocol.core.inbox import MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILListInBackend
@@ -46,6 +48,7 @@ from mail_server.backends.sqlite.schema import (
     ListRow,
     MessageRow,
     OutboxEntryRow,
+    RefreshTokenRow,
     SwarmRow,
     TrashEntryRow,
     UserAgentRow,
@@ -221,3 +224,48 @@ def list_to_columns(model: MAILListInBackend) -> dict[str, Any]:
 
 def list_from_row(row: ListRow) -> MAILListInBackend:
     return MAILListInBackend.model_validate(row.body)
+
+
+# --------------------------------------------------------------------------- #
+# refresh_tokens (no body column — every field is typed and queried)
+# --------------------------------------------------------------------------- #
+
+
+def refresh_token_to_columns(model: RefreshTokenRecord) -> dict[str, Any]:
+    return {
+        "token_hash": model.token_hash,
+        "family_id": model.family_id,
+        "owner_address": model.owner_address,
+        "issued_at": model.issued_at,
+        "expires_at": model.expires_at,
+        "revoked": model.revoked,
+        "rotated_at": model.rotated_at,
+    }
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """
+    Re-attach UTC to a datetime read back from SQLite.
+
+    SQLite has no native datetime type, so ``DateTime(timezone=True)`` round-trips
+    as a tz-*naive* value even though we always persist UTC. The entity tables
+    avoid this by rehydrating from the JSON ``body`` (ISO strings keep the
+    offset); ``refresh_tokens`` has no body, so we normalize here to keep the
+    backend contract (tz-aware UTC) identical to the memory backend.
+    """
+
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def refresh_token_from_row(row: RefreshTokenRow) -> RefreshTokenRecord:
+    return RefreshTokenRecord(
+        token_hash=row.token_hash,
+        family_id=row.family_id,
+        owner_address=row.owner_address,
+        issued_at=_as_utc(row.issued_at),  # type: ignore[arg-type]
+        expires_at=_as_utc(row.expires_at),  # type: ignore[arg-type]
+        revoked=row.revoked,
+        rotated_at=_as_utc(row.rotated_at),
+    )
