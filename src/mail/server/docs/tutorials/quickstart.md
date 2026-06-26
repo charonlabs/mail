@@ -18,6 +18,14 @@ The following environment variables are required for `mail-server` to run:
   - **Example**: `0d67b4cce591d1ff298fdbc8781f721b811d0483d9892c66dd7f430d15c42492`
 - `MAIL_JWT_EXPIRE_MINUTES`: The lifetime in minutes of JWTs issues by the MAIL server.
   - **Example**: `30`
+- `MAIL_REFRESH_TOKEN_EXPIRE_DAYS`: The absolute lifetime in days of a refresh-token family. Carried forward unchanged across rotations (the window does not slide).
+  - **Example**: `30`
+
+The following environment variables are optional:
+- `MAIL_COOKIE_SECURE`: Whether the refresh-token cookie is marked `Secure` (HTTPS-only). Defaults to `true`; set `false` for local `http://` development.
+  - **Example**: `false`
+- `MAIL_COOKIE_DOMAIN`: An optional cookie `Domain` for cross-subdomain deployments. Leave unset for a host-only cookie.
+  - **Example**: `example.com`
 
 > [!NOTE]
 > Refer to `.env.example` in the `mail-server` root for an example environment variable configuration to test with.

@@ -20,7 +20,12 @@ SERVER = "http://mail.test"
 TOKEN = "daemon-jwt"
 
 ROOT_RESPONSE = {"protocol_name": "mail", "protocol_version": "2.0", "uptime": 1.5}
-TOKEN_RESPONSE = {"access_token": TOKEN, "token_type": "bearer", "metadata": {}}
+TOKEN_RESPONSE = {
+    "access_token": TOKEN,
+    "token_type": "bearer",
+    "expires_in": 900,
+    "metadata": {},
+}
 
 
 def _whoami_response(ua_type: str = "daemon") -> dict:

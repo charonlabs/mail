@@ -128,6 +128,11 @@ def init_memory_backend(
     LISTS_PATH.mkdir(exist_ok=True)
     print(f"ensured deployment lists: {LISTS_PATH}")
 
+    # ~/.mail-swarms/deployments/{deployment}/refresh_tokens
+    REFRESH_TOKENS_PATH = DEPLOYMENT_PATH.joinpath("refresh_tokens")
+    REFRESH_TOKENS_PATH.mkdir(exist_ok=True)
+    print(f"ensured deployment refresh_tokens: {REFRESH_TOKENS_PATH}")
+
     # write swarm file
     SWARM_PATH = SWARMS_PATH.joinpath(swarm)
     with open(SWARM_PATH, "w") as swarm_file:
