@@ -23,6 +23,7 @@ from mail_client.commands import (
     cmd_inbox,
     cmd_login,
     cmd_ping,
+    cmd_refresh,
     cmd_reply,
     cmd_send,
 )
@@ -95,7 +96,12 @@ def test_login_posts_credentials_as_form_data(
     route = respx.post(f"{SERVER}/auth/token").mock(
         return_value=httpx.Response(
             200,
-            json={"access_token": "issued-jwt", "token_type": "bearer", "metadata": {}},
+            json={
+                "access_token": "issued-jwt",
+                "token_type": "bearer",
+                "expires_in": 900,
+                "metadata": {},
+            },
         )
     )
     cmd_login(Namespace(output="text"))
@@ -111,6 +117,53 @@ def test_login_requires_credentials_env(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.delenv("MAIL_ADDRESS", raising=False)
     with pytest.raises(ValueError, match="MAIL_ADDRESS"):
         cmd_login(Namespace(output="text"))
+
+
+# ─── refresh ───────────────────────────────────────────────────────
+
+
+@respx.mock
+def test_refresh_posts_token_in_body_and_prints_rotated(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("MAIL_SERVER", SERVER)
+    monkeypatch.setenv("MAIL_REFRESH_TOKEN", "rt_old")
+
+    route = respx.post(f"{SERVER}/auth/refresh").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "access_token": "fresh-jwt",
+                "token_type": "bearer",
+                "refresh_token": "rt_new",
+                "expires_in": 900,
+                "metadata": {},
+            },
+        )
+    )
+    cmd_refresh(Namespace(output="text"))
+
+    sent = json.loads(route.calls[0].request.content.decode())
+    assert sent == {"refresh_token": "rt_old"}
+    out = capsys.readouterr().out
+    assert "fresh-jwt" in out
+    assert "rt_new" in out
+
+
+def test_refresh_requires_refresh_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MAIL_SERVER", SERVER)
+    monkeypatch.delenv("MAIL_REFRESH_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="MAIL_REFRESH_TOKEN"):
+        cmd_refresh(Namespace(output="text"))
+
+
+@respx.mock
+def test_refresh_raises_on_401(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MAIL_SERVER", SERVER)
+    monkeypatch.setenv("MAIL_REFRESH_TOKEN", "rt_dead")
+    respx.post(f"{SERVER}/auth/refresh").mock(return_value=httpx.Response(401))
+    with pytest.raises(RuntimeError, match="401"):
+        cmd_refresh(Namespace(output="text"))
 
 
 # ─── inbox ─────────────────────────────────────────────────────────

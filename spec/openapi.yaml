@@ -30,6 +30,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /auth/refresh:
+    post:
+      tags:
+      - authentication
+      summary: Exchange a refresh token for a new access token (rotates the refresh
+        token)
+      operationId: post_auth_refresh_auth_refresh_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRefreshPostResponse'
+  /auth/logout:
+    post:
+      tags:
+      - authentication
+      summary: Revoke the presented refresh token's family and clear the cookie
+      operationId: post_auth_logout_auth_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLogoutPostResponse'
   /auth/whoami:
     get:
       tags:
@@ -1461,6 +1488,19 @@ components:
       description: 'Corresponds to `POST /admin/webhooks`.
 
         Contains information on the newly-created webhook.'
+    AuthLogoutPostResponse:
+      properties:
+        status:
+          type: string
+          const: success
+          title: Status
+      type: object
+      required:
+      - status
+      title: AuthLogoutPostResponse
+      description: 'Corresponds to `POST /auth/logout`.
+
+        Contains a message indicating operation success.'
     AuthPasswordResetResponse:
       properties:
         status:
@@ -1474,6 +1514,44 @@ components:
       description: 'Corresponds to `POST /auth/password/reset`.
 
         Contains a message indicating operation success.'
+    AuthRefreshPostResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          const: bearer
+          title: Token Type
+        refresh_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refresh Token
+        expires_in:
+          type: integer
+          title: Expires In
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - access_token
+      - token_type
+      - expires_in
+      - metadata
+      title: AuthRefreshPostResponse
+      description: 'Corresponds to `POST /auth/refresh`.
+
+        Contains a freshly-minted access token and a rotated refresh token.
+
+
+        Mirrors `AuthTokenPostResponse`. The previous refresh token is invalidated
+
+        on every successful refresh; ``refresh_token`` carries its replacement (also
+
+        rotated in the ``httpOnly`` cookie for browser clients).'
     AuthTokenPostResponse:
       properties:
         access_token:
@@ -1483,6 +1561,14 @@ components:
           type: string
           const: bearer
           title: Token Type
+        refresh_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refresh Token
+        expires_in:
+          type: integer
+          title: Expires In
         metadata:
           additionalProperties: true
           type: object
@@ -1491,11 +1577,23 @@ components:
       required:
       - access_token
       - token_type
+      - expires_in
       - metadata
       title: AuthTokenPostResponse
       description: 'Corresponds to `POST /auth/token`.
 
-        Contains a temporary JWT and associated metadata.'
+        Contains a temporary JWT and associated metadata.
+
+
+        ``refresh_token`` is populated only for interactive principals (users and
+
+        admins); agents and daemons re-authenticate with their credentials and
+
+        receive ``None``. When present, the server also sets it as an ``httpOnly``
+
+        cookie for browser clients. ``expires_in`` is the access-token lifetime in
+
+        seconds.'
     AuthWhoamiGetResponse:
       properties:
         user_agent:

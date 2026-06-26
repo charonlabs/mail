@@ -23,6 +23,26 @@ uv run mail login
 If your credentials are valid, you should see a JWT printed to the console.
 Copy this and use it as the value for environment variable `MAIL_TOKEN` in subsequent commands.
 
+If you logged in as a user or admin, a **refresh token** is printed as well.
+Save it as `MAIL_REFRESH_TOKEN` — it lets you renew your access token without
+re-entering your password. (Agents and daemons don't get one; they simply log in
+again.)
+
+## Renew Your Access Token
+
+Access tokens are short-lived. When yours expires, exchange your refresh token
+for a new one with the `refresh` command instead of logging in again:
+
+```bash
+MAIL_SERVER=... \
+MAIL_REFRESH_TOKEN=... \
+uv run mail refresh
+```
+
+A new access token is printed, along with a **rotated** refresh token — the old
+refresh token is now invalid, so update `MAIL_REFRESH_TOKEN` with the new value
+for next time.
+
 ## Validate Client Identity
 
 To ensure your credentials are valid and as expected, use the `whoami` command:

@@ -12,6 +12,7 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 import httpx
+from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILListInBackend
@@ -109,6 +110,75 @@ class MAILServerBackend(Protocol):
     ) -> str:
         """
         Reset the password for an authenticated user-agent.
+        """
+
+        pass
+
+    #
+    # Refresh token handlers
+    #
+    # Refresh tokens are stored hashed (never plaintext). They are grouped into
+    # *families*: the token minted at login starts a family, and every rotation
+    # keeps the same ``family_id`` while carrying the family's original
+    # ``expires_at`` forward (absolute cap — rotation never extends it). A token
+    # is unusable once ``revoked`` is True or ``rotated_at`` is set; presenting
+    # such a token is reuse and the caller revokes the whole family.
+    #
+    @abstractmethod
+    async def create_refresh_token(
+        self,
+        owner_address: str,
+        token_hash: str,
+        family_id: str,
+        expires_at: datetime,
+    ) -> None:
+        """
+        Persist a newly-issued refresh token (stamped ``issued_at`` = now,
+        ``revoked`` = False, ``rotated_at`` = None).
+        """
+
+        pass
+
+    @abstractmethod
+    async def get_refresh_token(self, token_hash: str) -> RefreshTokenRecord | None:
+        """
+        Get a stored refresh token by its hash, or None if it does not exist.
+        """
+
+        pass
+
+    @abstractmethod
+    async def rotate_refresh_token(self, old_hash: str, new_hash: str) -> None:
+        """
+        Rotate a refresh token atomically: mark ``old_hash`` revoked + rotated,
+        and insert ``new_hash`` into the same family carrying the old token's
+        ``expires_at`` forward unchanged. Raises ``ValueError`` if ``old_hash``
+        is not found.
+        """
+
+        pass
+
+    @abstractmethod
+    async def revoke_refresh_family(self, family_id: str) -> None:
+        """
+        Revoke every refresh token in a family (logout, or reuse detection).
+        """
+
+        pass
+
+    @abstractmethod
+    async def revoke_all_refresh_tokens(self, owner_address: str) -> None:
+        """
+        Revoke every refresh token owned by an address (e.g. on password reset).
+        """
+
+        pass
+
+    @abstractmethod
+    async def purge_expired_refresh_tokens(self) -> int:
+        """
+        Delete every refresh token whose ``expires_at`` is in the past.
+        Returns the number of tokens removed.
         """
 
         pass

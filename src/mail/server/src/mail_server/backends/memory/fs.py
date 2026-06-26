@@ -7,6 +7,7 @@ import tempfile
 from os import scandir
 from pathlib import Path
 
+from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.drafts import MAILDraftsEntry
 from mail_protocol.core.inbox import MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILListInBackend
@@ -584,6 +585,37 @@ async def load_webhooks() -> dict[str, MAILWebhook]:
     return webhooks
 
 
+async def load_refresh_tokens() -> dict[str, RefreshTokenRecord]:
+    """
+    Load saved refresh tokens from the local filesystem.
+
+    The directory is created if absent so memory deployments provisioned before
+    refresh-token support start cleanly. Each file is named by its token hash
+    (sha256 hex) and holds the serialized ``RefreshTokenRecord``.
+    """
+
+    refresh_tokens_path = DEPLOYMENT_PATH.joinpath("refresh_tokens")
+    refresh_tokens_path.mkdir(parents=True, exist_ok=True)
+    logger.info(f"loading refresh_tokens: {refresh_tokens_path}...")
+    refresh_tokens: dict[str, RefreshTokenRecord] = {}
+    with scandir(refresh_tokens_path) as entries:
+        for entry in entries:
+            if entry.is_file():
+                with open(entry) as rt_file:
+                    content = rt_file.read()
+                    try:
+                        rt_model = RefreshTokenRecord.model_validate_json(content)
+                    except Exception as e:
+                        logger.warning(f"RefreshTokenRecord validation failed: {e}")
+                        continue
+
+                    refresh_tokens.update({rt_model.token_hash: rt_model})
+
+    logger.info(f"found {len(refresh_tokens)} refresh_tokens")
+
+    return refresh_tokens
+
+
 #
 # Save memory backend to the local filesystem
 # (on server shutdown and periodic checkpoints)
@@ -803,5 +835,24 @@ async def save_webhooks(webhooks: dict[str, MAILWebhook]) -> None:
         {
             webhook.webhook_id: webhook.model_dump_json()
             for webhook in webhooks.values()
+        },
+    )
+
+
+async def save_refresh_tokens(
+    refresh_tokens: dict[str, RefreshTokenRecord],
+) -> None:
+    """
+    Save refresh tokens from memory to the local filesystem, one file per token
+    keyed by its hash.
+    """
+
+    logger.info(f"saving {len(refresh_tokens)} refresh_tokens...")
+
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("refresh_tokens"),
+        {
+            token_hash: record.model_dump_json()
+            for token_hash, record in refresh_tokens.items()
         },
     )

@@ -1,14 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
+import hashlib
 import os
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
-from mail_protocol.core.user_agents import MAILAdmin, MAILDaemon, MAILUserAgent
+from mail_protocol.core.user_agents import (
+    MAILAdmin,
+    MAILDaemon,
+    MAILUser,
+    MAILUserAgent,
+)
 from pwdlib import PasswordHash
 from pydantic import BaseModel
 
@@ -20,6 +27,27 @@ if SECRET_KEY is None:
 ALGORITHM = os.getenv("MAIL_JWT_ALGORITHM")
 if ALGORITHM is None:
     raise RuntimeError("env var MAIL_JWT_ALGORITHM must be set")
+
+_REFRESH_TOKEN_EXPIRE_DAYS = os.getenv("MAIL_REFRESH_TOKEN_EXPIRE_DAYS")
+if _REFRESH_TOKEN_EXPIRE_DAYS is None:
+    raise RuntimeError("env var MAIL_REFRESH_TOKEN_EXPIRE_DAYS must be set")
+REFRESH_TOKEN_EXPIRE_DAYS = int(_REFRESH_TOKEN_EXPIRE_DAYS)
+
+# Refresh-token cookie configuration.
+#
+# The cookie is scoped to ``/auth`` so it is sent to ``/auth/refresh`` and
+# ``/auth/logout`` (and only those auth endpoints) — never to the wider API,
+# which authenticates exclusively via the ``Authorization`` header and so stays
+# CSRF-immune. ``Secure`` defaults on; set ``MAIL_COOKIE_SECURE=false`` for
+# local ``http://`` development.
+REFRESH_COOKIE_NAME = "mail_refresh_token"
+REFRESH_COOKIE_PATH = "/auth"
+COOKIE_SECURE = os.getenv("MAIL_COOKIE_SECURE", "true").lower() != "false"
+COOKIE_DOMAIN = os.getenv("MAIL_COOKIE_DOMAIN")
+
+# High-entropy opaque refresh tokens; the ``rt_`` prefix aids on-the-wire
+# identification. Stored hashed (sha256) — never in plaintext.
+REFRESH_TOKEN_PREFIX = "rt_"
 
 
 class Token(BaseModel):
@@ -73,6 +101,78 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(payload=to_encode, key=SECRET_KEY, algorithm=ALGORITHM)  # type: ignore
     return encoded_jwt
+
+
+#
+# Refresh token helpers
+#
+def is_interactive_principal(user_agent: MAILUserAgent) -> bool:
+    """
+    Return True for principals that get a refresh token (users and admins).
+
+    Agents and daemons run unattended and re-authenticate with their
+    credentials, so they are deliberately excluded — issuing them refresh
+    tokens would only widen the attack surface.
+    """
+
+    return isinstance(user_agent.user_agent, MAILUser | MAILAdmin)
+
+
+def generate_refresh_token() -> str:
+    """
+    Generate a new high-entropy opaque refresh token (the plaintext returned to
+    the client). At least 256 bits of entropy.
+    """
+
+    return f"{REFRESH_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+
+
+def hash_refresh_token(token: str) -> str:
+    """
+    Hash a refresh token for storage/lookup. SHA-256 is appropriate (and fast)
+    because the token is already high-entropy — unlike passwords, it needs no
+    slow KDF.
+    """
+
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def refresh_token_expiry() -> datetime:
+    """
+    The absolute expiry for a refresh-token family minted now. Carried forward
+    unchanged on rotation (the window does not slide).
+    """
+
+    return datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+
+def set_refresh_cookie(response: Response, token: str) -> None:
+    """
+    Set the ``httpOnly`` refresh-token cookie for browser clients.
+    """
+
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=token,
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+        path=REFRESH_COOKIE_PATH,
+        domain=COOKIE_DOMAIN,
+        secure=COOKIE_SECURE,
+        httponly=True,
+        samesite="strict",
+    )
+
+
+def clear_refresh_cookie(response: Response) -> None:
+    """
+    Clear the refresh-token cookie (logout).
+    """
+
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        path=REFRESH_COOKIE_PATH,
+        domain=COOKIE_DOMAIN,
+    )
 
 
 async def validate_user_agent(

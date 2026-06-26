@@ -20,6 +20,7 @@ from mail_protocol.network.requests import (
     AdminWebhooksPatchRequest,
     AdminWebhooksPostRequest,
     AuthPasswordResetRequest,
+    AuthRefreshPostRequest,
     BoxFilterParams,
     DaemonDeliverLocalRequest,
     DaemonDeliverRemoteRequest,
@@ -386,6 +387,28 @@ async def validate_auth_password_reset_request(
     try:
         body = await request.json()
         return AuthPasswordResetRequest.model_validate(body)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422, detail=f"request body validation failed: {e}"
+        )
+
+
+async def validate_auth_refresh_request(
+    request: Request,
+) -> AuthRefreshPostRequest:
+    """
+    Ensure that the request payload is valid for `POST /auth/refresh`.
+
+    An empty body is allowed: browsers carry the refresh token in the
+    ``httpOnly`` cookie and may send no body at all. A non-empty body must still
+    be valid JSON for the model, otherwise 422.
+    """
+
+    raw = await request.body()
+    if not raw:
+        return AuthRefreshPostRequest()
+    try:
+        return AuthRefreshPostRequest.model_validate_json(raw)
     except ValueError as e:
         raise HTTPException(
             status_code=422, detail=f"request body validation failed: {e}"

@@ -56,11 +56,45 @@ class AuthTokenPostResponse(BaseModel):
     """
     Corresponds to `POST /auth/token`.
     Contains a temporary JWT and associated metadata.
+
+    ``refresh_token`` is populated only for interactive principals (users and
+    admins); agents and daemons re-authenticate with their credentials and
+    receive ``None``. When present, the server also sets it as an ``httpOnly``
+    cookie for browser clients. ``expires_in`` is the access-token lifetime in
+    seconds.
     """
 
     access_token: str
     token_type: Literal["bearer"]
+    refresh_token: str | None = None
+    expires_in: int
     metadata: dict[str, Any]
+
+
+class AuthRefreshPostResponse(BaseModel):
+    """
+    Corresponds to `POST /auth/refresh`.
+    Contains a freshly-minted access token and a rotated refresh token.
+
+    Mirrors `AuthTokenPostResponse`. The previous refresh token is invalidated
+    on every successful refresh; ``refresh_token`` carries its replacement (also
+    rotated in the ``httpOnly`` cookie for browser clients).
+    """
+
+    access_token: str
+    token_type: Literal["bearer"]
+    refresh_token: str | None = None
+    expires_in: int
+    metadata: dict[str, Any]
+
+
+class AuthLogoutPostResponse(BaseModel):
+    """
+    Corresponds to `POST /auth/logout`.
+    Contains a message indicating operation success.
+    """
+
+    status: Literal["success"]
 
 
 class AuthWhoamiGetResponse(BaseModel):
