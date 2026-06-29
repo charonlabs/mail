@@ -1,7 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from mail_protocol.network.requests import (
+    BoxFilterParams,
+    DraftPatchRequest,
+    DraftPostRequest,
+    DraftSendPostRequest,
+)
 from mail_protocol.network.responses import (
     DraftDeleteResponse,
     DraftGetResponse,
@@ -13,12 +21,6 @@ from mail_protocol.network.responses import (
 
 from mail_server.auth import validate_user_agent
 from mail_server.utils import build_box_metadata
-from mail_server.validators import (
-    validate_box_filter_params,
-    validate_patch_draft_request,
-    validate_post_draft_request,
-    validate_post_draft_send_request,
-)
 
 router = APIRouter(prefix="/drafts", tags=["drafts"])
 
@@ -26,10 +28,11 @@ router = APIRouter(prefix="/drafts", tags=["drafts"])
 @router.get(
     "", summary="Get a list of message drafts", response_model=DraftsGetResponse
 )
-async def get_drafts(request: Request) -> DraftsGetResponse:
+async def get_drafts(
+    request: Request, filters: Annotated[BoxFilterParams, Query()]
+) -> DraftsGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    filters = await validate_box_filter_params(request)
     if filters.sort_by == "sent_at":
         raise HTTPException(
             status_code=422,
@@ -49,10 +52,9 @@ async def get_drafts(request: Request) -> DraftsGetResponse:
 
 
 @router.post("", summary="Create a new message draft", response_model=DraftPostResponse)
-async def post_draft(request: Request) -> DraftPostResponse:
+async def post_draft(request: Request, payload: DraftPostRequest) -> DraftPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    payload = await validate_post_draft_request(request)
     result = await backend.post_draft(user_agent=user_agent, payload=payload)
 
     return DraftPostResponse(
@@ -88,10 +90,11 @@ async def get_draft(request: Request) -> DraftGetResponse:
     summary="Update a specific message draft by ID",
     response_model=DraftPatchResponse,
 )
-async def patch_draft(request: Request) -> DraftPatchResponse:
+async def patch_draft(
+    request: Request, payload: DraftPatchRequest
+) -> DraftPatchResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    payload = await validate_patch_draft_request(request)
     draft_id = request.path_params.get("draft_id")
     try:
         result = await backend.patch_draft(
@@ -135,10 +138,11 @@ async def delete_draft(request: Request) -> DraftDeleteResponse:
     summary="Send a message from an existing draft by ID",
     response_model=DraftSendPostResponse,
 )
-async def post_draft_send(request: Request) -> DraftSendPostResponse:
+async def post_draft_send(
+    request: Request, payload: DraftSendPostRequest
+) -> DraftSendPostResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    payload = await validate_post_draft_send_request(request)
     draft_id = request.path_params.get("draft_id")
     try:
         result = await backend.send_draft(

@@ -2,6 +2,14 @@
 # Copyright (c) 2026 Addison Kline
 
 from fastapi import APIRouter, HTTPException, Path, Request
+from mail_protocol.network.requests import (
+    AdminAgentPostRequest,
+    AdminDaemonPostRequest,
+    AdminSwarmPostRequest,
+    AdminUserPostRequest,
+    AdminWebhooksPatchRequest,
+    AdminWebhooksPostRequest,
+)
 from mail_protocol.network.responses import (
     AdminAgentDeleteResponse,
     AdminAgentGetResponse,
@@ -26,12 +34,6 @@ from mail_protocol.network.responses import (
 
 from mail_server.auth import validate_admin
 from mail_server.validators import (
-    validate_admin_post_agent_request,
-    validate_admin_post_daemon_request,
-    validate_admin_post_swarm_request,
-    validate_admin_post_user_request,
-    validate_admin_webhook_patch_request,
-    validate_admin_webhook_post_request,
     validate_local_address_param,
     validate_swarm_name_param,
     validate_user_id_param,
@@ -96,10 +98,10 @@ async def get_agent(
 )
 async def post_agent(
     request: Request,
+    payload: AdminAgentPostRequest,
 ) -> AdminAgentPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_post_agent_request(request=request)
     try:
         result = await backend.admin_post_agent(admin=admin, payload=payload)
     except ValueError:
@@ -193,10 +195,10 @@ async def get_daemon(
 )
 async def post_daemon(
     request: Request,
+    payload: AdminDaemonPostRequest,
 ) -> AdminDaemonPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_post_daemon_request(request=request)
     try:
         result = await backend.admin_post_daemon(admin=admin, payload=payload)
     except ValueError:
@@ -288,10 +290,10 @@ async def get_user(
 )
 async def post_user(
     request: Request,
+    payload: AdminUserPostRequest,
 ) -> AdminUserPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_post_user_request(request=request)
     try:
         result = await backend.admin_post_user(admin=admin, payload=payload)
     except ValueError:
@@ -337,10 +339,11 @@ async def delete_user(
     summary="Create a new MAIL swarm on this server",
     response_model=AdminSwarmPostResponse,
 )
-async def post_swarm(request: Request) -> AdminSwarmPostResponse:
+async def post_swarm(
+    request: Request, payload: AdminSwarmPostRequest
+) -> AdminSwarmPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_post_swarm_request(request=request)
     try:
         result = await backend.admin_post_swarm(admin=admin, payload=payload)
     except ValueError:
@@ -428,10 +431,11 @@ async def get_webhook(
     summary="Create a new webhook for this server",
     response_model=AdminWebhooksPostResponse,
 )
-async def post_webhook(request: Request) -> AdminWebhooksPostResponse:
+async def post_webhook(
+    request: Request, payload: AdminWebhooksPostRequest
+) -> AdminWebhooksPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_webhook_post_request(request=request)
     result = await backend.admin_webhook_post(admin=admin, payload=payload)
 
     return AdminWebhooksPostResponse(
@@ -447,6 +451,7 @@ async def post_webhook(request: Request) -> AdminWebhooksPostResponse:
 )
 async def patch_webhook(
     request: Request,
+    payload: AdminWebhooksPatchRequest,
     webhook_id: str = Path(
         description="Webhook id (wh_<uuid>).",
         examples=["wh_123e4567-e89b-12d3-a456-426614174000"],
@@ -454,7 +459,6 @@ async def patch_webhook(
 ) -> AdminWebhooksPatchResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_webhook_patch_request(request=request)
     webhook_id = validate_webhook_id_param(webhook_id)
     try:
         result = await backend.admin_webhook_patch(

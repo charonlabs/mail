@@ -3,6 +3,11 @@
 
 from fastapi import APIRouter, HTTPException, Path, Request
 from mail_protocol.core.lists import MAILListPolicy
+from mail_protocol.network.requests import (
+    AdminListPatchRequest,
+    AdminListPostRequest,
+    ListMemberPostRequest,
+)
 from mail_protocol.network.responses import (
     AdminListDeleteResponse,
     AdminListGetResponse,
@@ -18,9 +23,6 @@ from mail_protocol.network.responses import (
 from mail_server.auth import validate_admin, validate_user_agent
 from mail_server.backends.base import MAILServerBackend
 from mail_server.validators import (
-    validate_admin_patch_list_request,
-    validate_admin_post_list_request,
-    validate_list_member_post_request,
     validate_local_address_param,
     validate_member_address_param,
 )
@@ -125,10 +127,11 @@ async def admin_get_list(
     summary="Create a new MAIL list on this server",
     response_model=AdminListPostResponse,
 )
-async def admin_post_list(request: Request) -> AdminListPostResponse:
+async def admin_post_list(
+    request: Request, payload: AdminListPostRequest
+) -> AdminListPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
-    payload = await validate_admin_post_list_request(request=request)
     _reject_unsupported_policy(payload.policy)
     try:
         result = await backend.admin_post_list(admin=admin, payload=payload)
@@ -143,14 +146,15 @@ async def admin_post_list(request: Request) -> AdminListPostResponse:
     response_model=AdminListPatchResponse,
 )
 async def admin_patch_list(
-    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+    request: Request,
+    payload: AdminListPatchRequest,
+    local_address: str = _LOCAL_ADDRESS_PATH,
 ) -> AdminListPatchResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
     list_address = _full_list_address(
         backend, validate_local_address_param(local_address)
     )
-    payload = await validate_admin_patch_list_request(request=request)
     _reject_unsupported_policy(payload.policy)
     try:
         result = await backend.admin_patch_list(
@@ -187,7 +191,9 @@ async def admin_delete_list(
     response_model=ListMemberPostResponse,
 )
 async def admin_add_list_member(
-    request: Request, local_address: str = _LOCAL_ADDRESS_PATH
+    request: Request,
+    payload: ListMemberPostRequest,
+    local_address: str = _LOCAL_ADDRESS_PATH,
 ) -> ListMemberPostResponse:
     backend = request.app.state.backend
     admin = await validate_admin(backend=backend, request=request)
@@ -195,7 +201,6 @@ async def admin_add_list_member(
     list_address = _full_list_address(
         backend, validate_local_address_param(local_address)
     )
-    payload = await validate_list_member_post_request(request=request)
     try:
         result = await backend.add_list_member(
             list_address=list_address,

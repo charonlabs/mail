@@ -23,6 +23,7 @@ def _set_import_defaults() -> None:
     os.environ.setdefault("MAIL_JWT_SECRET_KEY", "openapi-generation-only")
     os.environ.setdefault("MAIL_JWT_ALGORITHM", "HS256")
     os.environ.setdefault("MAIL_JWT_EXPIRE_MINUTES", "15")
+    os.environ.setdefault("MAIL_REFRESH_TOKEN_EXPIRE_DAYS", "30")
 
 
 def _load_schema() -> dict[str, Any]:
