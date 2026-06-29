@@ -24,6 +24,7 @@ from mail_client.commands import (
     cmd_outbox,
     cmd_outbox_open,
     cmd_ping,
+    cmd_refresh,
     cmd_reply,
     cmd_send,
     cmd_swarm_get,
@@ -68,6 +69,7 @@ COMMAND_GROUPS = [
         [
             ("ping (p)", "Ping a MAIL server."),
             ("login (l)", "Log into a MAIL server."),
+            ("refresh (rt)", "Renew your access token with a refresh token."),
             ("whoami (me, id)", "Show authenticated user-agent info."),
         ],
     ),
@@ -218,6 +220,17 @@ def build_parser() -> argparse.ArgumentParser:
         "login", aliases=["l"], prog="mail login", help=login_d, description=login_d
     )
     login_p.set_defaults(func=cmd_login, cmd="login")
+
+    # command `refresh`
+    refresh_d = "renew your access token using a refresh token"
+    refresh_p = subparsers.add_parser(
+        "refresh",
+        aliases=["rt"],
+        prog="mail refresh",
+        help=refresh_d,
+        description=refresh_d,
+    )
+    refresh_p.set_defaults(func=cmd_refresh, cmd="refresh")
 
     # command `whoami`
     whoami_d = "get authenticated user-agent info from a MAIL server"

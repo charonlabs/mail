@@ -73,3 +73,14 @@ def _print_text(response_obj: AuthTokenPostResponse) -> None:
     print(response_obj.access_token)
     print()
     print("Run subsequent commands with `MAIL_TOKEN={token}`")
+    # Interactive principals (users/admins) also receive a refresh token; agents
+    # and daemons do not.
+    if response_obj.refresh_token is not None:
+        print()
+        print("Got refresh token:")
+        print(response_obj.refresh_token)
+        print()
+        print(
+            "Renew your access token without logging in again by setting "
+            "`MAIL_REFRESH_TOKEN={refresh_token}` and running `mail refresh`"
+        )

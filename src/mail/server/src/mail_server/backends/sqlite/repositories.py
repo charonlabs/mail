@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.drafts import MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILListInBackend
@@ -37,7 +38,7 @@ from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import MAILUserAgentInBackend
 from mail_protocol.core.webhooks import MAILWebhook
 from mail_protocol.network.requests import BoxFilterParams
-from sqlalchemy import asc, delete, func, select
+from sqlalchemy import asc, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mail_server.backends.sqlite import serializers as ser
@@ -49,6 +50,7 @@ from mail_server.backends.sqlite.schema import (
     MessageBufferRow,
     MessageRow,
     OutboxEntryRow,
+    RefreshTokenRow,
     SwarmRow,
     TrashEntryRow,
     UserAgentRow,
@@ -95,6 +97,10 @@ class MailStore:
     @property
     def lists(self) -> ListRepository:
         return ListRepository(self.session)
+
+    @property
+    def refresh_tokens(self) -> RefreshTokenRepository:
+        return RefreshTokenRepository(self.session)
 
 
 # --------------------------------------------------------------------------- #
@@ -629,3 +635,57 @@ class ListRepository:
         await self.session.delete(row)
         await self.session.flush()
         return model
+
+
+# --------------------------------------------------------------------------- #
+# refresh_tokens (keyed by hash; no JSON body)
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class RefreshTokenRepository:
+    session: AsyncSession
+
+    async def get(self, token_hash: str) -> RefreshTokenRecord | None:
+        row = await self.session.get(RefreshTokenRow, token_hash)
+        if row is None:
+            return None
+        return ser.refresh_token_from_row(row)
+
+    async def add(self, model: RefreshTokenRecord) -> RefreshTokenRecord:
+        self.session.add(RefreshTokenRow(**ser.refresh_token_to_columns(model)))
+        await self.session.flush()
+        return model
+
+    async def mark_rotated(self, token_hash: str, rotated_at: datetime) -> None:
+        """Mark a token as revoked + rotated (the old half of a rotation)."""
+
+        await self.session.execute(
+            update(RefreshTokenRow)
+            .where(RefreshTokenRow.token_hash == token_hash)
+            .values(revoked=True, rotated_at=rotated_at)
+        )
+        await self.session.flush()
+
+    async def revoke_family(self, family_id: str) -> None:
+        await self.session.execute(
+            update(RefreshTokenRow)
+            .where(RefreshTokenRow.family_id == family_id)
+            .values(revoked=True)
+        )
+        await self.session.flush()
+
+    async def revoke_for_owner(self, owner_address: str) -> None:
+        await self.session.execute(
+            update(RefreshTokenRow)
+            .where(RefreshTokenRow.owner_address == owner_address)
+            .values(revoked=True)
+        )
+        await self.session.flush()
+
+    async def purge_expired(self, now: datetime) -> int:
+        result = await self.session.execute(
+            delete(RefreshTokenRow).where(RefreshTokenRow.expires_at < now)
+        )
+        await self.session.flush()
+        return result.rowcount or 0

@@ -230,6 +230,37 @@ class WebhookRow(Base):
     )
 
 
+class RefreshTokenRow(Base):
+    """
+    A stored refresh token, keyed by its hash.
+
+    Unlike the entity rows, this table has **no** ``body`` JSON column: the
+    ``RefreshTokenRecord`` model is tiny and every field is queried directly, so
+    all columns are typed (mirroring ``mailbox_items`` / ``message_buffer``).
+    ``owner_address`` cascades on user-agent deletion, so removing a principal
+    drops their refresh tokens for free.
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    # sha256 hex of the plaintext token.
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    family_id: Mapped[str] = mapped_column(String(64), index=True)
+    owner_address: Mapped[str] = mapped_column(
+        String(512),
+        ForeignKey("user_agents.address", ondelete="CASCADE"),
+        index=True,
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    revoked: Mapped[bool] = mapped_column(default=False)
+    rotated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class ListRow(Base):
     """A MAIL list. Members live inside ``body``, mirroring the memory backend."""
 

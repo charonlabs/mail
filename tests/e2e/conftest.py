@@ -52,6 +52,7 @@ class E2EStack:
             "MAIL_JWT_SECRET_KEY": "e2e-secret",
             "MAIL_JWT_ALGORITHM": "HS256",
             "MAIL_JWT_EXPIRE_MINUTES": "15",
+            "MAIL_REFRESH_TOKEN_EXPIRE_DAYS": "30",
         }
         self.server: subprocess.Popen | None = None
         self.credentials: dict[str, str] = {}

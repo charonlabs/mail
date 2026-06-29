@@ -10,6 +10,7 @@ from copy import deepcopy
 from datetime import UTC, datetime
 from typing import Any
 
+from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.constants import LIST_ADDRESS_PREFIX
 from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntrySummary
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
@@ -57,6 +58,7 @@ from mail_server.backends.memory.fs import (
     load_messages,
     load_outbox_entries,
     load_outboxes,
+    load_refresh_tokens,
     load_swarms,
     load_trash_entries,
     load_trashes,
@@ -71,6 +73,7 @@ from mail_server.backends.memory.fs import (
     save_messages,
     save_outbox_entries,
     save_outboxes,
+    save_refresh_tokens,
     save_swarms,
     save_trash_entries,
     save_trashes,
@@ -150,6 +153,7 @@ class MemoryBackend(MAILServerBackend):
             "message_buffer": list(self.message_buffer),
             "webhooks": dict(self.webhooks),
             "lists": dict(self.lists),
+            "refresh_tokens": dict(self.refresh_tokens),
         }
 
     async def persist(self, *, reason: str = "manual") -> None:
@@ -176,6 +180,7 @@ class MemoryBackend(MAILServerBackend):
             await save_message_buffer(snapshot["message_buffer"])
             await save_webhooks(snapshot["webhooks"])
             await save_lists(snapshot["lists"])
+            await save_refresh_tokens(snapshot["refresh_tokens"])
 
             elapsed = time.monotonic() - started_at
             logger.info(
@@ -348,6 +353,15 @@ class MemoryBackend(MAILServerBackend):
         Values: MAILListInBackend instances
         """
 
+        self.refresh_tokens: dict[str, RefreshTokenRecord] = (
+            await load_refresh_tokens()
+        )
+        """
+        A dict of all stored refresh tokens on this server.
+        Keys: token hashes (sha256 hex)
+        Values: RefreshTokenRecord instances
+        """
+
         host = kwargs.get("host")
         if host is not None:
             if isinstance(host, str):
@@ -410,6 +424,91 @@ class MemoryBackend(MAILServerBackend):
         self.user_agents.update({ua_addr: ua_in_be})
 
         return "success"
+
+    #
+    # Refresh token handlers
+    #
+    async def create_refresh_token(
+        self,
+        owner_address: str,
+        token_hash: str,
+        family_id: str,
+        expires_at: datetime,
+    ) -> None:
+        """
+        Persist a newly-issued refresh token.
+        """
+
+        self.refresh_tokens[token_hash] = RefreshTokenRecord(
+            token_hash=token_hash,
+            family_id=family_id,
+            owner_address=owner_address,
+            issued_at=datetime.now(UTC),
+            expires_at=expires_at,
+        )
+
+    async def get_refresh_token(self, token_hash: str) -> RefreshTokenRecord | None:
+        """
+        Get a stored refresh token by its hash, or None if it does not exist.
+        """
+
+        return self.refresh_tokens.get(token_hash)
+
+    async def rotate_refresh_token(self, old_hash: str, new_hash: str) -> None:
+        """
+        Rotate a refresh token: revoke the old one and mint a replacement in the
+        same family carrying the old token's ``expires_at`` forward.
+        """
+
+        old = self.refresh_tokens.get(old_hash)
+        if old is None:
+            raise ValueError(f"refresh token {old_hash} not found")
+
+        now = datetime.now(UTC)
+        old.revoked = True
+        old.rotated_at = now
+        self.refresh_tokens[old_hash] = old
+
+        self.refresh_tokens[new_hash] = RefreshTokenRecord(
+            token_hash=new_hash,
+            family_id=old.family_id,
+            owner_address=old.owner_address,
+            issued_at=now,
+            expires_at=old.expires_at,
+        )
+
+    async def revoke_refresh_family(self, family_id: str) -> None:
+        """
+        Revoke every refresh token in a family.
+        """
+
+        for record in self.refresh_tokens.values():
+            if record.family_id == family_id:
+                record.revoked = True
+
+    async def revoke_all_refresh_tokens(self, owner_address: str) -> None:
+        """
+        Revoke every refresh token owned by an address.
+        """
+
+        for record in self.refresh_tokens.values():
+            if record.owner_address == owner_address:
+                record.revoked = True
+
+    async def purge_expired_refresh_tokens(self) -> int:
+        """
+        Delete every refresh token whose ``expires_at`` is in the past.
+        """
+
+        now = datetime.now(UTC)
+        expired = [
+            token_hash
+            for token_hash, record in self.refresh_tokens.items()
+            if record.expires_at < now
+        ]
+        for token_hash in expired:
+            del self.refresh_tokens[token_hash]
+        return len(expired)
 
     #
     # Swarm endpoint handlers

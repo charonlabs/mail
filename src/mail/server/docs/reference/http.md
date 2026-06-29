@@ -11,7 +11,9 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 
 ### Authentication
 
-- `POST /auth/token`: Log in with a valid MAIL address and password to obtain a temporary access token.
+- `POST /auth/token`: Log in with a valid MAIL address and password to obtain a temporary access token (and, for users/admins, a refresh token).
+- `POST /auth/refresh`: Exchange a refresh token for a new access token, rotating the refresh token.
+- `POST /auth/logout`: Revoke the presented refresh token's family and clear the refresh cookie.
 - `GET /auth/whoami`: Obtain information on the logged-in MAIL server user-agent.
 - `POST /auth/password/reset`: Reset the logged-in user-agent's password.
 
@@ -75,3 +77,36 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 - `GET /admin/webhooks/{webhook_id}`: Get an existing server webhook by ID.
 - `DELETE /admin/webhooks/{webhook_id}`: Delete an existing server webhook by ID.
 - `PATCH /admin/webhooks/{webhook_id}`: Update an existing server webhook by ID.
+
+## Refresh tokens
+
+Access tokens are short-lived JWTs sent as `Authorization: Bearer <token>`.
+Interactive principals (users and admins) additionally receive a **refresh
+token** at login, which renews the access token without re-entering a password.
+Agents and daemons do not receive refresh tokens — they re-authenticate with
+their credentials.
+
+- **Delivery.** `POST /auth/token` and `POST /auth/refresh` return the refresh
+  token in the response body **and** set it as an `httpOnly`, `Secure`,
+  `SameSite=Strict` cookie scoped to `/auth`. Browsers rely on the cookie (it is
+  not readable by JavaScript, which mitigates XSS token theft); non-browser
+  clients (e.g. the CLI) send the token back in the `POST /auth/refresh` body.
+  The cookie takes precedence over the body when both are present.
+- **Rotation & reuse detection.** Every successful refresh invalidates the
+  presented token and issues a replacement in the same *family*. Presenting an
+  already-rotated (or revoked) token is treated as theft and revokes the entire
+  family.
+- **Expiry.** A family has an absolute lifetime
+  (`MAIL_REFRESH_TOKEN_EXPIRE_DAYS`) that is carried forward unchanged across
+  rotations — the window does not slide.
+- **Revocation.** `POST /auth/logout` revokes the family; a successful
+  `POST /auth/password/reset` revokes **all** of the principal's families.
+
+### Browser silent-refresh pattern
+
+Keep the access token in memory and let the browser hold the refresh cookie. On
+a `401` from any API call, `POST /auth/refresh` once (no body needed — the
+cookie is sent automatically) and retry the original request; optionally refresh
+proactively shortly before `expires_in` elapses. To avoid two tabs racing and
+tripping reuse detection, coalesce concurrent refreshes into a single in-flight
+request (single-flight).

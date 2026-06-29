@@ -39,6 +39,17 @@ class AuthTokenPostRequest(BaseModel):
     pass
 
 
+class AuthRefreshPostRequest(BaseModel):
+    """
+    Corresponds to `POST /auth/refresh`.
+    Body fallback carrying the refresh token for clients that cannot use the
+    ``httpOnly`` cookie (e.g. the CLI). Browsers send the token via cookie and
+    may omit the body entirely.
+    """
+
+    refresh_token: str | None = None
+
+
 class AuthPasswordResetRequest(BaseModel):
     """
     Corresponds to `POST /auth/password/reset`.
