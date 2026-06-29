@@ -36,7 +36,19 @@ paths:
       - authentication
       summary: Exchange a refresh token for a new access token (rotates the refresh
         token)
+      description: The refresh token is read from the httpOnly cookie when present
+        (browsers); the request body is the fallback for clients that cannot use the
+        cookie (e.g. the CLI). The body may be omitted entirely when the cookie carries
+        the token.
       operationId: post_auth_refresh_auth_refresh_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/AuthRefreshPostRequest'
+              - type: 'null'
+              title: Payload
       responses:
         '200':
           description: Successful Response
@@ -44,12 +56,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthRefreshPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /auth/logout:
     post:
       tags:
       - authentication
       summary: Revoke the presented refresh token's family and clear the cookie
+      description: The refresh token is read from the httpOnly cookie when present
+        (browsers), falling back to the request body. The body may be omitted entirely;
+        logout always succeeds and clears the cookie regardless.
       operationId: post_auth_logout_auth_logout_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              anyOf:
+              - $ref: '#/components/schemas/AuthRefreshPostRequest'
+              - type: 'null'
+              title: Payload
       responses:
         '200':
           description: Successful Response
@@ -57,6 +86,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthLogoutPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /auth/whoami:
     get:
       tags:
@@ -76,6 +111,12 @@ paths:
       - authentication
       summary: Reset the user-agent's password
       operationId: post_password_reset_auth_password_reset_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPasswordResetRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -83,6 +124,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthPasswordResetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /swarms:
     get:
       tags:
@@ -128,6 +175,44 @@ paths:
       - inbox
       summary: Get a list of inbox messages
       operationId: get_inbox_inbox_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          exclusiveMinimum: 0
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: sort_by
+        in: query
+        required: false
+        schema:
+          enum:
+          - sent_at
+          - entered_at
+          type: string
+          default: entered_at
+          title: Sort By
+      - name: order
+        in: query
+        required: false
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+          default: desc
+          title: Order
       responses:
         '200':
           description: Successful Response
@@ -135,6 +220,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InboxGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /inbox/{message_id}:
     get:
       tags:
@@ -166,6 +257,44 @@ paths:
       - outbox
       summary: Get a list of outbox messages
       operationId: get_outbox_outbox_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          exclusiveMinimum: 0
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: sort_by
+        in: query
+        required: false
+        schema:
+          enum:
+          - sent_at
+          - entered_at
+          type: string
+          default: entered_at
+          title: Sort By
+      - name: order
+        in: query
+        required: false
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+          default: desc
+          title: Order
       responses:
         '200':
           description: Successful Response
@@ -173,6 +302,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OutboxGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /outbox/{message_id}:
     get:
       tags:
@@ -192,6 +327,44 @@ paths:
       - drafts
       summary: Get a list of message drafts
       operationId: get_drafts_drafts_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          exclusiveMinimum: 0
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: sort_by
+        in: query
+        required: false
+        schema:
+          enum:
+          - sent_at
+          - entered_at
+          type: string
+          default: entered_at
+          title: Sort By
+      - name: order
+        in: query
+        required: false
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+          default: desc
+          title: Order
       responses:
         '200':
           description: Successful Response
@@ -199,11 +372,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DraftsGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
       - drafts
       summary: Create a new message draft
       operationId: post_draft_drafts_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftPostRequest'
       responses:
         '200':
           description: Successful Response
@@ -211,6 +396,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DraftPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /drafts/{draft_id}:
     get:
       tags:
@@ -241,6 +432,12 @@ paths:
       - drafts
       summary: Update a specific message draft by ID
       operationId: patch_draft_drafts__draft_id__patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftPatchRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -248,12 +445,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DraftPatchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /drafts/{draft_id}/send:
     post:
       tags:
       - drafts
       summary: Send a message from an existing draft by ID
       operationId: post_draft_send_drafts__draft_id__send_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DraftSendPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -261,12 +470,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DraftSendPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /trash:
     get:
       tags:
       - trash
       summary: Get a list of messages in trash
       operationId: get_trashed_messages_trash_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          exclusiveMinimum: 0
+          default: 20
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: sort_by
+        in: query
+        required: false
+        schema:
+          enum:
+          - sent_at
+          - entered_at
+          type: string
+          default: entered_at
+          title: Sort By
+      - name: order
+        in: query
+        required: false
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+          default: desc
+          title: Order
       responses:
         '200':
           description: Successful Response
@@ -274,6 +527,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrashGetResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /trash/{message_id}:
     get:
       tags:
@@ -344,6 +603,12 @@ paths:
       - daemon
       summary: Upload new messages to deliver from local agent(s)
       operationId: deliver_local_messages_daemon_deliver_local_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DaemonDeliverLocalRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -351,12 +616,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DaemonDeliverLocalResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /daemon/deliver/remote:
     post:
       tags:
       - daemon
       summary: Upload new messages to deliver from remote agent(s)
       operationId: deliver_remote_messages_daemon_deliver_remote_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DaemonDeliverRemoteRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -364,6 +641,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DaemonDeliverRemoteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/agents:
     get:
       tags:
@@ -382,6 +665,12 @@ paths:
       - admin
       summary: Create a new MAIL agent on this server
       operationId: post_agent_admin_agents_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAgentPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -389,6 +678,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAgentPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/agents/{local_address}:
     get:
       tags:
@@ -466,6 +761,12 @@ paths:
       - admin
       summary: Create a new MAIL daemon on this server
       operationId: post_daemon_admin_daemons_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDaemonPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -473,6 +774,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminDaemonPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/daemons/{worker_name}:
     get:
       tags:
@@ -550,6 +857,12 @@ paths:
       - admin
       summary: Create a new MAIL user on this server
       operationId: post_user_admin_users_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUserPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -557,6 +870,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminUserPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/users/{user_id}:
     get:
       tags:
@@ -622,6 +941,12 @@ paths:
       - admin
       summary: Create a new MAIL swarm on this server
       operationId: post_swarm_admin_swarms_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSwarmPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -629,6 +954,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminSwarmPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/swarms/{swarm_name}:
     delete:
       tags:
@@ -677,6 +1008,12 @@ paths:
       - admin
       summary: Create a new webhook for this server
       operationId: post_webhook_admin_webhooks_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminWebhooksPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -684,6 +1021,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminWebhooksPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/webhooks/{webhook_id}:
     get:
       tags:
@@ -730,6 +1073,12 @@ paths:
           - wh_123e4567-e89b-12d3-a456-426614174000
           title: Webhook Id
         description: Webhook id (wh_<uuid>).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminWebhooksPatchRequest'
       responses:
         '200':
           description: Successful Response
@@ -790,6 +1139,12 @@ paths:
       - admin-lists
       summary: Create a new MAIL list on this server
       operationId: admin_post_list_admin_lists_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminListPostRequest'
+        required: true
       responses:
         '200':
           description: Successful Response
@@ -797,6 +1152,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminListPostResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /admin/lists/{local_address}:
     get:
       tags:
@@ -847,6 +1208,12 @@ paths:
           title: Local Address
         description: 'List local address (name@swarm); the list: prefix and host are
           implied.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminListPatchRequest'
       responses:
         '200':
           description: Successful Response
@@ -910,6 +1277,12 @@ paths:
           title: Local Address
         description: 'List local address (name@swarm); the list: prefix and host are
           implied.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListMemberPostRequest'
       responses:
         '200':
           description: Successful Response
@@ -1130,6 +1503,26 @@ components:
       description: 'Corresponds to `GET /admin/agents/{local_address}`.
 
         Contains a specific MAIL agent registered on this server.'
+    AdminAgentPostRequest:
+      properties:
+        agent_name:
+          type: string
+          title: Agent Name
+        swarm_name:
+          type: string
+          title: Swarm Name
+        agent_password:
+          type: string
+          title: Agent Password
+      type: object
+      required:
+      - agent_name
+      - swarm_name
+      - agent_password
+      title: AdminAgentPostRequest
+      description: 'Corresponds to `POST /admin/agents`.
+
+        Contains an agent name, swarm, and password to register with.'
     AdminAgentPostResponse:
       properties:
         agent:
@@ -1198,6 +1591,22 @@ components:
       description: 'Corresponds to `GET /admin/daemons/{worker_name}`.
 
         Contains a specific MAIL daemon registered on this server.'
+    AdminDaemonPostRequest:
+      properties:
+        worker_name:
+          type: string
+          title: Worker Name
+        daemon_password:
+          type: string
+          title: Daemon Password
+      type: object
+      required:
+      - worker_name
+      - daemon_password
+      title: AdminDaemonPostRequest
+      description: 'Corresponds to `POST /admin/daemons`.
+
+        Contains a worker name and password to register with.'
     AdminDaemonPostResponse:
       properties:
         daemon:
@@ -1261,6 +1670,22 @@ components:
       - metadata
       title: AdminListGetResponse
       description: Corresponds to `GET /admin/lists/{local_address}`.
+    AdminListPatchRequest:
+      properties:
+        policy:
+          anyOf:
+          - $ref: '#/components/schemas/MAILListPolicy'
+          - type: 'null'
+      type: object
+      title: AdminListPatchRequest
+      description: 'Corresponds to `PATCH /admin/lists/{local_address}`.
+
+
+        All fields are optional; only the policy is mutable at v1. The
+
+        canonical address (name, swarm, host) is immutable for the life of
+
+        the list — re-create + cut over if a rename is required.'
     AdminListPatchResponse:
       properties:
         mail_list:
@@ -1275,6 +1700,38 @@ components:
       - metadata
       title: AdminListPatchResponse
       description: Corresponds to `PATCH /admin/lists/{local_address}`.
+    AdminListPostRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+        swarm_name:
+          type: string
+          title: Swarm Name
+        owner:
+          type: string
+          title: Owner
+        members:
+          items:
+            type: string
+          type: array
+          title: Members
+          default: []
+        policy:
+          $ref: '#/components/schemas/MAILListPolicy'
+          default:
+            visibility: public
+            join_policy: open
+            send_policy: open
+      type: object
+      required:
+      - name
+      - swarm_name
+      - owner
+      title: AdminListPostRequest
+      description: 'Corresponds to `POST /admin/lists`.
+
+        Contains the descriptive fields needed to create a new MAIL list.'
     AdminListPostResponse:
       properties:
         mail_list:
@@ -1322,6 +1779,28 @@ components:
       description: 'Corresponds to `DELETE /admin/swarms/{swarm_name}`.
 
         Contains info on the newly-deleted MAIL swarm on this server.'
+    AdminSwarmPostRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        keywords:
+          items:
+            type: string
+          type: array
+          title: Keywords
+      type: object
+      required:
+      - name
+      - description
+      - keywords
+      title: AdminSwarmPostRequest
+      description: 'Corresponds to `POST /admin/swarms`.
+
+        Contains basic info necessary for new MAIL swarm creation.'
     AdminSwarmPostResponse:
       properties:
         swarm:
@@ -1370,6 +1849,22 @@ components:
       description: 'Corresponds to `GET /admin/users/{user_id}`.
 
         Contains a specific MAIL user registered on this server.'
+    AdminUserPostRequest:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        user_password:
+          type: string
+          title: User Password
+      type: object
+      required:
+      - user_id
+      - user_password
+      title: AdminUserPostRequest
+      description: 'Corresponds to `POST /admin/users`.
+
+        Contains a user ID and password to register with.'
     AdminUserPostResponse:
       properties:
         user:
@@ -1456,6 +1951,22 @@ components:
       description: 'Corresponds to `GET /admin/webhooks`.
 
         Contains a list of existing webhooks by ID.'
+    AdminWebhooksPatchRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        secret:
+          type: string
+          title: Secret
+      type: object
+      required:
+      - url
+      - secret
+      title: AdminWebhooksPatchRequest
+      description: 'Corresponds to `PATCH /admin/webhooks`.
+
+        Allows client to change URL or secret for an existing webhook.'
     AdminWebhooksPatchResponse:
       properties:
         webhook:
@@ -1472,6 +1983,28 @@ components:
       description: 'Corresponds to `PATCH /admin/webhooks/{webhook_id}`.
 
         Contains information on the patched webhook.'
+    AdminWebhooksPostRequest:
+      properties:
+        url:
+          type: string
+          title: Url
+        events:
+          items:
+            type: string
+          type: array
+          title: Events
+        secret:
+          type: string
+          title: Secret
+      type: object
+      required:
+      - url
+      - events
+      - secret
+      title: AdminWebhooksPostRequest
+      description: 'Corresponds to `POST /admin/webhooks`.
+
+        Contains info required for webhook setup.'
     AdminWebhooksPostResponse:
       properties:
         webhook:
@@ -1501,6 +2034,22 @@ components:
       description: 'Corresponds to `POST /auth/logout`.
 
         Contains a message indicating operation success.'
+    AuthPasswordResetRequest:
+      properties:
+        current_password:
+          type: string
+          title: Current Password
+        new_password:
+          type: string
+          title: New Password
+      type: object
+      required:
+      - current_password
+      - new_password
+      title: AuthPasswordResetRequest
+      description: 'Corresponds to `POST /auth/password/reset`.
+
+        Contains user''s current password and desired new password.'
     AuthPasswordResetResponse:
       properties:
         status:
@@ -1514,6 +2063,22 @@ components:
       description: 'Corresponds to `POST /auth/password/reset`.
 
         Contains a message indicating operation success.'
+    AuthRefreshPostRequest:
+      properties:
+        refresh_token:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Refresh Token
+      type: object
+      title: AuthRefreshPostRequest
+      description: 'Corresponds to `POST /auth/refresh`.
+
+        Body fallback carrying the refresh token for clients that cannot use the
+
+        ``httpOnly`` cookie (e.g. the CLI). Browsers send the token via cookie and
+
+        may omit the body entirely.'
     AuthRefreshPostResponse:
       properties:
         access_token:
@@ -1645,6 +2210,20 @@ components:
       - username
       - password
       title: Body_create_auth_token_auth_token_post
+    DaemonDeliverLocalRequest:
+      properties:
+        message_ids:
+          items:
+            type: string
+          type: array
+          title: Message Ids
+      type: object
+      required:
+      - message_ids
+      title: DaemonDeliverLocalRequest
+      description: 'Corresponds to `POST /daemon/deliver/local`.
+
+        Contains a list of local message IDs to deliver to their intended local targets.'
     DaemonDeliverLocalResponse:
       properties:
         messages:
@@ -1664,6 +2243,21 @@ components:
       description: 'Corresponds to `POST /daemon/deliver/local`.
 
         Contains the list of messages successfully delivered to server-local user-agents.'
+    DaemonDeliverRemoteRequest:
+      properties:
+        messages:
+          items:
+            $ref: '#/components/schemas/MAILMessage'
+          type: array
+          title: Messages
+      type: object
+      required:
+      - messages
+      title: DaemonDeliverRemoteRequest
+      description: 'Corresponds to `POST /daemon/deliver/remote`.
+
+        Contains a list of remote MAIL messages to deliver to their intended local
+        targets.'
     DaemonDeliverRemoteResponse:
       properties:
         messages:
@@ -1736,6 +2330,44 @@ components:
       description: 'Corresponds to `GET /drafts/{draft_id}`.
 
         Contains a specific message draft inside the user-agent''s drafts box.'
+    DraftPatchRequest:
+      properties:
+        subject:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Subject
+        body:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body
+        reply_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reply To
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+      type: object
+      title: DraftPatchRequest
+      description: 'Corresponds to `PATCH /drafts/{draft_id}`.
+
+        Contains the fields to update on an existing MAIL message draft.
+
+
+        Every field is optional: a field left unset (``None``) is not modified,
+
+        so callers can patch a single field without resending the rest. The one
+
+        asymmetry is ``tags`` — sending ``tags: []`` clears all tags, while
+
+        omitting ``tags`` leaves the existing tags untouched.'
     DraftPatchResponse:
       properties:
         entry:
@@ -1752,6 +2384,40 @@ components:
       description: 'Corresponds to `PATCH /drafts/{draft_id}`.
 
         Contains the updated message draft in the user-agent''s drafts box.'
+    DraftPostRequest:
+      properties:
+        subject:
+          type: string
+          title: Subject
+        body:
+          type: string
+          title: Body
+        reply_to:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reply To
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+          default: []
+      type: object
+      required:
+      - subject
+      - body
+      title: DraftPostRequest
+      description: 'Corresponds to `POST /drafts/`.
+
+        Contains relevant information for creating a new MAIL message draft.
+
+
+        `reply_to` optionally references the `message_id` of the message this
+
+        draft is replying to. `tags` is an optional list of sender-defined slug
+
+        strings used to categorize the eventual message.'
     DraftPostResponse:
       properties:
         entry:
@@ -1768,6 +2434,33 @@ components:
       description: 'Corresponds to `POST /drafts`.
 
         Contains the new entry in the user-agent''s drafts box.'
+    DraftSendPostRequest:
+      properties:
+        recipients:
+          items:
+            type: string
+          type: array
+          title: Recipients
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+          default: []
+      type: object
+      required:
+      - recipients
+      title: DraftSendPostRequest
+      description: 'Corresponds to `POST /drafts/{draft_id}/send`.
+
+        Contains relevant information for sending an existing draft as a MAIL message.
+
+
+        `tags` is an optional list of sender-defined slug strings; any tags
+
+        supplied here are merged (union, order-preserving) with the tags already
+
+        stored on the draft.'
     DraftSendPostResponse:
       properties:
         message:
@@ -1911,6 +2604,27 @@ components:
         The updated list with the member removed (idempotent — removing a
 
         non-member is a no-op).'
+    ListMemberPostRequest:
+      properties:
+        member_address:
+          type: string
+          title: Member Address
+      type: object
+      required:
+      - member_address
+      title: ListMemberPostRequest
+      description: 'Corresponds to ``POST /lists/{local_address}/subscribe``
+
+        and ``POST /admin/lists/{local_address}/members``.
+
+
+        ``member_address`` is the address being added. For the public
+
+        subscribe path, this must match the authenticated bearer
+
+        (self-subscribe); for the admin add path, any valid MAIL address
+
+        is accepted.'
     ListMemberPostResponse:
       properties:
         mail_list:

@@ -6,8 +6,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
+from mail_protocol.network.requests import (
+    AuthPasswordResetRequest,
+    AuthRefreshPostRequest,
+)
 from mail_protocol.network.responses import (
     AuthLogoutPostResponse,
     AuthPasswordResetResponse,
@@ -27,10 +31,6 @@ from mail_server.auth import (
     refresh_token_expiry,
     set_refresh_cookie,
     validate_user_agent,
-)
-from mail_server.validators import (
-    validate_auth_password_reset_request,
-    validate_auth_refresh_request,
 )
 
 ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("MAIL_JWT_EXPIRE_MINUTES")
@@ -89,7 +89,9 @@ async def create_auth_token(
     )
 
 
-async def _read_refresh_token(request: Request) -> str | None:
+def _read_refresh_token(
+    request: Request, payload: AuthRefreshPostRequest | None
+) -> str | None:
     """
     Extract the presented refresh token: the cookie (browsers) takes precedence,
     falling back to the request body (CLI / non-cookie clients).
@@ -98,18 +100,24 @@ async def _read_refresh_token(request: Request) -> str | None:
     token = request.cookies.get(REFRESH_COOKIE_NAME)
     if token is not None:
         return token
-    payload = await validate_auth_refresh_request(request=request)
-    return payload.refresh_token
+    return payload.refresh_token if payload is not None else None
 
 
 @router.post(
     "/refresh",
     summary="Exchange a refresh token for a new access token (rotates the refresh token)",
+    description=(
+        "The refresh token is read from the httpOnly cookie when present "
+        "(browsers); the request body is the fallback for clients that cannot "
+        "use the cookie (e.g. the CLI). The body may be omitted entirely when "
+        "the cookie carries the token."
+    ),
     response_model=AuthRefreshPostResponse,
 )
 async def post_auth_refresh(
     request: Request,
     response: Response,
+    payload: AuthRefreshPostRequest | None = Body(default=None),
 ) -> AuthRefreshPostResponse:
     backend = request.app.state.backend
     credentials_exception = HTTPException(
@@ -118,7 +126,7 @@ async def post_auth_refresh(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    token = await _read_refresh_token(request)
+    token = _read_refresh_token(request, payload)
     if token is None:
         raise credentials_exception
 
@@ -165,17 +173,23 @@ async def post_auth_refresh(
 @router.post(
     "/logout",
     summary="Revoke the presented refresh token's family and clear the cookie",
+    description=(
+        "The refresh token is read from the httpOnly cookie when present "
+        "(browsers), falling back to the request body. The body may be omitted "
+        "entirely; logout always succeeds and clears the cookie regardless."
+    ),
     response_model=AuthLogoutPostResponse,
 )
 async def post_auth_logout(
     request: Request,
     response: Response,
+    payload: AuthRefreshPostRequest | None = Body(default=None),
 ) -> AuthLogoutPostResponse:
     backend = request.app.state.backend
 
     # Idempotent: revoke the family if the token resolves, but always succeed and
     # clear the cookie so a stale/absent token still logs the client out.
-    token = await _read_refresh_token(request)
+    token = _read_refresh_token(request, payload)
     if token is not None:
         record = await backend.get_refresh_token(hash_refresh_token(token))
         if record is not None:
@@ -202,10 +216,11 @@ async def get_token_info(request: Request) -> AuthWhoamiGetResponse:
     summary="Reset the user-agent's password",
     response_model=AuthPasswordResetResponse,
 )
-async def post_password_reset(request: Request) -> AuthPasswordResetResponse:
+async def post_password_reset(
+    request: Request, payload: AuthPasswordResetRequest
+) -> AuthPasswordResetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    payload = await validate_auth_password_reset_request(request=request)
     try:
         result = await backend.reset_password(user_agent=user_agent, payload=payload)
     except ValueError:

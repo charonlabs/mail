@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from mail_protocol.network.requests import BoxFilterParams
 from mail_protocol.network.responses import (
     TrashClearPostResponse,
     TrashGetResponse,
@@ -11,7 +14,6 @@ from mail_protocol.network.responses import (
 
 from mail_server.auth import validate_user_agent
 from mail_server.utils import build_box_metadata
-from mail_server.validators import validate_box_filter_params
 
 router = APIRouter(prefix="/trash", tags=["trash"])
 
@@ -19,10 +21,11 @@ router = APIRouter(prefix="/trash", tags=["trash"])
 @router.get(
     "", summary="Get a list of messages in trash", response_model=TrashGetResponse
 )
-async def get_trashed_messages(request: Request) -> TrashGetResponse:
+async def get_trashed_messages(
+    request: Request, filters: Annotated[BoxFilterParams, Query()]
+) -> TrashGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    filters = await validate_box_filter_params(request)
     try:
         entries, total = await backend.get_trash(user_agent, filters)
     except ValueError:

@@ -2,6 +2,10 @@
 # Copyright (c) 2026 Addison Kline
 
 from fastapi import APIRouter, Request
+from mail_protocol.network.requests import (
+    DaemonDeliverLocalRequest,
+    DaemonDeliverRemoteRequest,
+)
 from mail_protocol.network.responses import (
     DaemonDeliverLocalResponse,
     DaemonDeliverRemoteResponse,
@@ -9,10 +13,6 @@ from mail_protocol.network.responses import (
 )
 
 from mail_server.auth import validate_daemon
-from mail_server.validators import (
-    validate_deliver_local_request,
-    validate_deliver_remote_request,
-)
 
 router = APIRouter(prefix="/daemon", tags=["daemon"])
 
@@ -39,10 +39,11 @@ async def clear_message_buffer(
     summary="Upload new messages to deliver from local agent(s)",
     response_model=DaemonDeliverLocalResponse,
 )
-async def deliver_local_messages(request: Request) -> DaemonDeliverLocalResponse:
+async def deliver_local_messages(
+    request: Request, payload: DaemonDeliverLocalRequest
+) -> DaemonDeliverLocalResponse:
     backend = request.app.state.backend
     daemon = await validate_daemon(backend=backend, request=request)
-    payload = await validate_deliver_local_request(request=request)
     result = await backend.daemon_deliver_local(daemon=daemon, payload=payload)
     return DaemonDeliverLocalResponse(
         messages=result,
@@ -55,10 +56,11 @@ async def deliver_local_messages(request: Request) -> DaemonDeliverLocalResponse
     summary="Upload new messages to deliver from remote agent(s)",
     response_model=DaemonDeliverRemoteResponse,
 )
-async def deliver_remote_messages(request: Request) -> DaemonDeliverRemoteResponse:
+async def deliver_remote_messages(
+    request: Request, payload: DaemonDeliverRemoteRequest
+) -> DaemonDeliverRemoteResponse:
     backend = request.app.state.backend
     daemon = await validate_daemon(backend=backend, request=request)
-    payload = await validate_deliver_remote_request(request=request)
     result = await backend.daemon_deliver_remote(daemon=daemon, payload=payload)
     return DaemonDeliverRemoteResponse(
         messages=result,
