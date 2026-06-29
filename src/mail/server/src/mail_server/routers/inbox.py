@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Addison Kline
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from mail_protocol.network.requests import BoxFilterParams
 from mail_protocol.network.responses import (
     InboxGetResponse,
     InboxMessageDeleteResponse,
@@ -10,7 +13,6 @@ from mail_protocol.network.responses import (
 
 from mail_server.auth import validate_user_agent
 from mail_server.utils import build_box_metadata
-from mail_server.validators import validate_box_filter_params
 
 router = APIRouter(prefix="/inbox", tags=["inbox"])
 
@@ -20,10 +22,11 @@ router = APIRouter(prefix="/inbox", tags=["inbox"])
     summary="Get a list of inbox messages",
     response_model=InboxGetResponse,
 )
-async def get_inbox(request: Request) -> InboxGetResponse:
+async def get_inbox(
+    request: Request, filters: Annotated[BoxFilterParams, Query()]
+) -> InboxGetResponse:
     backend = request.app.state.backend
     user_agent = await validate_user_agent(backend=backend, request=request)
-    filters = await validate_box_filter_params(request)
     try:
         entries, total = await backend.get_inbox(user_agent, filters)
     except ValueError:
