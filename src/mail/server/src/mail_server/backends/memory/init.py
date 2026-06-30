@@ -82,6 +82,11 @@ def init_memory_backend(
     INBOXES_PATH.mkdir(exist_ok=True)
     print(f"ensured deployment inboxes: {INBOXES_PATH}")
 
+    # ~/.mail-swarms/deployments/{deployment}/read_inbox
+    READ_INBOX_PATH = DEPLOYMENT_PATH.joinpath("read_inbox")
+    READ_INBOX_PATH.mkdir(exist_ok=True)
+    print(f"ensured deployment read_inbox: {READ_INBOX_PATH}")
+
     # ~/.mail-swarms/deployments/{deployment}/outbox_entries
     OUTBOX_ENTRIES_PATH = DEPLOYMENT_PATH.joinpath("outbox_entries")
     # print(f"ensuring deployment outbox_entries: {OUTBOX_ENTRIES_PATH}")

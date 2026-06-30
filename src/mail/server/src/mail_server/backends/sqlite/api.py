@@ -279,6 +279,8 @@ class SQLiteBackend(MAILServerBackend):
             message = await store.messages.get(message_id)
             if message is None:
                 raise ValueError(f"message with ID {message_id} not found in messages")
+            # Opening a message marks it read for this owner.
+            await store.boxes.mark_read(ua_address, BOX_INBOX, message_id)
         return MAILInboxEntry(
             message=message,
             received_at=inbox_entry.received_at,
