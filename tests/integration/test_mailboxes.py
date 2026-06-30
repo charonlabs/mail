@@ -11,6 +11,7 @@ from mail_protocol.core.messages import MAILMessage
 
 USER = "user:alice@localhost"
 OTHER_USER = "user:bob@localhost"
+AGENT = "sage@chorus@localhost"
 DAEMON = "daemon:dummy@localhost"
 
 
@@ -63,6 +64,55 @@ def test_inbox_open_isolated_between_users(
     message_id = deliver_message(USER, [OTHER_USER])
     response = app_client.get(f"/inbox/{message_id}", headers=headers_for(USER))
     assert response.status_code == 404
+
+
+def test_inbox_delivered_message_starts_unread(
+    app_client: TestClient, headers_for, deliver_message
+) -> None:
+    deliver_message(USER, [OTHER_USER])
+    response = app_client.get("/inbox", headers=headers_for(OTHER_USER))
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["is_read"] is False
+
+
+def test_inbox_open_marks_message_read(
+    app_client: TestClient, headers_for, deliver_message
+) -> None:
+    message_id = deliver_message(USER, [OTHER_USER])
+
+    # Opening the message flips it to read.
+    open_response = app_client.get(
+        f"/inbox/{message_id}", headers=headers_for(OTHER_USER)
+    )
+    assert open_response.status_code == 200
+
+    list_response = app_client.get("/inbox", headers=headers_for(OTHER_USER))
+    entries = list_response.json()["entries"]
+    assert len(entries) == 1
+    assert entries[0]["message_id"] == message_id
+    assert entries[0]["is_read"] is True
+
+
+def test_inbox_read_status_is_per_owner(
+    app_client: TestClient, headers_for, deliver_message
+) -> None:
+    """One recipient opening a message must not mark it read for another."""
+
+    message_id = deliver_message(USER, [OTHER_USER, AGENT])
+
+    # bob opens the message; sage never does.
+    app_client.get(f"/inbox/{message_id}", headers=headers_for(OTHER_USER))
+
+    bob_entries = app_client.get("/inbox", headers=headers_for(OTHER_USER)).json()[
+        "entries"
+    ]
+    sage_entries = app_client.get("/inbox", headers=headers_for(AGENT)).json()[
+        "entries"
+    ]
+    assert bob_entries[0]["is_read"] is True
+    assert sage_entries[0]["is_read"] is False
 
 
 # ─── Outbox ────────────────────────────────────────────────────────

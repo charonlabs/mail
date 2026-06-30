@@ -2861,6 +2861,10 @@ components:
         delivered_by:
           type: string
           title: Delivered By
+        is_read:
+          type: boolean
+          title: Is Read
+          default: false
       type: object
       required:
       - message_id

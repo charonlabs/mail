@@ -283,6 +283,69 @@ async def load_inboxes() -> dict[str, list[str]]:
     return inboxes
 
 
+async def load_read_inbox() -> dict[str, set[str]]:
+    """
+    Load saved per-owner inbox read state from the local filesystem.
+
+    Mirrors ``load_inboxes``: one file per owner, one read message id per line.
+    A missing ``read_inbox`` directory means no read state has been persisted
+    yet (e.g. a deployment created before read tracking existed), which is
+    treated as "everything unread".
+    """
+
+    read_inbox_path = DEPLOYMENT_PATH.joinpath("read_inbox")
+    logger.info(f"loading read_inbox: {read_inbox_path}...")
+    read_inbox: dict[str, set[str]] = {}
+    if not read_inbox_path.is_dir():
+        logger.info("no read_inbox directory found; treating all messages as unread")
+        return read_inbox
+    with scandir(read_inbox_path) as entries:
+        for entry in entries:
+            if entry.is_file():
+                try:
+                    validate_mail_address(entry.name)
+                except ValueError as e:
+                    logger.warning(f"MAIL address validation failed: {e}")
+                    continue
+
+                with open(entry) as read_file:
+                    content = read_file.readlines()
+                    msg_ids: set[str] = set()
+                    for ln in content:
+                        msg_id = ln.strip()
+                        if not msg_id:
+                            continue
+                        try:
+                            validate_uuid(msg_id)
+                        except ValueError as e:
+                            logger.warning(f"Message ID validation failed: {e}")
+                            continue
+
+                        msg_ids.add(msg_id)
+
+                    read_inbox.update({entry.name: msg_ids})
+
+    logger.info(f"found read state for {len(read_inbox)} inboxes")
+
+    return read_inbox
+
+
+async def save_read_inbox(read_inbox: dict[str, set[str]]) -> None:
+    """
+    Save per-owner inbox read state from memory to the local filesystem.
+    """
+
+    logger.info(f"saving read state for {len(read_inbox)} inboxes...")
+
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("read_inbox"),
+        {
+            address: "".join(f"{msg_id}\n" for msg_id in sorted(msg_ids))
+            for address, msg_ids in read_inbox.items()
+        },
+    )
+
+
 async def load_outbox_entries() -> dict[str, MAILOutboxEntrySummary]:
     """
     Load saved outbox entries from the local filesystem.
@@ -803,10 +866,7 @@ async def save_lists(lists: dict[str, MAILListInBackend]) -> None:
 
     _save_directory_snapshot(
         DEPLOYMENT_PATH.joinpath("lists"),
-        {
-            address: mail_list.model_dump_json()
-            for address, mail_list in lists.items()
-        },
+        {address: mail_list.model_dump_json() for address, mail_list in lists.items()},
     )
 
 

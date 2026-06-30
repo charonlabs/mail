@@ -27,7 +27,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Protocol
 
-from sqlalchemy import event
+from sqlalchemy import event, inspect, text
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -116,11 +116,24 @@ def _ensure_schema_columns(connection: Connection) -> None:
     This is the forward-compatibility hook mirroring chorus' approach: when a
     queryable column is added to a ``*Row`` table in a later release, add an
     idempotent ``ALTER TABLE ... ADD COLUMN`` here so existing databases pick it
-    up without a migration framework. There are no such additions yet, so this
-    is currently a no-op.
+    up without a migration framework.
     """
 
-    del connection  # no additive columns yet; hook retained for forward-compat
+    inspector = inspect(connection)
+
+    def _columns(table: str) -> set[str]:
+        return {col["name"] for col in inspector.get_columns(table)}
+
+    # ``mailbox_items.is_read``: per-owner inbox read state (added in v2). SQLite
+    # backfills existing rows with the ``DEFAULT 0`` (unread), which is the
+    # correct legacy state for already-delivered messages.
+    if "is_read" not in _columns("mailbox_items"):
+        connection.execute(
+            text(
+                "ALTER TABLE mailbox_items "
+                "ADD COLUMN is_read BOOLEAN NOT NULL DEFAULT 0"
+            )
+        )
 
 
 def _ensure_sqlite_parent(url: str) -> None:

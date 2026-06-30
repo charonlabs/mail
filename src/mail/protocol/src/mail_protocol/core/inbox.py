@@ -25,6 +25,12 @@ class MAILInboxEntrySummary(BaseModel):
     body_size: int
     received_at: datetime
     delivered_by: Annotated[str, AfterValidator(validate_mail_address)]
+    # Per-owner read state. A message is delivered ``unread`` and flipped to
+    # ``read`` when its owner opens it via ``GET /inbox/{message_id}``. Because
+    # one message fans out to many recipients who share a single inbox entry,
+    # this value is supplied per owner at list time, not stored on the shared
+    # entry.
+    is_read: bool = False
 
 
 class MAILInboxEntry(BaseModel):
