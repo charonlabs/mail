@@ -58,6 +58,7 @@ from mail_server.backends.memory.fs import (
     load_messages,
     load_outbox_entries,
     load_outboxes,
+    load_read_inbox,
     load_refresh_tokens,
     load_swarms,
     load_trash_entries,
@@ -73,6 +74,7 @@ from mail_server.backends.memory.fs import (
     save_messages,
     save_outbox_entries,
     save_outboxes,
+    save_read_inbox,
     save_refresh_tokens,
     save_swarms,
     save_trash_entries,
@@ -144,6 +146,9 @@ class MemoryBackend(MAILServerBackend):
             "messages": dict(self.messages),
             "inbox_entries": dict(self.inbox_entries),
             "inboxes": {address: list(ids) for address, ids in self.inboxes.items()},
+            "read_inbox": {
+                address: set(ids) for address, ids in self.read_inbox.items()
+            },
             "outbox_entries": dict(self.outbox_entries),
             "outboxes": {address: list(ids) for address, ids in self.outboxes.items()},
             "draft_entries": dict(self.draft_entries),
@@ -171,6 +176,7 @@ class MemoryBackend(MAILServerBackend):
             await save_messages(snapshot["messages"])
             await save_inbox_entries(snapshot["inbox_entries"])
             await save_inboxes(snapshot["inboxes"])
+            await save_read_inbox(snapshot["read_inbox"])
             await save_outbox_entries(snapshot["outbox_entries"])
             await save_outboxes(snapshot["outboxes"])
             await save_draft_entries(snapshot["draft_entries"])
@@ -289,6 +295,15 @@ class MemoryBackend(MAILServerBackend):
         Values: list of inbox entry message IDs
         """
 
+        self.read_inbox: dict[str, set[str]] = await load_read_inbox()
+        """
+        Per-owner inbox read state (the in-memory analogue of
+        ``mailbox_items.is_read``). A message is unread unless its id is present
+        in the owner's set.
+        Keys: user-agent addresses
+        Values: set of read inbox message IDs
+        """
+
         self.outbox_entries: dict[
             str, MAILOutboxEntrySummary
         ] = await load_outbox_entries()
@@ -353,9 +368,7 @@ class MemoryBackend(MAILServerBackend):
         Values: MAILListInBackend instances
         """
 
-        self.refresh_tokens: dict[str, RefreshTokenRecord] = (
-            await load_refresh_tokens()
-        )
+        self.refresh_tokens: dict[str, RefreshTokenRecord] = await load_refresh_tokens()
         """
         A dict of all stored refresh tokens on this server.
         Keys: token hashes (sha256 hex)
@@ -579,12 +592,17 @@ class MemoryBackend(MAILServerBackend):
         if inbox_msg_ids is None:
             raise ValueError(f"no inbox found for address {ua_address}")
 
+        read = self.read_inbox.get(ua_address, set())
         inbox_entries: list[MAILInboxEntrySummary] = []
         for msg_id in inbox_msg_ids:
             inbox_entry = self.inbox_entries.get(msg_id)
             if inbox_entry is None:
                 raise ValueError(f"no inbox entry found for message ID {msg_id}")
-            inbox_entries.append(inbox_entry)
+            # ``inbox_entries`` is shared across recipients; copy so this owner's
+            # read state never leaks onto the shared entry.
+            inbox_entries.append(
+                inbox_entry.model_copy(update={"is_read": msg_id in read})
+            )
 
         return _paginate_box(
             inbox_entries, filters, self._box_sort_key(filters, "received_at")
@@ -612,6 +630,9 @@ class MemoryBackend(MAILServerBackend):
         message = self.messages.get(message_id)
         if message is None:
             raise ValueError(f"message with ID {message_id} not found in messages")
+
+        # Opening a message marks it read for this owner.
+        self.read_inbox.setdefault(ua_address, set()).add(message_id)
 
         return MAILInboxEntry(
             message=message,
@@ -1143,6 +1164,8 @@ class MemoryBackend(MAILServerBackend):
 
         # remove inbox from self.inboxes
         self.inboxes.pop(full_address)
+        # drop any per-owner read state alongside the inbox
+        self.read_inbox.pop(full_address, None)
         # remove outbox from self.outboxes
         self.outboxes.pop(full_address)
         # remove drafts box from self.drafts
@@ -1250,6 +1273,8 @@ class MemoryBackend(MAILServerBackend):
 
         # remove inbox from self.inboxes
         self.inboxes.pop(full_address)
+        # drop any per-owner read state alongside the inbox
+        self.read_inbox.pop(full_address, None)
         # remove outbox from self.outboxes
         self.outboxes.pop(full_address)
         # remove drafts box from self.drafts
@@ -1355,6 +1380,8 @@ class MemoryBackend(MAILServerBackend):
 
         # remove inbox from self.inboxes
         self.inboxes.pop(full_address)
+        # drop any per-owner read state alongside the inbox
+        self.read_inbox.pop(full_address, None)
         # remove outbox from self.outboxes
         self.outboxes.pop(full_address)
         # remove drafts box from self.drafts

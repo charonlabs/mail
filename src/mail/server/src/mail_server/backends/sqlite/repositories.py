@@ -278,6 +278,36 @@ class MailboxRepository:
         await self.session.flush()
         return True
 
+    async def mark_read(self, owner: str, box: str, item_id: str) -> None:
+        """Flip one membership row to ``is_read=True`` (idempotent)."""
+
+        await self.session.execute(
+            update(MailboxItemRow)
+            .where(
+                MailboxItemRow.owner_address == owner,
+                MailboxItemRow.box == box,
+                MailboxItemRow.item_id == item_id,
+            )
+            .values(is_read=True)
+        )
+        await self.session.flush()
+
+    async def read_states(
+        self, owner: str, box: str, item_ids: list[str]
+    ) -> dict[str, bool]:
+        """Map each requested ``item_id`` to its per-owner read flag."""
+
+        if not item_ids:
+            return {}
+        rows = await self.session.execute(
+            select(MailboxItemRow.item_id, MailboxItemRow.is_read).where(
+                MailboxItemRow.owner_address == owner,
+                MailboxItemRow.box == box,
+                MailboxItemRow.item_id.in_(item_ids),
+            )
+        )
+        return {item_id: is_read for item_id, is_read in rows}
+
     async def list_item_ids(self, owner: str, box: str) -> list[str]:
         """Item ids in a box, in insertion order (used by ``clear_trash``)."""
 
@@ -377,7 +407,15 @@ class MailboxRepository:
             filters=filters,
             allow_message_sort=True,
         )
-        return [ser.inbox_entry_from_row(row) for row in rows], total
+        summaries = [ser.inbox_entry_from_row(row) for row in rows]
+        # ``is_read`` is per-owner, so it lives on ``mailbox_items``, not on the
+        # shared inbox entry; stitch it onto this owner's page.
+        read = await self.read_states(
+            owner, BOX_INBOX, [s.message_id for s in summaries]
+        )
+        for summary in summaries:
+            summary.is_read = read.get(summary.message_id, False)
+        return summaries, total
 
     async def list_outbox(
         self, owner: str, filters: BoxFilterParams

@@ -58,6 +58,7 @@ def deployment_dir(
         "messages",
         "inbox_entries",
         "inboxes",
+        "read_inbox",
         "outbox_entries",
         "outboxes",
         "draft_entries",

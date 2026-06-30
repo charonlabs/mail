@@ -202,6 +202,9 @@ class MailboxItemRow(Base):
     box: Mapped[str] = mapped_column(String(8))
     item_id: Mapped[str] = mapped_column(String(64))
     entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Per-owner read state. Only meaningful for ``box == "inbox"`` (other boxes
+    # leave it at the default). Set ``True`` when the owner opens the message.
+    is_read: Mapped[bool] = mapped_column(default=False)
 
 
 class MessageBufferRow(Base):
