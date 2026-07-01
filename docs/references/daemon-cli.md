@@ -1,30 +1,15 @@
 # Daemon CLI
 
-Status: stub
+Status: generated
 
-## Scope
+> **Generated file — do not edit by hand.** Regenerate with `uv run python scripts/build_cli_docs.py` after changing the CLI. See [Regenerate API Artifacts](../howtos/regenerate-api-artifacts.md).
 
-Describe the `mail-daemon` CLI, required environment variables, and daemon loop
-behavior.
+Multi-Agent Interface Layer (MAIL) daemon implementation in Python
 
-## Source of Truth
+Invoke as `mail-daemon` (or `uv run mail-daemon` from a workspace checkout). Source: `mail_daemon/cli.py`.
 
-- `src/mail/daemon/src/mail_daemon/cli.py`
-- `src/mail/daemon/src/mail_daemon/maild/api.py`
-- `spec/SPEC.md` section 8
+## Options
 
-## Entries to Cover
-
-- Usage.
-- Log-level options.
-- Required environment variables.
-- Server validation.
-- Token acquisition.
-- Message buffer clearing.
-- Local delivery.
-- Retry and error behavior.
-
-## Maintenance Notes
-
-Keep behavioral details factual and tied to implementation. Deeper discussion of
-why delivery is daemon-driven belongs in explanations.
+- `--license` — show license information and exit
+- `-llf`, `--log-level-file` `LEVEL` — file log level (default: info)
+- `-llc`, `--log-level-console` `LEVEL` — console log level (default: info)
