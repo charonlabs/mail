@@ -32,6 +32,13 @@ Most responses wrap their payload in a named field (`entry`, `entries`,
 box reads nest the message under an `entry`. Field shapes are in
 [Data Models](data-models.md).
 
+> **Memory-backend gaps.** A few endpoints are implemented only on the SQLite
+> backend; on the memory backend they raise `NotImplementedError`:
+> `DELETE /inbox/{message_id}`, `DELETE /drafts/{draft_id}`,
+> `DELETE /trash/{message_id}`, `POST /trash/clear`,
+> `PATCH /admin/webhooks/{webhook_id}`, and `POST /daemon/deliver/remote`. See
+> [Storage Backends](storage-backends.md#current-limitations).
+
 ## Root and health
 
 | Method | Path | Auth | Response model |
@@ -110,7 +117,7 @@ Used by delivery daemons; see [Delivery Model](../explanations/delivery-model.md
 | --- | --- | --- | --- |
 | POST | `/daemon/message-buffer/clear` | daemon | Drain the pending-delivery buffer. |
 | POST | `/daemon/deliver/local` | daemon | Deliver messages between user-agents on this server. |
-| POST | `/daemon/deliver/remote` | daemon | Reserved for cross-server delivery; handler currently raises `NotImplementedError`. |
+| POST | `/daemon/deliver/remote` | daemon | Inbound cross-server delivery; implemented on SQLite, raises `NotImplementedError` on the memory backend (see note above). |
 
 ## Admin endpoints (`/admin`)
 

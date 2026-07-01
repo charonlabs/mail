@@ -119,6 +119,7 @@ Files: `backends/sqlite/` — `api.py`, `database.py`, `schema.py`,
 | Deployments | Runtime reads/writes the `default` deployment only (see limitations) | Arbitrary via `--sqlite-path` / `--database-url` |
 | Init on re-run | Overwrites | Idempotent |
 | Migration import | — | `--import-fs` |
+| Delete/clear, webhook patch, remote deliver | Not implemented (raises `NotImplementedError`) | Implemented |
 
 Both implement the identical interface and share the webhook delivery logic, so
 inbox `is_read`, refresh-token families, list membership, and webhook semantics
@@ -126,13 +127,18 @@ match across backends.
 
 ## Current limitations
 
+- **Memory backend: unimplemented operations.** Several operations raise
+  `NotImplementedError` on the memory backend and are only available on SQLite:
+  `DELETE /inbox/{message_id}`, `DELETE /drafts/{draft_id}`,
+  `DELETE /trash/{message_id}`, `POST /trash/clear`,
+  `PATCH /admin/webhooks/{webhook_id}`, and `POST /daemon/deliver/remote`. Choose
+  the SQLite backend if you need message deletion / trash clearing, webhook
+  patching, or inbound remote delivery. These gaps are pinned as `xfail` in
+  [`tests/integration/test_stubs.py`](../../tests/integration/test_stubs.py).
 - **Memory backend deployment name.** The memory runtime's filesystem layer is
   pinned to the `default` deployment: `backend-init` will *create* a named memory
   deployment, but `mail-server --backend memory` reads and writes `default`
   regardless. Use the SQLite backend for non-default deployment names.
-- **`daemon_deliver_remote`** is unimplemented in both backends (raises
-  `NotImplementedError`); remote/cross-server delivery is reserved. See
-  [Delivery Model](../explanations/delivery-model.md).
 - No Postgres backend yet, though `normalize_database_url` reserves a
   `postgresql+psycopg` driver seam.
 

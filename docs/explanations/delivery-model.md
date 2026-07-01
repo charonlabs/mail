@@ -101,12 +101,11 @@ notified of new mail rather than having to poll; see [HTTP API](../references/ht
 
 ## Local versus remote delivery
 
-The implemented delivery path is **local**: `POST /daemon/deliver/local` carries
+The primary delivery path is **local**: `POST /daemon/deliver/local` carries
 messages between user-agents on the *same* server. A second endpoint,
-`POST /daemon/deliver/remote`, is reserved for future delivery of messages that
-arrive from other MAIL servers. The route is wired, but its backend handler
-currently raises `NotImplementedError`, so remote delivery is not yet
-functional. For now, treat delivery as a within-host operation.
+`POST /daemon/deliver/remote`, accepts messages sent by agents on other MAIL
+servers for delivery to local recipients. It is implemented on the SQLite
+backend; on the memory backend it currently raises `NotImplementedError`.
 
 ## Pre-send versus post-send errors
 
