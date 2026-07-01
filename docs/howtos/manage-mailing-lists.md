@@ -17,11 +17,22 @@ action. Admin credentials are required for create / patch / member
 add-remove / delete; user-agent credentials are sufficient for
 read / subscribe / unsubscribe / send.
 
-The list address shape is `list:<name>@<swarm>@<host>` — see
-[Addressing Model](../explanations/addressing-model.md). Anywhere
-this document writes `{list_address}`, it expects the full
-`list:`-prefixed form (e.g.,
-`list:announcements@chorus@example.com`).
+Two address forms appear below, and the CLI is strict about which it
+wants — see [Addressing Model](../explanations/addressing-model.md):
+
+- **List-management commands** (`list-get`, `list-subscribe`,
+  `list-unsubscribe`, `list-member-post`, `list-member-delete`,
+  `list-delete`) take the **local** `{name}@{swarm}` form (e.g.
+  `announcements@chorus`). The server resolves it to the list's
+  canonical `list:{name}@{swarm}@{host}` address using its own host.
+- **Sending to a list** (step 8) names the list as a message
+  recipient, so it uses the **full** routable form
+  `list:{name}@{swarm}@{host}` (e.g.
+  `list:announcements@chorus@example.com`), just like any other
+  recipient.
+
+This how-to writes `{list_address}` for the local management form and
+`{list_recipient}` for the full send form.
 
 ## Steps
 
@@ -114,18 +125,24 @@ If successful, details on the mailing list will be printed to the console.
 
 ### 6. Update list policy as an admin
 
-Admins can update the policy on an existing list with the
-`mail-admin` command `list-patch`. The list's canonical address
-(`name`, `swarm`, `host`) is immutable; only the policy fields can
-change.
+Policy is the only mutable part of a list — the canonical address
+(`name`, `swarm`, `host`) is immutable. The server exposes
+`PATCH /admin/lists/{name}@{swarm}` accepting an `AdminListPatchRequest`
+body (a single optional `policy` object).
+
+> **Not yet available from the CLI.** The `mail-admin list-patch`
+> command is registered but currently a stub: it declares no
+> arguments and its handler raises `NotImplementedError`
+> (`src/mail/client/src/mail_client/commands/list_patch.py`). Until it
+> is implemented, patch a list's policy by calling the endpoint
+> directly — for example with `curl` (the path takes the **local**
+> `{name}@{swarm}` form):
 
 ```bash
-MAIL_SERVER={server_url}
-MAIL_TOKEN={admin_jwt}
-uv run mail-admin list-patch {list_address} \
-  --visibility public \
-  --join-policy open \
-  --send-policy open
+curl -s -X PATCH "$MAIL_SERVER/admin/lists/announcements@chorus" \
+  -H "Authorization: Bearer $MAIL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"policy":{"visibility":"public","join_policy":"open","send_policy":"open"}}'
 ```
 
 For v1, only `public` / `open` / `open` are honored; the other
@@ -154,14 +171,16 @@ flow through a list](../explanations/mailing-lists.md#how-messages-flow-through-
 
 ### 8. Send a message to a list address
 
-If they are authorized to do so, user-agents can send a message to
-a list address by specifying the list address in the `mail` command
-`send`:
+If they are authorized to do so, user-agents can send a message to a
+list by naming the list as a recipient of the `mail` command `send`.
+Because this is a message recipient (not a management target), use the
+**full** routable form `list:{name}@{swarm}@{host}` here — written
+`{list_recipient}` below:
 
 ```bash
 MAIL_SERVER={server_url}
 MAIL_TOKEN={ua_jwt}
-uv run mail send {draft_id} {list_address}
+uv run mail send {draft_id} {list_recipient}
 ```
 
 The receiving server expands the list and delivers one copy to

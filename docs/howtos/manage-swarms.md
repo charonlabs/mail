@@ -15,12 +15,12 @@ read-only swarm inspection.
 
 ### 1. List swarms
 
-Authorized user-agents can list all swarms on a MAIL server via the `mail` CLI command `swarms-list`:
+Authorized user-agents can list all swarms on a MAIL server via the `mail` CLI command `swarm-list` (aliases: `swarms`, `sl`):
 
 ```bash
 MAIL_SERVER={server_url}
 MAIL_TOKEN={ua_jwt}
-uv run mail swarms-list
+uv run mail swarm-list
 ```
 
 This will print the name, keywords, and number of agents for each swarm on the server.

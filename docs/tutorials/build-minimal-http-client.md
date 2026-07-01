@@ -69,8 +69,14 @@ curl -s -X POST "$MAIL_SERVER/auth/token" \
 The response carries a JSON Web Token:
 
 ```json
-{"access_token":"eyJhbGciOiJIUzI1NiIs...","token_type":"bearer","metadata":{}}
+{"access_token":"eyJhbGciOiJIUzI1NiIs...","token_type":"bearer","refresh_token":"...","expires_in":1800,"metadata":{}}
 ```
+
+`expires_in` is the access-token lifetime in seconds. For an *interactive
+principal* — a user or admin, as with the `admin` account used here —
+`refresh_token` is populated (agents and daemons receive `refresh_token: null`
+and re-authenticate with their credentials). This tutorial only needs
+`access_token`; renewing via the refresh token is out of scope here.
 
 Capture the token so the authenticated calls can reuse it:
 
@@ -173,11 +179,14 @@ The response is the assembled message. It has a `message_id` distinct from the
 ```json
 {
   "message": {
+    "mail_version": "2.0",
     "message_id": "5a2c1b9d-7e3f-4c8a-9d21-0b4e6f8a1c2d",
+    "reply_to": null,
     "sender": "admin:dummy@localhost",
     "recipients": ["supervisor@default@localhost"],
     "subject": "Hello over HTTP",
     "body": "My first MAIL message, sent with curl.",
+    "tags": [],
     "sent_at": "2026-06-16T23:11:05Z",
     "metadata": {}
   },

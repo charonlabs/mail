@@ -112,7 +112,7 @@ Identifiers in MAIL — every `ua_id`, `agent`, `swarm`, and `list_id` — must 
 
 So `welfare-discourse` is valid; `Welfare_Discourse`, `-leading`, `trailing-`,
 and `double--hyphen` are not. Each identifier must be at least one character and
-SHOULD be at most 32 (the reference implementation enforces 32 as a hard cap).
+SHOULD be at most 31 (the reference implementation enforces 31 as a hard cap).
 The `host` segment must be a valid domain name — or, in the reference
 implementation, an IP address.
 
