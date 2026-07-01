@@ -60,25 +60,21 @@ Conformance is enforced by the suite in [`tests/contract/`](../../tests/contract
 
 Run them via [Run the Test Suite](../howtos/run-tests.md).
 
-## Known spec ↔ implementation divergences
+## Specification and implementation alignment
 
-The reference implementation intentionally (or incidentally) differs from the
-prose in a few places. These are tracked here so readers trust the code over the
-prose where they disagree:
-
-- **Identifier length cap.** SPEC §6 says agent / user / admin / daemon-worker /
-  swarm / list identifiers "SHOULD be no longer than **32** characters." The
-  reference implementation enforces a hard cap of **31**
-  (`core/constants.py`: `*_NAME_LEN_MAX = 31`), rejecting longer values with a
-  validation error. Message tags, by contrast, use a cap of 32 in both
-  (`MESSAGE_TAG_LEN_MAX = 32`, matching SPEC §7.10). This name-length mismatch
-  is unresolved — see the maintenance note below.
+The reference implementation tracks the spec closely. Identifier length is one
+alignment point worth calling out: SPEC §6 recommends that agent / user / admin /
+daemon-worker / swarm / list identifiers be at most 32 characters, and the
+implementation enforces exactly that as a hard cap (`core/constants.py`:
+`*_NAME_LEN_MAX = 32`), consistent with the message-tag cap
+(`MESSAGE_TAG_LEN_MAX = 32`, SPEC §7.10). No known divergences remain; if one
+arises, record it here so readers know to trust the code over the prose.
 
 ## Maintenance notes
 
 Do not copy the specification text into this page; keep it as an index that links
-to the exact normative files. When the implementation and `SPEC.md` are
-reconciled (e.g. the 31-vs-32 identifier cap), update both the divergences list
-here and [Addressing Model](../explanations/addressing-model.md).
+to the exact normative files. If the implementation and `SPEC.md` diverge, record
+it in the alignment section above and cross-link the affected reference pages such
+as [Addressing Model](../explanations/addressing-model.md).
 
 [rfc-2119]: https://datatracker.ietf.org/doc/html/rfc2119

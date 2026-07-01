@@ -222,13 +222,12 @@ shapes:
 | Message subject | 1 / 256 |
 | Message body | 1 / 65535 |
 | Message tag | 1 / 32 |
-| Agent / user / admin / daemon-worker / swarm / swarm-keyword / list name | 1 / **31** |
+| Agent / user / admin / daemon-worker / swarm / swarm-keyword / list name | 1 / 32 |
 | Swarm description | 0 / 255 |
 
 `LIST_ADDRESS_PREFIX = "list"`. The protocol version literal `"2.0"` is not a
 constant — it is a `Literal` on `MAILMessage.mail_version` and
-`RootGetResponse.protocol_version`. (Note the identifier max of 31 differs from
-SPEC §6's "SHOULD ≤ 32" — see [Protocol Specification](protocol-specification.md#known-spec--implementation-divergences).)
+`RootGetResponse.protocol_version`. The identifier max of 32 matches SPEC §6.
 
 ## Validators
 
