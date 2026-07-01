@@ -1,6 +1,6 @@
 # Initialize the Memory Backend
 
-Status: stub
+Status: draft
 
 ## Goal
 
@@ -111,9 +111,26 @@ rm -rf ~/.mail-swarms/deployments/{deployment}/.secrets
 
 where `deployment` is the name chosen for your deployment.
 
-### 5. Reinitialize clean slate when needed
+### 5. Reinitialize a clean slate when needed
 
-TODO
+All state for a deployment lives under a single directory,
+`~/.mail-swarms/deployments/{deployment}/`, which holds the `swarms/`,
+`user_agents/`, and `messages/` stores plus the `message_buffer.lock` file and
+the `.secrets/` folder from step 3. Re-running `backend-init` against an existing
+deployment reuses that directory rather than clearing it, so for a guaranteed
+clean slate — a fresh swarm, user-agents, and credentials — stop any running
+`mail-server`, remove the deployment directory, and initialize again:
+
+```bash
+# stop mail-server first, then:
+rm -rf ~/.mail-swarms/deployments/{deployment}
+uv run backend-init --deployment "{deployment}"
+```
+
+where `deployment` is the name chosen for your deployment. This regenerates the
+swarm, user-agents, and fresh plaintext credentials — capture and protect them
+again as in steps 3-4. To reset *every* deployment at once, remove the whole
+`~/.mail-swarms/deployments` directory instead.
 
 ## Source Material
 

@@ -29,6 +29,7 @@ to exactly one of four categories.
 - [Run MAIL Locally](tutorials/run-local-mail.md)
 - [Send Your First MAIL Message](tutorials/send-first-message.md)
 - [Build a Minimal HTTP Client](tutorials/build-minimal-http-client.md)
+- [Build a Webhook Receiver](tutorials/build-webhook-receiver.md)
 
 ### How-To Guides
 
@@ -40,6 +41,7 @@ to exactly one of four categories.
 - [Manage User-Agents](howtos/manage-user-agents.md)
 - [Manage Swarms](howtos/manage-swarms.md)
 - [Manage Mailing Lists](howtos/manage-mailing-lists.md)
+- [Manage Webhooks](howtos/manage-webhooks.md)
 - [Regenerate API Artifacts](howtos/regenerate-api-artifacts.md)
 - [Run the Test Suite](howtos/run-tests.md)
 
@@ -63,6 +65,8 @@ to exactly one of four categories.
 - [Addressing Model](explanations/addressing-model.md)
 - [Delivery Model](explanations/delivery-model.md)
 - [Security Model](explanations/security-model.md)
+- [Mailing Lists](explanations/mailing-lists.md)
+- [Webhook Delivery](explanations/webhook-delivery.md)
 - [MAIL v1 Legacy Runtime](explanations/mail-v1-legacy.md)
 - [Documentation System](explanations/documentation-system.md)
 
