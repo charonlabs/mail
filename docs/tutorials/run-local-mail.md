@@ -13,7 +13,6 @@ the message was delivered.
 New contributors and first-time users who have cloned the repository and want a
 working local loop before reading deeper docs.
 
-<<<<<<< HEAD
 ## Not Here
 
 - Exhaustive command flags belong in reference pages.
@@ -164,8 +163,6 @@ uv run mail outbox-open {message_id}
 
 Like in the `agent`'s inbox, you should see the message contents as you composed them, with a subject of "Test subject" and a body of "This is a message body".
 
-=======
->>>>>>> 4bed686 (docs: rebased v2 docs branch with main)
 ## Source Material
 
 - `README.md`
@@ -174,22 +171,3 @@ Like in the `agent`'s inbox, you should see the message contents as you composed
 - `src/mail/server/.env.example`
 - `src/mail/server/src/mail_server/backend_init.py`
 - `src/mail/daemon/src/mail_daemon/maild/api.py`
-<<<<<<< HEAD
-=======
-
-## Draft Outline
-
-1. Install workspace dependencies with `uv sync`.
-2. Configure the server environment.
-3. Initialize the memory backend with `backend-init`.
-4. Start `mail-server`.
-5. Log in as a sender and recipient with `mail login`.
-6. Start `mail-daemon` with daemon credentials.
-7. Compose and send a message.
-8. Open inbox and outbox entries to confirm delivery.
-
-## Not Here
-
-- Exhaustive command flags belong in reference pages.
-- Deployment hardening belongs in how-to guides and explanations.
->>>>>>> 4bed686 (docs: rebased v2 docs branch with main)

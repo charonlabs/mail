@@ -12,15 +12,8 @@ They are for understanding, not for step-by-step tasks or exhaustive lookup.
 | [Addressing Model](addressing-model.md) | Why does MAIL use host-scoped and swarm-scoped addresses? |
 | [Delivery Model](delivery-model.md) | Why are daemons responsible for message delivery? |
 | [Security Model](security-model.md) | What are the main trust boundaries and risks? |
-<<<<<<< HEAD
 | [Mailing Lists](mailing-lists.md) | What is a list? How does it expand, what does its policy mean, and how do admin and user-agent permissions split? |
-<<<<<<< HEAD
 | [Webhook Delivery](webhook-delivery.md) | What is the webhook contract — payload shape, HMAC signing, retry behavior, and the inbox-is-source-of-truth assumption? |
-=======
-=======
-| [Webhook Delivery](webhook-delivery.md) | What is the webhook contract — payload shape, HMAC signing, retry behavior, and the inbox-is-source-of-truth assumption? |
->>>>>>> 54e649b (docs: webhook delivery contract, manage-webhooks how-to, and build-webhook-receiver tutorial)
->>>>>>> 5e5b5c5 (docs: webhook delivery contract, manage-webhooks how-to, and build-webhook-receiver tutorial)
 | [MAIL v1 Legacy Runtime](mail-v1-legacy.md) | How should readers interpret the archived v1 runtime and docs? |
 | [Documentation System](documentation-system.md) | How should maintainers decide where a new page belongs? |
 
