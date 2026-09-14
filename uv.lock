@@ -811,6 +811,18 @@ wheels = [
 ]
 
 [[package]]
+name = "http-message-signatures"
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/80/95/083707b15af3bdbb6c9e54ae7f448046f7ab55f9eaa5cccdc5dd23791d15/http_message_signatures-2.0.1.tar.gz", hash = "sha256:394545b0cc296a4fd45166f57056e7e029dcd5b91d9bf549e108c96c23aa1cba", size = 30517, upload-time = "2026-01-19T04:01:07.277Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8a/4a/c778016e3a9c18f283b401319346a980f3ff9556c674afa89a22b9e756bb/http_message_signatures-2.0.1-py3-none-any.whl", hash = "sha256:2b2c463f5d077d3081f27770e8017762d5969a1f17e1dc89e8b96a57c44e8a5e", size = 28204, upload-time = "2026-01-19T04:01:05.738Z" },
+]
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -1437,7 +1449,10 @@ source = { editable = "src/mail/server" }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiosqlite" },
+    { name = "cryptography" },
     { name = "fastapi" },
+    { name = "http-message-signatures" },
+    { name = "httpx" },
     { name = "mail-swarms-protocol" },
     { name = "pwdlib", extra = ["argon2"] },
     { name = "pydantic" },
@@ -1452,7 +1467,10 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.12.15" },
     { name = "aiosqlite", specifier = ">=0.20" },
+    { name = "cryptography", specifier = ">=46.0.3" },
     { name = "fastapi", specifier = ">=0.116.1" },
+    { name = "http-message-signatures", specifier = ">=2.0.1,<3" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "mail-swarms-protocol", editable = "src/mail/protocol" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.0" },
     { name = "pydantic", specifier = ">=2.11.7" },
