@@ -3,6 +3,10 @@
 
 """Secure primitives used by MAIL Federation v1."""
 
+from mail_server.federation.addressing import (
+    MessageDeliveryPlan,
+    build_message_delivery_plan,
+)
 from mail_server.federation.discovery import (
     FederationDiscoveryClient,
     FederationDiscoveryError,
@@ -17,6 +21,12 @@ from mail_server.federation.keys import (
     load_federation_private_key,
     public_key_from_manifest,
 )
+from mail_server.federation.records import (
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
+)
 from mail_server.federation.signatures import (
     FEDERATION_COVERED_COMPONENTS,
     FederationSignatureError,
@@ -30,6 +40,7 @@ from mail_server.federation.signatures import (
 
 __all__ = [
     "FEDERATION_COVERED_COMPONENTS",
+    "BounceEmission",
     "FederationDiscoveryClient",
     "FederationDiscoveryError",
     "FederationHostRejected",
@@ -38,10 +49,15 @@ __all__ = [
     "FederationPrivateKey",
     "FederationSignatureError",
     "FederationUnknownKey",
+    "InboundFederationReceipt",
+    "MessageDeliveryPlan",
+    "MessageDeliveryTarget",
+    "OutboundFederationDelivery",
     "ResolvedFederationKey",
     "SignedFederationRequest",
     "VerifiedFederationSignature",
     "load_federation_private_key",
+    "build_message_delivery_plan",
     "public_key_from_manifest",
     "serialize_federation_envelope",
     "sign_federation_request",

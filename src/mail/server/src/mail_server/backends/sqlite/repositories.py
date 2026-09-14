@@ -38,16 +38,21 @@ from mail_protocol.core.trash import MAILTrashEntry, MAILTrashEntrySummary
 from mail_protocol.core.user_agents import MAILUserAgentInBackend
 from mail_protocol.core.webhooks import MAILWebhook
 from mail_protocol.network.requests import BoxFilterParams
-from sqlalchemy import asc, delete, func, select, update
+from sqlalchemy import and_, asc, delete, func, or_, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mail_server.backends.sqlite import serializers as ser
 from mail_server.backends.sqlite.schema import (
+    BounceEmissionRow,
     DraftEntryRow,
+    FederationInboundReceiptRow,
+    FederationOutboundRow,
     InboxEntryRow,
     ListRow,
     MailboxItemRow,
     MessageBufferRow,
+    MessageDeliveryTargetRow,
     MessageRow,
     OutboxEntryRow,
     RefreshTokenRow,
@@ -55,6 +60,12 @@ from mail_server.backends.sqlite.schema import (
     TrashEntryRow,
     UserAgentRow,
     WebhookRow,
+)
+from mail_server.federation.records import (
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
 )
 
 # Box discriminators stored in ``mailbox_items.box``.
@@ -101,6 +112,22 @@ class MailStore:
     @property
     def refresh_tokens(self) -> RefreshTokenRepository:
         return RefreshTokenRepository(self.session)
+
+    @property
+    def delivery_targets(self) -> DeliveryTargetRepository:
+        return DeliveryTargetRepository(self.session)
+
+    @property
+    def federation_outbound(self) -> FederationOutboundRepository:
+        return FederationOutboundRepository(self.session)
+
+    @property
+    def federation_inbound(self) -> FederationInboundRepository:
+        return FederationInboundRepository(self.session)
+
+    @property
+    def bounce_emissions(self) -> BounceEmissionRepository:
+        return BounceEmissionRepository(self.session)
 
 
 # --------------------------------------------------------------------------- #
@@ -727,3 +754,282 @@ class RefreshTokenRepository:
         )
         await self.session.flush()
         return result.rowcount or 0
+
+
+# --------------------------------------------------------------------------- #
+# federation delivery state
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class DeliveryTargetRepository:
+    session: AsyncSession
+
+    async def add(self, model: MessageDeliveryTarget) -> MessageDeliveryTarget:
+        self.session.add(
+            MessageDeliveryTargetRow(**ser.delivery_target_to_columns(model))
+        )
+        await self.session.flush()
+        return model
+
+    async def get(self, target_id: str) -> MessageDeliveryTarget | None:
+        row = await self.session.get(MessageDeliveryTargetRow, target_id)
+        return None if row is None else ser.delivery_target_from_row(row)
+
+    async def list_for_message(self, message_id: str) -> list[MessageDeliveryTarget]:
+        rows = await self.session.scalars(
+            select(MessageDeliveryTargetRow)
+            .where(MessageDeliveryTargetRow.message_id == message_id)
+            .order_by(
+                MessageDeliveryTargetRow.created_at,
+                MessageDeliveryTargetRow.target_id,
+            )
+        )
+        return [ser.delivery_target_from_row(row) for row in rows]
+
+    async def update(self, model: MessageDeliveryTarget) -> MessageDeliveryTarget:
+        row = await self.session.get(MessageDeliveryTargetRow, model.target_id)
+        if row is None:
+            raise ValueError(f"delivery target {model.target_id} not found")
+        for key, value in ser.delivery_target_to_columns(model).items():
+            setattr(row, key, value)
+        await self.session.flush()
+        return model
+
+    async def claim_local(
+        self,
+        message_ids: list[str],
+        *,
+        lease_owner: str,
+        now: datetime,
+        lease_until: datetime,
+    ) -> list[MessageDeliveryTarget]:
+        pending_from_buffer = and_(
+            MessageDeliveryTargetRow.kind == "local",
+            MessageDeliveryTargetRow.status == "pending",
+            MessageDeliveryTargetRow.message_id.in_(message_ids),
+        )
+        expired_lease = and_(
+            MessageDeliveryTargetRow.kind == "local",
+            MessageDeliveryTargetRow.status == "leased",
+            MessageDeliveryTargetRow.lease_until <= now,
+        )
+        claimed = await self.session.scalars(
+            update(MessageDeliveryTargetRow)
+            .where(or_(pending_from_buffer, expired_lease))
+            .values(
+                status="leased",
+                lease_owner=lease_owner,
+                lease_until=lease_until,
+                updated_at=now,
+            )
+            .returning(MessageDeliveryTargetRow.target_id)
+        )
+        target_ids = list(claimed)
+        if not target_ids:
+            return []
+        await self.session.flush()
+        rows = await self.session.scalars(
+            select(MessageDeliveryTargetRow).where(
+                MessageDeliveryTargetRow.target_id.in_(target_ids)
+            )
+        )
+        targets = [ser.delivery_target_from_row(row) for row in rows]
+        return sorted(targets, key=lambda target: (target.created_at, target.target_id))
+
+    async def all_succeeded(self, message_id: str) -> bool:
+        total = await self.session.scalar(
+            select(func.count())
+            .select_from(MessageDeliveryTargetRow)
+            .where(MessageDeliveryTargetRow.message_id == message_id)
+        )
+        if not total:
+            return False
+        unfinished = await self.session.scalar(
+            select(func.count())
+            .select_from(MessageDeliveryTargetRow)
+            .where(
+                MessageDeliveryTargetRow.message_id == message_id,
+                MessageDeliveryTargetRow.status != "succeeded",
+            )
+        )
+        return not unfinished
+
+    async def local_message_ids(self, message_ids: list[str]) -> set[str]:
+        if not message_ids:
+            return set()
+        rows = await self.session.scalars(
+            select(MessageDeliveryTargetRow.message_id).where(
+                MessageDeliveryTargetRow.kind == "local",
+                MessageDeliveryTargetRow.message_id.in_(message_ids),
+            )
+        )
+        return set(rows)
+
+
+@dataclass(frozen=True)
+class FederationOutboundRepository:
+    session: AsyncSession
+
+    async def add(
+        self, model: OutboundFederationDelivery
+    ) -> OutboundFederationDelivery:
+        self.session.add(
+            FederationOutboundRow(**ser.federation_outbound_to_columns(model))
+        )
+        await self.session.flush()
+        return model
+
+    async def get(self, envelope_id: str) -> OutboundFederationDelivery | None:
+        row = await self.session.get(FederationOutboundRow, envelope_id)
+        return None if row is None else ser.federation_outbound_from_row(row)
+
+    async def list_for_message(
+        self, message_id: str
+    ) -> list[OutboundFederationDelivery]:
+        rows = await self.session.scalars(
+            select(FederationOutboundRow)
+            .where(FederationOutboundRow.message_id == message_id)
+            .order_by(
+                FederationOutboundRow.created_at, FederationOutboundRow.envelope_id
+            )
+        )
+        return [ser.federation_outbound_from_row(row) for row in rows]
+
+    async def update(
+        self, model: OutboundFederationDelivery
+    ) -> OutboundFederationDelivery:
+        row = await self.session.get(FederationOutboundRow, model.envelope_id)
+        if row is None:
+            raise ValueError(f"outbound envelope {model.envelope_id} not found")
+        for key, value in ser.federation_outbound_to_columns(model).items():
+            setattr(row, key, value)
+        await self.session.flush()
+        return model
+
+    async def claim_due(
+        self,
+        *,
+        now: datetime,
+        lease_owner: str,
+        lease_until: datetime,
+        limit: int,
+    ) -> list[OutboundFederationDelivery]:
+        eligible = or_(
+            and_(
+                FederationOutboundRow.status == "pending",
+                FederationOutboundRow.next_attempt_at <= now,
+            ),
+            and_(
+                FederationOutboundRow.status == "leased",
+                FederationOutboundRow.lease_until <= now,
+            ),
+        )
+        candidates = (
+            select(FederationOutboundRow.envelope_id)
+            .where(eligible)
+            .order_by(
+                FederationOutboundRow.next_attempt_at,
+                FederationOutboundRow.envelope_id,
+            )
+            .limit(limit)
+        )
+        claimed = await self.session.scalars(
+            update(FederationOutboundRow)
+            .where(
+                FederationOutboundRow.envelope_id.in_(candidates),
+                eligible,
+            )
+            .values(
+                status="leased",
+                lease_owner=lease_owner,
+                lease_until=lease_until,
+                updated_at=now,
+            )
+            .returning(FederationOutboundRow.envelope_id)
+        )
+        envelope_ids = list(claimed)
+        if not envelope_ids:
+            return []
+        rows = list(
+            await self.session.scalars(
+                select(FederationOutboundRow).where(
+                    FederationOutboundRow.envelope_id.in_(envelope_ids)
+                )
+            )
+        )
+        target_ids = [row.target_id for row in rows]
+        await self.session.execute(
+            update(MessageDeliveryTargetRow)
+            .where(MessageDeliveryTargetRow.target_id.in_(target_ids))
+            .values(
+                status="leased",
+                lease_owner=lease_owner,
+                lease_until=lease_until,
+                updated_at=now,
+            )
+        )
+        await self.session.flush()
+        deliveries = [ser.federation_outbound_from_row(row) for row in rows]
+        return sorted(
+            deliveries,
+            key=lambda delivery: (delivery.next_attempt_at, delivery.envelope_id),
+        )
+
+
+@dataclass(frozen=True)
+class FederationInboundRepository:
+    session: AsyncSession
+
+    async def get(self, envelope_id: str) -> InboundFederationReceipt | None:
+        row = await self.session.get(FederationInboundReceiptRow, envelope_id)
+        return None if row is None else ser.inbound_receipt_from_row(row)
+
+    async def add(self, model: InboundFederationReceipt) -> InboundFederationReceipt:
+        self.session.add(
+            FederationInboundReceiptRow(**ser.inbound_receipt_to_columns(model))
+        )
+        await self.session.flush()
+        return model
+
+    async def reserve(self, model: InboundFederationReceipt) -> bool:
+        """Insert one replay key without racing another concurrent receiver."""
+
+        result = await self.session.execute(
+            sqlite_insert(FederationInboundReceiptRow)
+            .values(**ser.inbound_receipt_to_columns(model))
+            .on_conflict_do_nothing(index_elements=["envelope_id"])
+        )
+        await self.session.flush()
+        return bool(result.rowcount)
+
+    async def purge_expired(self, now: datetime) -> int:
+        result = await self.session.execute(
+            delete(FederationInboundReceiptRow).where(
+                FederationInboundReceiptRow.expires_at <= now
+            )
+        )
+        await self.session.flush()
+        return result.rowcount or 0
+
+
+@dataclass(frozen=True)
+class BounceEmissionRepository:
+    session: AsyncSession
+
+    async def add(self, model: BounceEmission) -> BounceEmission:
+        self.session.add(BounceEmissionRow(**ser.bounce_emission_to_columns(model)))
+        await self.session.flush()
+        return model
+
+    async def count_since(self, original_sender: str, since: datetime) -> int:
+        count = await self.session.scalar(
+            select(func.count())
+            .select_from(BounceEmissionRow)
+            .where(
+                BounceEmissionRow.original_sender == original_sender,
+                BounceEmissionRow.emitted_at >= since,
+                BounceEmissionRow.outcome == "emitted",
+            )
+        )
+        return count or 0

@@ -68,6 +68,10 @@ def deployment_dir(
         "webhooks",
         "lists",
         "refresh_tokens",
+        "message_delivery_targets",
+        "federation_outbound",
+        "federation_inbound_receipts",
+        "bounce_emissions",
     ):
         (deployment / subdir).mkdir(parents=True, exist_ok=True)
     (deployment / "message_buffer.lock").touch()

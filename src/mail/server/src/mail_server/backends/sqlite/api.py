@@ -33,12 +33,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 
 from mail_protocol.core.auth import RefreshTokenRecord
 from mail_protocol.core.constants import LIST_ADDRESS_PREFIX
 from mail_protocol.core.drafts import MAILDraft, MAILDraftsEntry, MAILDraftsEntrySummary
+from mail_protocol.core.federation import mail_address_host
 from mail_protocol.core.inbox import MAILInboxEntry, MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILList, MAILListInBackend
 from mail_protocol.core.messages import MAILMessage, MAILMessageSummary
@@ -82,8 +83,17 @@ from mail_server.backends.sqlite.repositories import (
     BOX_TRASH,
     MailStore,
 )
+from mail_server.federation.addressing import build_message_delivery_plan
+from mail_server.federation.records import (
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
+)
 
 logger = logging.getLogger(__name__)
+
+_LOCAL_DELIVERY_LEASE = timedelta(minutes=5)
 
 
 def _is_agent_recipient(address: str) -> bool:
@@ -525,11 +535,21 @@ class SQLiteBackend(MAILServerBackend):
                 delivered_at=None,
                 delivered_by=None,
             )
+            delivery_plan = build_message_delivery_plan(
+                message,
+                local_host=self.host,
+                created_at=now,
+            )
 
             await store.messages.add(message)
             await store.boxes.upsert_outbox_entry(outbox_entry)
             await store.boxes.add_membership(ua_address, BOX_OUTBOX, message_id, now)
-            await store.buffer.enqueue(message_id)
+            for target in delivery_plan.targets:
+                await store.delivery_targets.add(target)
+            for delivery in delivery_plan.outbound:
+                await store.federation_outbound.add(delivery)
+            if delivery_plan.has_local_target:
+                await store.buffer.enqueue(message_id)
         return message
 
     #
@@ -606,7 +626,27 @@ class SQLiteBackend(MAILServerBackend):
     #
     async def daemon_clear_message_buffer(self, daemon: MAILDaemon) -> list[str]:
         async with self._db.session() as session:
-            return await MailStore(session).buffer.drain()
+            store = MailStore(session)
+            buffered = await store.buffer.drain()
+            now = datetime.now(UTC)
+            claimed = await store.delivery_targets.claim_local(
+                buffered,
+                lease_owner=daemon.get_address(),
+                now=now,
+                lease_until=now + _LOCAL_DELIVERY_LEASE,
+            )
+            claimed_ids = [target.message_id for target in claimed]
+            claimed_set = set(claimed_ids)
+            known_targets = await store.delivery_targets.local_message_ids(buffered)
+            # Legacy buffered messages have no delivery-target row. Preserve
+            # their one-shot behavior while new rows remain crash-recoverable.
+            result = [
+                item
+                for item in buffered
+                if item in claimed_set or item not in known_targets
+            ]
+            result.extend(item for item in claimed_ids if item not in buffered)
+            return result
 
     async def daemon_deliver_local(
         self, daemon: MAILDaemon, payload: DaemonDeliverLocalRequest
@@ -623,24 +663,93 @@ class SQLiteBackend(MAILServerBackend):
                     continue
 
                 delivered_time = datetime.now(UTC)
-                # Mark the shared outbox entry delivered (it must already exist).
-                outbox_entry = await store.boxes.get_outbox_entry(message_id)
-                if outbox_entry is not None:
-                    outbox_entry.delivered_at = delivered_time
-                    outbox_entry.delivered_by = daemon.get_address()
-                    await store.boxes.upsert_outbox_entry(outbox_entry)
-
+                targets = await store.delivery_targets.list_for_message(message_id)
+                local_targets = [target for target in targets if target.kind == "local"]
+                delivery_message = message
+                if local_targets:
+                    delivery_message = message.model_copy(
+                        update={
+                            "recipients": [
+                                recipient
+                                for target in local_targets
+                                for recipient in target.recipients
+                            ]
+                        }
+                    )
                 await self._deliver_one(
                     store,
                     daemon=daemon,
-                    message=message,
+                    message=delivery_message,
                     delivered_time=delivered_time,
                     webhooks=webhooks,
                     fires=fires,
                 )
+                await self._complete_local_delivery_targets(
+                    store,
+                    message_id=message_id,
+                    completed_at=delivered_time,
+                    delivered_by=daemon.get_address(),
+                )
                 delivered.append(message.summarize())
         self._schedule_webhooks(fires)
         return delivered
+
+    async def _update_outbox_if_complete(
+        self,
+        store: MailStore,
+        *,
+        message_id: str,
+        completed_at: datetime,
+        delivered_by: str | None,
+    ) -> None:
+        if not await store.delivery_targets.all_succeeded(message_id):
+            return
+        outbox_entry = await store.boxes.get_outbox_entry(message_id)
+        if outbox_entry is None or outbox_entry.delivered_at is not None:
+            return
+        outbox_entry.delivered_at = completed_at
+        outbox_entry.delivered_by = delivered_by
+        await store.boxes.upsert_outbox_entry(outbox_entry)
+
+    async def _complete_local_delivery_targets(
+        self,
+        store: MailStore,
+        *,
+        message_id: str,
+        completed_at: datetime,
+        delivered_by: str,
+    ) -> None:
+        targets = await store.delivery_targets.list_for_message(message_id)
+        local_targets = [target for target in targets if target.kind == "local"]
+        if not local_targets:
+            # Compatibility for messages created before delivery targets existed.
+            outbox_entry = await store.boxes.get_outbox_entry(message_id)
+            if outbox_entry is not None:
+                outbox_entry.delivered_at = completed_at
+                outbox_entry.delivered_by = delivered_by
+                await store.boxes.upsert_outbox_entry(outbox_entry)
+            return
+        for target in local_targets:
+            if target.status == "succeeded":
+                continue
+            completed = MessageDeliveryTarget.model_validate(
+                {
+                    **target.model_dump(),
+                    "status": "succeeded",
+                    "lease_owner": None,
+                    "lease_until": None,
+                    "failure_code": None,
+                    "updated_at": completed_at,
+                    "completed_at": completed_at,
+                }
+            )
+            await store.delivery_targets.update(completed)
+        await self._update_outbox_if_complete(
+            store,
+            message_id=message_id,
+            completed_at=completed_at,
+            delivered_by=delivered_by,
+        )
 
     async def daemon_deliver_remote(
         self, daemon: MAILDaemon, payload: DaemonDeliverRemoteRequest
@@ -676,6 +785,284 @@ class SQLiteBackend(MAILServerBackend):
                 delivered.append(message.summarize())
         self._schedule_webhooks(fires)
         return delivered
+
+    #
+    # Durable federation state
+    #
+    async def get_message_delivery_targets(
+        self, message_id: str
+    ) -> list[MessageDeliveryTarget]:
+        async with self._db.session() as session:
+            return await MailStore(session).delivery_targets.list_for_message(
+                message_id
+            )
+
+    async def get_outbound_federation_deliveries(
+        self, message_id: str
+    ) -> list[OutboundFederationDelivery]:
+        async with self._db.session() as session:
+            return await MailStore(session).federation_outbound.list_for_message(
+                message_id
+            )
+
+    async def claim_due_federation_deliveries(
+        self,
+        *,
+        now: datetime,
+        lease_owner: str,
+        lease_duration: timedelta,
+        limit: int,
+    ) -> list[OutboundFederationDelivery]:
+        if lease_duration <= timedelta(0):
+            raise ValueError("lease_duration must be positive")
+        if limit <= 0:
+            raise ValueError("claim limit must be positive")
+        async with self._db.session() as session:
+            return await MailStore(session).federation_outbound.claim_due(
+                now=now,
+                lease_owner=lease_owner,
+                lease_until=now + lease_duration,
+                limit=limit,
+            )
+
+    @staticmethod
+    def _require_outbound_lease(
+        delivery: OutboundFederationDelivery,
+        lease_owner: str,
+        action_at: datetime,
+    ) -> None:
+        if (
+            delivery.status != "leased"
+            or delivery.lease_owner != lease_owner
+            or delivery.lease_until is None
+            or delivery.lease_until < action_at
+        ):
+            raise ValueError(
+                "outbound federation delivery is not leased by this worker"
+            )
+
+    async def record_federation_attempt(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        attempted_at: datetime,
+        next_attempt_at: datetime,
+        http_status: int | None = None,
+        error: str | None = None,
+    ) -> OutboundFederationDelivery:
+        async with self._db.session() as session:
+            store = MailStore(session)
+            delivery = await store.federation_outbound.get(envelope_id)
+            if delivery is None:
+                raise ValueError(f"outbound envelope {envelope_id} not found")
+            self._require_outbound_lease(delivery, lease_owner, attempted_at)
+            updated = OutboundFederationDelivery.model_validate(
+                {
+                    **delivery.model_dump(),
+                    "status": "pending",
+                    "attempt_count": delivery.attempt_count + 1,
+                    "attempt_timestamps": [
+                        *delivery.attempt_timestamps,
+                        attempted_at,
+                    ],
+                    "next_attempt_at": next_attempt_at,
+                    "lease_owner": None,
+                    "lease_until": None,
+                    "last_http_status": http_status,
+                    "last_error": error,
+                    "updated_at": attempted_at,
+                }
+            )
+            await store.federation_outbound.update(updated)
+            target = await store.delivery_targets.get(delivery.target_id)
+            if target is None:
+                raise ValueError(f"delivery target {delivery.target_id} not found")
+            await store.delivery_targets.update(
+                MessageDeliveryTarget.model_validate(
+                    {
+                        **target.model_dump(),
+                        "status": "pending",
+                        "lease_owner": None,
+                        "lease_until": None,
+                        "updated_at": attempted_at,
+                    }
+                )
+            )
+            return updated
+
+    async def complete_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        delivered_by: str | None = None,
+    ) -> OutboundFederationDelivery:
+        async with self._db.session() as session:
+            store = MailStore(session)
+            delivery = await store.federation_outbound.get(envelope_id)
+            if delivery is None:
+                raise ValueError(f"outbound envelope {envelope_id} not found")
+            if delivery.status == "succeeded":
+                return delivery
+            self._require_outbound_lease(delivery, lease_owner, completed_at)
+            completed = OutboundFederationDelivery.model_validate(
+                {
+                    **delivery.model_dump(),
+                    "status": "succeeded",
+                    "attempt_count": delivery.attempt_count + 1,
+                    "attempt_timestamps": [
+                        *delivery.attempt_timestamps,
+                        completed_at,
+                    ],
+                    "lease_owner": None,
+                    "lease_until": None,
+                    "updated_at": completed_at,
+                    "completed_at": completed_at,
+                }
+            )
+            await store.federation_outbound.update(completed)
+            target = await store.delivery_targets.get(delivery.target_id)
+            if target is None:
+                raise ValueError(f"delivery target {delivery.target_id} not found")
+            await store.delivery_targets.update(
+                MessageDeliveryTarget.model_validate(
+                    {
+                        **target.model_dump(),
+                        "status": "succeeded",
+                        "lease_owner": None,
+                        "lease_until": None,
+                        "failure_code": None,
+                        "updated_at": completed_at,
+                        "completed_at": completed_at,
+                    }
+                )
+            )
+            await self._update_outbox_if_complete(
+                store,
+                message_id=delivery.message_id,
+                completed_at=completed_at,
+                delivered_by=delivered_by,
+            )
+            return completed
+
+    async def fail_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        failure_code: str,
+        http_status: int | None = None,
+        error: str | None = None,
+    ) -> OutboundFederationDelivery:
+        async with self._db.session() as session:
+            store = MailStore(session)
+            delivery = await store.federation_outbound.get(envelope_id)
+            if delivery is None:
+                raise ValueError(f"outbound envelope {envelope_id} not found")
+            if delivery.status == "dead_letter":
+                return delivery
+            self._require_outbound_lease(delivery, lease_owner, completed_at)
+            failed = OutboundFederationDelivery.model_validate(
+                {
+                    **delivery.model_dump(),
+                    "status": "dead_letter",
+                    "attempt_count": delivery.attempt_count + 1,
+                    "attempt_timestamps": [
+                        *delivery.attempt_timestamps,
+                        completed_at,
+                    ],
+                    "lease_owner": None,
+                    "lease_until": None,
+                    "last_http_status": http_status,
+                    "last_error": error,
+                    "updated_at": completed_at,
+                    "completed_at": completed_at,
+                }
+            )
+            await store.federation_outbound.update(failed)
+            target = await store.delivery_targets.get(delivery.target_id)
+            if target is None:
+                raise ValueError(f"delivery target {delivery.target_id} not found")
+            await store.delivery_targets.update(
+                MessageDeliveryTarget.model_validate(
+                    {
+                        **target.model_dump(),
+                        "status": "failed",
+                        "lease_owner": None,
+                        "lease_until": None,
+                        "failure_code": failure_code,
+                        "updated_at": completed_at,
+                        "completed_at": completed_at,
+                    }
+                )
+            )
+            return failed
+
+    async def accept_inbound_federation(
+        self,
+        receipt: InboundFederationReceipt,
+        message: MAILMessage,
+    ) -> bool:
+        if receipt.inner_message_id != message.message_id:
+            raise ValueError("receipt inner_message_id does not match message")
+        async with self._db.session() as session:
+            store = MailStore(session)
+            await store.federation_inbound.purge_expired(receipt.accepted_at)
+            if not await store.federation_inbound.reserve(receipt):
+                return False
+
+            existing = await store.messages.get(message.message_id)
+            if existing is not None and existing.model_dump(
+                mode="json"
+            ) != message.model_dump(mode="json"):
+                raise ValueError("message ID collides with different content")
+            if existing is None:
+                await store.messages.add(message)
+
+            targets = await store.delivery_targets.list_for_message(message.message_id)
+            inbound_local = next(
+                (
+                    target
+                    for target in targets
+                    if target.origin == "inbound" and target.kind == "local"
+                ),
+                None,
+            )
+            if inbound_local is None:
+                now = receipt.accepted_at
+                target = MessageDeliveryTarget(
+                    target_id=str(uuid.uuid4()),
+                    message_id=message.message_id,
+                    origin="inbound",
+                    kind="local",
+                    destination_host=mail_address_host(message.recipients[0]),
+                    recipients=message.recipients,
+                    created_at=now,
+                    updated_at=now,
+                )
+                await store.delivery_targets.add(target)
+                await store.buffer.enqueue(message.message_id)
+        return True
+
+    async def purge_expired_federation_receipts(self, *, now: datetime) -> int:
+        async with self._db.session() as session:
+            return await MailStore(session).federation_inbound.purge_expired(now)
+
+    async def record_bounce_emission(self, emission: BounceEmission) -> None:
+        async with self._db.session() as session:
+            await MailStore(session).bounce_emissions.add(emission)
+
+    async def count_bounce_emissions_since(
+        self, original_sender: str, *, since: datetime
+    ) -> int:
+        async with self._db.session() as session:
+            return await MailStore(session).bounce_emissions.count_since(
+                original_sender,
+                since,
+            )
 
     #
     # Delivery helpers (session-scoped; webhooks collected, fired post-commit)

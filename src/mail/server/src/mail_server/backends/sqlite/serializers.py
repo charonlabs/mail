@@ -43,9 +43,13 @@ from mail_protocol.core.user_agents import MAILUserAgentInBackend
 from mail_protocol.core.webhooks import MAILWebhook
 
 from mail_server.backends.sqlite.schema import (
+    BounceEmissionRow,
     DraftEntryRow,
+    FederationInboundReceiptRow,
+    FederationOutboundRow,
     InboxEntryRow,
     ListRow,
+    MessageDeliveryTargetRow,
     MessageRow,
     OutboxEntryRow,
     RefreshTokenRow,
@@ -53,6 +57,12 @@ from mail_server.backends.sqlite.schema import (
     TrashEntryRow,
     UserAgentRow,
     WebhookRow,
+)
+from mail_server.federation.records import (
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
 )
 
 # --------------------------------------------------------------------------- #
@@ -269,3 +279,108 @@ def refresh_token_from_row(row: RefreshTokenRow) -> RefreshTokenRecord:
         revoked=row.revoked,
         rotated_at=_as_utc(row.rotated_at),
     )
+
+
+# --------------------------------------------------------------------------- #
+# federation delivery state
+# --------------------------------------------------------------------------- #
+
+
+def delivery_target_to_columns(model: MessageDeliveryTarget) -> dict[str, Any]:
+    return {
+        "target_id": model.target_id,
+        "message_id": model.message_id,
+        "origin": model.origin,
+        "kind": model.kind,
+        "destination_host": model.destination_host,
+        "status": model.status,
+        "lease_owner": model.lease_owner,
+        "lease_until": model.lease_until,
+        "completed_at": model.completed_at,
+        "created_at": model.created_at,
+        "updated_at": model.updated_at,
+        "body": model.model_dump(mode="json"),
+    }
+
+
+def delivery_target_from_row(row: MessageDeliveryTargetRow) -> MessageDeliveryTarget:
+    return MessageDeliveryTarget.model_validate(
+        {
+            **row.body,
+            "status": row.status,
+            "lease_owner": row.lease_owner,
+            "lease_until": _as_utc(row.lease_until),
+            "completed_at": _as_utc(row.completed_at),
+            "created_at": _as_utc(row.created_at),
+            "updated_at": _as_utc(row.updated_at),
+        }
+    )
+
+
+def federation_outbound_to_columns(
+    model: OutboundFederationDelivery,
+) -> dict[str, Any]:
+    return {
+        "envelope_id": model.envelope_id,
+        "target_id": model.target_id,
+        "message_id": model.message_id,
+        "destination_host": model.destination_host,
+        "status": model.status,
+        "next_attempt_at": model.next_attempt_at,
+        "lease_owner": model.lease_owner,
+        "lease_until": model.lease_until,
+        "completed_at": model.completed_at,
+        "created_at": model.created_at,
+        "updated_at": model.updated_at,
+        "body": model.model_dump(mode="json"),
+    }
+
+
+def federation_outbound_from_row(
+    row: FederationOutboundRow,
+) -> OutboundFederationDelivery:
+    return OutboundFederationDelivery.model_validate(
+        {
+            **row.body,
+            "status": row.status,
+            "next_attempt_at": _as_utc(row.next_attempt_at),
+            "lease_owner": row.lease_owner,
+            "lease_until": _as_utc(row.lease_until),
+            "completed_at": _as_utc(row.completed_at),
+            "created_at": _as_utc(row.created_at),
+            "updated_at": _as_utc(row.updated_at),
+        }
+    )
+
+
+def inbound_receipt_to_columns(model: InboundFederationReceipt) -> dict[str, Any]:
+    return model.model_dump()
+
+
+def inbound_receipt_from_row(
+    row: FederationInboundReceiptRow,
+) -> InboundFederationReceipt:
+    return InboundFederationReceipt(
+        envelope_id=row.envelope_id,
+        sender_host=row.sender_host,
+        inner_message_id=row.inner_message_id,
+        content_hash=row.content_hash,
+        accepted_at=_as_utc(row.accepted_at),  # type: ignore[arg-type]
+        expires_at=_as_utc(row.expires_at),  # type: ignore[arg-type]
+    )
+
+
+def bounce_emission_to_columns(model: BounceEmission) -> dict[str, Any]:
+    return {
+        "emission_id": model.emission_id,
+        "original_sender": model.original_sender,
+        "original_message_id": model.original_message_id,
+        "failed_recipient": model.failed_recipient,
+        "emitted_at": model.emitted_at,
+        "outcome": model.outcome,
+        "body": model.model_dump(mode="json"),
+    }
+
+
+def bounce_emission_from_row(row: BounceEmissionRow) -> BounceEmission:
+    return BounceEmission.model_validate(row.body)

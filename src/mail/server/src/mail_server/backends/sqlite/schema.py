@@ -282,3 +282,102 @@ class ListRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
     )
+
+
+class MessageDeliveryTargetRow(Base):
+    """One local or remote delivery result contributing to outbox state."""
+
+    __tablename__ = "message_delivery_targets"
+    __table_args__ = (
+        Index("ix_delivery_targets_message_status", "message_id", "status"),
+        Index("ix_delivery_targets_local_lease", "kind", "status", "lease_until"),
+    )
+
+    target_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    message_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("messages.message_id", ondelete="CASCADE"),
+        index=True,
+    )
+    origin: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(String(16))
+    destination_host: Mapped[str] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(16), index=True)
+    lease_owner: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    body: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class FederationOutboundRow(Base):
+    """A due-queryable, leased outbound federation envelope."""
+
+    __tablename__ = "federation_outbound"
+    __table_args__ = (
+        Index("ix_federation_outbound_due", "status", "next_attempt_at"),
+        Index("ix_federation_outbound_lease", "status", "lease_until"),
+    )
+
+    envelope_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    target_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("message_delivery_targets.target_id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+    )
+    message_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("messages.message_id", ondelete="CASCADE"),
+        index=True,
+    )
+    destination_host: Mapped[str] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(16), index=True)
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    lease_owner: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    body: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class FederationInboundReceiptRow(Base):
+    """A 24-hour inbound envelope replay record."""
+
+    __tablename__ = "federation_inbound_receipts"
+
+    envelope_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    sender_host: Mapped[str] = mapped_column(String(255), index=True)
+    inner_message_id: Mapped[str] = mapped_column(String(64), index=True)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class BounceEmissionRow(Base):
+    """One emitted, suppressed, or failed local DSN attempt."""
+
+    __tablename__ = "bounce_emissions"
+    __table_args__ = (
+        Index("ix_bounce_emissions_sender_time", "original_sender", "emitted_at"),
+    )
+
+    emission_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    original_sender: Mapped[str] = mapped_column(String(512), index=True)
+    original_message_id: Mapped[str] = mapped_column(String(64), index=True)
+    failed_recipient: Mapped[str] = mapped_column(String(512))
+    emitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    outcome: Mapped[str] = mapped_column(String(16))
+    body: Mapped[dict[str, Any]] = mapped_column(JSON)

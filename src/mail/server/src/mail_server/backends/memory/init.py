@@ -138,6 +138,16 @@ def init_memory_backend(
     REFRESH_TOKENS_PATH.mkdir(exist_ok=True)
     print(f"ensured deployment refresh_tokens: {REFRESH_TOKENS_PATH}")
 
+    for federation_directory in (
+        "message_delivery_targets",
+        "federation_outbound",
+        "federation_inbound_receipts",
+        "bounce_emissions",
+    ):
+        path = DEPLOYMENT_PATH.joinpath(federation_directory)
+        path.mkdir(exist_ok=True)
+        print(f"ensured deployment {federation_directory}: {path}")
+
     # write swarm file
     SWARM_PATH = SWARMS_PATH.joinpath(swarm)
     with open(SWARM_PATH, "w") as swarm_file:
