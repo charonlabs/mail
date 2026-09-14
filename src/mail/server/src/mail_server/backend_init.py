@@ -179,9 +179,7 @@ def main() -> None:
                     import_memory_deployment,
                 )
 
-                counts = asyncio.run(
-                    import_memory_deployment(deployment=deployment)
-                )
+                counts = asyncio.run(import_memory_deployment(deployment=deployment))
                 print(f"imported filesystem deployment {deployment}: {counts}")
             else:
                 from mail_server.backends.sqlite.init import init_sqlite_backend

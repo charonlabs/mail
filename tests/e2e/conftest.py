@@ -148,9 +148,7 @@ class E2EStack:
 
     # ─── drivers ───────────────────────────────────────────────────
 
-    def cli(
-        self, *args: str, token: str | None = None
-    ) -> subprocess.CompletedProcess:
+    def cli(self, *args: str, token: str | None = None) -> subprocess.CompletedProcess:
         env = {**self.env, "MAIL_SERVER": self.base_url}
         if token is not None:
             env["MAIL_TOKEN"] = token
@@ -204,9 +202,7 @@ class E2EStack:
             daemon.terminate()
             daemon.wait(timeout=10)
 
-    def wait_for(
-        self, condition: Callable[[], bool], timeout: float = 20.0
-    ) -> None:
+    def wait_for(self, condition: Callable[[], bool], timeout: float = 20.0) -> None:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if condition():

@@ -95,9 +95,7 @@ def test_validate_mail_address_rejects_list_with_invalid_slug() -> None:
 
 def test_validate_mail_address_rejects_list_with_invalid_swarm() -> None:
     with pytest.raises(ValueError, match="invalid slug"):
-        validate_mail_address(
-            "list:welfare-discourse@Bad_Swarm@localhost"
-        )
+        validate_mail_address("list:welfare-discourse@Bad_Swarm@localhost")
 
 
 def test_list_address_prefix_constant_matches_parser() -> None:

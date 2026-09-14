@@ -26,9 +26,7 @@ from mail_server.cli import build_parser  # noqa: E402
 
 def test_parser_accepts_sqlite_backend_and_options() -> None:
     parser = build_parser()
-    args = parser.parse_args(
-        ["--backend", "sqlite", "--sqlite-path", "/tmp/mail.db"]
-    )
+    args = parser.parse_args(["--backend", "sqlite", "--sqlite-path", "/tmp/mail.db"])
     assert args.backend == "sqlite"
     assert args.sqlite_path == "/tmp/mail.db"
     assert args.database_url is None
@@ -43,18 +41,13 @@ def test_parser_reads_env_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_resolve_url_prefers_database_url() -> None:
-    args = Namespace(
-        database_url="sqlite:////abs/custom.db", sqlite_path="/ignored.db"
-    )
+    args = Namespace(database_url="sqlite:////abs/custom.db", sqlite_path="/ignored.db")
     assert server_module._resolve_sqlite_url(args) == "sqlite:////abs/custom.db"
 
 
 def test_resolve_url_uses_sqlite_path() -> None:
     args = Namespace(database_url=None, sqlite_path="/var/lib/mail/mail.db")
-    assert (
-        server_module._resolve_sqlite_url(args)
-        == "sqlite:////var/lib/mail/mail.db"
-    )
+    assert server_module._resolve_sqlite_url(args) == "sqlite:////var/lib/mail/mail.db"
 
 
 def test_resolve_url_falls_back_to_default() -> None:

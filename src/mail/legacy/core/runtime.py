@@ -32,7 +32,11 @@ from mail.legacy.db.utils import (
 )
 from mail.legacy.net import InterswarmRouter, SwarmRegistry
 from mail.legacy.utils.context import get_model_ctx_len
-from mail.legacy.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
+from mail.legacy.utils.serialize import (
+    _REDACT_KEYS,
+    _format_event_sections,
+    _serialize_event,
+)
 from mail.legacy.utils.string_builder import build_mail_help_string
 
 from .actions import (

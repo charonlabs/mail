@@ -26,9 +26,7 @@ PASSWORD = "correct-horse-battery-staple"
 
 
 def _login(client: TestClient, address: str, password: str = PASSWORD):
-    return client.post(
-        "/auth/token", data={"username": address, "password": password}
-    )
+    return client.post("/auth/token", data={"username": address, "password": password})
 
 
 def _refresh_body(client: TestClient, token: str):

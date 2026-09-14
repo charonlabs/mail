@@ -43,10 +43,7 @@ type _UserAgentVariant = MAILAgent | MAILUser | MAILAdmin | MAILDaemon
 def default_sqlite_path(deployment: str = "default") -> Path:
     """Default DB file for a deployment: ``~/.mail-swarms/.../<dep>/mail.db``."""
 
-    return (
-        Path.home()
-        .joinpath(".mail-swarms", "deployments", deployment, "mail.db")
-    )
+    return Path.home().joinpath(".mail-swarms", "deployments", deployment, "mail.db")
 
 
 async def _seed_user_agent(
@@ -124,9 +121,7 @@ async def init_sqlite_backend(
                     store,
                     password_hash,
                     secrets_path,
-                    MAILAgent(
-                        ua_type="agent", name=agent_name, swarm=swarm, host=host
-                    ),
+                    MAILAgent(ua_type="agent", name=agent_name, swarm=swarm, host=host),
                     "agent",
                 )
             for daemon_name in daemons:

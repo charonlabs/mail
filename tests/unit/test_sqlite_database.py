@@ -99,9 +99,7 @@ async def test_concurrent_sends_do_not_lock(backend: SQLiteBackend) -> None:
     """WAL + busy_timeout: concurrent committed sends don't raise locked."""
 
     drafts = [
-        await backend.post_draft(
-            ALICE, DraftPostRequest(subject=f"D{i}", body="body")
-        )
+        await backend.post_draft(ALICE, DraftPostRequest(subject=f"D{i}", body="body"))
         for i in range(8)
     ]
 

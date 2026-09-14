@@ -66,8 +66,7 @@ def test_endpoint_documents_request_body(schema: dict, path: str, method: str) -
     )
     content = operation["requestBody"].get("content", {})
     assert "application/json" in content, (
-        f"{method.upper()} {path} request body is not application/json: "
-        f"{list(content)}"
+        f"{method.upper()} {path} request body is not application/json: {list(content)}"
     )
     assert content["application/json"].get("schema"), (
         f"{method.upper()} {path} request body has no schema"

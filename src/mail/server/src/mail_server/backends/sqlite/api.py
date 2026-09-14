@@ -556,9 +556,7 @@ class SQLiteBackend(MAILServerBackend):
                 )
             trash_entry = await store.boxes.get_trash_entry(message_id)
         if trash_entry is None:
-            raise ValueError(
-                f"message with ID {message_id} not found in trash entries"
-            )
+            raise ValueError(f"message with ID {message_id} not found in trash entries")
         return trash_entry
 
     async def delete_trash_message(
@@ -756,9 +754,7 @@ class SQLiteBackend(MAILServerBackend):
 
         # ``mail.delivered`` is agent-scoped: only ``name@swarm@host`` recipients
         # carry the swarm the webhook payload requires.
-        if user_agent.user_agent.ua_type != "agent" or not _is_agent_recipient(
-            address
-        ):
+        if user_agent.user_agent.ua_type != "agent" or not _is_agent_recipient(address):
             logger.debug(
                 f"skipping `mail.delivered` webhooks for non-agent recipient {address}"
             )
@@ -835,9 +831,7 @@ class SQLiteBackend(MAILServerBackend):
             local_addrs.append(f"{name}@{swarm}")
         return local_addrs
 
-    async def admin_get_agent(
-        self, admin: MAILAdmin, local_address: str
-    ) -> MAILAgent:
+    async def admin_get_agent(self, admin: MAILAdmin, local_address: str) -> MAILAgent:
         full_address = f"{local_address}@{self.host}"
         async with self._db.session() as session:
             agent = await MailStore(session).user_agents.get(full_address)
@@ -897,9 +891,7 @@ class SQLiteBackend(MAILServerBackend):
             worker_names.append(name.removeprefix("daemon:"))
         return worker_names
 
-    async def admin_get_daemon(
-        self, admin: MAILAdmin, worker_name: str
-    ) -> MAILDaemon:
+    async def admin_get_daemon(self, admin: MAILAdmin, worker_name: str) -> MAILDaemon:
         full_address = f"daemon:{worker_name}@{self.host}"
         async with self._db.session() as session:
             daemon = await MailStore(session).user_agents.get(full_address)
@@ -1019,9 +1011,7 @@ class SQLiteBackend(MAILServerBackend):
             await store.swarms.add(new_swarm)
         return new_swarm
 
-    async def admin_delete_swarm(
-        self, admin: MAILAdmin, swarm_name: str
-    ) -> MAILSwarm:
+    async def admin_delete_swarm(self, admin: MAILAdmin, swarm_name: str) -> MAILSwarm:
         async with self._db.session() as session:
             store = MailStore(session)
             swarm = await store.swarms.delete(swarm_name)
@@ -1037,9 +1027,7 @@ class SQLiteBackend(MAILServerBackend):
             webhooks = await MailStore(session).webhooks.list_all()
         return [wh.webhook_id for wh in webhooks]
 
-    async def admin_webhook_get(
-        self, admin: MAILAdmin, webhook_id: str
-    ) -> MAILWebhook:
+    async def admin_webhook_get(self, admin: MAILAdmin, webhook_id: str) -> MAILWebhook:
         async with self._db.session() as session:
             webhook = await MailStore(session).webhooks.get_by_id(webhook_id)
         if webhook is None:

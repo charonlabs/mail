@@ -17,9 +17,7 @@ def test_sqlite_committed_message_survives_sigkill(sqlite_e2e_stack) -> None:
     alice = stack.login(USER)
     bob = stack.login(OTHER_USER)
 
-    draft = stack.cli_json(
-        "compose", "Durable", "Survives kill -9.", token=alice
-    )
+    draft = stack.cli_json("compose", "Durable", "Survives kill -9.", token=alice)
     sent = stack.cli_json(
         "send", draft["entry"]["draft"]["draft_id"], OTHER_USER, token=alice
     )

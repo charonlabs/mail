@@ -138,11 +138,9 @@ class Game:
         # 2. Create player agents with personas and roles
         players = []
         for role in roles:
-            players.append(Agent(
-                persona=random_persona,
-                role=role,
-                llm="openai/gpt-5-mini"
-            ))
+            players.append(
+                Agent(persona=random_persona, role=role, llm="openai/gpt-5-mini")
+            )
 
         # 3. Build agent templates
         agents = [player.build_agent_template() for player in players]
@@ -200,14 +198,15 @@ async def step_narrator(self, payload: str = "") -> MAILMessage:
     response = await self.swarm.manual_step(
         task_id=self.task_id,
         target="Narrator",
-        response_targets=["all"],      # Everyone hears this
+        response_targets=["all"],  # Everyone hears this
         response_type="broadcast",
-        payload=payload,               # Phase-specific instructions
-        dynamic_ctx_ratio=0.75,        # Compress context to save tokens
+        payload=payload,  # Phase-specific instructions
+        dynamic_ctx_ratio=0.75,  # Compress context to save tokens
         _llm=self.narrator_llm,
         _system=create_narrator_system_prompt(),
     )
     return response
+
 
 async def step_agent(
     self,
@@ -252,10 +251,12 @@ async def run_night_phase(self) -> None:
     self.phase = GamePhase.NIGHT
 
     # 1. Narrator announces night
-    await self.step_narrator(payload=f"""
+    await self.step_narrator(
+        payload=f"""
 === NIGHT {self.day_number} ===
 The night falls. Prompt the Doctor to choose who to protect.
-""")
+"""
+    )
 
     # 2. Doctor acts (private to Narrator)
     if doctor:
@@ -271,10 +272,12 @@ Your response must end with: "I protect [player_name]"
         )
 
         # 3. Narrator processes Doctor's choice (uses tool)
-        await self.step_narrator(payload="""
+        await self.step_narrator(
+            payload="""
 Use the doctor_protect tool to record the doctor's choice.
 Then prompt the Detective.
-""")
+"""
+        )
 
     # 4. Detective acts (private)
     if detective:
@@ -311,15 +314,19 @@ Actions let agents affect game state. Here's how Mafia defines them:
 ```python
 # narrator_tools.py
 
+
 class DoctorProtectArgs(BaseModel):
     """Record the doctor's protection target."""
+
     target_name: str = Field(description="Player to protect")
+
 
 async def doctor_protect(game: "Game", args: dict) -> str:
     """Called when Narrator uses doctor_protect tool."""
     target = args["target_name"]
     game.protected_player = target  # Modify game state!
     return f"Doctor protected {target} for the night"
+
 
 # Create action from Pydantic model
 def get_narrator_actions(game: "Game") -> list[MAILAction]:
@@ -362,12 +369,14 @@ def build_narrator_template(game: "Game", player_names: list[str]) -> MAILAgentT
 from dataclasses import dataclass, field
 from enum import Enum
 
+
 class GamePhase(Enum):
     SETUP = "setup"
     PLAYER_TURN = "player_turn"
     CHALLENGE = "challenge"
     RESOLUTION = "resolution"
     GAME_OVER = "game_over"
+
 
 @dataclass
 class MyGame:
@@ -418,10 +427,13 @@ Play the game strategically while staying in character."""
 from pydantic import BaseModel, Field
 from functools import partial
 
+
 class ScorePointsArgs(BaseModel):
     """Award points to a player."""
+
     player_name: str = Field(description="Player to award points to")
     points: int = Field(description="Number of points to award")
+
 
 async def score_points(game: "MyGame", args: dict) -> str:
     player = args["player_name"]
@@ -429,13 +441,17 @@ async def score_points(game: "MyGame", args: dict) -> str:
     game.scores[player] = game.scores.get(player, 0) + points
     return f"Awarded {points} points to {player}. Total: {game.scores[player]}"
 
+
 class SetChallengeArgs(BaseModel):
     """Set the current challenge."""
+
     challenge: str = Field(description="The challenge description")
+
 
 async def set_challenge(game: "MyGame", args: dict) -> str:
     game.current_challenge = args["challenge"]
     return f"Challenge set: {args['challenge']}"
+
 
 def get_gamemaster_actions(game: "MyGame") -> list[MAILAction]:
     return [
@@ -456,8 +472,7 @@ def get_gamemaster_actions(game: "MyGame") -> list[MAILAction]:
 
 ```python
 def build_gamemaster_template(
-    game: "MyGame",
-    player_names: list[str]
+    game: "MyGame", player_names: list[str]
 ) -> MAILAgentTemplate:
     system = """You are the Game Master. You:
 - Run the game fairly and create engaging challenges
@@ -514,10 +529,12 @@ def create(player_configs: list[dict]) -> "MyGame":
 
     # Create players
     for config in player_configs:
-        game.players.append(Player(
-            name=config["name"],
-            personality=config["personality"],
-        ))
+        game.players.append(
+            Player(
+                name=config["name"],
+                personality=config["personality"],
+            )
+        )
 
     # Build agent templates
     player_names = [p.name for p in game.players]
@@ -548,11 +565,9 @@ async def step_gamemaster(self, payload: str = "") -> MAILMessage:
         payload=payload,
     )
 
+
 async def step_player(
-    self,
-    player_name: str,
-    private: bool = False,
-    payload: str = ""
+    self, player_name: str, private: bool = False, payload: str = ""
 ) -> MAILMessage:
     await self.swarm.await_queue_empty()
 
@@ -587,6 +602,7 @@ async def run(self) -> str:
     # Announce winner
     return await self.announce_winner()
 
+
 async def start_game(self):
     self.phase = GamePhase.SETUP
 
@@ -607,18 +623,23 @@ async def start_game(self):
     await self.swarm.submit_message_nowait(init_msg)
 
     # GM welcomes players
-    await self.step_gamemaster(payload=f"""
+    await self.step_gamemaster(
+        payload=f"""
 Welcome the players and explain the game rules.
-Players: {', '.join(player_names)}
-""")
+Players: {", ".join(player_names)}
+"""
+    )
+
 
 async def run_round(self):
     # 1. GM sets a challenge
     self.phase = GamePhase.CHALLENGE
-    await self.step_gamemaster(payload="""
+    await self.step_gamemaster(
+        payload="""
 Use set_challenge to create a new challenge for this round.
 Then announce it to the players.
-""")
+"""
+    )
 
     # 2. Each player responds
     self.phase = GamePhase.PLAYER_TURN
@@ -634,24 +655,30 @@ Give your response!
 
     # 3. GM evaluates and scores
     self.phase = GamePhase.RESOLUTION
-    await self.step_gamemaster(payload=f"""
+    await self.step_gamemaster(
+        payload=f"""
 Evaluate each player's response to: {self.current_challenge}
 Use score_points to award points based on creativity and effort.
 Current scores: {self.scores}
-""")
+"""
+    )
+
 
 def is_game_over(self) -> bool:
     return max(self.scores.values(), default=0) >= 10
+
 
 async def announce_winner(self) -> str:
     self.phase = GamePhase.GAME_OVER
     winner = max(self.scores, key=self.scores.get)
 
-    await self.step_gamemaster(payload=f"""
+    await self.step_gamemaster(
+        payload=f"""
 The game is over! {winner} wins with {self.scores[winner]} points!
 Give a dramatic conclusion and congratulate everyone.
 Final scores: {self.scores}
-""")
+"""
+    )
 
     return winner
 ```
@@ -660,14 +687,17 @@ Final scores: {self.scores}
 
 ```python
 async def main():
-    game = MyGame.create([
-        {"name": "Alice", "personality": "Witty and competitive"},
-        {"name": "Bob", "personality": "Laid-back but strategic"},
-        {"name": "Charlie", "personality": "Enthusiastic and creative"},
-    ])
+    game = MyGame.create(
+        [
+            {"name": "Alice", "personality": "Witty and competitive"},
+            {"name": "Bob", "personality": "Laid-back but strategic"},
+            {"name": "Charlie", "personality": "Enthusiastic and creative"},
+        ]
+    )
 
     winner = await game.run()
     print(f"Winner: {winner}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -795,7 +825,8 @@ Your response MUST end with one of:
 
 ```python
 # Give agent current state
-await self.step_gamemaster(payload=f"""
+await self.step_gamemaster(
+    payload=f"""
 === ROUND {self.round_number} ===
 
 Current standings:
@@ -804,17 +835,20 @@ Current standings:
 Remaining items: {self.remaining_items}
 
 Decide who should go next and set the next challenge.
-""")
+"""
+)
 ```
 
 ### Pattern 4: Tool Result Processing
 
 ```python
 # Step agent with tools, process results
-await self.step_gamemaster(payload="""
+await self.step_gamemaster(
+    payload="""
 Use score_points to award points to the winner.
 Then announce the results.
-""")
+"""
+)
 
 # The tool modifies game state directly via callback
 # You can check state after the step returns
@@ -882,7 +916,9 @@ async def score_points(game, args):
 ```python
 class NarratorError(Exception):
     """Tool validation error - message goes back to agent."""
+
     pass
+
 
 async def my_tool(game, args):
     if not valid_target(args["target"]):

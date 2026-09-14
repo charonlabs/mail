@@ -204,9 +204,7 @@ def test_deliver_messages_posts_ids(daemon_state) -> None:
 def test_deliver_messages_reauthenticates_on_401(
     daemon_state, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    respx.post(f"{SERVER}/daemon/deliver/local").mock(
-        return_value=httpx.Response(401)
-    )
+    respx.post(f"{SERVER}/daemon/deliver/local").mock(return_value=httpx.Response(401))
     relogins: list[bool] = []
     monkeypatch.setattr(maild, "_obtain_daemon_token", lambda: relogins.append(True))
 

@@ -23,7 +23,7 @@ await aresponses(
     reasoning={"effort": "high", "summary": "detailed"},
     tool_choice="required",
     tools=tools,
-    stream=True/False,
+    stream=True / False,
 )
 ```
 
@@ -47,13 +47,15 @@ for output in res.output:
 **Example Output Structure:**
 ```python
 ResponseReasoningItem(
-    id='rs_0f0806c96bd0a13f00695dbf738bc081928f41c6fa089b9f24',
-    type='reasoning',
+    id="rs_0f0806c96bd0a13f00695dbf738bc081928f41c6fa089b9f24",
+    type="reasoning",
     summary=[
-        Summary(text="**Analyzing Chesterfield location**\n\nI'm figuring out the possible locations...")
+        Summary(
+            text="**Analyzing Chesterfield location**\n\nI'm figuring out the possible locations..."
+        )
     ],
     content=None,
-    encrypted_content='gAAAAABpXb-iTrxe8Argm1GqrIMN83Zy...'
+    encrypted_content="gAAAAABpXb-iTrxe8Argm1GqrIMN83Zy...",
 )
 ```
 
@@ -93,13 +95,13 @@ reasoning_summary = "".join(reasoning_parts)
 **Event Structure (delta events):**
 ```python
 {
-    'type': 'response.reasoning_summary_text.delta',
-    'sequence_number': 4,
-    'item_id': 'rs_022a860c041198e700695dbea537c48190a36863cbcb1aaec5',
-    'output_index': 0,
-    'summary_index': 0,
-    'delta': '**Analy',  # <-- Text chunk
-    'obfuscation': 'XTdhgYI7d'
+    "type": "response.reasoning_summary_text.delta",
+    "sequence_number": 4,
+    "item_id": "rs_022a860c041198e700695dbea537c48190a36863cbcb1aaec5",
+    "output_index": 0,
+    "summary_index": 0,
+    "delta": "**Analy",  # <-- Text chunk
+    "obfuscation": "XTdhgYI7d",
 }
 ```
 
@@ -230,7 +232,7 @@ thinking -> [text] -> tool1 -> [result1] -> thinking -> [text] -> tool2 -> ...
 {
     "type": "thinking",
     "thinking": "The user wants me to research Python 3.13...",
-    "signature": "ErUBCkYIARAB..."  # Cryptographic signature
+    "signature": "ErUBCkYIARAB...",  # Cryptographic signature
 }
 ```
 
@@ -298,11 +300,11 @@ if not tool_calls and pending_thinking:
 # After getting response
 reasoning_summary = None
 for output in res.output:
-    if hasattr(output, 'type') and output.type == 'reasoning':
-        if hasattr(output, 'summary') and output.summary:
+    if hasattr(output, "type") and output.type == "reasoning":
+        if hasattr(output, "summary") and output.summary:
             # Join all summary texts
             reasoning_summary = "\n".join(
-                s.text for s in output.summary if hasattr(s, 'text')
+                s.text for s in output.summary if hasattr(s, "text")
             )
         break
 

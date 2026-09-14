@@ -81,9 +81,7 @@ async def import_memory_deployment(
 
     source_dir = source_dir or _memory_deployment_dir(deployment)
     if not source_dir.is_dir():
-        raise FileNotFoundError(
-            f"no filesystem deployment to import at {source_dir}"
-        )
+        raise FileNotFoundError(f"no filesystem deployment to import at {source_dir}")
     db_path = db_path or default_sqlite_path(deployment)
 
     # Load every collection via the memory backend's loaders by pointing them at
@@ -114,8 +112,7 @@ async def import_memory_deployment(
         async with db.session() as session:
             if not await _is_empty(session):
                 raise ValueError(
-                    f"target sqlite database {db_path} is not empty; "
-                    "refusing to import"
+                    f"target sqlite database {db_path} is not empty; refusing to import"
                 )
             store = MailStore(session)
 
@@ -185,7 +182,9 @@ async def import_memory_deployment(
         "lists": len(lists),
         "buffered": len(message_buffer),
     }
-    logger.info("imported filesystem deployment %s into %s: %s", deployment, db_path, counts)
+    logger.info(
+        "imported filesystem deployment %s into %s: %s", deployment, db_path, counts
+    )
     return counts
 
 
@@ -218,6 +217,4 @@ async def _import_membership(
                 continue
             if await store.boxes.is_member(owner, box, item_id):
                 continue
-            await store.boxes.add_membership(
-                owner, box, item_id, entered_at_of(entry)
-            )
+            await store.boxes.add_membership(owner, box, item_id, entered_at_of(entry))

@@ -95,4 +95,4 @@ def test_clear_refresh_cookie_emits_deletion() -> None:
     assert f"{auth.REFRESH_COOKIE_NAME}=" in lowered
     assert "path=/auth" in lowered
     # deletion is expressed as an immediate expiry
-    assert "max-age=0" in lowered or 'expires=thu, 01 jan 1970' in lowered
+    assert "max-age=0" in lowered or "expires=thu, 01 jan 1970" in lowered

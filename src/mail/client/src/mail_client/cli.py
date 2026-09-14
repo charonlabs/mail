@@ -310,9 +310,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=forward_d,
         description=forward_d,
     )
-    forward_p.add_argument(
-        "message_id", help="the ID of the inbox message to forward"
-    )
+    forward_p.add_argument("message_id", help="the ID of the inbox message to forward")
     forward_p.add_argument(
         "to", nargs="+", help="the address(es) to forward this message to"
     )

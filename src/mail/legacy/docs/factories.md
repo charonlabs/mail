@@ -20,7 +20,16 @@ analytics_agent = LiteLLMAgentFunction(
     # top-level wiring
     name="analyst",
     comm_targets=["consultant", "supervisor"],
-    tools=[{"type": "function", "function": {"name": "fetch_report", "description": "...", "parameters": {...}}}],
+    tools=[
+        {
+            "type": "function",
+            "function": {
+                "name": "fetch_report",
+                "description": "...",
+                "parameters": {...},
+            },
+        }
+    ],
     # LiteLLM config
     llm="openai/gpt-5-mini",
     system="system prompt string",
@@ -45,18 +54,13 @@ At runtime, `LiteLLMAgentFunction` receives `messages` and an optional `tool_cho
 The agent shown above can be directly run as follows:
 
 ```python
-messages: list[dict[str, Any]] = [
-    {
-        "role": "user",
-        "content": "Test message"
-    }
-]
+messages: list[dict[str, Any]] = [{"role": "user", "content": "Test message"}]
 
 tool_choice: str | dict[str, str] = "auto"
 
 agent_output = await analytics_agent(
     messages=messages,
-    tool_choice=tool_choice, # default = "required"
+    tool_choice=tool_choice,  # default = "required"
 )
 ```
 

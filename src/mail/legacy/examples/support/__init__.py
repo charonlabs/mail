@@ -19,7 +19,10 @@ from mail.legacy.examples.support.faq.actions import search_faq
 from mail.legacy.examples.support.classifier.agent import LiteLLMClassifierFunction
 from mail.legacy.examples.support.classifier.actions import classify_ticket
 from mail.legacy.examples.support.sentiment.agent import LiteLLMSentimentFunction
-from mail.legacy.examples.support.sentiment.actions import analyze_sentiment, create_escalation
+from mail.legacy.examples.support.sentiment.actions import (
+    analyze_sentiment,
+    create_escalation,
+)
 
 __all__ = [
     "LiteLLMCoordinatorFunction",

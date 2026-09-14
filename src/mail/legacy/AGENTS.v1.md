@@ -100,7 +100,7 @@ Addressing:
 ```python
 AgentFunction = Callable[
     [list[dict[str, Any]], str | dict[str, str]],  # (messages, tool_choice)
-    Awaitable[AgentOutput]                          # (response_text, tool_calls)
+    Awaitable[AgentOutput],  # (response_text, tool_calls)
 ]
 ```
 

@@ -1,6 +1,6 @@
 # MAIL Federation v1 — RFC
 
-**Status**: Submitted on September 11, 2026
+**Status**: Accepted on September 14, 2026
 **Editors**: Addison (charonlabs/mail), minichorus-pm (chorus consumer)
 **Target audience**: MAIL server implementors and federation-aware clients
 
@@ -10,7 +10,7 @@
 
 MAIL Federation v1 defines inter-server message delivery for MAIL 2.0. Two MAIL servers running independent user-agent populations can exchange messages via a signed, push-based delivery model with well-known-URL discovery.
 
-The design deliberately extends MAIL's existing shape: the same `name@swarm@host` address grammar, the same webhook-style delivery semantics, the same HMAC/signature discipline. Federation is a natural extension of what MAIL already does locally, not a rearchitecture.
+The design deliberately extends MAIL's existing shape: the same `name@swarm@host` address grammar, the same webhook-style delivery semantics, and the same discipline of authenticating the exact bytes sent. Federation is a natural extension of what MAIL already does locally, not a rearchitecture.
 
 ## Scope
 
@@ -20,7 +20,7 @@ The design deliberately extends MAIL's existing shape: the same `name@swarm@host
 - Discovery, authentication, and validation of inter-server requests.
 - Retry and idempotency semantics.
 - Multi-recipient splitting.
-- Metadata continuity (`reply_to`, `tags`, `list_address`).
+- Metadata continuity (`reply_to`, `tags`, payload `metadata`).
 
 **Explicitly out of scope for v1** (see § Deferred):
 
@@ -50,7 +50,7 @@ Manifest schema:
 {
   "protocol_version": "1",
   "mail_protocol_version": "2.0",
-  "delivery_url": "https://mail.example.com/daemon/deliver/remote",
+  "delivery_url": "https://mail.example.com/daemon/deliver/remote/v1",
   "public_keys": [
     {
       "key_id": "mail-federation-2026-09",
@@ -68,11 +68,13 @@ Fields:
 
 - `protocol_version` (string, required): federation protocol version. This RFC defines version `"1"`. Federation and MAIL protocol versions evolve independently.
 - `mail_protocol_version` (string, optional): the MAIL protocol version this server implements (e.g., `"2.0"`). Redundant with `GET /` on the same host, but included here as a convenience for federation clients that discover a peer for the first time. Non-federation clients ignore this field.
-- `delivery_url` (string, required): the full URL where inter-server messages MUST be POSTed. Servers MAY use any path; `POST /daemon/deliver/remote` is RECOMMENDED for consistency.
+- `delivery_url` (string, required): the full HTTPS URL where inter-server messages MUST be POSTed. Servers MAY use any path; `POST /daemon/deliver/remote/v1` is RECOMMENDED for consistency and is the canonical endpoint exposed by the reference implementation. Senders MUST use the advertised URL rather than constructing this path themselves.
 - `public_keys` (array, required): one or more current signing keys. Multiple keys support rotation (during a rotation window the previous key remains valid while the new one is advertised).
 - `policy_hints` (object, optional): informational hint about acceptance policy. Values: `open` (accepts from any peer), `allowlist` (accepts from an explicit peer list), `closed` (federation disabled). The receiver's actual policy MAY differ from the hint; senders SHOULD NOT rely on hints as guarantees.
 
 Discovery clients SHOULD cache the manifest with a TTL between 5 and 15 minutes.
+
+Production federation hosts MUST be DNS hostnames with publicly routable HTTPS endpoints. IP literals and single-label development names such as `localhost`, although valid in ordinary MAIL addresses, MUST NOT be used for production federation. Implementations MAY provide an explicit test-only override for isolated local interoperability tests.
 
 ## Envelope Schema
 
@@ -80,13 +82,13 @@ The `MAILInterServerMessage` wraps a `MAILMessage` for inter-server transport:
 
 ```python
 class MAILInterServerMessage(BaseModel):
-    message_id: str          # envelope UUID (dedup key)
-    sender_host: str         # origin server domain
-    recipient_host: str      # destination server domain
-    message: MAILMessage     # the payload (intact for local fan-out)
-    metadata: dict[str, Any] # envelope-level metadata
-    sent_at: datetime        # signing time
-    protocol_version: str    # "1"
+    message_id: str  # envelope UUID (dedup key)
+    sender_host: str  # origin server domain
+    recipient_host: str  # destination server domain
+    message: MAILMessage  # the payload (intact for local fan-out)
+    metadata: dict[str, Any]  # envelope-level metadata
+    sent_at: datetime  # signing time
+    protocol_version: str  # "1"
 ```
 
 Field notes:
@@ -94,7 +96,7 @@ Field notes:
 - `message_id` is a **new UUID** distinct from `message.message_id`. The inner message may be delivered to multiple destination servers; each delivery gets its own envelope with its own `message_id` (used for dedup on the receiver).
 - `sender_host` MUST be a valid domain name and MUST equal the host portion of `message.sender`.
 - `recipient_host` MUST be a valid domain name and MUST equal the host portion of every recipient in `message.recipients`. See § Multi-Recipient Handling.
-- `metadata` is envelope-level (federation transport metadata such as attempt count if not carried in headers), distinct from `message.metadata` which stays with the payload.
+- `metadata` is signed envelope-level content, distinct from `message.metadata` which stays with the payload. Attempt counters and delivery-attempt IDs are transport metadata and belong in headers.
 - `sent_at` is used for replay-window enforcement (see § Security).
 - `protocol_version` is the federation spec version this envelope conforms to.
 
@@ -119,14 +121,14 @@ Verification (on destination server):
 
 Servers MUST NOT accept inter-server messages over plaintext HTTP or without valid signatures. No plaintext downgrade.
 
-## Endpoint: `POST /daemon/deliver/remote`
+## Endpoint: `POST /daemon/deliver/remote/v1`
 
 Origin server POSTs the signed envelope to the destination server's advertised `delivery_url`.
 
 **Request:**
 
 ```http
-POST /daemon/deliver/remote HTTP/1.1
+POST /daemon/deliver/remote/v1 HTTP/1.1
 Host: mail.example.com
 Content-Type: application/json
 Content-Digest: sha-256=:<digest>:
@@ -145,12 +147,23 @@ Date: <sent_at>
 | 400  | Validation failure (malformed body, bad UUID, missing fields) | No (permanent) |
 | 401  | Missing or invalid HTTP Signature | No (permanent) |
 | 403  | `sender_host` doesn't match signature-verified origin, `recipient_host` doesn't match this server, or policy rejection | No (permanent) |
+| 404  | One or more direct recipients do not exist on the destination | No (partition; see below) |
 | 409  | Duplicate `message_id` within dedup window | No (treat as delivered) |
 | 413  | Payload too large | No (permanent) |
 | 429  | Rate-limited; consult `Retry-After` header | Yes (per header) |
 | 503  | Temporarily unable to accept; consult `Retry-After` header | Yes (per header) |
 
-Servers MUST respond with a JSON body on error, containing at minimum `{"detail": "<human-readable error>"}`. On 202, response body MAY be empty or contain `{"accepted_at": "<timestamp>"}`.
+Servers MUST respond with a JSON body on error containing a stable machine-readable `code` and a human-readable `detail`:
+
+```json
+{"code": "policy_denied", "detail": "federation peer is not accepted"}
+```
+
+The defined v1 error codes are `invalid_envelope`, `invalid_signature`, `sender_host_mismatch`, `recipient_host_mismatch`, `recipient_not_local`, `recipient_not_found`, `policy_denied`, `payload_too_large`, `rate_limited`, and `temporarily_unavailable`. Clients MUST NOT parse `detail` to determine behavior and SHOULD tolerate unknown future codes according to the HTTP status class.
+
+A `404 recipient_not_found` response MUST additionally contain `failed_recipients`, listing only addresses that appeared in the signed envelope and do not exist at the destination. The receiver rejects that envelope atomically. The origin emits a `recipient_not_found` bounce for each failed recipient; if other recipients remain, it creates a replacement envelope with a new envelope `message_id`, the same inner message ID, and only the remaining recipients. The rejected envelope itself is not retried. This limited disclosure is restricted to a signature-verified peer asking about recipients it already named.
+
+On 202, the response body MAY be empty or contain `{"accepted_at": "<timestamp>"}`.
 
 ## Envelope Validation Rules
 
@@ -163,6 +176,7 @@ The destination server MUST validate every incoming envelope:
 5. **Freshness**: `sent_at` is within 5 minutes of the receiver's clock (past or future). Fails → 400.
 6. **Idempotency**: `message_id` has not been seen in the last 24 hours. Fails → 409.
 7. **Policy**: server's local acceptance policy accepts messages from `sender_host`. Fails → 403.
+8. **Recipient existence**: every direct recipient exists on the destination server. Mailing-list recipients are not supported by federation v1. If one or more direct recipients do not exist, reject the envelope atomically with `404 recipient_not_found` and `failed_recipients` as described above.
 
 On successful validation, the destination server enqueues the message for local delivery to `message.recipients`.
 
@@ -183,7 +197,7 @@ Alice@village@server-a.example.com sends one message to bob@village@server-b.exa
 
 **On server-b:**
 
-1. Receives the POST at `/daemon/deliver/remote`.
+1. Receives the POST at `/daemon/deliver/remote/v1`.
 2. Verifies signature against server-a's advertised key (401 if fails).
 3. Runs the seven envelope validation rules.
 4. Returns 202 Accepted.
@@ -210,6 +224,15 @@ After attempt 6 without success, the envelope is dead-lettered. The origin serve
 
 **409 duplicate** is treated as successful delivery — the receiver has already accepted this envelope in a prior attempt. No bounce.
 
+Failure-to-bounce mapping is deterministic in v1:
+
+- discovery, DNS, connection, or routing exhaustion → `host_unreachable` / `in_transit`;
+- retryable HTTP or timeout exhaustion after the peer was reached → `delivery_expired` / `in_transit`;
+- `413 payload_too_large` → `payload_too_large` / `destination`;
+- `403 policy_denied` → `policy_denied` / `destination`;
+- other permanent peer rejection → `host_rejected` / `destination`;
+- an internal origin failure that cannot be classified above → `internal_error` / `origin`.
+
 [bounces-rfc]: mail-rfc-0002.md
 
 ## Multi-Recipient Handling
@@ -224,10 +247,11 @@ The following fields on `MAILMessage` MUST be preserved verbatim on federation f
 
 - `reply_to`
 - `tags`
-- `list_address` (though see § Deferred: mailing lists across servers is v2)
 - `metadata` (payload-level, distinct from envelope metadata)
 
 Destination servers MUST NOT modify these fields when performing local delivery.
+
+`MAILMessage` has no top-level `list_address` field. Local list deliveries may carry list identity in webhook metadata, but remote `list:` recipients and federated list expansion are rejected in v1.
 
 ## Daemon Scope Grammar
 
@@ -237,7 +261,13 @@ Daemon tokens on a MAIL server SHOULD carry federation-related scopes:
 - `deliver:federate` — daemon may submit messages with any recipient host; server-A handles remote routing.
 - `deliver:federate:<host>` — reserved for future per-peer scoping in v2.
 
-Enforcement is a server implementation choice; v1 spec establishes the scope grammar so tokens and tooling can agree on names.
+Users and agents retain their ordinary authority to send messages. A daemon principal requires `deliver:local` to use local delivery endpoints or submit a message whose recipients are all local, and requires `deliver:federate` to submit any message with a remote recipient. A daemon's requested OAuth scopes MUST be a subset of the scopes assigned to that daemon and MUST be carried in its access token. The signed inbound federation endpoint does not accept or require local bearer authentication.
+
+`deliver:federate:<host>` is reserved syntax only; v1 implementations MUST NOT infer per-peer authorization semantics from it.
+
+## Origin Outbox Semantics
+
+The origin tracks one delivery target per distinct destination host, including its own host when local recipients exist. The original outbox message retains the complete recipient list. Its aggregate `delivered_at` is set only after every target succeeds (`202` or `409` for remote targets, completed local delivery for the local target). If any target dead-letters, `delivered_at` remains unset and DSNs identify the failed recipients. Public per-recipient delivery status is deferred to v2.
 
 ## Security Considerations
 
@@ -279,10 +309,11 @@ Remaining questions from draft-02 — all now resolved for v1:
 - ✅ **Deprecated-but-still-honored key advertisement**: defer to v2. Current spec's `public_keys` array covers rotation via the overlap window (advertise both old and new; readers try both). Explicit deprecation lifecycle metadata per key waits for the full key rotation ceremony design in v2.
 - ✅ **Per-envelope `sender_message_id`**: skip for v1. Daemon-to-envelope correlation is a sender-side concern that can live entirely in the sender server's local storage without appearing in the wire protocol. Sender's daemon POSTs to `/drafts`, gets a `draft_id` back. Server holds the mapping `(draft_id → envelope_id)` internally. Adding it to the wire envelope would surface a sender-only ID to every recipient — noise for zero receiver value.
 
-No known blocking questions for v1. Spec is locked.
+No known blocking questions for v1. The accepted resolutions above are incorporated into the normative MAIL specification.
 
 ## Change Log
 
 - **2026-09-11 (draft-01)**: initial draft synthesizing dev-list discussion.
 - **2026-09-12 (draft-02)**: (a) added optional `mail_protocol_version` field to discovery manifest per Addison — redundant with `GET /` but a convenience for federation clients on first contact. (b) resolved all four v1 open questions: body-vs-header split (identity in body, transport in headers), protocol version in URL path, dead-letter reporting via MAIL Bounces spec, discovery-failure retry semantics. (c) added explicit reference to MAIL Bounces v1 RFC in § Retry and Failure — federation MUST emit a bounce on final failure via the spec'd DSN mechanism. (d) new "Remaining questions for later drafts" section separating resolved from open. All four v1 blockers closed.
 - **2026-09-12 (draft-03)**: closed the three remaining draft-02 questions: ETag → v2, deprecated-key lifecycle → v2, sender_message_id → skip. **All questions resolved; spec is locked at v1.** Ready for MAIL RFC formalization by charonlabs/mail.
+- **2026-09-14 (accepted)**: formalized Federation v1 for implementation: made `/daemon/deliver/remote/v1` canonical while retaining manifest authority; added machine-readable errors and atomic unknown-recipient partitioning; restricted production federation to public DNS/HTTPS; rejected remote lists and removed nonexistent top-level `list_address` continuity; defined daemon-scope authorization, deterministic bounce mapping, and aggregate outbox semantics.

@@ -9,7 +9,10 @@ import litellm
 import rich
 
 from mail.legacy.api import MAILAgentTemplate, MAILMessage, MAILSwarm, MAILSwarmTemplate
-from mail.legacy.examples.mafia.narrator_tools import NarratorError, get_narrator_actions
+from mail.legacy.examples.mafia.narrator_tools import (
+    NarratorError,
+    get_narrator_actions,
+)
 from mail.legacy.examples.mafia.personas import PERSONAS, Persona
 from mail.legacy.examples.mafia.prompts import (
     create_agent_system_prompt,

@@ -58,9 +58,7 @@ def test_deliver_local_updates_recipient_inbox(
     assert summaries[0]["message_id"] == message_id
 
     # The recipient can now open it from their inbox...
-    opened = app_client.get(
-        f"/inbox/{message_id}", headers=headers_for(OTHER_USER)
-    )
+    opened = app_client.get(f"/inbox/{message_id}", headers=headers_for(OTHER_USER))
     assert opened.status_code == 200
     # ...and the sender's outbox entry is marked delivered.
     outbox = app_client.get(f"/outbox/{message_id}", headers=headers_for(USER))
@@ -122,7 +120,5 @@ def test_deliver_local_skips_unknown_recipient(
     )
     assert response.status_code == 200
     # The known recipient received it; the unknown one was skipped without error.
-    opened = app_client.get(
-        f"/inbox/{message_id}", headers=headers_for(OTHER_USER)
-    )
+    opened = app_client.get(f"/inbox/{message_id}", headers=headers_for(OTHER_USER))
     assert opened.status_code == 200

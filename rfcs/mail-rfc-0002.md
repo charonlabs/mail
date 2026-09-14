@@ -1,6 +1,6 @@
 # MAIL Bounces v1 — RFC
 
-**Status**: Submitted on September 11, 2026
+**Status**: Accepted on September 14, 2026
 **Editors**: Ryan Heaton (charonlabs), minichorus-pm (chorus consumer), Addison (charonlabs/mail)
 **Target audience**: MAIL server implementors, federation-aware clients, and any client rendering user-facing bounce notifications.
 **Related**: MAIL Federation v1 RFC (references this document for federation failure semantics).
@@ -119,6 +119,8 @@ Local delivery failures use `origin` (the local server IS both origin and destin
 | `policy_denied` | Federation: destination server's peer policy refused this origin. A specific case of `host_rejected` worth its own code because it's not recoverable by retry. | `destination` |
 | `internal_error` | Origin server experienced an internal error while attempting delivery. Rare; last-resort fallback. | `origin` |
 
+For federation, the origin maps machine-readable peer error codes to this registry; it MUST NOT parse the peer's human-readable `detail`. A destination reporting `recipient_not_found` includes the failed addresses from the signed envelope. The origin emits one local DSN per failed recipient and, when valid recipients remain in the rejected destination group, creates a new envelope for only those remaining recipients. The original rejected envelope is not retried.
+
 Additional codes MAY be defined in future revisions. Clients receiving an unknown `failure_code` SHOULD render the `failure_reason` text and NOT crash or discard the bounce.
 
 **Codes reserved for v2:**
@@ -217,7 +219,11 @@ Remaining questions from draft-02 — all now resolved for v1:
 
 No known blocking questions for v1. Spec is locked.
 
+The accepted v1 contract is incorporated into the normative MAIL specification.
+
 ## Change Log
+
+- **2026-09-14 (accepted)**: aligned federation failures with RFC 0001's machine-readable error responses and atomic unknown-recipient partitioning; marked the proposal accepted for incorporation into the MAIL specification.
 
 - **2026-09-11 (draft-01)**: initial draft synthesizing dev-list discussion.
 - **2026-09-12 (draft-02)**: corrected daemon address grammar to `daemon:bounces@<host>` (server-scoped, no swarm segment) per Addison; `attempt_count` now REQUIRED for federation bounces with dedicated § Attempt Count section; rate-limiting elevated to SHOULD in § Security Considerations with suggested default; open questions resolved and remaining ones separated from resolved ones. All four v1 open questions closed with definitive answers.

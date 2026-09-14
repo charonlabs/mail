@@ -19,7 +19,9 @@ from mail.legacy.examples.data_analysis.processor.actions import (
     generate_sample_data,
     parse_csv,
 )
-from mail.legacy.examples.data_analysis.statistics.agent import LiteLLMStatisticsFunction
+from mail.legacy.examples.data_analysis.statistics.agent import (
+    LiteLLMStatisticsFunction,
+)
 from mail.legacy.examples.data_analysis.statistics.actions import (
     calculate_statistics,
     run_correlation,
