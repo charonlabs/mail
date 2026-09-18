@@ -475,6 +475,12 @@ class MAILServerBackend(Protocol):
         pass
 
     @abstractmethod
+    async def count_active_federation_deliveries(self) -> int:
+        """Count pending and currently leased outbound envelopes."""
+
+        pass
+
+    @abstractmethod
     async def record_federation_attempt(
         self,
         envelope_id: str,
@@ -484,6 +490,7 @@ class MAILServerBackend(Protocol):
         next_attempt_at: datetime,
         http_status: int | None = None,
         error: str | None = None,
+        peer_reached: bool = False,
     ) -> OutboundFederationDelivery:
         """Record one failed/retryable attempt and release its lease."""
 
@@ -497,6 +504,7 @@ class MAILServerBackend(Protocol):
         lease_owner: str,
         completed_at: datetime,
         delivered_by: str | None = None,
+        http_status: int | None = None,
     ) -> OutboundFederationDelivery:
         """Mark an envelope/target successful and update aggregate outbox state."""
 
@@ -514,6 +522,23 @@ class MAILServerBackend(Protocol):
         error: str | None = None,
     ) -> OutboundFederationDelivery:
         """Dead-letter an envelope and leave aggregate delivered_at unset."""
+
+        pass
+
+    @abstractmethod
+    async def partition_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        failure_code: str,
+        http_status: int,
+        error: str,
+        replacement_target: MessageDeliveryTarget,
+        replacement_delivery: OutboundFederationDelivery,
+    ) -> OutboundFederationDelivery:
+        """Dead-letter one envelope and atomically queue its accepted remainder."""
 
         pass
 

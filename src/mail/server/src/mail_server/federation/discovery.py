@@ -26,6 +26,7 @@ DEFAULT_DISCOVERY_TTL_SECONDS = 600
 MIN_DISCOVERY_TTL_SECONDS = 300
 MAX_DISCOVERY_TTL_SECONDS = 900
 DEFAULT_DISCOVERY_MAX_BYTES = 64 * 1024
+DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS = 8.0
 
 HostResolver = Callable[[str, int], Awaitable[Sequence[str]]]
 MonotonicClock = Callable[[], float]
@@ -53,6 +54,16 @@ class ResolvedFederationKey:
 
     key: MAILFederationPublicKey
     manifest_from_cache: bool
+
+
+@dataclass(frozen=True, slots=True)
+class FederationDeliveryTarget:
+    """A validated public URL and its immediately resolved connection target."""
+
+    public_url: str
+    connection_url: str
+    authority: str
+    sni_hostname: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +96,7 @@ class FederationDiscoveryClient:
         ttl_seconds: int = DEFAULT_DISCOVERY_TTL_SECONDS,
         connect_timeout_seconds: float = 3.0,
         read_timeout_seconds: float = 5.0,
-        total_timeout_seconds: float = 8.0,
+        total_timeout_seconds: float = DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS,
         max_response_bytes: int = DEFAULT_DISCOVERY_MAX_BYTES,
         allow_private_hosts: bool = False,
         resolver: HostResolver = _system_resolver,
@@ -323,6 +334,45 @@ class FederationDiscoveryClient:
             force_refresh=force_refresh,
         )
         return manifest
+
+    async def prepare_delivery_target(
+        self,
+        destination_host: str,
+        delivery_url: str,
+    ) -> FederationDeliveryTarget:
+        """Revalidate ownership/DNS immediately before an outbound connection."""
+
+        normalized_destination = self._normalize_host(destination_host)
+        try:
+            public_url = httpx.URL(delivery_url)
+        except httpx.InvalidURL as exc:
+            raise FederationManifestError("invalid federation delivery URL") from exc
+        if (
+            public_url.scheme != "https"
+            or public_url.host is None
+            or public_url.userinfo
+            or public_url.fragment
+        ):
+            raise FederationManifestError(
+                "federation delivery URL must be an absolute HTTPS URL"
+            )
+        normalized_target = self._normalize_host(public_url.host)
+        if normalized_target != normalized_destination:
+            raise FederationManifestError(
+                "federation delivery URL is not owned by the destination host"
+            )
+
+        addresses = await self._validated_addresses(
+            normalized_target,
+            public_url.port or 443,
+        )
+        connection_url = public_url.copy_with(host=addresses[0])
+        return FederationDeliveryTarget(
+            public_url=str(public_url),
+            connection_url=str(connection_url),
+            authority=public_url.netloc.decode("ascii"),
+            sni_hostname=normalized_target,
+        )
 
     @staticmethod
     def _find_key(

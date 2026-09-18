@@ -825,6 +825,10 @@ class SQLiteBackend(MAILServerBackend):
                 limit=limit,
             )
 
+    async def count_active_federation_deliveries(self) -> int:
+        async with self._db.session() as session:
+            return await MailStore(session).federation_outbound.count_active()
+
     @staticmethod
     def _require_outbound_lease(
         delivery: OutboundFederationDelivery,
@@ -850,6 +854,7 @@ class SQLiteBackend(MAILServerBackend):
         next_attempt_at: datetime,
         http_status: int | None = None,
         error: str | None = None,
+        peer_reached: bool = False,
     ) -> OutboundFederationDelivery:
         async with self._db.session() as session:
             store = MailStore(session)
@@ -867,6 +872,7 @@ class SQLiteBackend(MAILServerBackend):
                         attempted_at,
                     ],
                     "next_attempt_at": next_attempt_at,
+                    "peer_was_reached": delivery.peer_was_reached or peer_reached,
                     "lease_owner": None,
                     "lease_until": None,
                     "last_http_status": http_status,
@@ -898,6 +904,7 @@ class SQLiteBackend(MAILServerBackend):
         lease_owner: str,
         completed_at: datetime,
         delivered_by: str | None = None,
+        http_status: int | None = None,
     ) -> OutboundFederationDelivery:
         async with self._db.session() as session:
             store = MailStore(session)
@@ -920,6 +927,9 @@ class SQLiteBackend(MAILServerBackend):
                     "lease_until": None,
                     "updated_at": completed_at,
                     "completed_at": completed_at,
+                    "peer_was_reached": True,
+                    "last_http_status": http_status,
+                    "last_error": None,
                 }
             )
             await store.federation_outbound.update(completed)
@@ -978,6 +988,8 @@ class SQLiteBackend(MAILServerBackend):
                     "lease_until": None,
                     "last_http_status": http_status,
                     "last_error": error,
+                    "peer_was_reached": delivery.peer_was_reached
+                    or http_status is not None,
                     "updated_at": completed_at,
                     "completed_at": completed_at,
                 }
@@ -999,6 +1011,68 @@ class SQLiteBackend(MAILServerBackend):
                     }
                 )
             )
+            return failed
+
+    async def partition_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        failure_code: str,
+        http_status: int,
+        error: str,
+        replacement_target: MessageDeliveryTarget,
+        replacement_delivery: OutboundFederationDelivery,
+    ) -> OutboundFederationDelivery:
+        async with self._db.session() as session:
+            store = MailStore(session)
+            delivery = await store.federation_outbound.get(envelope_id)
+            if delivery is None:
+                raise ValueError(f"outbound envelope {envelope_id} not found")
+            self._require_outbound_lease(delivery, lease_owner, completed_at)
+            if replacement_target.message_id != delivery.message_id:
+                raise ValueError("replacement target must retain the inner message ID")
+            if replacement_delivery.target_id != replacement_target.target_id:
+                raise ValueError("replacement delivery must reference its new target")
+
+            failed = OutboundFederationDelivery.model_validate(
+                {
+                    **delivery.model_dump(),
+                    "status": "dead_letter",
+                    "attempt_count": delivery.attempt_count + 1,
+                    "attempt_timestamps": [
+                        *delivery.attempt_timestamps,
+                        completed_at,
+                    ],
+                    "lease_owner": None,
+                    "lease_until": None,
+                    "last_http_status": http_status,
+                    "last_error": error,
+                    "peer_was_reached": True,
+                    "updated_at": completed_at,
+                    "completed_at": completed_at,
+                }
+            )
+            await store.federation_outbound.update(failed)
+            target = await store.delivery_targets.get(delivery.target_id)
+            if target is None:
+                raise ValueError(f"delivery target {delivery.target_id} not found")
+            await store.delivery_targets.update(
+                MessageDeliveryTarget.model_validate(
+                    {
+                        **target.model_dump(),
+                        "status": "failed",
+                        "lease_owner": None,
+                        "lease_until": None,
+                        "failure_code": failure_code,
+                        "updated_at": completed_at,
+                        "completed_at": completed_at,
+                    }
+                )
+            )
+            await store.delivery_targets.add(replacement_target)
+            await store.federation_outbound.add(replacement_delivery)
             return failed
 
     async def accept_inbound_federation(

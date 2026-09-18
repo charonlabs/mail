@@ -109,6 +109,23 @@ same local path before returning `202`. Both backends implement this flow. The
 old bearer-authenticated `POST /daemon/deliver/remote` path is removed and
 returns `410` without ingesting messages.
 
+For remote recipients, the origin server groups addresses by host and creates
+one durable outbound envelope per host. A server-owned worker discovers the
+peer's advertised HTTPS URL, signs the exact attempt body, and posts it without
+following redirects. Failed attempts are persisted and retried after 1 second,
+30 seconds, 5 minutes, 1 hour, and 6 hours. Valid `Retry-After` values on `429`
+and `503` override the next ladder delay, capped at 24 hours. Restarts resume
+pending work, and expired leases allow another server process to recover a
+crashed attempt. Only `202` and duplicate `409` responses count as success.
+If a peer rejects only some recipients with `404 recipient_not_found`, the
+origin dead-letters that envelope, invokes the bounce boundary for only those
+addresses, and atomically queues a new envelope for the remaining recipients.
+The replacement keeps the inner message ID but receives a new envelope ID.
+
+For mixed local/remote messages, `delivered_at` remains empty until every local
+and remote target succeeds. A terminal remote rejection or exhausted retry
+leaves it empty; Phase 5 adds the sender-facing delivery-status notification.
+
 ## Pre-send versus post-send errors
 
 MAIL draws a sharp line between failures that happen *before* a message is
@@ -142,8 +159,8 @@ durable and getting it delivered is the daemon's responsibility.
 - **Durability and retries.** Messages are stored server-side and preserved on
   delivery failure (§8.2). Note the shape of the loop, though: clearing the buffer
   empties it, so once a daemon has claimed a batch, delivering it is that daemon's
-  responsibility. Run a reliable daemon and watch its logs rather than assuming
-  failed items are automatically re-queued.
+  responsibility. Remote federation does not use this destructive handoff: its
+  attempts, schedules, and leases are durable server-owned state.
 - **The unit of delivery is the `message_id`.** The daemon hands the server a
   batch of ids to deliver; idempotency and retry policy live at that granularity.
 

@@ -120,6 +120,29 @@ async def test_discovery_cache_expires_at_configured_ttl() -> None:
 
 
 @pytest.mark.asyncio
+async def test_delivery_target_is_owned_and_dns_pinned() -> None:
+    discovery = client_for(lambda _request: httpx.Response(500))
+    target = await discovery.prepare_delivery_target(
+        "server-a.example.com",
+        "https://server-a.example.com/custom/delivery?version=1",
+    )
+    assert target.public_url == (
+        "https://server-a.example.com/custom/delivery?version=1"
+    )
+    assert target.connection_url == (
+        f"https://{PUBLIC_ADDRESS}/custom/delivery?version=1"
+    )
+    assert target.authority == "server-a.example.com"
+
+    with pytest.raises(FederationManifestError, match="not owned"):
+        await discovery.prepare_delivery_target(
+            "server-a.example.com",
+            "https://attacker.example.net/deliver",
+        )
+    await discovery._client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_unknown_cached_key_forces_one_refresh() -> None:
     key = Ed25519PrivateKey.generate()
     calls = 0

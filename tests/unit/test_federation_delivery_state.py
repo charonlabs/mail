@@ -3,6 +3,7 @@
 
 """Behavioral parity tests for Phase 2 durable federation state."""
 
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -388,6 +389,7 @@ async def test_sqlite_restart_preserves_envelope_and_attempt(
         attempted_at=message.sent_at + timedelta(seconds=1),
         next_attempt_at=message.sent_at + timedelta(seconds=30),
         error="network",
+        peer_reached=True,
     )
     await backend.on_server_shutdown()
 
@@ -400,8 +402,38 @@ async def test_sqlite_restart_preserves_envelope_and_attempt(
         assert restored.envelope_id == recorded.envelope_id
         assert restored.attempt_count == 1
         assert restored.next_attempt_at == recorded.next_attempt_at
+        assert restored.peer_was_reached
     finally:
         await reopened.on_server_shutdown()
+
+
+async def test_sqlite_concurrent_workers_claim_an_envelope_once(tmp_path: Path) -> None:
+    backend = SQLiteBackend(f"sqlite:///{tmp_path / 'claim-once.db'}")
+    await backend.on_server_startup(host=LOCAL_HOST)
+    await backend.admin_post_user(
+        ADMIN,
+        AdminUserPostRequest(user_id="alice", user_password="pw"),
+    )
+    try:
+        message = await send(backend, [f"bob@swarm@{REMOTE_A}"])
+        claims = await asyncio.gather(
+            backend.claim_due_federation_deliveries(
+                now=message.sent_at,
+                lease_owner="worker-1",
+                lease_duration=timedelta(seconds=30),
+                limit=1,
+            ),
+            backend.claim_due_federation_deliveries(
+                now=message.sent_at,
+                lease_owner="worker-2",
+                lease_duration=timedelta(seconds=30),
+                limit=1,
+            ),
+        )
+        claimed = [delivery for batch in claims for delivery in batch]
+        assert len(claimed) == 1
+    finally:
+        await backend.on_server_shutdown()
 
 
 async def test_sqlite_remote_plan_rolls_back_if_envelope_write_fails(
@@ -466,6 +498,7 @@ async def test_memory_restart_preserves_envelope_and_attempt(
         attempted_at=message.sent_at + timedelta(seconds=1),
         next_attempt_at=message.sent_at + timedelta(seconds=30),
         error="network",
+        peer_reached=True,
     )
     inbound = inbound_message()
     inbound_receipt = receipt(inbound)
@@ -490,6 +523,7 @@ async def test_memory_restart_preserves_envelope_and_attempt(
         assert restored.envelope_id == recorded.envelope_id
         assert restored.attempt_count == 1
         assert restored.next_attempt_at == recorded.next_attempt_at
+        assert restored.peer_was_reached
         assert not await reopened.accept_inbound_federation(inbound_receipt, inbound)
         assert (
             await reopened.count_bounce_emissions_since(

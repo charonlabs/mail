@@ -114,6 +114,7 @@ class OutboundFederationDelivery(BaseModel):
     status: OutboundDeliveryStatus = "pending"
     attempt_count: Annotated[int, Field(ge=0)] = 0
     attempt_timestamps: list[AwareDatetime] = Field(default_factory=list)
+    peer_was_reached: bool = False
     next_attempt_at: AwareDatetime
     lease_owner: Annotated[str, Field(min_length=1, max_length=512)] | None = None
     lease_until: AwareDatetime | None = None

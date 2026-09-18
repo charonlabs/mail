@@ -8,6 +8,7 @@ from mail_server.federation.addressing import (
     build_message_delivery_plan,
 )
 from mail_server.federation.discovery import (
+    FederationDeliveryTarget,
     FederationDiscoveryClient,
     FederationDiscoveryError,
     FederationHostRejected,
@@ -20,6 +21,16 @@ from mail_server.federation.keys import (
     FederationPrivateKey,
     load_federation_private_key,
     public_key_from_manifest,
+)
+from mail_server.federation.outbound import (
+    FederationDeadLetterEvent,
+    FederationHTTPResponse,
+    FederationTransportError,
+    HTTPFederationTransport,
+    OutboundFederationService,
+    classify_http_status,
+    parse_retry_after,
+    retry_delay_for_attempt,
 )
 from mail_server.federation.records import (
     BounceEmission,
@@ -37,28 +48,39 @@ from mail_server.federation.signatures import (
     verify_federation_request,
     verify_federation_request_with_discovery,
 )
+from mail_server.federation.worker import FederationWorker
 
 __all__ = [
     "FEDERATION_COVERED_COMPONENTS",
     "BounceEmission",
     "FederationDiscoveryClient",
     "FederationDiscoveryError",
+    "FederationDeliveryTarget",
+    "FederationDeadLetterEvent",
+    "FederationHTTPResponse",
     "FederationHostRejected",
     "FederationKeyError",
     "FederationManifestError",
     "FederationPrivateKey",
     "FederationSignatureError",
+    "FederationTransportError",
     "FederationUnknownKey",
     "InboundFederationReceipt",
     "MessageDeliveryPlan",
     "MessageDeliveryTarget",
     "OutboundFederationDelivery",
+    "OutboundFederationService",
     "ResolvedFederationKey",
     "SignedFederationRequest",
     "VerifiedFederationSignature",
+    "FederationWorker",
+    "HTTPFederationTransport",
     "load_federation_private_key",
     "build_message_delivery_plan",
     "public_key_from_manifest",
+    "classify_http_status",
+    "parse_retry_after",
+    "retry_delay_for_attempt",
     "serialize_federation_envelope",
     "sign_federation_request",
     "verify_federation_request",

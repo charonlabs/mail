@@ -907,6 +907,14 @@ class FederationOutboundRepository:
         await self.session.flush()
         return model
 
+    async def count_active(self) -> int:
+        value = await self.session.scalar(
+            select(func.count())
+            .select_from(FederationOutboundRow)
+            .where(FederationOutboundRow.status.in_(("pending", "leased")))
+        )
+        return int(value or 0)
+
     async def claim_due(
         self,
         *,

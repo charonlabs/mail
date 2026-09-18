@@ -51,7 +51,10 @@ async def _server_startup(app: FastAPI):
     app.state.backend = _backend
     try:
         app.state.federation = FederationRuntime.from_env(local_host=HOST)
+        await app.state.federation.start(_backend)
     except Exception:
+        if hasattr(app.state, "federation"):
+            await app.state.federation.aclose()
         await _backend.on_server_shutdown()
         raise
 
@@ -76,10 +79,10 @@ async def _server_shutdown(app: FastAPI):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _server_startup(app)
-
-    yield
-
-    await _server_shutdown(app)
+    try:
+        yield
+    finally:
+        await _server_shutdown(app)
 
 
 app = FastAPI(

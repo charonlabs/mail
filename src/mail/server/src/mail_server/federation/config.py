@@ -8,8 +8,9 @@ from __future__ import annotations
 import ipaddress
 import os
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import httpx
 from mail_protocol.core.federation import (
@@ -22,6 +23,7 @@ from mail_protocol.network.federation import FEDERATION_DELIVERY_PATH_V1
 from pydantic import TypeAdapter, ValidationError
 
 from mail_server.federation.discovery import (
+    DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS,
     DEFAULT_DISCOVERY_TTL_SECONDS,
     MAX_DISCOVERY_TTL_SECONDS,
     MIN_DISCOVERY_TTL_SECONDS,
@@ -31,6 +33,11 @@ from mail_server.federation.keys import (
     FederationPrivateKey,
     load_federation_private_key,
 )
+
+if TYPE_CHECKING:
+    from mail_server.backends.base import MAILServerBackend
+    from mail_server.federation.outbound import HTTPFederationTransport
+    from mail_server.federation.worker import FederationWorker
 
 FederationPolicy = Literal["open", "allowlist", "closed"]
 DEFAULT_MAX_REQUEST_BYTES = 1024 * 1024
@@ -60,6 +67,16 @@ def _integer(name: str, *, default: int) -> int:
         return int(raw)
     except ValueError as exc:
         raise FederationConfigurationError(f"{name} must be an integer") from exc
+
+
+def _float(name: str, *, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise FederationConfigurationError(f"{name} must be a number") from exc
 
 
 def _required(name: str) -> str:
@@ -122,6 +139,14 @@ class FederationConfig:
     max_request_bytes: int
     allow_private_hosts: bool = False
     allow_insecure_transport: bool = False
+    outbound_connect_timeout_seconds: float = 3.0
+    outbound_read_timeout_seconds: float = 5.0
+    outbound_total_timeout_seconds: float = 10.0
+    outbound_response_max_bytes: int = 64 * 1024
+    worker_poll_interval_seconds: float = 1.0
+    worker_batch_size: int = 20
+    worker_lease_seconds: float = 30.0
+    retry_after_cap_seconds: int = 24 * 60 * 60
 
     @property
     def manifest(self) -> MAILFederationManifest:
@@ -203,6 +228,37 @@ class FederationConfig:
                 "MAIL_FEDERATION_MAX_REQUEST_BYTES must be positive"
             )
 
+        connect_timeout = _float("MAIL_FEDERATION_CONNECT_TIMEOUT_SECONDS", default=3.0)
+        read_timeout = _float("MAIL_FEDERATION_READ_TIMEOUT_SECONDS", default=5.0)
+        total_timeout = _float("MAIL_FEDERATION_TOTAL_TIMEOUT_SECONDS", default=10.0)
+        response_max_bytes = _integer(
+            "MAIL_FEDERATION_MAX_RESPONSE_BYTES", default=64 * 1024
+        )
+        poll_interval = _float("MAIL_FEDERATION_WORKER_POLL_SECONDS", default=1.0)
+        batch_size = _integer("MAIL_FEDERATION_WORKER_BATCH_SIZE", default=20)
+        lease_seconds = _float("MAIL_FEDERATION_WORKER_LEASE_SECONDS", default=30.0)
+        retry_after_cap = _integer(
+            "MAIL_FEDERATION_RETRY_AFTER_CAP_SECONDS", default=24 * 60 * 60
+        )
+        if min(connect_timeout, read_timeout, total_timeout) <= 0:
+            raise FederationConfigurationError(
+                "federation outbound timeouts must be positive"
+            )
+        if response_max_bytes <= 0 or poll_interval <= 0 or batch_size <= 0:
+            raise FederationConfigurationError(
+                "federation response limit, poll interval, and batch size "
+                "must be positive"
+            )
+        if lease_seconds <= total_timeout + DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS:
+            raise FederationConfigurationError(
+                "federation worker lease must exceed discovery plus the outbound "
+                "total timeout"
+            )
+        if retry_after_cap <= 0:
+            raise FederationConfigurationError(
+                "federation Retry-After cap must be positive"
+            )
+
         key = load_federation_private_key(
             Path(_required("MAIL_FEDERATION_PRIVATE_KEY_FILE")),
             key_id=_required("MAIL_FEDERATION_KEY_ID"),
@@ -229,6 +285,14 @@ class FederationConfig:
             allow_insecure_transport=_boolean(
                 "MAIL_FEDERATION_ALLOW_INSECURE_TRANSPORT"
             ),
+            outbound_connect_timeout_seconds=connect_timeout,
+            outbound_read_timeout_seconds=read_timeout,
+            outbound_total_timeout_seconds=total_timeout,
+            outbound_response_max_bytes=response_max_bytes,
+            worker_poll_interval_seconds=poll_interval,
+            worker_batch_size=batch_size,
+            worker_lease_seconds=lease_seconds,
+            retry_after_cap_seconds=retry_after_cap,
         )
 
 
@@ -238,6 +302,8 @@ class FederationRuntime:
 
     config: FederationConfig | None
     discovery: FederationDiscoveryClient | None
+    transport: HTTPFederationTransport | None = None
+    worker: FederationWorker | None = None
 
     @classmethod
     def from_env(cls, *, local_host: str | None = None) -> FederationRuntime:
@@ -260,6 +326,44 @@ class FederationRuntime:
     def enabled(self) -> bool:
         return self.config is not None
 
+    async def start(self, backend: MAILServerBackend) -> None:
+        if self.config is None or self.discovery is None:
+            return
+        from mail_server.federation.outbound import (
+            HTTPFederationTransport,
+            OutboundFederationService,
+        )
+        from mail_server.federation.worker import FederationWorker
+
+        self.transport = HTTPFederationTransport(
+            discovery=self.discovery,
+            connect_timeout_seconds=self.config.outbound_connect_timeout_seconds,
+            read_timeout_seconds=self.config.outbound_read_timeout_seconds,
+            total_timeout_seconds=self.config.outbound_total_timeout_seconds,
+            max_response_bytes=self.config.outbound_response_max_bytes,
+        )
+        outbound = OutboundFederationService(
+            backend=backend,
+            config=self.config,
+            discovery=self.discovery,
+            transport=self.transport,
+            retry_after_cap=timedelta(seconds=self.config.retry_after_cap_seconds),
+        )
+        self.worker = FederationWorker(
+            backend=backend,
+            outbound=outbound,
+            poll_interval_seconds=self.config.worker_poll_interval_seconds,
+            batch_size=self.config.worker_batch_size,
+            lease_duration=timedelta(seconds=self.config.worker_lease_seconds),
+        )
+        self.worker.start()
+
     async def aclose(self) -> None:
+        if self.worker is not None:
+            await self.worker.stop()
+            self.worker = None
+        if self.transport is not None:
+            await self.transport.aclose()
+            self.transport = None
         if self.discovery is not None:
             await self.discovery.aclose()

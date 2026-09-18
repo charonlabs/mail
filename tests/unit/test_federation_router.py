@@ -127,6 +127,13 @@ def test_enabled_configuration_loads_key_and_fails_on_host_mismatch(
     config = FederationConfig.from_env()
     assert config is not None
     assert config.manifest.public_keys == [config.signing_key.manifest_key()]
+    assert config.worker_batch_size == 20
+    assert config.worker_lease_seconds == 30
+    assert config.retry_after_cap_seconds == 86400
+    monkeypatch.setenv("MAIL_FEDERATION_WORKER_LEASE_SECONDS", "10")
+    with pytest.raises(FederationConfigurationError, match="lease must exceed"):
+        FederationConfig.from_env()
+    monkeypatch.delenv("MAIL_FEDERATION_WORKER_LEASE_SECONDS")
     with pytest.raises(FederationConfigurationError, match="must match"):
         FederationRuntime.from_env(local_host="wrong.example.com")
 

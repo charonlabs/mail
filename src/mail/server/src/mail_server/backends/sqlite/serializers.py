@@ -326,6 +326,7 @@ def federation_outbound_to_columns(
         "message_id": model.message_id,
         "destination_host": model.destination_host,
         "status": model.status,
+        "peer_was_reached": model.peer_was_reached,
         "next_attempt_at": model.next_attempt_at,
         "lease_owner": model.lease_owner,
         "lease_until": model.lease_until,
@@ -343,6 +344,7 @@ def federation_outbound_from_row(
         {
             **row.body,
             "status": row.status,
+            "peer_was_reached": row.peer_was_reached,
             "next_attempt_at": _as_utc(row.next_attempt_at),
             "lease_owner": row.lease_owner,
             "lease_until": _as_utc(row.lease_until),

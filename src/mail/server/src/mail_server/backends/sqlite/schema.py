@@ -338,6 +338,7 @@ class FederationOutboundRow(Base):
     )
     destination_host: Mapped[str] = mapped_column(String(255), index=True)
     status: Mapped[str] = mapped_column(String(16), index=True)
+    peer_was_reached: Mapped[bool] = mapped_column(default=False)
     next_attempt_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), index=True
     )
