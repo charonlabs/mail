@@ -1749,6 +1749,11 @@ components:
         daemon_password:
           type: string
           title: Daemon Password
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
       type: object
       required:
       - worker_name
@@ -2834,6 +2839,11 @@ components:
         host:
           type: string
           title: Host
+        scopes:
+          items:
+            type: string
+          type: array
+          title: Scopes
       type: object
       required:
       - ua_type

@@ -77,7 +77,7 @@ async def init_sqlite_backend(
     swarm_description: str = "A MAIL swarm",
     swarm_keywords: list[str] = [],
     agents: list[str] = ["supervisor"],
-    daemons: list[str] = ["dummy"],
+    daemons: list[str] = ["dummy", "bounces"],
     users: list[str] = ["dummy"],
     admins: list[str] = ["dummy"],
     host: str = "example.com",
@@ -129,7 +129,16 @@ async def init_sqlite_backend(
                     store,
                     password_hash,
                     secrets_path,
-                    MAILDaemon(ua_type="daemon", worker_name=daemon_name, host=host),
+                    MAILDaemon(
+                        ua_type="daemon",
+                        worker_name=daemon_name,
+                        host=host,
+                        scopes=(
+                            ["bounce:emit"]
+                            if daemon_name == "bounces"
+                            else ["deliver:local"]
+                        ),
+                    ),
                     "daemon",
                 )
             for user_name in users:

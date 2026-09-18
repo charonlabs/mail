@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Annotated, Literal, Self
 
 from mail_protocol.core.federation import MAILInterServerMessage, mail_address_host
+from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.validators import (
     validate_host,
     validate_mail_address,
@@ -194,3 +195,24 @@ class BounceEmission(BaseModel):
     failed_recipient: Annotated[str, AfterValidator(validate_mail_address)]
     emitted_at: AwareDatetime
     outcome: BounceEmissionOutcome
+    dsn_message_id: UUIDString | None = None
+
+
+class BounceDelivery(BaseModel):
+    """A prepared local DSN plus its deterministic idempotency reservation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    emission: BounceEmission
+    message: MAILMessage
+    target: MessageDeliveryTarget
+
+    @model_validator(mode="after")
+    def validate_links(self) -> Self:
+        if self.emission.dsn_message_id != self.message.message_id:
+            raise ValueError("bounce emission must reference its DSN message")
+        if self.target.message_id != self.message.message_id:
+            raise ValueError("bounce target must reference its DSN message")
+        if self.target.recipients != self.message.recipients:
+            raise ValueError("bounce target recipients must match its DSN message")
+        return self

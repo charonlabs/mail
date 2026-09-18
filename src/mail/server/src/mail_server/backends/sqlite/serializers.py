@@ -380,6 +380,7 @@ def bounce_emission_to_columns(model: BounceEmission) -> dict[str, Any]:
         "failed_recipient": model.failed_recipient,
         "emitted_at": model.emitted_at,
         "outcome": model.outcome,
+        "dsn_message_id": model.dsn_message_id,
         "body": model.model_dump(mode="json"),
     }
 

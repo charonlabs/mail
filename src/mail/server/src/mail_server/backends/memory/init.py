@@ -22,7 +22,7 @@ def init_memory_backend(
     swarm_description: str = "A MAIL swarm",
     swarm_keywords: list[str] = [],
     agents: list[str] = ["supervisor"],
-    daemons: list[str] = ["dummy"],
+    daemons: list[str] = ["dummy", "bounces"],
     users: list[str] = ["dummy"],
     admins: list[str] = ["dummy"],
     host: str = "example.com",
@@ -215,6 +215,7 @@ def init_memory_backend(
             ua_type="daemon",
             worker_name=daemon_name,
             host=host,
+            scopes=(["bounce:emit"] if daemon_name == "bounces" else ["deliver:local"]),
         )
         address = daemon.get_address()
         password = secrets.token_urlsafe(32)

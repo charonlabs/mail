@@ -5,7 +5,7 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -92,7 +92,9 @@ from mail_server.backends.memory.fs import (
     save_webhooks,
 )
 from mail_server.federation.addressing import build_message_delivery_plan
+from mail_server.federation.bounces import build_bounce_delivery, is_dsn
 from mail_server.federation.records import (
+    BounceDelivery,
     BounceEmission,
     InboundFederationReceipt,
     MessageDeliveryTarget,
@@ -152,6 +154,9 @@ class MemoryBackend(MAILServerBackend):
         self.persistence_interval_seconds = persistence_interval_seconds
         self._persistence_lock = asyncio.Lock()
         self._checkpoint_task: asyncio.Task[None] | None = None
+        self._bounce_emitter: MAILDaemon | None = None
+        self._bounce_rate_limit = 100
+        self._bounce_rate_window = timedelta(hours=1)
 
     def _snapshot_persistence_state(self) -> dict[str, Any]:
         """
@@ -1122,25 +1127,34 @@ class MemoryBackend(MAILServerBackend):
             # deliver to each, and tag the per-member webhook with the
             # originating list address. Direct recipients are delivered
             # as before with no list tag.
+            missing_recipients: list[str] = []
             for rec in delivery_message.recipients:
                 if rec.startswith(f"{LIST_ADDRESS_PREFIX}:"):
-                    await self._fan_out_to_list(
+                    found = await self._fan_out_to_list(
                         list_address=rec,
                         inbox_entry=inbox_entry,
                         message=delivery_message,
                     )
-                    continue
-                await self._deliver_to_address(
-                    address=rec,
-                    inbox_entry=inbox_entry,
-                    message=delivery_message,
-                    list_address=None,
-                )
+                else:
+                    found = await self._deliver_to_address(
+                        address=rec,
+                        inbox_entry=inbox_entry,
+                        message=delivery_message,
+                        list_address=None,
+                    )
+                if not found:
+                    missing_recipients.append(rec)
 
             self._complete_local_delivery_targets(
                 message_id=message.message_id,
                 completed_at=delivered_time,
                 delivered_by=daemon.get_address(),
+                failure_code=("recipient_not_found" if missing_recipients else None),
+            )
+            self._handle_local_delivery_failures(
+                message,
+                missing_recipients=missing_recipients,
+                failed_at=delivered_time,
             )
 
             messages.append(message.summarize())
@@ -1177,6 +1191,7 @@ class MemoryBackend(MAILServerBackend):
         message_id: str,
         completed_at: datetime,
         delivered_by: str,
+        failure_code: str | None = None,
     ) -> None:
         targets = [
             target
@@ -1186,7 +1201,7 @@ class MemoryBackend(MAILServerBackend):
         local_targets = [target for target in targets if target.kind == "local"]
         if not local_targets:
             outbox_entry = self.outbox_entries.get(message_id)
-            if outbox_entry is not None:
+            if outbox_entry is not None and failure_code is None:
                 outbox_entry.delivered_at = completed_at
                 outbox_entry.delivered_by = delivered_by
             return
@@ -1197,16 +1212,16 @@ class MemoryBackend(MAILServerBackend):
                 MessageDeliveryTarget.model_validate(
                     {
                         **target.model_dump(),
-                        "status": "succeeded",
+                        "status": "failed" if failure_code else "succeeded",
                         "lease_owner": None,
                         "lease_until": None,
-                        "failure_code": None,
+                        "failure_code": failure_code,
                         "updated_at": completed_at,
                         "completed_at": completed_at,
                     }
                 )
             )
-        if all(
+        if failure_code is None and all(
             target.status == "succeeded"
             for target in self.delivery_targets.values()
             if target.message_id == message_id
@@ -1215,6 +1230,55 @@ class MemoryBackend(MAILServerBackend):
             if outbox_entry is not None and outbox_entry.delivered_at is None:
                 outbox_entry.delivered_at = completed_at
                 outbox_entry.delivered_by = delivered_by
+
+    def _handle_local_delivery_failures(
+        self,
+        message: MAILMessage,
+        *,
+        missing_recipients: Sequence[str],
+        failed_at: datetime,
+    ) -> None:
+        if not missing_recipients:
+            return
+        if is_dsn(message):
+            for emission_id, emission in self.bounce_emissions.items():
+                if emission.dsn_message_id == message.message_id:
+                    self.bounce_emissions[emission_id] = emission.model_copy(
+                        update={"outcome": "failed"}
+                    )
+                    break
+            logger.warning(
+                "bounce delivery failed; suppressing chained DSN: message_id=%s",
+                message.message_id,
+            )
+            return
+        if self._bounce_emitter is None:
+            logger.warning(
+                "local delivery failed without configured bounce emitter: message_id=%s",
+                message.message_id,
+            )
+            return
+        bounces = tuple(
+            bounce
+            for recipient in missing_recipients
+            if (
+                bounce := build_bounce_delivery(
+                    original=message,
+                    failed_recipient=recipient,
+                    failure_code="recipient_not_found",
+                    failed_at="origin",
+                    timestamp=failed_at,
+                    emitter=self._bounce_emitter,
+                    local_host=self.host,
+                )
+            )
+            is not None
+        )
+        self._store_bounces(
+            bounces,
+            rate_limit=self._bounce_rate_limit,
+            rate_window=self._bounce_rate_window,
+        )
 
     #
     # Durable federation state
@@ -1426,6 +1490,9 @@ class MemoryBackend(MAILServerBackend):
         failure_code: str,
         http_status: int | None = None,
         error: str | None = None,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> OutboundFederationDelivery:
         delivery = self.federation_outbound.get(envelope_id)
         if delivery is None:
@@ -1433,6 +1500,7 @@ class MemoryBackend(MAILServerBackend):
         if delivery.status == "dead_letter":
             return delivery
         self._require_outbound_lease(delivery, lease_owner, completed_at)
+        self._validate_bounces(bounces)
         failed = OutboundFederationDelivery.model_validate(
             {
                 **delivery.model_dump(),
@@ -1463,6 +1531,11 @@ class MemoryBackend(MAILServerBackend):
         )
         self.federation_outbound[envelope_id] = failed
         self.delivery_targets[target.target_id] = failed_target
+        self._store_bounces(
+            bounces,
+            rate_limit=bounce_rate_limit,
+            rate_window=bounce_rate_window,
+        )
         return failed
 
     async def partition_federation_delivery(
@@ -1476,11 +1549,15 @@ class MemoryBackend(MAILServerBackend):
         error: str,
         replacement_target: MessageDeliveryTarget,
         replacement_delivery: OutboundFederationDelivery,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> OutboundFederationDelivery:
         delivery = self.federation_outbound.get(envelope_id)
         if delivery is None:
             raise ValueError(f"outbound envelope {envelope_id} not found")
         self._require_outbound_lease(delivery, lease_owner, completed_at)
+        self._validate_bounces(bounces)
         if replacement_target.message_id != delivery.message_id:
             raise ValueError("replacement target must retain the inner message ID")
         if replacement_delivery.target_id != replacement_target.target_id:
@@ -1518,6 +1595,11 @@ class MemoryBackend(MAILServerBackend):
         self.delivery_targets[replacement_target.target_id] = replacement_target
         self.federation_outbound[replacement_delivery.envelope_id] = (
             replacement_delivery
+        )
+        self._store_bounces(
+            bounces,
+            rate_limit=bounce_rate_limit,
+            rate_window=bounce_rate_window,
         )
         return failed
 
@@ -1582,6 +1664,78 @@ class MemoryBackend(MAILServerBackend):
         if emission.emission_id in self.bounce_emissions:
             raise ValueError(f"bounce emission {emission.emission_id} already exists")
         self.bounce_emissions[emission.emission_id] = emission
+
+    async def get_bounce_emissions(
+        self, original_message_id: str
+    ) -> list[BounceEmission]:
+        return sorted(
+            (
+                emission
+                for emission in self.bounce_emissions.values()
+                if emission.original_message_id == original_message_id
+            ),
+            key=lambda item: (item.emitted_at, item.emission_id),
+        )
+
+    async def configure_bounce_delivery(
+        self,
+        *,
+        emitter: MAILDaemon,
+        rate_limit: int,
+        rate_window: timedelta = timedelta(hours=1),
+    ) -> None:
+        if (
+            emitter.host.lower() != self.host.lower()
+            or "bounce:emit" not in emitter.scopes
+        ):
+            raise ValueError("bounce emitter must be local and carry bounce:emit")
+        if rate_limit <= 0 or rate_window <= timedelta(0):
+            raise ValueError("bounce rate limit and window must be positive")
+        self._bounce_emitter = emitter
+        self._bounce_rate_limit = rate_limit
+        self._bounce_rate_window = rate_window
+
+    def _store_bounces(
+        self,
+        bounces: Sequence[BounceDelivery],
+        *,
+        rate_limit: int,
+        rate_window: timedelta,
+    ) -> None:
+        for bounce in bounces:
+            emission = bounce.emission
+            if emission.emission_id in self.bounce_emissions:
+                continue
+            count = sum(
+                existing.original_sender == emission.original_sender
+                and existing.emitted_at >= emission.emitted_at - rate_window
+                and existing.outcome == "emitted"
+                for existing in self.bounce_emissions.values()
+            )
+            if count >= rate_limit:
+                self.bounce_emissions[emission.emission_id] = emission.model_copy(
+                    update={"outcome": "suppressed", "dsn_message_id": None}
+                )
+                logger.info(
+                    "bounce suppressed by rate limit: sender=%s original_message_id=%s",
+                    emission.original_sender,
+                    emission.original_message_id,
+                )
+                continue
+            existing_message = self.messages.get(bounce.message.message_id)
+            if existing_message is not None and existing_message != bounce.message:
+                raise ValueError("bounce message ID collides with different content")
+            self.bounce_emissions[emission.emission_id] = emission
+            self.messages[bounce.message.message_id] = bounce.message
+            self.delivery_targets[bounce.target.target_id] = bounce.target
+            if bounce.message.message_id not in self.message_buffer:
+                self.message_buffer.append(bounce.message.message_id)
+
+    def _validate_bounces(self, bounces: Sequence[BounceDelivery]) -> None:
+        for bounce in bounces:
+            existing_message = self.messages.get(bounce.message.message_id)
+            if existing_message is not None and existing_message != bounce.message:
+                raise ValueError("bounce message ID collides with different content")
 
     async def count_bounce_emissions_since(
         self, original_sender: str, *, since: datetime
@@ -1761,6 +1915,7 @@ class MemoryBackend(MAILServerBackend):
             ua_type="daemon",
             worker_name=payload.worker_name,
             host=self.host,
+            scopes=payload.scopes,
         )
 
         ua_in_be = MAILUserAgentInBackend(
@@ -2087,7 +2242,7 @@ class MemoryBackend(MAILServerBackend):
         inbox_entry: MAILInboxEntrySummary,
         message: MAILMessage,
         list_address: str | None,
-    ) -> None:
+    ) -> bool:
         """
         Deliver one inbox entry to a single recipient.
 
@@ -2103,7 +2258,7 @@ class MemoryBackend(MAILServerBackend):
             ua_address = user_agent.get_address()
         except Exception:
             logger.warning(f"failed to validate recipient address {address}")
-            return
+            return False
 
         self.inboxes[ua_address].append(inbox_entry.message_id)
 
@@ -2115,13 +2270,14 @@ class MemoryBackend(MAILServerBackend):
             logger.debug(
                 f"skipping `mail.delivered` webhooks for non-agent recipient {address}"
             )
-            return
+            return True
 
         await self._handle_webhook_delivered(
             recipient=address,
             message=message,
             list_address=list_address,
         )
+        return True
 
     async def _fan_out_to_list(
         self,
@@ -2129,7 +2285,7 @@ class MemoryBackend(MAILServerBackend):
         list_address: str,
         inbox_entry: MAILInboxEntrySummary,
         message: MAILMessage,
-    ) -> None:
+    ) -> bool:
         """
         Expand a ``list:`` recipient into per-member deliveries.
 
@@ -2148,7 +2304,7 @@ class MemoryBackend(MAILServerBackend):
             logger.warning(
                 f"unknown list address in recipients; skipping: {list_address}"
             )
-            return
+            return False
 
         for member in mail_list.members:
             if member.startswith(f"{LIST_ADDRESS_PREFIX}:"):
@@ -2163,6 +2319,7 @@ class MemoryBackend(MAILServerBackend):
                 message=message,
                 list_address=list_address,
             )
+        return True
 
     #
     # List endpoints

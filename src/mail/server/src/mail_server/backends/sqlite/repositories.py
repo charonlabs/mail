@@ -1030,6 +1030,35 @@ class BounceEmissionRepository:
         await self.session.flush()
         return model
 
+    async def get(self, emission_id: str) -> BounceEmission | None:
+        row = await self.session.get(BounceEmissionRow, emission_id)
+        return None if row is None else ser.bounce_emission_from_row(row)
+
+    async def update(self, model: BounceEmission) -> BounceEmission:
+        row = await self.session.get(BounceEmissionRow, model.emission_id)
+        if row is None:
+            raise ValueError(f"bounce emission {model.emission_id} not found")
+        for key, value in ser.bounce_emission_to_columns(model).items():
+            setattr(row, key, value)
+        await self.session.flush()
+        return model
+
+    async def get_by_dsn_message(self, message_id: str) -> BounceEmission | None:
+        row = await self.session.scalar(
+            select(BounceEmissionRow).where(
+                BounceEmissionRow.dsn_message_id == message_id
+            )
+        )
+        return None if row is None else ser.bounce_emission_from_row(row)
+
+    async def list_for_message(self, message_id: str) -> list[BounceEmission]:
+        rows = await self.session.scalars(
+            select(BounceEmissionRow)
+            .where(BounceEmissionRow.original_message_id == message_id)
+            .order_by(BounceEmissionRow.emitted_at, BounceEmissionRow.emission_id)
+        )
+        return [ser.bounce_emission_from_row(row) for row in rows]
+
     async def count_since(self, original_sender: str, since: datetime) -> int:
         count = await self.session.scalar(
             select(func.count())

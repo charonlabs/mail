@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
 
@@ -84,7 +85,9 @@ from mail_server.backends.sqlite.repositories import (
     MailStore,
 )
 from mail_server.federation.addressing import build_message_delivery_plan
+from mail_server.federation.bounces import build_bounce_delivery, is_dsn
 from mail_server.federation.records import (
+    BounceDelivery,
     BounceEmission,
     InboundFederationReceipt,
     MessageDeliveryTarget,
@@ -130,6 +133,9 @@ class SQLiteBackend(MAILServerBackend):
         # Retain references to in-flight webhook tasks so they are not GC'd
         # mid-flight; entries are discarded when each task completes.
         self._delivery_tasks: set[asyncio.Task[None]] = set()
+        self._bounce_emitter: MAILDaemon | None = None
+        self._bounce_rate_limit = 100
+        self._bounce_rate_window = timedelta(hours=1)
 
     #
     # Lifecycle handlers
@@ -676,7 +682,7 @@ class SQLiteBackend(MAILServerBackend):
                             ]
                         }
                     )
-                await self._deliver_one(
+                missing_recipients = await self._deliver_one(
                     store,
                     daemon=daemon,
                     message=delivery_message,
@@ -689,6 +695,15 @@ class SQLiteBackend(MAILServerBackend):
                     message_id=message_id,
                     completed_at=delivered_time,
                     delivered_by=daemon.get_address(),
+                    failure_code=(
+                        "recipient_not_found" if missing_recipients else None
+                    ),
+                )
+                await self._handle_local_delivery_failures(
+                    store,
+                    message,
+                    missing_recipients=missing_recipients,
+                    failed_at=delivered_time,
                 )
                 delivered.append(message.summarize())
         self._schedule_webhooks(fires)
@@ -718,13 +733,14 @@ class SQLiteBackend(MAILServerBackend):
         message_id: str,
         completed_at: datetime,
         delivered_by: str,
+        failure_code: str | None = None,
     ) -> None:
         targets = await store.delivery_targets.list_for_message(message_id)
         local_targets = [target for target in targets if target.kind == "local"]
         if not local_targets:
             # Compatibility for messages created before delivery targets existed.
             outbox_entry = await store.boxes.get_outbox_entry(message_id)
-            if outbox_entry is not None:
+            if outbox_entry is not None and failure_code is None:
                 outbox_entry.delivered_at = completed_at
                 outbox_entry.delivered_by = delivered_by
                 await store.boxes.upsert_outbox_entry(outbox_entry)
@@ -735,20 +751,73 @@ class SQLiteBackend(MAILServerBackend):
             completed = MessageDeliveryTarget.model_validate(
                 {
                     **target.model_dump(),
-                    "status": "succeeded",
+                    "status": "failed" if failure_code else "succeeded",
                     "lease_owner": None,
                     "lease_until": None,
-                    "failure_code": None,
+                    "failure_code": failure_code,
                     "updated_at": completed_at,
                     "completed_at": completed_at,
                 }
             )
             await store.delivery_targets.update(completed)
-        await self._update_outbox_if_complete(
+        if failure_code is None:
+            await self._update_outbox_if_complete(
+                store,
+                message_id=message_id,
+                completed_at=completed_at,
+                delivered_by=delivered_by,
+            )
+
+    async def _handle_local_delivery_failures(
+        self,
+        store: MailStore,
+        message: MAILMessage,
+        *,
+        missing_recipients: Sequence[str],
+        failed_at: datetime,
+    ) -> None:
+        if not missing_recipients:
+            return
+        if is_dsn(message):
+            emission = await store.bounce_emissions.get_by_dsn_message(
+                message.message_id
+            )
+            if emission is not None:
+                await store.bounce_emissions.update(
+                    emission.model_copy(update={"outcome": "failed"})
+                )
+            logger.warning(
+                "bounce delivery failed; suppressing chained DSN: message_id=%s",
+                message.message_id,
+            )
+            return
+        if self._bounce_emitter is None:
+            logger.warning(
+                "local delivery failed without configured bounce emitter: message_id=%s",
+                message.message_id,
+            )
+            return
+        bounces = tuple(
+            bounce
+            for recipient in missing_recipients
+            if (
+                bounce := build_bounce_delivery(
+                    original=message,
+                    failed_recipient=recipient,
+                    failure_code="recipient_not_found",
+                    failed_at="origin",
+                    timestamp=failed_at,
+                    emitter=self._bounce_emitter,
+                    local_host=self.host,
+                )
+            )
+            is not None
+        )
+        await self._store_bounces(
             store,
-            message_id=message_id,
-            completed_at=completed_at,
-            delivered_by=delivered_by,
+            bounces,
+            rate_limit=self._bounce_rate_limit,
+            rate_window=self._bounce_rate_window,
         )
 
     async def daemon_deliver_remote(
@@ -966,6 +1035,9 @@ class SQLiteBackend(MAILServerBackend):
         failure_code: str,
         http_status: int | None = None,
         error: str | None = None,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> OutboundFederationDelivery:
         async with self._db.session() as session:
             store = MailStore(session)
@@ -1011,6 +1083,12 @@ class SQLiteBackend(MAILServerBackend):
                     }
                 )
             )
+            await self._store_bounces(
+                store,
+                bounces,
+                rate_limit=bounce_rate_limit,
+                rate_window=bounce_rate_window,
+            )
             return failed
 
     async def partition_federation_delivery(
@@ -1024,6 +1102,9 @@ class SQLiteBackend(MAILServerBackend):
         error: str,
         replacement_target: MessageDeliveryTarget,
         replacement_delivery: OutboundFederationDelivery,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> OutboundFederationDelivery:
         async with self._db.session() as session:
             store = MailStore(session)
@@ -1073,6 +1154,12 @@ class SQLiteBackend(MAILServerBackend):
             )
             await store.delivery_targets.add(replacement_target)
             await store.federation_outbound.add(replacement_delivery)
+            await self._store_bounces(
+                store,
+                bounces,
+                rate_limit=bounce_rate_limit,
+                rate_window=bounce_rate_window,
+            )
             return failed
 
     async def accept_inbound_federation(
@@ -1134,6 +1221,70 @@ class SQLiteBackend(MAILServerBackend):
         async with self._db.session() as session:
             await MailStore(session).bounce_emissions.add(emission)
 
+    async def get_bounce_emissions(
+        self, original_message_id: str
+    ) -> list[BounceEmission]:
+        async with self._db.session() as session:
+            return await MailStore(session).bounce_emissions.list_for_message(
+                original_message_id
+            )
+
+    async def configure_bounce_delivery(
+        self,
+        *,
+        emitter: MAILDaemon,
+        rate_limit: int,
+        rate_window: timedelta = timedelta(hours=1),
+    ) -> None:
+        if (
+            emitter.host.lower() != self.host.lower()
+            or "bounce:emit" not in emitter.scopes
+        ):
+            raise ValueError("bounce emitter must be local and carry bounce:emit")
+        if rate_limit <= 0 or rate_window <= timedelta(0):
+            raise ValueError("bounce rate limit and window must be positive")
+        self._bounce_emitter = emitter
+        self._bounce_rate_limit = rate_limit
+        self._bounce_rate_window = rate_window
+
+    async def _store_bounces(
+        self,
+        store: MailStore,
+        bounces: Sequence[BounceDelivery],
+        *,
+        rate_limit: int,
+        rate_window: timedelta,
+    ) -> None:
+        for bounce in bounces:
+            emission = bounce.emission
+            if await store.bounce_emissions.get(emission.emission_id) is not None:
+                continue
+            count = await store.bounce_emissions.count_since(
+                emission.original_sender,
+                emission.emitted_at - rate_window,
+            )
+            if count >= rate_limit:
+                await store.bounce_emissions.add(
+                    emission.model_copy(
+                        update={"outcome": "suppressed", "dsn_message_id": None}
+                    )
+                )
+                logger.info(
+                    "bounce suppressed by rate limit: sender=%s original_message_id=%s",
+                    emission.original_sender,
+                    emission.original_message_id,
+                )
+                continue
+            existing_message = await store.messages.get(bounce.message.message_id)
+            if existing_message is not None and existing_message != bounce.message:
+                raise ValueError("bounce message ID collides with different content")
+            await store.bounce_emissions.add(emission)
+            if existing_message is None:
+                await store.messages.add(bounce.message)
+            if await store.delivery_targets.get(bounce.target.target_id) is None:
+                await store.delivery_targets.add(bounce.target)
+            await store.buffer.enqueue(bounce.message.message_id)
+
     async def count_bounce_emissions_since(
         self, original_sender: str, *, since: datetime
     ) -> int:
@@ -1162,7 +1313,7 @@ class SQLiteBackend(MAILServerBackend):
         delivered_time: datetime,
         webhooks: list[MAILWebhook],
         fires: list[_WebhookFire],
-    ) -> None:
+    ) -> list[str]:
         """Upsert the shared inbox entry and deliver to each recipient."""
 
         inbox_entry = MAILInboxEntrySummary(
@@ -1175,9 +1326,10 @@ class SQLiteBackend(MAILServerBackend):
         )
         await store.boxes.upsert_inbox_entry(inbox_entry)
 
+        missing_recipients: list[str] = []
         for recipient in message.recipients:
             if recipient.startswith(f"{LIST_ADDRESS_PREFIX}:"):
-                await self._fan_out_to_list(
+                found = await self._fan_out_to_list(
                     store,
                     list_address=recipient,
                     message=message,
@@ -1185,16 +1337,19 @@ class SQLiteBackend(MAILServerBackend):
                     webhooks=webhooks,
                     fires=fires,
                 )
-                continue
-            await self._deliver_to_address(
-                store,
-                address=recipient,
-                message=message,
-                delivered_time=delivered_time,
-                list_address=None,
-                webhooks=webhooks,
-                fires=fires,
-            )
+            else:
+                found = await self._deliver_to_address(
+                    store,
+                    address=recipient,
+                    message=message,
+                    delivered_time=delivered_time,
+                    list_address=None,
+                    webhooks=webhooks,
+                    fires=fires,
+                )
+            if not found:
+                missing_recipients.append(recipient)
+        return missing_recipients
 
     async def _deliver_to_address(
         self,
@@ -1206,11 +1361,11 @@ class SQLiteBackend(MAILServerBackend):
         list_address: str | None,
         webhooks: list[MAILWebhook],
         fires: list[_WebhookFire],
-    ) -> None:
+    ) -> bool:
         user_agent = await store.user_agents.get(address)
         if user_agent is None:
             logger.warning(f"failed to validate recipient address {address}")
-            return
+            return False
         ua_address = user_agent.get_address()
         # Idempotent: re-delivering the same message is a no-op.
         if not await store.boxes.is_member(ua_address, BOX_INBOX, message.message_id):
@@ -1224,7 +1379,7 @@ class SQLiteBackend(MAILServerBackend):
             logger.debug(
                 f"skipping `mail.delivered` webhooks for non-agent recipient {address}"
             )
-            return
+            return True
         for webhook in webhooks:
             fires.append(
                 _WebhookFire(
@@ -1235,6 +1390,7 @@ class SQLiteBackend(MAILServerBackend):
                     list_address=list_address,
                 )
             )
+        return True
 
     async def _fan_out_to_list(
         self,
@@ -1245,13 +1401,13 @@ class SQLiteBackend(MAILServerBackend):
         delivered_time: datetime,
         webhooks: list[MAILWebhook],
         fires: list[_WebhookFire],
-    ) -> None:
+    ) -> bool:
         mail_list = await store.lists.get_by_address(list_address)
         if mail_list is None:
             logger.warning(
                 f"unknown list address in recipients; skipping: {list_address}"
             )
-            return
+            return False
         for member in mail_list.members:
             if member.startswith(f"{LIST_ADDRESS_PREFIX}:"):
                 logger.warning(
@@ -1268,6 +1424,7 @@ class SQLiteBackend(MAILServerBackend):
                 webhooks=webhooks,
                 fires=fires,
             )
+        return True
 
     def _schedule_webhooks(self, fires: list[_WebhookFire]) -> None:
         """Fire collected ``mail.delivered`` POSTs after the txn has committed."""
@@ -1376,6 +1533,7 @@ class SQLiteBackend(MAILServerBackend):
             ua_type="daemon",
             worker_name=payload.worker_name,
             host=self.host,
+            scopes=payload.scopes,
         )
         async with self._db.session() as session:
             store = MailStore(session)

@@ -18,7 +18,8 @@ from mail_protocol.core.federation import (
     MAILFederationPolicyHints,
     MAILFederationPublicKey,
 )
-from mail_protocol.core.validators import validate_host
+from mail_protocol.core.user_agents import MAILDaemon
+from mail_protocol.core.validators import validate_daemon_worker_name, validate_host
 from mail_protocol.network.federation import FEDERATION_DELIVERY_PATH_V1
 from pydantic import TypeAdapter, ValidationError
 
@@ -147,6 +148,8 @@ class FederationConfig:
     worker_batch_size: int = 20
     worker_lease_seconds: float = 30.0
     retry_after_cap_seconds: int = 24 * 60 * 60
+    bounce_worker_name: str = "bounces"
+    bounce_rate_limit: int = 100
 
     @property
     def manifest(self) -> MAILFederationManifest:
@@ -240,6 +243,16 @@ class FederationConfig:
         retry_after_cap = _integer(
             "MAIL_FEDERATION_RETRY_AFTER_CAP_SECONDS", default=24 * 60 * 60
         )
+        bounce_worker_name = os.getenv(
+            "MAIL_FEDERATION_BOUNCE_DAEMON", "bounces"
+        ).strip()
+        try:
+            validate_daemon_worker_name(bounce_worker_name)
+        except ValueError as exc:
+            raise FederationConfigurationError(
+                "MAIL_FEDERATION_BOUNCE_DAEMON must be a valid daemon worker name"
+            ) from exc
+        bounce_rate_limit = _integer("MAIL_FEDERATION_BOUNCE_RATE_LIMIT", default=100)
         if min(connect_timeout, read_timeout, total_timeout) <= 0:
             raise FederationConfigurationError(
                 "federation outbound timeouts must be positive"
@@ -254,9 +267,9 @@ class FederationConfig:
                 "federation worker lease must exceed discovery plus the outbound "
                 "total timeout"
             )
-        if retry_after_cap <= 0:
+        if retry_after_cap <= 0 or bounce_rate_limit <= 0:
             raise FederationConfigurationError(
-                "federation Retry-After cap must be positive"
+                "federation Retry-After cap and bounce rate limit must be positive"
             )
 
         key = load_federation_private_key(
@@ -293,6 +306,8 @@ class FederationConfig:
             worker_batch_size=batch_size,
             worker_lease_seconds=lease_seconds,
             retry_after_cap_seconds=retry_after_cap,
+            bounce_worker_name=bounce_worker_name,
+            bounce_rate_limit=bounce_rate_limit,
         )
 
 
@@ -335,6 +350,27 @@ class FederationRuntime:
         )
         from mail_server.federation.worker import FederationWorker
 
+        bounce_address = (
+            f"daemon:{self.config.bounce_worker_name}@{self.config.public_host}"
+        )
+        try:
+            bounce_user_agent = await backend.get_user_agent(bounce_address)
+        except ValueError as exc:
+            raise FederationConfigurationError(
+                f"configured federation bounce daemon does not exist: {bounce_address}"
+            ) from exc
+        bounce_daemon = bounce_user_agent.user_agent
+        if not isinstance(bounce_daemon, MAILDaemon) or (
+            "bounce:emit" not in bounce_daemon.scopes
+        ):
+            raise FederationConfigurationError(
+                "configured federation bounce daemon must carry bounce:emit"
+            )
+        await backend.configure_bounce_delivery(
+            emitter=bounce_daemon,
+            rate_limit=self.config.bounce_rate_limit,
+        )
+
         self.transport = HTTPFederationTransport(
             discovery=self.discovery,
             connect_timeout_seconds=self.config.outbound_connect_timeout_seconds,
@@ -348,6 +384,8 @@ class FederationRuntime:
             discovery=self.discovery,
             transport=self.transport,
             retry_after_cap=timedelta(seconds=self.config.retry_after_cap_seconds),
+            bounce_emitter=bounce_daemon,
+            bounce_rate_limit=self.config.bounce_rate_limit,
         )
         self.worker = FederationWorker(
             backend=backend,

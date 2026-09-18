@@ -395,6 +395,22 @@ def validate_daemon_worker_names(names: list[str]) -> list[str]:
     return names
 
 
+def validate_daemon_scopes(scopes: list[str]) -> list[str]:
+    """Validate assigned daemon scopes, including the reserved host form."""
+
+    if len(scopes) != len(set(scopes)):
+        raise ValueError("daemon scopes must not contain duplicates")
+    for scope in scopes:
+        if scope in {"deliver:local", "deliver:federate", "bounce:emit"}:
+            continue
+        prefix = "deliver:federate:"
+        if scope.startswith(prefix):
+            validate_host(scope.removeprefix(prefix))
+            continue
+        raise ValueError(f"invalid daemon scope: {scope}")
+    return scopes
+
+
 def validate_webhook_event_type(event: str) -> str:
     """
     Ensure that the given string is a valid MAIL webhook event type.

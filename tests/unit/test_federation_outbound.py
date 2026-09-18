@@ -17,9 +17,16 @@ import httpx
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from mail_protocol.core.dsn import MAILDSN
 from mail_protocol.core.federation import MAILFederationManifest
-from mail_protocol.core.user_agents import MAILAdmin, MAILUser, MAILUserAgent
+from mail_protocol.core.user_agents import (
+    MAILAdmin,
+    MAILDaemon,
+    MAILUser,
+    MAILUserAgent,
+)
 from mail_protocol.network.requests import (
+    AdminDaemonPostRequest,
     AdminUserPostRequest,
     DraftPostRequest,
     DraftSendPostRequest,
@@ -27,7 +34,11 @@ from mail_protocol.network.requests import (
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.api import MemoryBackend
 from mail_server.backends.sqlite.api import SQLiteBackend
-from mail_server.federation.config import FederationConfig, FederationRuntime
+from mail_server.federation.config import (
+    FederationConfig,
+    FederationConfigurationError,
+    FederationRuntime,
+)
 from mail_server.federation.discovery import (
     FederationDeliveryTarget,
     FederationDiscoveryError,
@@ -51,6 +62,12 @@ DELIVERY_URL = f"https://{REMOTE_HOST}/daemon/deliver/remote/v1"
 ADMIN = MAILAdmin(ua_type="admin", admin_id="root", host=LOCAL_HOST)
 ALICE = MAILUserAgent(
     user_agent=MAILUser(ua_type="user", user_id="alice", host=LOCAL_HOST)
+)
+BOUNCE_DAEMON = MAILDaemon(
+    ua_type="daemon",
+    worker_name="bounces",
+    host=LOCAL_HOST,
+    scopes=["bounce:emit"],
 )
 
 
@@ -178,6 +195,14 @@ async def outbound_backend(
     await backend.admin_post_user(
         ADMIN,
         AdminUserPostRequest(user_id="alice", user_password="pw"),
+    )
+    await backend.admin_post_daemon(
+        ADMIN,
+        AdminDaemonPostRequest(
+            worker_name="bounces",
+            daemon_password="pw",
+            scopes=["bounce:emit"],
+        ),
     )
     yield backend
     await backend.on_server_shutdown()
@@ -481,6 +506,80 @@ async def test_permanent_peer_rejections_dead_letter_immediately(
     assert events[0].failure_code == failure_code
 
 
+async def test_terminal_failure_atomically_queues_structured_local_dsn(
+    outbound_backend: MAILServerBackend,
+) -> None:
+    message, delivery = await _send_and_claim(outbound_backend)
+    service = OutboundFederationService(
+        backend=outbound_backend,
+        config=_config(_key()),
+        discovery=StaticDiscovery(),
+        transport=RecordingTransport(
+            [
+                FederationHTTPResponse(
+                    403,
+                    {},
+                    b'{"code":"policy_denied","detail":"private peer text"}',
+                )
+            ]
+        ),
+        bounce_emitter=BOUNCE_DAEMON,
+        clock=lambda: message.sent_at,
+    )
+
+    failed = await service.process(delivery, lease_owner="worker")
+
+    assert failed.status == "dead_letter"
+    emissions = await outbound_backend.get_bounce_emissions(message.message_id)
+    assert len(emissions) == 1
+    assert emissions[0].outcome == "emitted"
+    assert emissions[0].dsn_message_id is not None
+    dsn_message = await outbound_backend.get_message(emissions[0].dsn_message_id)
+    dsn = MAILDSN.model_validate(dsn_message.metadata["dsn"])
+    assert dsn.failure_code == "policy_denied"
+    assert dsn.failure_reason == "The destination policy denied the message."
+    assert "private peer text" not in dsn.failure_reason
+    assert "private peer text" not in dsn_message.body
+    assert dsn.original_message_id == message.message_id
+    assert dsn.failed_recipient == f"user:bob@{REMOTE_HOST}"
+    assert dsn.failed_at == "destination"
+    assert dsn.attempt_count == 1
+    assert dsn.attempt_timestamps == [message.sent_at]
+    assert dsn_message.sender == BOUNCE_DAEMON.get_address()
+    assert dsn_message.recipients == [ALICE.get_address()]
+
+
+async def test_bounce_rate_limit_records_suppression_without_queueing(
+    outbound_backend: MAILServerBackend,
+) -> None:
+    recipients = [
+        f"user:bob@{REMOTE_HOST}",
+        f"user:carol@{REMOTE_HOST}",
+    ]
+    message, delivery = await _send_and_claim(
+        outbound_backend,
+        recipients=recipients,
+    )
+    service = OutboundFederationService(
+        backend=outbound_backend,
+        config=_config(_key()),
+        discovery=StaticDiscovery(),
+        transport=RecordingTransport([FederationHTTPResponse(501, {})]),
+        bounce_emitter=BOUNCE_DAEMON,
+        bounce_rate_limit=1,
+        clock=lambda: message.sent_at,
+    )
+
+    await service.process(delivery, lease_owner="worker")
+
+    emissions = await outbound_backend.get_bounce_emissions(message.message_id)
+    assert sorted(emission.outcome for emission in emissions) == [
+        "emitted",
+        "suppressed",
+    ]
+    assert sum(emission.dsn_message_id is not None for emission in emissions) == 1
+
+
 async def test_recipient_rejection_atomically_queues_remaining_recipients(
     outbound_backend: MAILServerBackend,
 ) -> None:
@@ -512,6 +611,7 @@ async def test_recipient_rejection_atomically_queues_remaining_recipients(
             ]
         ),
         dead_letter_handler=dead_letter,
+        bounce_emitter=BOUNCE_DAEMON,
         clock=lambda: message.sent_at,
     )
 
@@ -540,6 +640,10 @@ async def test_recipient_rejection_atomically_queues_remaining_recipients(
     assert replacement.envelope.message.message_id == delivery.message_id
     assert replacement.envelope.message.recipients == [accepted]
     assert await outbound_backend.count_active_federation_deliveries() == 1
+    emissions = await outbound_backend.get_bounce_emissions(message.message_id)
+    assert [(item.failed_recipient, item.outcome) for item in emissions] == [
+        (missing, "emitted")
+    ]
 
 
 async def test_worker_claims_and_processes_due_batch(
@@ -611,3 +715,26 @@ async def test_runtime_owns_worker_and_transport_lifecycle(
     await asyncio.wait_for(runtime.aclose(), timeout=1)
     assert runtime.worker is None
     assert runtime.transport is None
+
+
+async def test_runtime_rejects_missing_or_unscoped_bounce_daemon(
+    deployment_dir: Path,
+) -> None:
+    backend = MemoryBackend()
+    await backend.on_server_startup(host=LOCAL_HOST)
+    runtime = FederationRuntime(config=_config(_key()), discovery=StaticDiscovery())  # type: ignore[arg-type]
+    try:
+        with pytest.raises(FederationConfigurationError, match="does not exist"):
+            await runtime.start(backend)
+        await backend.admin_post_daemon(
+            ADMIN,
+            AdminDaemonPostRequest(
+                worker_name="bounces",
+                daemon_password="pw",
+            ),
+        )
+        with pytest.raises(FederationConfigurationError, match="bounce:emit"):
+            await runtime.start(backend)
+    finally:
+        await runtime.aclose()
+        await backend.on_server_shutdown()

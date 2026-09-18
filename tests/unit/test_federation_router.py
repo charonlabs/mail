@@ -130,6 +130,8 @@ def test_enabled_configuration_loads_key_and_fails_on_host_mismatch(
     assert config.worker_batch_size == 20
     assert config.worker_lease_seconds == 30
     assert config.retry_after_cap_seconds == 86400
+    assert config.bounce_worker_name == "bounces"
+    assert config.bounce_rate_limit == 100
     monkeypatch.setenv("MAIL_FEDERATION_WORKER_LEASE_SECONDS", "10")
     with pytest.raises(FederationConfigurationError, match="lease must exceed"):
         FederationConfig.from_env()

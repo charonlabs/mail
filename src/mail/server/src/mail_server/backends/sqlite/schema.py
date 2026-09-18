@@ -381,4 +381,7 @@ class BounceEmissionRow(Base):
     failed_recipient: Mapped[str] = mapped_column(String(512))
     emitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     outcome: Mapped[str] = mapped_column(String(16))
+    dsn_message_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
     body: Mapped[dict[str, Any]] = mapped_column(JSON)

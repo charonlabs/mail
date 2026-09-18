@@ -95,6 +95,35 @@ async def test_schema_guard_adds_peer_reachability_to_existing_database(
     assert "peer_was_reached" in columns
 
 
+async def test_schema_guard_adds_dsn_message_link_to_existing_database(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "old-bounces.db"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "CREATE TABLE bounce_emissions (emission_id VARCHAR PRIMARY KEY)"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    db = Database(f"sqlite:///{path}")
+    await db.create_schema()
+    try:
+        async with db.session() as session:
+            columns = {
+                row[1]
+                for row in await session.execute(
+                    text("PRAGMA table_info(bounce_emissions)")
+                )
+            }
+    finally:
+        await db.dispose()
+
+    assert "dsn_message_id" in columns
+
+
 async def test_send_draft_rolls_back_on_failure(
     backend: SQLiteBackend, monkeypatch: pytest.MonkeyPatch
 ) -> None:

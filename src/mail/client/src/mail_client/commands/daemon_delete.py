@@ -62,3 +62,4 @@ def _print_text(response_obj: AdminDaemonDeleteResponse) -> None:
     print("=== Daemon ===")
     print(f"Worker Name: {daemon.worker_name}")
     print(f"Host: {daemon.host}")
+    print(f"Scopes: {', '.join(daemon.scopes)}")

@@ -56,6 +56,8 @@ below and fails closed if they are missing or inconsistent.
 | `MAIL_FEDERATION_WORKER_BATCH_SIZE` | `20` | Maximum envelopes leased per poll. |
 | `MAIL_FEDERATION_WORKER_LEASE_SECONDS` | `30` | Attempt lease; must exceed discovery (8 seconds) plus the outbound total timeout. |
 | `MAIL_FEDERATION_RETRY_AFTER_CAP_SECONDS` | `86400` | Safety cap applied to valid peer `Retry-After` values. |
+| `MAIL_FEDERATION_BOUNCE_DAEMON` | `bounces` | Local daemon worker name assigned `bounce:emit`; enabled federation fails startup if it is absent or unscoped. |
+| `MAIL_FEDERATION_BOUNCE_RATE_LIMIT` | `100` | Maximum emitted DSNs per original sender in a rolling hour. |
 | `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS` | `false` | Test-only override for IP/single-label/private peers. |
 | `MAIL_FEDERATION_ALLOW_INSECURE_TRANSPORT` | `false` | Test-only ASGI override; advertised delivery remains HTTPS. |
 

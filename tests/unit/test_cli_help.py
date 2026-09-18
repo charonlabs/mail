@@ -184,3 +184,21 @@ def test_run_command_renders_markdown_from_text_output(
     _run_command(command, args)
 
     assert capsys.readouterr().out == "# Inbox\n- **Message ID:** msg-123\n"
+
+
+def test_text_to_markdown_formats_delivery_failure_fields() -> None:
+    text = (
+        "=== Delivery Failure ===\n"
+        "Failure Code: future_failure\n"
+        "Reason: A future delivery mechanism failed.\n"
+        "Failed Recipient: user:bob@remote.example.com\n"
+        "Attempt Count: 1\n"
+    )
+
+    assert _text_to_markdown(text) == (
+        "# Delivery Failure\n"
+        "- **Failure Code:** future_failure\n"
+        "- **Reason:** A future delivery mechanism failed.\n"
+        "- **Failed Recipient:** user:bob@remote.example.com\n"
+        "- **Attempt Count:** 1\n"
+    )

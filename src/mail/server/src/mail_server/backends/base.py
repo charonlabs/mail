@@ -7,6 +7,7 @@ import hmac
 import logging
 import time
 from abc import abstractmethod
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import uuid4
@@ -49,6 +50,7 @@ from mail_protocol.network.requests import (
 from mail_protocol.network.webhooks import WebhookDeliveredPostRequest
 
 from mail_server.federation.records import (
+    BounceDelivery,
     BounceEmission,
     InboundFederationReceipt,
     MessageDeliveryTarget,
@@ -520,6 +522,9 @@ class MAILServerBackend(Protocol):
         failure_code: str,
         http_status: int | None = None,
         error: str | None = None,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> OutboundFederationDelivery:
         """Dead-letter an envelope and leave aggregate delivered_at unset."""
 
@@ -537,6 +542,9 @@ class MAILServerBackend(Protocol):
         error: str,
         replacement_target: MessageDeliveryTarget,
         replacement_delivery: OutboundFederationDelivery,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> OutboundFederationDelivery:
         """Dead-letter one envelope and atomically queue its accepted remainder."""
 
@@ -567,6 +575,26 @@ class MAILServerBackend(Protocol):
     @abstractmethod
     async def record_bounce_emission(self, emission: BounceEmission) -> None:
         """Persist one bounce outcome for idempotency/auditing and rate counts."""
+
+        pass
+
+    @abstractmethod
+    async def get_bounce_emissions(
+        self, original_message_id: str
+    ) -> list[BounceEmission]:
+        """Return bounce outcomes for one original message."""
+
+        pass
+
+    @abstractmethod
+    async def configure_bounce_delivery(
+        self,
+        *,
+        emitter: MAILDaemon,
+        rate_limit: int,
+        rate_window: timedelta = timedelta(hours=1),
+    ) -> None:
+        """Install validated local bounce settings for local delivery failures."""
 
         pass
 

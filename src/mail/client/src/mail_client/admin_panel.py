@@ -260,6 +260,14 @@ def build_parser() -> argparse.ArgumentParser:
         description=daemon_post_d,
     )
     daemon_post_p.add_argument("worker_name", help="the name to use for the new daemon")
+    daemon_post_p.add_argument(
+        "--scope",
+        dest="scopes",
+        action="append",
+        default=None,
+        help="assigned daemon scope (repeatable; default: deliver:local)",
+    )
+    daemon_post_p.set_defaults(scopes=["deliver:local"])
     daemon_post_p.set_defaults(func=cmd_daemon_post, cmd="daemon-post")
 
     # command `daemon-delete`

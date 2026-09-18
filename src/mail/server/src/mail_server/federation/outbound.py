@@ -18,11 +18,13 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import httpx
 from mail_protocol.core.federation import MAILFederationManifest
+from mail_protocol.core.user_agents import MAILDaemon
 from mail_protocol.network.federation import (
     FEDERATION_ATTEMPT_HEADER,
     FEDERATION_DELIVERY_ID_HEADER,
 )
 
+from mail_server.federation.bounces import build_federation_bounces
 from mail_server.federation.config import FederationConfig
 from mail_server.federation.discovery import (
     FederationDeliveryTarget,
@@ -105,7 +107,7 @@ DeadLetterHandler = Callable[[FederationDeadLetterEvent], Awaitable[None]]
 
 
 async def _noop_dead_letter(_event: FederationDeadLetterEvent) -> None:
-    """Phase 5 replaces this seam with durable DSN generation."""
+    """Optional post-commit observer; durable DSNs are stored by the backend."""
 
 
 def classify_http_status(status_code: int) -> AttemptDisposition:
@@ -287,7 +289,12 @@ class OutboundFederationService:
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         retry_after_cap: timedelta = DEFAULT_RETRY_AFTER_CAP,
         uuid_factory: Callable[[], object] = uuid4,
+        bounce_emitter: MAILDaemon | None = None,
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
     ) -> None:
+        if bounce_rate_limit <= 0 or bounce_rate_window <= timedelta(0):
+            raise ValueError("bounce rate limit and window must be positive")
         self.backend = backend
         self.config = config
         self.discovery = discovery
@@ -296,6 +303,9 @@ class OutboundFederationService:
         self.clock = clock
         self.retry_after_cap = retry_after_cap
         self.uuid_factory = uuid_factory
+        self.bounce_emitter = bounce_emitter
+        self.bounce_rate_limit = bounce_rate_limit
+        self.bounce_rate_window = bounce_rate_window
 
     def _now(self) -> datetime:
         value = self.clock()
@@ -339,6 +349,17 @@ class OutboundFederationService:
         peer_code: str | None = None,
         failed_recipients: tuple[str, ...] = (),
     ) -> OutboundFederationDelivery:
+        recipients = failed_recipients or tuple(delivery.envelope.message.recipients)
+        bounces = ()
+        if self.bounce_emitter is not None:
+            bounces = build_federation_bounces(
+                delivery=delivery,
+                failed_recipients=recipients,
+                failure_code=failure_code,
+                timestamp=completed_at,
+                emitter=self.bounce_emitter,
+                local_host=self.config.public_host,
+            )
         failed = await self.backend.fail_federation_delivery(
             delivery.envelope_id,
             lease_owner=lease_owner,
@@ -346,6 +367,9 @@ class OutboundFederationService:
             failure_code=failure_code,
             http_status=http_status,
             error=diagnostic,
+            bounces=bounces,
+            bounce_rate_limit=self.bounce_rate_limit,
+            bounce_rate_window=self.bounce_rate_window,
         )
         await self._emit_dead_letter(
             failed,
@@ -478,6 +502,20 @@ class OutboundFederationService:
             error=diagnostic,
             replacement_target=replacement_target,
             replacement_delivery=replacement_delivery,
+            bounces=(
+                build_federation_bounces(
+                    delivery=delivery,
+                    failed_recipients=failed_recipients,
+                    failure_code="recipient_not_found",
+                    timestamp=completed_at,
+                    emitter=self.bounce_emitter,
+                    local_host=self.config.public_host,
+                )
+                if self.bounce_emitter is not None
+                else ()
+            ),
+            bounce_rate_limit=self.bounce_rate_limit,
+            bounce_rate_window=self.bounce_rate_window,
         )
         await self._emit_dead_letter(
             failed,

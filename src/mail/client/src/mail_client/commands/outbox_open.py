@@ -8,6 +8,8 @@ import httpx
 from mail_protocol.network.responses import OutboxMessageGetResponse
 from pydantic import ValidationError
 
+from mail_client.commands._dsn import print_dsn_summary
+
 
 def cmd_outbox_open(args: Namespace) -> None:
     """
@@ -72,6 +74,7 @@ def _print_text(response_obj: OutboxMessageGetResponse) -> None:
     if message.tags:
         print(f"Tags: {', '.join(message.tags)}")
     print(f"Body:\n{message.body}\n")
+    print_dsn_summary(message)
     print("=== Outbox Entry Data ===")
     print(f"Delivered At: {entry.delivered_at}")
     print(f"Delivered By: {entry.delivered_by}")

@@ -118,13 +118,18 @@ and `503` override the next ladder delay, capped at 24 hours. Restarts resume
 pending work, and expired leases allow another server process to recover a
 crashed attempt. Only `202` and duplicate `409` responses count as success.
 If a peer rejects only some recipients with `404 recipient_not_found`, the
-origin dead-letters that envelope, invokes the bounce boundary for only those
-addresses, and atomically queues a new envelope for the remaining recipients.
+origin dead-letters that envelope, queues one local bounce for each rejected
+address, and atomically queues a new envelope for the remaining recipients.
 The replacement keeps the inner message ID but receives a new envelope ID.
 
 For mixed local/remote messages, `delivered_at` remains empty until every local
-and remote target succeeds. A terminal remote rejection or exhausted retry
-leaves it empty; Phase 5 adds the sender-facing delivery-status notification.
+and remote target succeeds. A terminal remote rejection, exhausted retry, or
+unknown local recipient leaves it empty and queues a delivery-status
+notification to the original local sender. These DSNs are normal local messages
+from the configured `bounce:emit` daemon, never cross federation, and never
+generate another DSN if their own delivery fails. Emission is idempotent per
+original message and failed recipient and limited to 100 per sender per rolling
+hour by default.
 
 ## Pre-send versus post-send errors
 

@@ -7,6 +7,12 @@ from mail_server.federation.addressing import (
     MessageDeliveryPlan,
     build_message_delivery_plan,
 )
+from mail_server.federation.bounces import (
+    FAILURE_REASONS,
+    build_bounce_delivery,
+    build_federation_bounces,
+    is_dsn,
+)
 from mail_server.federation.discovery import (
     FederationDeliveryTarget,
     FederationDiscoveryClient,
@@ -33,6 +39,7 @@ from mail_server.federation.outbound import (
     retry_delay_for_attempt,
 )
 from mail_server.federation.records import (
+    BounceDelivery,
     BounceEmission,
     InboundFederationReceipt,
     MessageDeliveryTarget,
@@ -52,6 +59,8 @@ from mail_server.federation.worker import FederationWorker
 
 __all__ = [
     "FEDERATION_COVERED_COMPONENTS",
+    "FAILURE_REASONS",
+    "BounceDelivery",
     "BounceEmission",
     "FederationDiscoveryClient",
     "FederationDiscoveryError",
@@ -75,10 +84,13 @@ __all__ = [
     "VerifiedFederationSignature",
     "FederationWorker",
     "HTTPFederationTransport",
-    "load_federation_private_key",
+    "build_bounce_delivery",
+    "build_federation_bounces",
     "build_message_delivery_plan",
     "public_key_from_manifest",
     "classify_http_status",
+    "is_dsn",
+    "load_federation_private_key",
     "parse_retry_after",
     "retry_delay_for_attempt",
     "serialize_federation_envelope",
