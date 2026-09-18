@@ -5,6 +5,7 @@ import hashlib
 import os
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import jwt
 from fastapi import HTTPException, Request, Response
@@ -16,6 +17,7 @@ from mail_protocol.core.user_agents import (
     MAILUser,
     MAILUserAgent,
 )
+from mail_protocol.core.validators import validate_host
 from pwdlib import PasswordHash
 from pydantic import BaseModel
 
@@ -48,6 +50,42 @@ COOKIE_DOMAIN = os.getenv("MAIL_COOKIE_DOMAIN")
 # High-entropy opaque refresh tokens; the ``rt_`` prefix aids on-the-wire
 # identification. Stored hashed (sha256) — never in plaintext.
 REFRESH_TOKEN_PREFIX = "rt_"
+
+
+type DaemonScope = Literal["deliver:local", "deliver:federate", "bounce:emit"]
+
+DAEMON_SCOPE_DELIVER_LOCAL: DaemonScope = "deliver:local"
+DAEMON_SCOPE_DELIVER_FEDERATE: DaemonScope = "deliver:federate"
+DAEMON_SCOPE_BOUNCE_EMIT: DaemonScope = "bounce:emit"
+DAEMON_SCOPE_DELIVER_FEDERATE_HOST_PREFIX = "deliver:federate:"
+KNOWN_DAEMON_SCOPES: frozenset[DaemonScope] = frozenset(
+    {
+        DAEMON_SCOPE_DELIVER_LOCAL,
+        DAEMON_SCOPE_DELIVER_FEDERATE,
+        DAEMON_SCOPE_BOUNCE_EMIT,
+    }
+)
+
+
+def is_known_daemon_scope(scope: str) -> bool:
+    """
+    Return True when ``scope`` matches the daemon scope grammar known to MAIL.
+
+    This is a registry/parser only; enforcement happens at call sites that need
+    a specific daemon capability.
+    """
+
+    if scope in KNOWN_DAEMON_SCOPES:
+        return True
+    if not scope.startswith(DAEMON_SCOPE_DELIVER_FEDERATE_HOST_PREFIX):
+        return False
+
+    host = scope.removeprefix(DAEMON_SCOPE_DELIVER_FEDERATE_HOST_PREFIX)
+    try:
+        validate_host(host)
+    except ValueError:
+        return False
+    return True
 
 
 class Token(BaseModel):

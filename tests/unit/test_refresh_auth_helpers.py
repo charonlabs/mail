@@ -18,7 +18,6 @@ from mail_protocol.core.user_agents import (
     MAILAgent,
     MAILDaemon,
     MAILUser,
-    MAILUserAgent,
     MAILUserAgentInBackend,
 )
 
@@ -29,7 +28,7 @@ def _set_cookie(resp: Response) -> str:
     return resp.headers.get("set-cookie") or ""
 
 
-def _wrap(ua: MAILUserAgent) -> MAILUserAgentInBackend:
+def _wrap(ua: MAILAgent | MAILUser | MAILAdmin | MAILDaemon) -> MAILUserAgentInBackend:
     return MAILUserAgentInBackend(user_agent=ua, hashed_password="x")
 
 
@@ -59,6 +58,11 @@ def test_is_interactive_principal() -> None:
     assert not auth.is_interactive_principal(
         _wrap(MAILDaemon(ua_type="daemon", worker_name="dummy", host=HOST))
     )
+
+
+def test_bounce_emit_is_known_daemon_scope() -> None:
+    assert auth.DAEMON_SCOPE_BOUNCE_EMIT in auth.KNOWN_DAEMON_SCOPES
+    assert auth.is_known_daemon_scope("bounce:emit")
 
 
 def test_set_refresh_cookie_secure_when_configured(
