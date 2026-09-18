@@ -54,7 +54,12 @@ This document serves as a reference for the MAIL (Mult-Agent Interface Layer) HT
 
 - `POST /daemon/message-buffer/clear`: Obtain the IDs of all messages in need for delivery and clear the server's buffer.
 - `POST /daemon/deliver/local`: Upload a list of message IDs to deliver to user-agents on this server.
-- `POST /daemon/deliver/remote`: Upload a list of messages from remote MAIL servers to deliver to user-agents on this server.
+- `POST /daemon/deliver/remote/v1`: Accept one HTTPS RFC 9421-signed Federation v1 envelope; no local bearer token is used.
+- `POST /daemon/deliver/remote`: Removed unsigned endpoint; always returns `410 Gone` without ingesting the body.
+
+### Federation discovery
+
+- `GET /.well-known/mail-federation`: Return the public Federation v1 manifest when federation is enabled; otherwise return `404`.
 
 ### Admin
 

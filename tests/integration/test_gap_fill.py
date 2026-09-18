@@ -78,7 +78,7 @@ def test_trash_clear_empties_box(
     assert app_client.get("/trash", headers=bob).json()["entries"] == []
 
 
-def test_daemon_deliver_remote_delivers_to_local_inbox(
+def test_unsigned_daemon_deliver_remote_is_gone(
     app_client: TestClient, headers_for
 ) -> None:
     message_id = "99999999-9999-4999-8999-999999999999"
@@ -101,12 +101,11 @@ def test_daemon_deliver_remote_delivers_to_local_inbox(
         },
         headers=headers_for(DAEMON),
     )
-    assert response.status_code == 200
-    assert response.json()["messages"][0]["message_id"] == message_id
+    assert response.status_code == 410
+    assert response.json()["code"] == "federation_v1_required"
 
     opened = app_client.get(f"/inbox/{message_id}", headers=headers_for(OTHER_USER))
-    assert opened.status_code == 200
-    assert opened.json()["entry"]["message"]["body"] == "from afar"
+    assert opened.status_code == 404
 
 
 def test_patch_webhook_updates(app_client: TestClient, headers_for) -> None:

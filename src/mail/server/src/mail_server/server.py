@@ -14,12 +14,14 @@ from mail_protocol.network.responses import HealthGetResponse, RootGetResponse
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.api import MemoryBackend
+from mail_server.federation.config import FederationRuntime
 from mail_server.logging import init_logger
 from mail_server.routers import (
     admin,
     auth,
     daemon,
     drafts,
+    federation,
     inbox,
     lists,
     outbox,
@@ -47,6 +49,11 @@ async def _server_startup(app: FastAPI):
     global _backend
     await _backend.on_server_startup(host=HOST)
     app.state.backend = _backend
+    try:
+        app.state.federation = FederationRuntime.from_env(local_host=HOST)
+    except Exception:
+        await _backend.on_server_shutdown()
+        raise
 
     app.state.time_start = time.time()
 
@@ -60,6 +67,7 @@ async def _server_shutdown(app: FastAPI):
 
     logger.info("server shutting down...")
 
+    await app.state.federation.aclose()
     await app.state.backend.on_server_shutdown()
 
     logger.info("server shutdown complete")
@@ -93,6 +101,7 @@ app.include_router(daemon.router)
 app.include_router(admin.router)
 app.include_router(lists.admin_router)
 app.include_router(lists.public_router)
+app.include_router(federation.router)
 
 
 #

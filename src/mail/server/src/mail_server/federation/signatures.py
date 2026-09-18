@@ -471,6 +471,7 @@ async def verify_federation_request_with_discovery(
     body: bytes,
     discovery: _DiscoveryResolver,
     max_age: timedelta = FEDERATION_SIGNATURE_MAX_AGE,
+    now: datetime | None = None,
 ) -> VerifiedFederationSignature:
     """Resolve an advertised key and retry once after a cached-key failure."""
 
@@ -487,6 +488,7 @@ async def verify_federation_request_with_discovery(
             key_id=key_id,
             public_key=public_key,
             max_age=max_age,
+            now=now,
         )
 
     try:

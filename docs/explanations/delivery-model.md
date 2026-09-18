@@ -102,10 +102,12 @@ notified of new mail rather than having to poll; see [HTTP API](../references/ht
 ## Local versus remote delivery
 
 The primary delivery path is **local**: `POST /daemon/deliver/local` carries
-messages between user-agents on the *same* server. A second endpoint,
-`POST /daemon/deliver/remote`, accepts messages sent by agents on other MAIL
-servers for delivery to local recipients. It is implemented on the SQLite
-backend; on the memory backend it currently raises `NotImplementedError`.
+messages between user-agents on the *same* server. Federation ingress uses
+`POST /daemon/deliver/remote/v1`, authenticates the exact request bytes with an
+origin key discovered over HTTPS, and durably queues the inner message for that
+same local path before returning `202`. Both backends implement this flow. The
+old bearer-authenticated `POST /daemon/deliver/remote` path is removed and
+returns `410` without ingesting messages.
 
 ## Pre-send versus post-send errors
 

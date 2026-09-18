@@ -626,27 +626,15 @@ paths:
     post:
       tags:
       - daemon
-      summary: Upload new messages to deliver from remote agent(s)
+      summary: Reject the removed unsigned remote-delivery endpoint
       operationId: deliver_remote_messages_daemon_deliver_remote_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DaemonDeliverRemoteRequest'
-        required: true
       responses:
-        '200':
+        '410':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DaemonDeliverRemoteResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
   /admin/agents:
     get:
       tags:
@@ -1447,6 +1435,168 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /.well-known/mail-federation:
+    get:
+      tags:
+      - federation
+      summary: Get Federation Manifest
+      operationId: get_federation_manifest__well_known_mail_federation_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationManifest'
+  /daemon/deliver/remote/v1:
+    post:
+      tags:
+      - federation
+      summary: Accept one signed Federation v1 envelope
+      operationId: deliver_federation_message_daemon_deliver_remote_v1_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                message_id:
+                  type: string
+                  title: Message Id
+                sender_host:
+                  type: string
+                  title: Sender Host
+                recipient_host:
+                  type: string
+                  title: Recipient Host
+                message:
+                  properties:
+                    mail_version:
+                      type: string
+                      const: '2.0'
+                      title: Mail Version
+                    message_id:
+                      type: string
+                      title: Message Id
+                    reply_to:
+                      anyOf:
+                      - type: string
+                      - type: 'null'
+                      title: Reply To
+                    sender:
+                      type: string
+                      title: Sender
+                    recipients:
+                      items:
+                        type: string
+                      type: array
+                      title: Recipients
+                    subject:
+                      type: string
+                      title: Subject
+                    body:
+                      type: string
+                      title: Body
+                    tags:
+                      items:
+                        type: string
+                      type: array
+                      title: Tags
+                    sent_at:
+                      type: string
+                      format: date-time
+                      title: Sent At
+                    metadata:
+                      additionalProperties: true
+                      type: object
+                      title: Metadata
+                  type: object
+                  required:
+                  - mail_version
+                  - message_id
+                  - sender
+                  - recipients
+                  - subject
+                  - body
+                  - tags
+                  - sent_at
+                  - metadata
+                  title: MAILMessage
+                  description: A constructed message to be delivered via MAIL.
+                metadata:
+                  additionalProperties: true
+                  type: object
+                  title: Metadata
+                sent_at:
+                  type: string
+                  format: date-time
+                  title: Sent At
+                protocol_version:
+                  type: string
+                  const: '1'
+                  title: Protocol Version
+              additionalProperties: false
+              type: object
+              required:
+              - message_id
+              - sender_host
+              - recipient_host
+              - message
+              - metadata
+              - sent_at
+              - protocol_version
+              title: MAILInterServerMessage
+              description: A signed Federation v1 envelope around one destination's
+                message copy.
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationAcceptedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
+        '413':
+          description: Request Entity Too Large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
+        '503':
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MAILFederationErrorResponse'
   /:
     get:
       summary: Get basic server information and metadata
@@ -2243,40 +2393,6 @@ components:
       description: 'Corresponds to `POST /daemon/deliver/local`.
 
         Contains the list of messages successfully delivered to server-local user-agents.'
-    DaemonDeliverRemoteRequest:
-      properties:
-        messages:
-          items:
-            $ref: '#/components/schemas/MAILMessage'
-          type: array
-          title: Messages
-      type: object
-      required:
-      - messages
-      title: DaemonDeliverRemoteRequest
-      description: 'Corresponds to `POST /daemon/deliver/remote`.
-
-        Contains a list of remote MAIL messages to deliver to their intended local
-        targets.'
-    DaemonDeliverRemoteResponse:
-      properties:
-        messages:
-          items:
-            $ref: '#/components/schemas/MAILMessageSummary'
-          type: array
-          title: Messages
-        metadata:
-          additionalProperties: true
-          type: object
-          title: Metadata
-      type: object
-      required:
-      - messages
-      - metadata
-      title: DaemonDeliverRemoteResponse
-      description: 'Corresponds to `POST /daemon/deliver/remote`.
-
-        Contains the list of messages successfully delivered to server-local user-agents.'
     DaemonMessageBufferClearResponse:
       properties:
         message_ids:
@@ -2822,6 +2938,118 @@ components:
       - created_at
       title: MAILDraftsEntrySummary
       description: A summarized MAIL draft entry to be included in lists.
+    MAILFederationAcceptedResponse:
+      properties:
+        accepted_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Accepted At
+      additionalProperties: false
+      type: object
+      title: MAILFederationAcceptedResponse
+      description: Optional response body accompanying a Federation v1 ``202``.
+    MAILFederationErrorResponse:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-z][a-z0-9_]*$
+          title: Code
+        detail:
+          type: string
+          minLength: 1
+          title: Detail
+        failed_recipients:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            minItems: 1
+          - type: 'null'
+          title: Failed Recipients
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - detail
+      title: MAILFederationErrorResponse
+      description: Machine-readable error body returned by Federation v1 endpoints.
+    MAILFederationManifest:
+      properties:
+        protocol_version:
+          type: string
+          const: '1'
+          title: Protocol Version
+        mail_protocol_version:
+          anyOf:
+          - type: string
+            const: '2.0'
+          - type: 'null'
+          title: Mail Protocol Version
+        delivery_url:
+          type: string
+          minLength: 1
+          format: uri
+          title: Delivery Url
+        public_keys:
+          items:
+            $ref: '#/components/schemas/MAILFederationPublicKey'
+          type: array
+          minItems: 1
+          title: Public Keys
+        policy_hints:
+          anyOf:
+          - $ref: '#/components/schemas/MAILFederationPolicyHints'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - protocol_version
+      - delivery_url
+      - public_keys
+      title: MAILFederationManifest
+      description: The document served from ``/.well-known/mail-federation``.
+    MAILFederationPolicyHints:
+      properties:
+        accepts:
+          type: string
+          enum:
+          - open
+          - allowlist
+          - closed
+          title: Accepts
+      additionalProperties: false
+      type: object
+      required:
+      - accepts
+      title: MAILFederationPolicyHints
+      description: Informational acceptance hint in a discovery manifest.
+    MAILFederationPublicKey:
+      properties:
+        key_id:
+          type: string
+          maxLength: 128
+          minLength: 1
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._:-]*$
+          title: Key Id
+        algorithm:
+          type: string
+          const: ed25519
+          title: Algorithm
+        public_key:
+          type: string
+          title: Public Key
+      additionalProperties: false
+      type: object
+      required:
+      - key_id
+      - algorithm
+      - public_key
+      title: MAILFederationPublicKey
+      description: One public signing key advertised by a federation peer.
     MAILInboxEntry:
       properties:
         message:

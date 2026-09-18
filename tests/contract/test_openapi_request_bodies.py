@@ -22,7 +22,7 @@ ENDPOINTS_WITH_BODY = [
     ("/drafts/{draft_id}", "patch"),
     ("/drafts/{draft_id}/send", "post"),
     ("/daemon/deliver/local", "post"),
-    ("/daemon/deliver/remote", "post"),
+    ("/daemon/deliver/remote/v1", "post"),
     ("/admin/agents", "post"),
     ("/admin/daemons", "post"),
     ("/admin/users", "post"),
@@ -40,6 +40,7 @@ ENDPOINTS_WITH_BODY = [
 ENDPOINTS_WITHOUT_BODY = [
     ("/trash/clear", "post"),
     ("/daemon/message-buffer/clear", "post"),
+    ("/daemon/deliver/remote", "post"),
     ("/lists/{local_address}/subscribe", "post"),
     ("/lists/{local_address}/unsubscribe", "post"),
 ]

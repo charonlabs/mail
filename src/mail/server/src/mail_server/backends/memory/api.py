@@ -1495,6 +1495,9 @@ class MemoryBackend(MAILServerBackend):
             self.message_buffer.append(message.message_id)
         return True
 
+    async def has_inbound_federation_receipt(self, envelope_id: str) -> bool:
+        return envelope_id in self.federation_inbound_receipts
+
     async def purge_expired_federation_receipts(self, *, now: datetime) -> int:
         expired = [
             envelope_id

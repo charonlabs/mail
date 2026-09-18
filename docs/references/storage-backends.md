@@ -119,7 +119,8 @@ Files: `backends/sqlite/` — `api.py`, `database.py`, `schema.py`,
 | Deployments | Runtime reads/writes the `default` deployment only (see limitations) | Arbitrary via `--sqlite-path` / `--database-url` |
 | Init on re-run | Overwrites | Idempotent |
 | Migration import | — | `--import-fs` |
-| Delete/clear, webhook patch, remote deliver | Not implemented (raises `NotImplementedError`) | Implemented |
+| Delete/clear and webhook patch | Not implemented (raises `NotImplementedError`) | Implemented |
+| Signed Federation v1 ingress | Supported; checkpoint-bounded durability | Supported; transactional durability |
 
 Both implement the identical interface and share the webhook delivery logic, so
 inbox `is_read`, refresh-token families, list membership, and webhook semantics
@@ -130,10 +131,9 @@ match across backends.
 - **Memory backend: unimplemented operations.** Several operations raise
   `NotImplementedError` on the memory backend and are only available on SQLite:
   `DELETE /inbox/{message_id}`, `DELETE /drafts/{draft_id}`,
-  `DELETE /trash/{message_id}`, `POST /trash/clear`,
-  `PATCH /admin/webhooks/{webhook_id}`, and `POST /daemon/deliver/remote`. Choose
-  the SQLite backend if you need message deletion / trash clearing, webhook
-  patching, or inbound remote delivery. These gaps are pinned as `xfail` in
+  `DELETE /trash/{message_id}`, `POST /trash/clear`, and
+  `PATCH /admin/webhooks/{webhook_id}`. Choose the SQLite backend if you need
+  message deletion / trash clearing or webhook patching. These gaps are pinned as `xfail` in
   [`tests/integration/test_stubs.py`](../../tests/integration/test_stubs.py).
 - **Memory backend deployment name.** The memory runtime's filesystem layer is
   pinned to the `default` deployment: `backend-init` will *create* a named memory

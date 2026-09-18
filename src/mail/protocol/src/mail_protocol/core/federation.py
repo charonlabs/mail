@@ -16,6 +16,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -124,9 +125,14 @@ class MAILInterServerMessage(BaseModel):
     protocol_version: Literal["1"]
 
     @model_validator(mode="after")
-    def validate_envelope_identity_and_destination(self) -> Self:
+    def validate_envelope_identity_and_destination(self, info: ValidationInfo) -> Self:
         if self.message_id == self.message.message_id:
             raise ValueError("envelope message_id must differ from inner message_id")
+
+        if isinstance(info.context, dict) and info.context.get(
+            "defer_federation_host_checks"
+        ):
+            return self
 
         if mail_address_host(self.message.sender) != self.sender_host:
             raise ValueError("sender_host must match the inner message sender host")

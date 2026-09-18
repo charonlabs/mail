@@ -1047,6 +1047,11 @@ class SQLiteBackend(MAILServerBackend):
                 await store.buffer.enqueue(message.message_id)
         return True
 
+    async def has_inbound_federation_receipt(self, envelope_id: str) -> bool:
+        async with self._db.session() as session:
+            receipt = await MailStore(session).federation_inbound.get(envelope_id)
+            return receipt is not None
+
     async def purge_expired_federation_receipts(self, *, now: datetime) -> int:
         async with self._db.session() as session:
             return await MailStore(session).federation_inbound.purge_expired(now)

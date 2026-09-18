@@ -36,7 +36,7 @@ box reads nest the message under an `entry`. Field shapes are in
 > backend; on the memory backend they raise `NotImplementedError`:
 > `DELETE /inbox/{message_id}`, `DELETE /drafts/{draft_id}`,
 > `DELETE /trash/{message_id}`, `POST /trash/clear`,
-> `PATCH /admin/webhooks/{webhook_id}`, and `POST /daemon/deliver/remote`. See
+> and `PATCH /admin/webhooks/{webhook_id}`. See
 > [Storage Backends](storage-backends.md#current-limitations).
 
 ## Root and health
@@ -117,7 +117,12 @@ Used by delivery daemons; see [Delivery Model](../explanations/delivery-model.md
 | --- | --- | --- | --- |
 | POST | `/daemon/message-buffer/clear` | daemon | Drain the pending-delivery buffer. |
 | POST | `/daemon/deliver/local` | daemon | Deliver messages between user-agents on this server. |
-| POST | `/daemon/deliver/remote` | daemon | Inbound cross-server delivery; implemented on SQLite, raises `NotImplementedError` on the memory backend (see note above). |
+| POST | `/daemon/deliver/remote/v1` | HTTP signature | Accept and durably queue one Federation v1 envelope. |
+| POST | `/daemon/deliver/remote` | none | Removed unsigned endpoint; always returns `410`. |
+
+Federation-enabled servers also expose `GET /.well-known/mail-federation`
+without bearer authentication. Disabled servers return `404` from both public
+federation routes.
 
 ## Admin endpoints (`/admin`)
 

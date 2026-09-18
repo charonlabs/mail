@@ -528,6 +528,12 @@ class MAILServerBackend(Protocol):
         pass
 
     @abstractmethod
+    async def has_inbound_federation_receipt(self, envelope_id: str) -> bool:
+        """Return whether an unexpired inbound replay key currently exists."""
+
+        pass
+
+    @abstractmethod
     async def purge_expired_federation_receipts(self, *, now: datetime) -> int:
         """Remove replay records whose retention window has elapsed."""
 
