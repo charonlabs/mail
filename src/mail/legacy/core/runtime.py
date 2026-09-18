@@ -2932,19 +2932,6 @@ Use this information to decide how to complete your task.""",
             if not isinstance(routing_info, dict):
                 routing_info = {}
 
-            parent_message = source_message.get("message")
-            parent_routing: dict[str, Any] | None = None
-            if isinstance(parent_message, dict):
-                candidate_routing = parent_message.get("routing_info")
-                if isinstance(candidate_routing, dict):
-                    parent_routing = candidate_routing
-
-            remote_task_id: str | None = None
-            remote_swarm: str | None = None
-            if parent_routing is not None:
-                remote_task_id = parent_routing.get("remote_task_id")
-                remote_swarm = parent_routing.get("remote_swarm")
-
             target_addresses: set[str] = set()
 
             target_arg = call.tool_args.get("target")

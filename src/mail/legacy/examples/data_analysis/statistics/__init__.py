@@ -3,12 +3,12 @@
 
 """Statistics agent for the Data Analysis swarm."""
 
-from mail.legacy.examples.data_analysis.statistics.agent import (
-    LiteLLMStatisticsFunction,
-)
 from mail.legacy.examples.data_analysis.statistics.actions import (
     calculate_statistics,
     run_correlation,
+)
+from mail.legacy.examples.data_analysis.statistics.agent import (
+    LiteLLMStatisticsFunction,
 )
 from mail.legacy.examples.data_analysis.statistics.prompts import SYSPROMPT
 

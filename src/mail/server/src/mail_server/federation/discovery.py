@@ -9,6 +9,7 @@ import asyncio
 import ipaddress
 import json
 import socket
+import ssl
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from time import monotonic
@@ -98,7 +99,9 @@ class FederationDiscoveryClient:
         read_timeout_seconds: float = 5.0,
         total_timeout_seconds: float = DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS,
         max_response_bytes: int = DEFAULT_DISCOVERY_MAX_BYTES,
+        discovery_port: int = 443,
         allow_private_hosts: bool = False,
+        verify: ssl.SSLContext | bool = True,
         resolver: HostResolver = _system_resolver,
         client: httpx.AsyncClient | None = None,
         clock: MonotonicClock = monotonic,
@@ -116,16 +119,20 @@ class FederationDiscoveryClient:
             raise ValueError("discovery timeouts must be positive")
         if max_response_bytes <= 0:
             raise ValueError("discovery response limit must be positive")
+        if not 1 <= discovery_port <= 65535:
+            raise ValueError("discovery port must be between 1 and 65535")
 
         self.ttl_seconds = ttl_seconds
         self.connect_timeout_seconds = connect_timeout_seconds
         self.read_timeout_seconds = read_timeout_seconds
         self.total_timeout_seconds = total_timeout_seconds
         self.max_response_bytes = max_response_bytes
+        self.discovery_port = discovery_port
         self.allow_private_hosts = allow_private_hosts
         self.resolver = resolver
         self.clock = clock
         self._client = client or httpx.AsyncClient(
+            verify=verify,
             timeout=httpx.Timeout(
                 connect=connect_timeout_seconds,
                 read=read_timeout_seconds,
@@ -204,17 +211,20 @@ class FederationDiscoveryClient:
     async def _fetch(self, host: str) -> MAILFederationManifest:
         # Resolve first, validate every answer, then connect to one of those exact
         # addresses while retaining the DNS name for Host and TLS verification.
-        addresses = await self._validated_addresses(host, 443)
+        addresses = await self._validated_addresses(host, self.discovery_port)
         pinned_url = httpx.URL(
             scheme="https",
             host=addresses[0],
-            port=443,
+            port=self.discovery_port,
             path=FEDERATION_DISCOVERY_PATH,
+        )
+        authority = (
+            host if self.discovery_port == 443 else f"{host}:{self.discovery_port}"
         )
         request = self._client.build_request(
             "GET",
             pinned_url,
-            headers={"Accept": "application/json", "Host": host},
+            headers={"Accept": "application/json", "Host": authority},
             extensions={
                 "sni_hostname": host,
                 "timeout": {

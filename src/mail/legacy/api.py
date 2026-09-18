@@ -1939,14 +1939,14 @@ class MAILSwarmTemplate:
 
             # Print startup banner
             print(f"\n{'=' * 60}")
-            print(f"  MAIL Swarm Viewer")
+            print("  MAIL Swarm Viewer")
             print(f"  Swarm: {self.name}")
             print(f"  Agents: {', '.join(self.agent_names)}")
             print(f"{'=' * 60}")
             print(f"  Server: http://{host}:{port}")
             print(f"  UI:     http://localhost:{ui_port}")
             print(f"{'=' * 60}")
-            print(f"  Press Ctrl+C to stop\n")
+            print("  Press Ctrl+C to stop\n")
 
             # Set up environment for UI to connect to server
             ui_env = os.environ.copy()
@@ -1996,13 +1996,13 @@ class MAILSwarmTemplate:
         else:
             # Server-only banner
             print(f"\n{'=' * 60}")
-            print(f"  MAIL Server")
+            print("  MAIL Server")
             print(f"  Swarm: {self.name}")
             print(f"  Agents: {', '.join(self.agent_names)}")
             print(f"{'=' * 60}")
             print(f"  Server: http://{host}:{port}")
             print(f"{'=' * 60}")
-            print(f"  Press Ctrl+C to stop\n")
+            print("  Press Ctrl+C to stop\n")
 
         try:
             run_server_with_template(

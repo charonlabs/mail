@@ -9,8 +9,6 @@ from typing import Any, Literal
 import asyncpg
 import dotenv
 
-from mail.legacy.db.types import AgentHistoriesDB
-
 logger = logging.getLogger("mail.legacy.db")
 
 # global connection pool
@@ -323,7 +321,7 @@ async def update_task(
     if not updates:
         return  # Nothing to update
 
-    updates.append(f"updated_at = NOW()")
+    updates.append("updated_at = NOW()")
 
     query = f"""
     UPDATE tasks

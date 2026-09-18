@@ -9,7 +9,6 @@ import jwt
 from fastapi.testclient import TestClient
 from mail_protocol.core.swarm import MAILSwarm
 from mail_protocol.interswarm import MAILRemoteSwarm
-
 from mail_server import JWTSettings, MAILServer, StaticAPIKeyAuthBackend, TokenInfo
 from mail_server.types import PersistedSwarmRegistry, SwarmRegistryEntry
 

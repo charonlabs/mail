@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import re
+import ssl
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -204,12 +205,14 @@ class HTTPFederationTransport:
         read_timeout_seconds: float = 5.0,
         total_timeout_seconds: float = 10.0,
         max_response_bytes: int = DEFAULT_RESPONSE_MAX_BYTES,
+        verify: ssl.SSLContext | bool = True,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.discovery = discovery
         self.total_timeout_seconds = total_timeout_seconds
         self.max_response_bytes = max_response_bytes
         self._client = client or httpx.AsyncClient(
+            verify=verify,
             timeout=httpx.Timeout(
                 connect=connect_timeout_seconds,
                 read=read_timeout_seconds,
@@ -292,6 +295,7 @@ class OutboundFederationService:
         bounce_emitter: MAILDaemon | None = None,
         bounce_rate_limit: int = 100,
         bounce_rate_window: timedelta = timedelta(hours=1),
+        retry_delays: tuple[timedelta, ...] | None = None,
     ) -> None:
         if bounce_rate_limit <= 0 or bounce_rate_window <= timedelta(0):
             raise ValueError("bounce rate limit and window must be positive")
@@ -306,6 +310,11 @@ class OutboundFederationService:
         self.bounce_emitter = bounce_emitter
         self.bounce_rate_limit = bounce_rate_limit
         self.bounce_rate_window = bounce_rate_window
+        self.retry_delays = RETRY_DELAYS if retry_delays is None else retry_delays
+        if len(self.retry_delays) != MAX_ATTEMPTS - 1 or any(
+            delay <= timedelta(0) for delay in self.retry_delays
+        ):
+            raise ValueError("federation retry delays must contain five positive values")
 
     def _now(self) -> datetime:
         value = self.clock()
@@ -391,7 +400,13 @@ class OutboundFederationService:
         retry_after: timedelta | None = None,
     ) -> OutboundFederationDelivery:
         completed_attempts = delivery.attempt_count + 1
-        fallback = retry_delay_for_attempt(completed_attempts)
+        if not 1 <= completed_attempts <= MAX_ATTEMPTS:
+            raise ValueError("completed attempt count must be between 1 and 6")
+        fallback = (
+            None
+            if completed_attempts == MAX_ATTEMPTS
+            else self.retry_delays[completed_attempts - 1]
+        )
         if fallback is None:
             failure_code = (
                 "delivery_expired"

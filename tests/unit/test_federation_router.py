@@ -227,6 +227,44 @@ def test_configuration_rejects_nonfinite_timeout(
         FederationConfig.from_env()
 
 
+def test_nonstandard_discovery_port_is_test_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = Ed25519PrivateKey.generate()
+    key_path = tmp_path / "active.pem"
+    key_path.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    key_path.chmod(0o600)
+    values = {
+        "MAIL_FEDERATION_ENABLED": "true",
+        "MAIL_FEDERATION_PUBLIC_HOST": LOCAL_HOST,
+        "MAIL_FEDERATION_DELIVERY_URL": DELIVERY_URL,
+        "MAIL_FEDERATION_KEY_ID": "active",
+        "MAIL_FEDERATION_PRIVATE_KEY_FILE": str(key_path),
+        "MAIL_FEDERATION_POLICY": "open",
+        "MAIL_FEDERATION_TEST_DISCOVERY_PORT": "9443",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+    with pytest.raises(FederationConfigurationError, match="private-host"):
+        FederationConfig.from_env()
+
+    monkeypatch.setenv("MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS", "true")
+    monkeypatch.setenv(
+        "MAIL_FEDERATION_TEST_RETRY_DELAYS_SECONDS", "0.1,0.2,0.3,0.4,0.5"
+    )
+    config = FederationConfig.from_env()
+    assert config is not None
+    assert config.discovery_port == 9443
+    assert config.test_retry_delays_seconds == (0.1, 0.2, 0.3, 0.4, 0.5)
+
+
 def test_disabled_federation_publishes_nothing() -> None:
     with TestClient(_app(None, None), base_url=f"https://{LOCAL_HOST}") as client:
         assert client.get("/.well-known/mail-federation").status_code == 404

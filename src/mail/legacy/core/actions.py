@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025 Addison Kline, Ryan Heaton
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
-import logging
 
 from mail.legacy.core.tools import AgentToolCall
 

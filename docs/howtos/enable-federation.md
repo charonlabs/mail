@@ -14,6 +14,8 @@ for crash-safe delivery attempts. Each deployment needs its own JWT secret,
 federation key, database, user-agent credentials, and environment.
 
 Do not use the private-host or insecure-transport test overrides in production.
+If peers use a private CA, set `MAIL_FEDERATION_CA_FILE` to its PEM certificate
+bundle on each origin; public deployments normally use the system trust store.
 
 ## 1. Initialize each server
 

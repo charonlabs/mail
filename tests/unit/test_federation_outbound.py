@@ -508,7 +508,9 @@ async def test_permanent_peer_rejections_dead_letter_immediately(
 
 async def test_terminal_failure_atomically_queues_structured_local_dsn(
     outbound_backend: MAILServerBackend,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level("INFO")
     message, delivery = await _send_and_claim(outbound_backend)
     service = OutboundFederationService(
         backend=outbound_backend,
@@ -540,6 +542,8 @@ async def test_terminal_failure_atomically_queues_structured_local_dsn(
     assert dsn.failure_reason == "The destination policy denied the message."
     assert "private peer text" not in dsn.failure_reason
     assert "private peer text" not in dsn_message.body
+    assert "private peer text" not in caplog.text
+    assert message.body not in caplog.text
     assert dsn.original_message_id == message.message_id
     assert dsn.failed_recipient == f"user:bob@{REMOTE_HOST}"
     assert dsn.failed_at == "destination"

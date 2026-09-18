@@ -94,6 +94,27 @@ async def test_discovery_pins_dns_and_caches_manifest() -> None:
 
 
 @pytest.mark.asyncio
+async def test_test_discovery_port_is_preserved_in_authority() -> None:
+    key = Ed25519PrivateKey.generate()
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "application/json"},
+            json=manifest(public_value(key)),
+        )
+
+    discovery = client_for(handler, discovery_port=9443)
+    await discovery.get_manifest("server-a.example.com")
+
+    assert requests[0].url.port == 9443
+    assert requests[0].headers["Host"] == "server-a.example.com:9443"
+    await discovery._client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_discovery_cache_expires_at_configured_ttl() -> None:
     key = Ed25519PrivateKey.generate()
     now = [100.0]

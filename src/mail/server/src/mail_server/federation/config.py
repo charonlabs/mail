@@ -8,6 +8,7 @@ from __future__ import annotations
 import ipaddress
 import math
 import os
+import ssl
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -143,6 +144,17 @@ def _overlap_public_keys() -> tuple[MAILFederationPublicKey, ...]:
     return tuple(values)
 
 
+def _tls_context(ca_file: Path | None) -> ssl.SSLContext | bool:
+    if ca_file is None:
+        return True
+    try:
+        return ssl.create_default_context(cafile=str(ca_file))
+    except OSError as exc:
+        raise FederationConfigurationError(
+            "MAIL_FEDERATION_CA_FILE must contain a readable CA certificate"
+        ) from exc
+
+
 @dataclass(frozen=True, slots=True)
 class FederationConfig:
     """All validated state needed by signed ingress and future egress."""
@@ -165,12 +177,15 @@ class FederationConfig:
     discovery_read_timeout_seconds: float = 5.0
     discovery_total_timeout_seconds: float = DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS
     discovery_response_max_bytes: int = 64 * 1024
+    discovery_port: int = 443
+    ca_file: Path | None = None
     worker_poll_interval_seconds: float = 1.0
     worker_batch_size: int = 20
     worker_lease_seconds: float = 30.0
     retry_after_cap_seconds: int = 24 * 60 * 60
     bounce_worker_name: str = "bounces"
     bounce_rate_limit: int = 100
+    test_retry_delays_seconds: tuple[float, ...] | None = None
 
     @property
     def manifest(self) -> MAILFederationManifest:
@@ -271,6 +286,21 @@ class FederationConfig:
         discovery_response_max_bytes = _integer(
             "MAIL_FEDERATION_DISCOVERY_MAX_RESPONSE_BYTES", default=64 * 1024
         )
+        discovery_port = _integer(
+            "MAIL_FEDERATION_TEST_DISCOVERY_PORT", default=443
+        )
+        if not 1 <= discovery_port <= 65535:
+            raise FederationConfigurationError(
+                "MAIL_FEDERATION_TEST_DISCOVERY_PORT must be between 1 and 65535"
+            )
+        if discovery_port != 443 and not allow_private:
+            raise FederationConfigurationError(
+                "MAIL_FEDERATION_TEST_DISCOVERY_PORT requires the private-host test override"
+            )
+        ca_file_raw = os.getenv("MAIL_FEDERATION_CA_FILE")
+        ca_file = Path(ca_file_raw.strip()) if ca_file_raw and ca_file_raw.strip() else None
+        if ca_file is not None:
+            _tls_context(ca_file)
         poll_interval = _float("MAIL_FEDERATION_WORKER_POLL_SECONDS", default=1.0)
         batch_size = _integer("MAIL_FEDERATION_WORKER_BATCH_SIZE", default=20)
         lease_seconds = _float("MAIL_FEDERATION_WORKER_LEASE_SECONDS", default=30.0)
@@ -287,6 +317,29 @@ class FederationConfig:
                 "MAIL_FEDERATION_BOUNCE_DAEMON must be a valid daemon worker name"
             ) from exc
         bounce_rate_limit = _integer("MAIL_FEDERATION_BOUNCE_RATE_LIMIT", default=100)
+        retry_delays_raw = os.getenv("MAIL_FEDERATION_TEST_RETRY_DELAYS_SECONDS")
+        test_retry_delays: tuple[float, ...] | None = None
+        if retry_delays_raw and retry_delays_raw.strip():
+            try:
+                test_retry_delays = tuple(
+                    float(value.strip()) for value in retry_delays_raw.split(",")
+                )
+            except ValueError as exc:
+                raise FederationConfigurationError(
+                    "MAIL_FEDERATION_TEST_RETRY_DELAYS_SECONDS must contain numbers"
+                ) from exc
+            if (
+                len(test_retry_delays) != 5
+                or any(
+                    not math.isfinite(value) or value <= 0
+                    for value in test_retry_delays
+                )
+                or not allow_private
+            ):
+                raise FederationConfigurationError(
+                    "MAIL_FEDERATION_TEST_RETRY_DELAYS_SECONDS requires the "
+                    "private-host test override and five positive finite values"
+                )
         if (
             min(
                 connect_timeout,
@@ -354,12 +407,15 @@ class FederationConfig:
             discovery_read_timeout_seconds=discovery_read_timeout,
             discovery_total_timeout_seconds=discovery_total_timeout,
             discovery_response_max_bytes=discovery_response_max_bytes,
+            discovery_port=discovery_port,
+            ca_file=ca_file,
             worker_poll_interval_seconds=poll_interval,
             worker_batch_size=batch_size,
             worker_lease_seconds=lease_seconds,
             retry_after_cap_seconds=retry_after_cap,
             bounce_worker_name=bounce_worker_name,
             bounce_rate_limit=bounce_rate_limit,
+            test_retry_delays_seconds=test_retry_delays,
         )
 
 
@@ -397,7 +453,9 @@ class FederationRuntime:
                 read_timeout_seconds=config.discovery_read_timeout_seconds,
                 total_timeout_seconds=config.discovery_total_timeout_seconds,
                 max_response_bytes=config.discovery_response_max_bytes,
+                discovery_port=config.discovery_port,
                 allow_private_hosts=config.allow_private_hosts,
+                verify=_tls_context(config.ca_file),
             ),
         )
 
@@ -441,6 +499,7 @@ class FederationRuntime:
             read_timeout_seconds=self.config.outbound_read_timeout_seconds,
             total_timeout_seconds=self.config.outbound_total_timeout_seconds,
             max_response_bytes=self.config.outbound_response_max_bytes,
+            verify=_tls_context(self.config.ca_file),
         )
         outbound = OutboundFederationService(
             backend=backend,
@@ -450,6 +509,14 @@ class FederationRuntime:
             retry_after_cap=timedelta(seconds=self.config.retry_after_cap_seconds),
             bounce_emitter=bounce_daemon,
             bounce_rate_limit=self.config.bounce_rate_limit,
+            retry_delays=(
+                tuple(
+                    timedelta(seconds=value)
+                    for value in self.config.test_retry_delays_seconds
+                )
+                if self.config.test_retry_delays_seconds is not None
+                else None
+            ),
         )
         self.worker = FederationWorker(
             backend=backend,

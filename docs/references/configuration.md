@@ -53,6 +53,7 @@ below and fails closed if they are missing or inconsistent.
 | `MAIL_FEDERATION_DISCOVERY_READ_TIMEOUT_SECONDS` | `5` | HTTPS discovery read/write timeout. |
 | `MAIL_FEDERATION_DISCOVERY_TOTAL_TIMEOUT_SECONDS` | `8` | Overall discovery timeout. |
 | `MAIL_FEDERATION_DISCOVERY_MAX_RESPONSE_BYTES` | `65536` | Maximum discovery manifest response size. |
+| `MAIL_FEDERATION_CA_FILE` | system trust store | Optional PEM CA bundle used to authenticate federation peers. |
 | `MAIL_FEDERATION_MAX_REQUEST_BYTES` | `1048576` | Maximum signed ingress body size. |
 | `MAIL_FEDERATION_CONNECT_TIMEOUT_SECONDS` | `3` | Outbound peer connection timeout. |
 | `MAIL_FEDERATION_READ_TIMEOUT_SECONDS` | `5` | Outbound peer read/write timeout. |
@@ -66,6 +67,8 @@ below and fails closed if they are missing or inconsistent.
 | `MAIL_FEDERATION_BOUNCE_RATE_LIMIT` | `100` | Maximum emitted DSNs per original sender in a rolling hour. |
 | `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS` | `false` | Test-only override for IP/single-label/private peers. |
 | `MAIL_FEDERATION_ALLOW_INSECURE_TRANSPORT` | `false` | Test-only ASGI override; advertised delivery remains HTTPS. |
+| `MAIL_FEDERATION_TEST_DISCOVERY_PORT` | `443` | Test-only discovery port; non-443 values require `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS=true`. |
+| `MAIL_FEDERATION_TEST_RETRY_DELAYS_SECONDS` | RFC ladder | Test-only comma-separated five-delay override; requires `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS=true`. |
 
 The CLI `--host` is the socket bind address and is independent of `MAIL_HOST`.
 For example, bind to `127.0.0.1` behind a proxy while `MAIL_HOST` and

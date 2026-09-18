@@ -85,6 +85,24 @@ def test_bodyless_endpoint_has_no_request_body(
     )
 
 
+def test_federation_endpoint_documents_exact_status_body_contract(
+    schema: dict,
+) -> None:
+    responses = schema["paths"]["/daemon/deliver/remote/v1"]["post"]["responses"]
+    expected = {"202", "400", "401", "403", "404", "409", "413", "429", "503"}
+    assert set(responses) == expected
+    assert responses["202"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/MAILFederationAcceptedResponse"
+    }
+    error_schema = {
+        "$ref": "#/components/schemas/MAILFederationErrorResponse"
+    }
+    for status in expected - {"202"}:
+        assert responses[status]["content"]["application/json"]["schema"] == (
+            error_schema
+        )
+
+
 @pytest.mark.parametrize("path", BOX_GET_PATHS)
 def test_box_get_documents_query_params(schema: dict, path: str) -> None:
     params = {

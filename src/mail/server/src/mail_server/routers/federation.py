@@ -102,6 +102,7 @@ async def _limited_body(request: Request, limit: int) -> bytes | None:
         404: {"model": MAILFederationErrorResponse},
         409: {"model": MAILFederationErrorResponse},
         413: {"model": MAILFederationErrorResponse},
+        429: {"model": MAILFederationErrorResponse},
         503: {"model": MAILFederationErrorResponse},
     },
     summary="Accept one signed Federation v1 envelope",
