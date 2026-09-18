@@ -4,6 +4,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from mail_protocol.core.federation import mail_address_host
 from mail_protocol.network.requests import (
     BoxFilterParams,
     DraftPatchRequest,
@@ -19,7 +20,7 @@ from mail_protocol.network.responses import (
     DraftsGetResponse,
 )
 
-from mail_server.auth import validate_user_agent
+from mail_server.auth import validate_send_authority, validate_user_agent
 from mail_server.utils import build_box_metadata
 
 router = APIRouter(prefix="/drafts", tags=["drafts"])
@@ -142,7 +143,18 @@ async def post_draft_send(
     request: Request, payload: DraftSendPostRequest
 ) -> DraftSendPostResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(backend=backend, request=request)
+    user_agent = await validate_send_authority(
+        backend=backend, request=request, recipients=payload.recipients
+    )
+    has_remote_recipient = any(
+        mail_address_host(recipient).lower() != backend.host.lower()
+        for recipient in payload.recipients
+    )
+    if has_remote_recipient and not request.app.state.federation.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="federation is disabled; remote recipients are unavailable",
+        )
     draft_id = request.path_params.get("draft_id")
     try:
         result = await backend.send_draft(

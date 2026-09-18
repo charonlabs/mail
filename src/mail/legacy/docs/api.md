@@ -73,13 +73,7 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 ### Imports and modules
 - To obtain **high-level builder classes**:
   ```python 
-  from mail import (
-    MAILAgent, 
-    MAILAgentTemplate, 
-    MAILAction, 
-    MAILSwarm, 
-    MAILSwarmTemplate
-  )
+  from mail import MAILAgent, MAILAgentTemplate, MAILAction, MAILSwarm, MAILSwarmTemplate
   ``` 
 - To obtain **protocol types**:
   ```python
@@ -128,13 +122,16 @@ The Python surface is designed for embedding MAIL inside other applications, bui
   from pydantic import BaseModel
   from mail import action
 
+
   class WeatherRequest(BaseModel):
       city: str
+
 
   @action(description="Return weather information for the requested city.")
   async def get_weather(payload: WeatherRequest) -> str:
       forecast = lookup_forecast(payload.city)
       return forecast.json()
+
 
   # get_weather is now a MAILAction ready to install on an agent:
   weather_action = get_weather
@@ -231,14 +228,11 @@ The Python surface is designed for embedding MAIL inside other applications, bui
 
 #### `MAILAddress`
 ```python
-{ 
-    address_type: Literal["admin", "agent", "user", "system"], 
-    address: str 
-}
+{address_type: Literal["admin", "agent", "user", "system"], address: str}
 ```
 #### `MAILRequest`
 ```python
-{ 
+{
     task_id: str,
     request_id: str,
     sender: MAILAddress,
@@ -247,40 +241,40 @@ The Python surface is designed for embedding MAIL inside other applications, bui
     body: str,
     sender_swarm: str | None,
     recipient_swarm: str | None,
-    routing_info: dict[str, Any] | None 
+    routing_info: dict[str, Any] | None,
 }
 ```
 #### `MAILResponse`
 ```python
-{ 
+{
     task_id: str,
     request_id: str,
     sender: MAILAddress,
-    recipient: MAILAddress, 
-    subject: str, 
+    recipient: MAILAddress,
+    subject: str,
     body: str,
     sender_swarm: str | None,
     recipient_swarm: str | None,
-    routing_info: dict[str, Any] | None 
+    routing_info: dict[str, Any] | None,
 }
 ```
 #### `MAILBroadcast`
 ```python
 {
-    task_id: str, 
-    broadcast_id: str, 
-    sender: MAILAddress, 
+    task_id: str,
+    broadcast_id: str,
+    sender: MAILAddress,
     recipients: list[MAILAddress],
     subject: str,
     body: str,
     sender_swarm: str | None,
     recipient_swarms: list[str] | None,
-    routing_info: dict[str, Any] | None 
+    routing_info: dict[str, Any] | None,
 }
 ```
 #### `MAILInterrupt`
 ```python
-{ 
+{
     task_id: str,
     interrupt_id: str,
     sender: MAILAddress,
@@ -289,21 +283,22 @@ The Python surface is designed for embedding MAIL inside other applications, bui
     body: str,
     sender_swarm: str | None,
     recipient_swarms: list[str] | None,
-    routing_info: dict[str, Any] | None 
+    routing_info: dict[str, Any] | None,
 }
 ```
 #### `MAILInterswarmMessage`
 ```python
-{ 
+{
     message_id: str,
-    source_swarm: str, target_swarm: str,
+    source_swarm: str,
+    target_swarm: str,
     timestamp: str,
     task_owner: str,
     task_contributors: list[str],
     payload: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt,
     msg_type: Literal["request", "response", "broadcast", "interrupt"],
     auth_token: str | None,
-    metadata: dict[str, Any] | None 
+    metadata: dict[str, Any] | None,
 }
 ```
 #### `MAILMessage`
@@ -312,7 +307,9 @@ The Python surface is designed for embedding MAIL inside other applications, bui
     id: str,
     timestamp: str,
     message: MAILRequest | MAILResponse | MAILBroadcast | MAILInterrupt,
-    msg_type: Literal["request", "response", "broadcast", "interrupt", "broadcast_complete"] 
+    msg_type: Literal[
+        "request", "response", "broadcast", "interrupt", "broadcast_complete"
+    ],
 }
 ```
 - **Helper utilities**: `parse_agent_address`, `format_agent_address`, `create_agent_address`, `create_user_address`, `create_system_address`, `build_body_xml`, `build_mail_xml`.
@@ -618,6 +615,7 @@ demo_template = MAILSwarmTemplate(
     entrypoint="supervisor",
 )
 
+
 async def main() -> None:
     # Instantiate a concrete swarm runtime for a specific user
     swarm = demo_template.instantiate(instance_params={}, user_id="demo-user")
@@ -631,6 +629,7 @@ async def main() -> None:
     print(response["message"]["body"])
     # Always shut the runtime down to flush background tasks
     await swarm.shutdown()
+
 
 asyncio.run(main())
 ```

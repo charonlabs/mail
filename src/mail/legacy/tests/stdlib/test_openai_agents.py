@@ -52,8 +52,6 @@ class DummyResponsesResponse:
 
 @pytest.fixture(autouse=True)
 def patch_async_openai(monkeypatch: pytest.MonkeyPatch):
-    instances: list["DummyAsyncOpenAI"] = []
-
     class DummyAsyncOpenAI:
         def __init__(self, *args, **kwargs):
             self.chat_requests: list[dict[str, Any]] = []
@@ -74,6 +72,8 @@ def patch_async_openai(monkeypatch: pytest.MonkeyPatch):
             self.chat = SimpleNamespace(completions=SimpleNamespace(create=chat_create))
             self.responses = SimpleNamespace(create=responses_create)
             instances.append(self)
+
+    instances: list[DummyAsyncOpenAI] = []
 
     monkeypatch.setattr(
         "mail.legacy.stdlib.openai.agents.openai.AsyncOpenAI", DummyAsyncOpenAI

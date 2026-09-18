@@ -24,6 +24,13 @@ from mail_protocol.core.validators import (
 )
 from mail_protocol.core.webhooks import MAILWebhook
 
+from mail_server.federation.records import (
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
+)
+
 logger = logging.getLogger(__name__)
 
 DEPLOYMENT_PATH = Path.home().joinpath(".mail-swarms", "deployments", "default")
@@ -679,6 +686,90 @@ async def load_refresh_tokens() -> dict[str, RefreshTokenRecord]:
     return refresh_tokens
 
 
+async def load_delivery_targets() -> dict[str, MessageDeliveryTarget]:
+    """Load internal message-delivery targets, including upgrade-empty state."""
+
+    path = DEPLOYMENT_PATH.joinpath("message_delivery_targets")
+    path.mkdir(parents=True, exist_ok=True)
+    records: dict[str, MessageDeliveryTarget] = {}
+    with scandir(path) as entries:
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            try:
+                model = MessageDeliveryTarget.model_validate_json(
+                    Path(entry.path).read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                logger.warning("MessageDeliveryTarget validation failed: %s", exc)
+                continue
+            records[model.target_id] = model
+    return records
+
+
+async def load_federation_outbound() -> dict[str, OutboundFederationDelivery]:
+    """Load crash-safe outbound federation envelopes."""
+
+    path = DEPLOYMENT_PATH.joinpath("federation_outbound")
+    path.mkdir(parents=True, exist_ok=True)
+    records: dict[str, OutboundFederationDelivery] = {}
+    with scandir(path) as entries:
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            try:
+                model = OutboundFederationDelivery.model_validate_json(
+                    Path(entry.path).read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                logger.warning("OutboundFederationDelivery validation failed: %s", exc)
+                continue
+            records[model.envelope_id] = model
+    return records
+
+
+async def load_federation_inbound_receipts() -> dict[str, InboundFederationReceipt]:
+    """Load retained inbound replay records."""
+
+    path = DEPLOYMENT_PATH.joinpath("federation_inbound_receipts")
+    path.mkdir(parents=True, exist_ok=True)
+    records: dict[str, InboundFederationReceipt] = {}
+    with scandir(path) as entries:
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            try:
+                model = InboundFederationReceipt.model_validate_json(
+                    Path(entry.path).read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                logger.warning("InboundFederationReceipt validation failed: %s", exc)
+                continue
+            records[model.envelope_id] = model
+    return records
+
+
+async def load_bounce_emissions() -> dict[str, BounceEmission]:
+    """Load auditable bounce-emission records."""
+
+    path = DEPLOYMENT_PATH.joinpath("bounce_emissions")
+    path.mkdir(parents=True, exist_ok=True)
+    records: dict[str, BounceEmission] = {}
+    with scandir(path) as entries:
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            try:
+                model = BounceEmission.model_validate_json(
+                    Path(entry.path).read_text(encoding="utf-8")
+                )
+            except Exception as exc:
+                logger.warning("BounceEmission validation failed: %s", exc)
+                continue
+            records[model.emission_id] = model
+    return records
+
+
 #
 # Save memory backend to the local filesystem
 # (on server shutdown and periodic checkpoints)
@@ -915,4 +1006,38 @@ async def save_refresh_tokens(
             token_hash: record.model_dump_json()
             for token_hash, record in refresh_tokens.items()
         },
+    )
+
+
+async def save_delivery_targets(
+    records: dict[str, MessageDeliveryTarget],
+) -> None:
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("message_delivery_targets"),
+        {key: value.model_dump_json() for key, value in records.items()},
+    )
+
+
+async def save_federation_outbound(
+    records: dict[str, OutboundFederationDelivery],
+) -> None:
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("federation_outbound"),
+        {key: value.model_dump_json() for key, value in records.items()},
+    )
+
+
+async def save_federation_inbound_receipts(
+    records: dict[str, InboundFederationReceipt],
+) -> None:
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("federation_inbound_receipts"),
+        {key: value.model_dump_json() for key, value in records.items()},
+    )
+
+
+async def save_bounce_emissions(records: dict[str, BounceEmission]) -> None:
+    _save_directory_snapshot(
+        DEPLOYMENT_PATH.joinpath("bounce_emissions"),
+        {key: value.model_dump_json() for key, value in records.items()},
     )

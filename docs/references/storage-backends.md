@@ -23,7 +23,8 @@ full addresses), and the abstract methods group into:
 | Refresh tokens | create, get, rotate, revoke-family, revoke-all, purge-expired |
 | Swarms | list, get, health |
 | Boxes | inbox / outbox / drafts / trash: list, get, delete (+ draft create/patch/send, trash clear) |
-| Daemon delivery | clear message buffer, deliver local, deliver remote |
+| Daemon delivery | clear message buffer and deliver queued local messages |
+| Federation | create delivery plans, claim/retry outbound work, deduplicate ingress, record bounces |
 | Admin | CRUD for agents, daemons, users, swarms |
 | Webhooks | CRUD, plus the shared outbound delivery logic |
 | Lists | list/get (public + admin), create, patch, delete, add/remove member |
@@ -52,7 +53,9 @@ Files: `backends/memory/api.py` (state + logic), `fs.py` (load/save), `init.py`
 - **On-disk layout** under `~/.mail-swarms/deployments/{deployment}/`: one
   directory per collection with one JSON file per item
   (`swarms/`, `user_agents/`, `messages/`, `inbox_entries/`, `outbox_entries/`,
-  `draft_entries/`, `trash_entries/`, `webhooks/`, `lists/`, `refresh_tokens/`),
+  `draft_entries/`, `trash_entries/`, `webhooks/`, `lists/`, `refresh_tokens/`,
+  `message_delivery_targets/`, `federation_outbound/`,
+  `federation_inbound_receipts/`, `bounce_emissions/`),
   newline-delimited membership files for each per-owner box
   (`inboxes/`, `outboxes/`, `drafts/`, `trashes/`, `read_inbox/`), a
   `message_buffer.lock` FIFO file, and the plaintext `.secrets/<address>` files
@@ -84,15 +87,17 @@ Files: `backends/sqlite/` — `api.py`, `database.py`, `schema.py`,
   `user_agents`, `swarms`, `messages`, `inbox_entries`, `outbox_entries`,
   `draft_entries`, `trash_entries`, `mailbox_items` (unified per-owner box
   membership + ordering, with `is_read` for the inbox), `message_buffer`,
-  `webhooks`, `refresh_tokens` (all-typed, no body), `lists`.
+  `webhooks`, `refresh_tokens` (all-typed, no body), `lists`,
+  `message_delivery_targets`, `federation_outbound`,
+  `federation_inbound_receipts`, `bounce_emissions`.
 - **Location.** Default `~/.mail-swarms/deployments/{deployment}/mail.db`;
   overridable via `--sqlite-path` / `MAIL_SQLITE_PATH` or a full
   `--database-url` / `MAIL_DATABASE_URL` (precedence: database-url > sqlite-path >
   default).
-- **Migrations.** No migration framework. `create_schema()` runs
-  `create_all` plus an additive, idempotent `ALTER TABLE ... ADD COLUMN` guard for
-  new queryable columns (the current guard adds `mailbox_items.is_read`,
-  backfilling existing rows as unread).
+- **Migrations.** No migration framework. `create_schema()` runs `create_all`
+  plus additive, idempotent guards for queryable mailbox, federation, and bounce
+  columns. Existing rows receive conservative defaults when a new column is
+  introduced.
 
 ## Initializing state with `backend-init`
 
@@ -119,21 +124,24 @@ Files: `backends/sqlite/` — `api.py`, `database.py`, `schema.py`,
 | Deployments | Runtime reads/writes the `default` deployment only (see limitations) | Arbitrary via `--sqlite-path` / `--database-url` |
 | Init on re-run | Overwrites | Idempotent |
 | Migration import | — | `--import-fs` |
-| Delete/clear, webhook patch, remote deliver | Not implemented (raises `NotImplementedError`) | Implemented |
+| Delete/clear and webhook patch | Not implemented (raises `NotImplementedError`) | Implemented |
+| Signed Federation v1 ingress/outbound queue | Supported; checkpoint-bounded durability | Supported; transactional durability and leasing |
 
-Both implement the identical interface and share the webhook delivery logic, so
-inbox `is_read`, refresh-token families, list membership, and webhook semantics
-match across backends.
+Both implement the identical interface and federation state machine, and share
+the webhook delivery logic. Inbox `is_read`, refresh-token families, list
+membership, retry/dead-letter transitions, deduplication, and webhook semantics
+match across backends. SQLite is recommended for federated production service
+because acceptance and worker transitions are transactional and immediately
+durable.
 
 ## Current limitations
 
 - **Memory backend: unimplemented operations.** Several operations raise
   `NotImplementedError` on the memory backend and are only available on SQLite:
   `DELETE /inbox/{message_id}`, `DELETE /drafts/{draft_id}`,
-  `DELETE /trash/{message_id}`, `POST /trash/clear`,
-  `PATCH /admin/webhooks/{webhook_id}`, and `POST /daemon/deliver/remote`. Choose
-  the SQLite backend if you need message deletion / trash clearing, webhook
-  patching, or inbound remote delivery. These gaps are pinned as `xfail` in
+  `DELETE /trash/{message_id}`, `POST /trash/clear`, and
+  `PATCH /admin/webhooks/{webhook_id}`. Choose the SQLite backend if you need
+  message deletion / trash clearing or webhook patching. These gaps are pinned as `xfail` in
   [`tests/integration/test_stubs.py`](../../tests/integration/test_stubs.py).
 - **Memory backend deployment name.** The memory runtime's filesystem layer is
   pinned to the `default` deployment: `backend-init` will *create* a named memory

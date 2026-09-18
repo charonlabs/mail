@@ -1,7 +1,7 @@
 # Multi-Agent Interface Layer (MAIL) Specification
 
 - **Version**: 2.0
-- **Date**: June 10, 2026
+- **Date**: September 14, 2026
 - **Status**: Open to feedback
 - **Scope**: Defines a text-based, email-like communication layer for both human users and autonomous AI agents.
 - **Authors**: 
@@ -50,6 +50,15 @@
 * [8 Delivery](#8-delivery)
   * [8.1 Pre-Send Errors](#81-pre-send-errors)
   * [8.2 Post-Send Errors](#82-post-send-errors)
+  * [8.3 Federation v1](#83-federation-v1)
+    * [8.3.1 Discovery](#831-discovery)
+    * [8.3.2 Inter-Server Envelopes](#832-inter-server-envelopes)
+    * [8.3.3 Authentication](#833-authentication)
+    * [8.3.4 Inbound Delivery](#834-inbound-delivery)
+    * [8.3.5 Multi-Recipient Delivery](#835-multi-recipient-delivery)
+    * [8.3.6 Retry and Outbox State](#836-retry-and-outbox-state)
+    * [8.3.7 Daemon Scopes](#837-daemon-scopes)
+  * [8.4 Delivery Status Notifications](#84-delivery-status-notifications)
 * [9 Security Considerations](#9-security-considerations)
   * [9.1 MAIL Clients](#91-mail-clients)
   * [9.2 MAIL Daemons](#92-mail-daemons)
@@ -248,6 +257,238 @@ If an authorized user-agent's message contains one or more malformed MAIL addres
 
 If a valid MAIL message cannot be delivered to one or more intended recipients by an authorized daemon, the message MUST be preserved and the error SHOULD be logged by the daemon.
 
+### 8.3. Federation v1
+
+MAIL Federation v1 defines direct, push-based message delivery between two
+independent MAIL 2.x servers. The server that owns the sender is the **origin**;
+the server named by a recipient's host is the **destination**. Federation v1
+supports direct user-agent delivery only. Federated mailing lists, multi-hop
+routing, presence, recall/deletion, streaming transports, attachments, and
+automatic key rotation are not defined by this version.
+
+Federation has its own protocol version, `"1"`, independent of the MAIL message
+version, `"2.0"`. Production federation MUST use HTTPS. There is no unsigned or
+plaintext fallback.
+
+#### 8.3.1. Discovery
+
+A federation-enabled server MUST publish a JSON manifest at
+`https://{host}/.well-known/mail-federation` with content type
+`application/json`. It has this shape:
+
+```json
+{
+  "protocol_version": "1",
+  "mail_protocol_version": "2.0",
+  "delivery_url": "https://mail.example.com/daemon/deliver/remote/v1",
+  "public_keys": [
+    {
+      "key_id": "mail-federation-2026-09",
+      "algorithm": "ed25519",
+      "public_key": "<base64-encoded 32-byte Ed25519 public key>"
+    }
+  ],
+  "policy_hints": {"accepts": "allowlist"}
+}
+```
+
+`protocol_version`, `delivery_url`, and `public_keys` are REQUIRED.
+`mail_protocol_version` and `policy_hints` are OPTIONAL. Key IDs in one
+manifest MUST be unique. `policy_hints.accepts`, when present, MUST be one of
+`open`, `allowlist`, or `closed`; it is informational and does not override the
+destination's actual policy.
+
+The manifest's absolute HTTPS `delivery_url` is authoritative. Senders MUST use
+it rather than construct a path. The reference endpoint is
+`POST /daemon/deliver/remote/v1`. Discovery clients SHOULD cache a valid
+manifest for 5–15 minutes and SHOULD refetch once when a requested key ID is
+not in a cached manifest.
+
+Production federation hosts MUST be publicly routable DNS hostnames. IP
+literals and single-label development hosts such as `localhost` MAY be enabled
+only by an explicit test/development override.
+
+#### 8.3.2. Inter-Server Envelopes
+
+An inter-server request body MUST be one `MAILInterServerMessage`:
+
+```json
+{
+  "message_id": "<envelope UUID>",
+  "sender_host": "server-a.example.com",
+  "recipient_host": "server-b.example.com",
+  "message": {"mail_version": "2.0", "message_id": "<message UUID>"},
+  "metadata": {},
+  "sent_at": "2026-09-14T18:00:00Z",
+  "protocol_version": "1"
+}
+```
+
+The envelope `message_id` is a new UUID distinct from the inner MAIL message
+ID. It is stable across retries and is the destination's deduplication key. Each
+destination gets a different envelope ID while every split copy retains the
+same inner message ID.
+
+`sender_host` MUST equal the host portion of `message.sender`.
+`recipient_host` MUST equal the host portion of every address in
+`message.recipients`. Federated `list:` recipients are invalid in v1.
+`sent_at` MUST be a timezone-aware RFC 3339 timestamp. `protocol_version` MUST
+be `"1"`. Envelope `metadata` is distinct from the payload's
+`message.metadata`.
+
+The origin and destination MUST preserve the inner message's `reply_to`,
+`tags`, and `metadata` verbatim. `MAILMessage` has no top-level `list_address`;
+local list identity may appear in webhook metadata but is not federated in v1.
+
+#### 8.3.3. Authentication
+
+Every inter-server POST MUST be signed using HTTP Message Signatures as defined
+by [RFC 9421][rfc-9421] with an Ed25519 private key corresponding to the
+origin's advertised key. The signature MUST cover at least `@method`,
+`@target-uri`, `@authority`, `content-digest`, `date`, and `content-type`.
+`Signature-Input` MUST carry `keyid`, `created`, and `alg`. The
+`Content-Digest` MUST cover the exact body bytes sent.
+
+The destination resolves the manifest from the claimed `sender_host`, selects
+the advertised `keyid`, verifies the digest and signature, and binds the
+verified origin to `sender_host`. Missing or invalid authentication returns
+`401`. The signed endpoint does not use a local bearer token.
+
+#### 8.3.4. Inbound Delivery
+
+The destination MUST validate an authenticated envelope in this order:
+
+1. Its signature and content digest are valid for an advertised origin key.
+2. `recipient_host` equals the destination's advertised host.
+3. `sender_host` equals both the verified origin and the inner sender's host.
+4. Every inner recipient is local to `recipient_host` and is not a list.
+5. `sent_at` is within five minutes of the destination clock, past or future.
+6. The envelope ID has not been accepted during the preceding 24 hours.
+7. Local peer policy accepts `sender_host`.
+8. Every direct recipient exists at the destination.
+
+A successful destination atomically records the deduplication ID, stores the
+inner message, and queues local delivery before returning `202`. A duplicate
+envelope ID returns `409`; origins treat it as successful delivery. A receiver
+MUST NOT enqueue a duplicate again.
+
+If any recipient is unknown, the destination rejects the envelope atomically
+with `404 recipient_not_found` and a `failed_recipients` array containing only
+unknown addresses from that signed envelope. The origin emits one local bounce
+per failed recipient. If other recipients remain, the origin creates a new
+envelope with a new envelope ID, the same inner message ID, and only the
+remaining recipients. The rejected envelope is not retried.
+
+The status contract is:
+
+| Code | Meaning | Origin action |
+| --- | --- | --- |
+| `202` | Durably accepted for local delivery | Success |
+| `400` | Invalid envelope or split | Permanent failure |
+| `401` | Missing/invalid signature | Permanent failure |
+| `403` | Host mismatch or peer policy denial | Permanent failure |
+| `404` | One or more direct recipients not found | Partition as above |
+| `409` | Envelope already accepted | Treat as success |
+| `413` | Payload too large | Permanent failure |
+| `429` | Rate limited | Retry using `Retry-After` |
+| `503` | Temporarily unavailable | Retry using `Retry-After` |
+
+Every error response MUST be JSON with non-empty `code` and `detail` strings.
+The v1 codes are `invalid_envelope`, `invalid_signature`,
+`sender_host_mismatch`, `recipient_host_mismatch`, `recipient_not_local`,
+`recipient_not_found`, `policy_denied`, `payload_too_large`, `rate_limited`, and
+`temporarily_unavailable`. Clients MUST NOT parse `detail` and SHOULD tolerate
+unknown future codes according to the HTTP status. A `recipient_not_found`
+response MUST also contain `failed_recipients`.
+
+#### 8.3.5. Multi-Recipient Delivery
+
+At send time, the origin groups recipients by their address host. It creates
+one immutable delivery target per distinct host and one inter-server envelope
+per remote host. Each remote envelope's inner recipients contain only the
+addresses for that destination. An origin MUST NOT ask one destination to
+forward to another.
+
+The original message in the sender's outbox retains its complete recipient
+list. Remote lists MUST be rejected before the send is committed; v1 does not
+partially enqueue an otherwise-invalid send.
+
+#### 8.3.6. Retry and Outbox State
+
+The origin attempts remote delivery immediately, then at +1 second, +30
+seconds, +5 minutes, +1 hour, and +6 hours. Network errors, timeouts, `429`, and
+retryable 5xx responses except `501` are retryable. Other 4xx responses and
+`501` are permanent. A valid `Retry-After` on `429` or `503` controls the next
+attempt. After attempt six, the target is dead-lettered and the origin emits
+DSNs under [Section 8.4](#84-delivery-status-notifications).
+
+Failure mapping is deterministic:
+
+- discovery/DNS/connectivity exhaustion -> `host_unreachable` / `in_transit`;
+- retryable HTTP/timeout exhaustion after reaching the peer ->
+  `delivery_expired` / `in_transit`;
+- `payload_too_large` -> `payload_too_large` / `destination`;
+- `policy_denied` -> `policy_denied` / `destination`;
+- other permanent peer rejection -> `host_rejected` / `destination`;
+- unclassified internal origin failure -> `internal_error` / `origin`.
+
+The origin tracks one target per destination host, including its own host when
+local recipients exist. The outbox's aggregate `delivered_at` is set only when
+every target succeeds. It remains unset when any target dead-letters; DSNs
+identify failed recipients. Per-recipient status queries are not defined in v1.
+
+#### 8.3.7. Daemon Scopes
+
+Federation defines these daemon OAuth scope strings:
+
+- `deliver:local`: use local delivery endpoints or submit local-only messages.
+- `deliver:federate`: submit a message with one or more remote recipients.
+- `deliver:federate:<host>`: reserved for future per-peer authorization; v1
+  assigns it no semantics.
+- `bounce:emit`: emit a delivery status notification on behalf of the server.
+
+A daemon's requested scopes MUST be a subset of its assigned scopes and MUST be
+carried in its access token. Users and agents retain ordinary send authority.
+The inter-server signed endpoint is not authorized through daemon OAuth scopes.
+
+### 8.4. Delivery Status Notifications
+
+A delivery status notification (DSN) is a normal local `MAILMessage` whose
+`metadata` contains a `dsn` object. Failure DSNs are called bounces. Bounces are
+generated by the original sender's server and MUST NOT cross federation
+boundaries. Their sender MUST be a local daemon authorized with `bounce:emit`;
+`daemon:bounces@{host}` is RECOMMENDED.
+
+The `metadata.dsn` object has these fields:
+
+| Field | Type | Requirement |
+| --- | --- | --- |
+| `failure_code` | string | REQUIRED; known v1 code or future extension |
+| `failure_reason` | string | REQUIRED human-readable, non-empty text |
+| `original_message_id` | UUID | REQUIRED |
+| `failed_recipient` | MAIL address | REQUIRED |
+| `failed_at` | `origin`, `destination`, or `in_transit` | REQUIRED |
+| `attempt_count` | positive integer | REQUIRED for federation; absent for local failures |
+| `attempt_timestamps` | RFC 3339 timestamp array | OPTIONAL; length equals `attempt_count`, oldest first |
+| `timestamp` | RFC 3339 timestamp | REQUIRED |
+
+The v1 failure codes are `recipient_not_found`, `host_unreachable`,
+`host_rejected`, `delivery_expired`, `payload_too_large`, `policy_denied`, and
+`internal_error`. Clients MUST render the free-form reason for an unknown code
+rather than reject or discard the DSN.
+
+An origin emits one DSN per failed recipient. Federation DSNs include the
+number of delivery attempts, including an immediate permanent rejection as one
+attempt. Local DSNs omit attempt fields. Implementations SHOULD limit bounce
+emission per original sender; the reference default is 100 per hour and MUST be
+documented by an implementation. Suppressed bounces are logged without message
+content.
+
+A DSN MUST NOT cause another DSN. If a bounce itself cannot be delivered, the
+server logs the failure and stops. A recipient trusts a DSN only when its sender
+is a daemon on the recipient's own server and that daemon is authorized with
+`bounce:emit`.
+
 ## 9. Security Considerations
 
 ### 9.1. MAIL Clients
@@ -286,3 +527,4 @@ When a major protocol update occurs, the minor version MUST be reset to 0.
 - [rfc-9562]: https://www.rfc-editor.org/info/rfc9562/
 - [rfc-3339]: https://datatracker.ietf.org/doc/html/rfc3339
 - [rfc-8446]: https://www.rfc-editor.org/info/rfc8446/
+- [rfc-9421]: https://www.rfc-editor.org/info/rfc9421/

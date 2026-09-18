@@ -32,7 +32,11 @@ from mail.legacy.db.utils import (
 )
 from mail.legacy.net import InterswarmRouter, SwarmRegistry
 from mail.legacy.utils.context import get_model_ctx_len
-from mail.legacy.utils.serialize import _REDACT_KEYS, _format_event_sections, _serialize_event
+from mail.legacy.utils.serialize import (
+    _REDACT_KEYS,
+    _format_event_sections,
+    _serialize_event,
+)
 from mail.legacy.utils.string_builder import build_mail_help_string
 
 from .actions import (
@@ -2927,19 +2931,6 @@ Use this information to decide how to complete your task.""",
             routing_info = outgoing_content.get("routing_info")
             if not isinstance(routing_info, dict):
                 routing_info = {}
-
-            parent_message = source_message.get("message")
-            parent_routing: dict[str, Any] | None = None
-            if isinstance(parent_message, dict):
-                candidate_routing = parent_message.get("routing_info")
-                if isinstance(candidate_routing, dict):
-                    parent_routing = candidate_routing
-
-            remote_task_id: str | None = None
-            remote_swarm: str | None = None
-            if parent_routing is not None:
-                remote_task_id = parent_routing.get("remote_task_id")
-                remote_swarm = parent_routing.get("remote_swarm")
 
             target_addresses: set[str] = set()
 

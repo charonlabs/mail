@@ -139,7 +139,9 @@ def test_post_responses_calls_openai_client(monkeypatch: pytest.MonkeyPatch):
         # patched_server mocks login to return "fake-jwt", so we receive that here
         return {"role": "user", "id": "u-456", "api_key": "resp-api-key"}
 
-    monkeypatch.setattr("mail.legacy.utils.get_token_info", fake_get_token_info, raising=False)
+    monkeypatch.setattr(
+        "mail.legacy.utils.get_token_info", fake_get_token_info, raising=False
+    )
     monkeypatch.setattr(
         "mail.legacy.utils.auth.get_token_info", fake_get_token_info, raising=False
     )

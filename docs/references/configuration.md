@@ -11,8 +11,9 @@ packages, with defaults and whether each is required. Default host/port come fro
 
 ### Required environment variables
 
-These are read at import/startup — the server process fails to boot (raising
-`RuntimeError`) if any is unset.
+These are validated before the server begins accepting traffic. `MAIL_HOST` and
+all federation values are assembled into one lifespan settings object; JWT and
+cookie settings are loaded by the authentication module.
 
 | Variable | Effect |
 | --- | --- |
@@ -31,6 +32,47 @@ These are read at import/startup — the server process fails to boot (raising
 | `MAIL_MEMORY_SAVE_INTERVAL_SECONDS` | `60.0` | Default for `--memory-save-interval`; `0` disables periodic checkpoints. |
 | `MAIL_SQLITE_PATH` | unset → default DB path | Default for `--sqlite-path`. |
 | `MAIL_DATABASE_URL` | unset | Default for `--database-url`; takes precedence over the sqlite path. |
+| `MAIL_FEDERATION_ENABLED` | `false` | Enable signed Federation v1 discovery and ingress. |
+
+When `MAIL_FEDERATION_ENABLED=true`, startup additionally requires the values
+below and fails closed if they are missing or inconsistent.
+
+| Variable | Required/default | Effect |
+| --- | --- | --- |
+| `MAIL_FEDERATION_PUBLIC_HOST` | required; must equal `MAIL_HOST` | Public DNS identity used in recipient and manifest checks. |
+| `MAIL_FEDERATION_DELIVERY_URL` | required | Canonical absolute HTTPS `/daemon/deliver/remote/v1` URL on the public host. |
+| `MAIL_FEDERATION_KEY_ID` | required | Active Ed25519 signing-key identifier. |
+| `MAIL_FEDERATION_PRIVATE_KEY_FILE` | required | Permission-restricted unencrypted PEM Ed25519 private key. |
+| `MAIL_FEDERATION_PUBLIC_KEY` | unset | Optional expected base64 public value; startup verifies it against the private key. |
+| `MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS` | `[]` | JSON array of additional public-key objects advertised during rotation. |
+| `MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS_FILE` | unset | File containing that JSON array; mutually exclusive with the inline variable. |
+| `MAIL_FEDERATION_POLICY` | required | `open`, `allowlist`, or `closed`. |
+| `MAIL_FEDERATION_ALLOWLIST` | empty | Comma-separated origin hosts; required by `allowlist` policy. |
+| `MAIL_FEDERATION_DISCOVERY_TTL_SECONDS` | `600` | Manifest/discovery cache lifetime; must be 300–900 seconds. |
+| `MAIL_FEDERATION_DISCOVERY_CONNECT_TIMEOUT_SECONDS` | `3` | HTTPS discovery connection timeout. |
+| `MAIL_FEDERATION_DISCOVERY_READ_TIMEOUT_SECONDS` | `5` | HTTPS discovery read/write timeout. |
+| `MAIL_FEDERATION_DISCOVERY_TOTAL_TIMEOUT_SECONDS` | `8` | Overall discovery timeout. |
+| `MAIL_FEDERATION_DISCOVERY_MAX_RESPONSE_BYTES` | `65536` | Maximum discovery manifest response size. |
+| `MAIL_FEDERATION_CA_FILE` | system trust store | Optional PEM CA bundle used to authenticate federation peers. |
+| `MAIL_FEDERATION_MAX_REQUEST_BYTES` | `1048576` | Maximum signed ingress body size. |
+| `MAIL_FEDERATION_CONNECT_TIMEOUT_SECONDS` | `3` | Outbound peer connection timeout. |
+| `MAIL_FEDERATION_READ_TIMEOUT_SECONDS` | `5` | Outbound peer read/write timeout. |
+| `MAIL_FEDERATION_TOTAL_TIMEOUT_SECONDS` | `10` | Overall outbound request timeout. |
+| `MAIL_FEDERATION_MAX_RESPONSE_BYTES` | `65536` | Maximum peer response bytes retained for error-code parsing. |
+| `MAIL_FEDERATION_WORKER_POLL_SECONDS` | `1` | Delay between durable queue polls. |
+| `MAIL_FEDERATION_WORKER_BATCH_SIZE` | `20` | Maximum envelopes leased per poll. |
+| `MAIL_FEDERATION_WORKER_LEASE_SECONDS` | `30` | Attempt lease; must exceed discovery (8 seconds) plus the outbound total timeout. |
+| `MAIL_FEDERATION_RETRY_AFTER_CAP_SECONDS` | `86400` | Safety cap applied to valid peer `Retry-After` values. |
+| `MAIL_FEDERATION_BOUNCE_DAEMON` | `bounces` | Local daemon worker name assigned `bounce:emit`; enabled federation fails startup if it is absent or unscoped. |
+| `MAIL_FEDERATION_BOUNCE_RATE_LIMIT` | `100` | Maximum emitted DSNs per original sender in a rolling hour. |
+| `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS` | `false` | Test-only override for IP/single-label/private peers. |
+| `MAIL_FEDERATION_ALLOW_INSECURE_TRANSPORT` | `false` | Test-only ASGI override; advertised delivery remains HTTPS. |
+| `MAIL_FEDERATION_TEST_DISCOVERY_PORT` | `443` | Test-only discovery port; non-443 values require `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS=true`. |
+| `MAIL_FEDERATION_TEST_RETRY_DELAYS_SECONDS` | RFC ladder | Test-only comma-separated five-delay override; requires `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS=true`. |
+
+The CLI `--host` is the socket bind address and is independent of `MAIL_HOST`.
+For example, bind to `127.0.0.1` behind a proxy while `MAIL_HOST` and
+`MAIL_FEDERATION_PUBLIC_HOST` both identify `mail-a.example.com`.
 
 ### CLI flags
 
@@ -62,6 +104,7 @@ print them for you to export.
 | `MAIL_TOKEN` | all authenticated commands | Bearer access token. Not used by `ping` or `login`. |
 | `MAIL_ADDRESS` | `login` | Address for the password grant. |
 | `MAIL_PASSWORD` | `login` | Password for the password grant. |
+| `MAIL_SCOPES` | `login` | Optional space-delimited daemon OAuth scopes; empty for other principals. |
 | `MAIL_REFRESH_TOKEN` | `refresh` | Refresh token sent to `POST /auth/refresh` (rotated server-side). |
 
 CLI flag: `-o`/`--output` selects output format — `text` (default), `json`
@@ -77,6 +120,9 @@ Required environment variables (raise `ValueError` at startup if unset):
 | `MAIL_SERVER` | Target server URL (also health-checked at startup). |
 | `MAIL_ADDRESS` | Daemon login address. |
 | `MAIL_PASSWORD` | Daemon login password. |
+
+`mail-daemon` always requests `deliver:local` when authenticating. Its daemon
+record must be assigned that scope.
 
 CLI flags: `-llf`/`--log-level-file` and `-llc`/`--log-level-console` (both
 default `info`; choices `debug|info|warning|error|critical`), plus `--license`.
@@ -96,7 +142,8 @@ and usage are in
 [`src/mail/server/.env.example`](../../src/mail/server/.env.example) is a
 server-side template containing `MAIL_HOST`, `MAIL_JWT_SECRET_KEY` (fake value),
 `MAIL_JWT_ALGORITHM`, `MAIL_JWT_EXPIRE_MINUTES`, `MAIL_REFRESH_TOKEN_EXPIRE_DAYS`,
-`MAIL_COOKIE_SECURE`, and a commented-out `MAIL_COOKIE_DOMAIN`. The optional
+`MAIL_COOKIE_SECURE`, commented federation settings, and a commented-out
+`MAIL_COOKIE_DOMAIN`. The optional
 backend knobs (`MAIL_MEMORY_SAVE_INTERVAL_SECONDS`, `MAIL_SQLITE_PATH`,
 `MAIL_DATABASE_URL`) and client/daemon variables are not in it.
 

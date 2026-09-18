@@ -184,7 +184,9 @@ async def test_run_completions_anthropic_native_sanitizes_pause_turn_requests(
     )
     client = _DummyAnthropicClient(messages_api)
 
-    monkeypatch.setattr("mail.legacy.factories.base.anthropic.AsyncAnthropic", lambda: client)
+    monkeypatch.setattr(
+        "mail.legacy.factories.base.anthropic.AsyncAnthropic", lambda: client
+    )
     monkeypatch.setattr("mail.legacy.factories.base.wrap_anthropic", lambda c: c)
 
     messages = [
@@ -224,7 +226,9 @@ async def test_stream_completions_anthropic_native_sanitizes_pause_turn_requests
     )
     client = _DummyAnthropicClient(messages_api)
 
-    monkeypatch.setattr("mail.legacy.factories.base.anthropic.AsyncAnthropic", lambda: client)
+    monkeypatch.setattr(
+        "mail.legacy.factories.base.anthropic.AsyncAnthropic", lambda: client
+    )
     monkeypatch.setattr("mail.legacy.factories.base.wrap_anthropic", lambda c: c)
 
     messages = [

@@ -21,6 +21,7 @@ from mail_client.commands import (
     cmd_drafts_patch,
     cmd_forward,
     cmd_inbox,
+    cmd_inbox_open,
     cmd_login,
     cmd_ping,
     cmd_refresh,
@@ -64,6 +65,57 @@ def test_ping_requires_mail_server_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("MAIL_SERVER", raising=False)
     with pytest.raises(ValueError, match="MAIL_SERVER"):
         cmd_ping(Namespace(output="text"))
+
+
+@respx.mock
+def test_inbox_open_renders_dsn_and_json_remains_lossless(
+    client_env, capsys: pytest.CaptureFixture
+) -> None:
+    message_id = "77777777-7777-4777-8777-777777777777"
+    dsn = {
+        "failure_code": "future_failure",
+        "failure_reason": "A future delivery mechanism failed.",
+        "original_message_id": "66666666-6666-4666-8666-666666666666",
+        "failed_recipient": "user:bob@remote.example.com",
+        "failed_at": "destination",
+        "attempt_count": 1,
+        "attempt_timestamps": ["2026-09-18T12:00:00Z"],
+        "timestamp": "2026-09-18T12:00:00Z",
+    }
+    response = {
+        "entry": {
+            "message": {
+                "mail_version": "2.0",
+                "message_id": message_id,
+                "reply_to": dsn["original_message_id"],
+                "sender": "daemon:bounces@localhost",
+                "recipients": ["user:alice@localhost"],
+                "subject": "Delivery status notification",
+                "body": "Delivery failed.",
+                "tags": ["delivery-status"],
+                "sent_at": "2026-09-18T12:00:00Z",
+                "metadata": {"dsn": dsn},
+            },
+            "received_at": "2026-09-18T12:00:01Z",
+            "delivered_by": "daemon:delivery@localhost",
+        },
+        "metadata": {},
+    }
+    respx.get(f"{SERVER}/inbox/{message_id}").mock(
+        return_value=httpx.Response(200, json=response)
+    )
+
+    cmd_inbox_open(Namespace(output="text", message_id=message_id))
+    text_output = capsys.readouterr().out
+    assert "=== Delivery Failure ===" in text_output
+    assert "Failure Code: future_failure" in text_output
+    assert "Reason: A future delivery mechanism failed." in text_output
+
+    cmd_inbox_open(Namespace(output="json", message_id=message_id))
+    json_output = json.loads(capsys.readouterr().out)
+    assert json_output["entry"]["message"]["metadata"]["dsn"]["failure_code"] == (
+        "future_failure"
+    )
 
 
 @respx.mock
@@ -117,6 +169,34 @@ def test_login_requires_credentials_env(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.delenv("MAIL_ADDRESS", raising=False)
     with pytest.raises(ValueError, match="MAIL_ADDRESS"):
         cmd_login(Namespace(output="text"))
+
+
+@respx.mock
+def test_login_requests_scopes_from_environment(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("MAIL_SERVER", SERVER)
+    monkeypatch.setenv("MAIL_ADDRESS", "daemon:worker@localhost")
+    monkeypatch.setenv("MAIL_PASSWORD", "hunter2")
+    monkeypatch.setenv("MAIL_SCOPES", "deliver:local deliver:federate")
+    route = respx.post(f"{SERVER}/auth/token").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "access_token": "daemon-jwt",
+                "token_type": "bearer",
+                "scope": "deliver:local deliver:federate",
+                "expires_in": 900,
+                "metadata": {},
+            },
+        )
+    )
+
+    cmd_login(Namespace(output="text"))
+
+    content = route.calls[0].request.content.decode()
+    assert "scope=deliver%3Alocal+deliver%3Afederate" in content
+    assert "daemon-jwt" in capsys.readouterr().out
 
 
 # ─── refresh ───────────────────────────────────────────────────────

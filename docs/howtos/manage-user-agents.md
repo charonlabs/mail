@@ -51,6 +51,20 @@ uv run mail-admin user-post alice          # -> user:alice@{host}
 uv run mail-admin daemon-post worker-1      # -> daemon:worker-1@{host}
 ```
 
+New daemons default to `deliver:local`. Assign only the capabilities the daemon
+needs by repeating `--scope`:
+
+```bash
+uv run mail-admin daemon-post federation-worker \
+  --scope deliver:local \
+  --scope deliver:federate
+uv run mail-admin daemon-post bounces --scope bounce:emit
+```
+
+Valid assignments are `deliver:local`, `deliver:federate`, `bounce:emit`, and
+the reserved `deliver:federate:<host>` syntax. The reserved form is parsed and
+stored but does not authorize delivery in Federation v1.
+
 ### 4. Inspect a user-agent
 
 ```bash
@@ -70,7 +84,8 @@ uv run mail-admin daemon-delete worker-1
 ## Verification
 
 A created user-agent appears in the matching `*-list` / `*-get` output and can
-authenticate with its generated password. Handle admin credentials with care —
+authenticate with its generated password. `daemon-get` also displays its
+assigned scopes. Handle admin credentials with care —
 they are effectively server-control credentials (see
 [Security Model](../explanations/security-model.md)).
 

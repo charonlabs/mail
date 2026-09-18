@@ -27,8 +27,10 @@ bounded by the checkpoint interval — an abrupt `kill -9` loses everything
 written since the last checkpoint.
 
 A handful of endpoints (`DELETE /inbox/{id}`, `DELETE /drafts/{id}`,
-`DELETE /trash/{id}`, `POST /trash/clear`, `POST /daemon/deliver/remote`,
+`DELETE /trash/{id}`, `POST /trash/clear`, and
 `PATCH /admin/webhooks/{id}`) raise `NotImplementedError` on this backend.
+Signed Federation v1 ingress and its durable deduplication state are supported
+by both backends; SQLite is recommended for crash-safe federation.
 
 ## `sqlite` backend
 

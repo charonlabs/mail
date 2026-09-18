@@ -80,7 +80,7 @@ v1 variant the server actually honors flagged below:
 
 ```python
 class MAILListPolicy:
-    visibility: "public" | "private"           # v1 honors: public
+    visibility: "public" | "private"  # v1 honors: public
     join_policy: "open" | "approval" | "admin-only"  # v1 honors: open
     send_policy: "open" | "members-only" | "admin-only"  # v1 honors: open
 ```

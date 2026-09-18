@@ -57,7 +57,8 @@ class AuthTokenPostResponse(BaseModel):
     Corresponds to `POST /auth/token`.
     Contains a temporary JWT and associated metadata.
 
-    ``refresh_token`` is populated only for interactive principals (users and
+    ``scope`` is the space-delimited OAuth scope grant and is also carried in
+    the access token. ``refresh_token`` is populated only for interactive principals (users and
     admins); agents and daemons re-authenticate with their credentials and
     receive ``None``. When present, the server also sets it as an ``httpOnly``
     cookie for browser clients. ``expires_in`` is the access-token lifetime in
@@ -66,6 +67,7 @@ class AuthTokenPostResponse(BaseModel):
 
     access_token: str
     token_type: Literal["bearer"]
+    scope: str = ""
     refresh_token: str | None = None
     expires_in: int
     metadata: dict[str, Any]
@@ -76,13 +78,15 @@ class AuthRefreshPostResponse(BaseModel):
     Corresponds to `POST /auth/refresh`.
     Contains a freshly-minted access token and a rotated refresh token.
 
-    Mirrors `AuthTokenPostResponse`. The previous refresh token is invalidated
+    Mirrors `AuthTokenPostResponse`. Interactive principals have an empty
+    ``scope`` grant. The previous refresh token is invalidated
     on every successful refresh; ``refresh_token`` carries its replacement (also
     rotated in the ``httpOnly`` cookie for browser clients).
     """
 
     access_token: str
     token_type: Literal["bearer"]
+    scope: str = ""
     refresh_token: str | None = None
     expires_in: int
     metadata: dict[str, Any]

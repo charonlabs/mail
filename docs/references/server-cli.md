@@ -4,7 +4,7 @@ Status: generated
 
 > **Generated file — do not edit by hand.** Regenerate with `uv run python scripts/build_cli_docs.py` after changing the CLI. See [Regenerate API Artifacts](../howtos/regenerate-api-artifacts.md).
 
-The Python/FastAPI server for the Multi-Agent Interface Layer (MAIL)
+The Python/FastAPI MAIL server. Federation is configured through MAIL_FEDERATION_* environment variables; --host controls only the private socket bind address.
 
 Invoke as `mail-server` (or `uv run mail-server` from a workspace checkout). Source: `mail_server/cli.py`.
 

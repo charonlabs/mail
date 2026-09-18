@@ -22,7 +22,8 @@ enforce one of four access levels:
 | --- | --- |
 | none | Unauthenticated. |
 | user-agent | Any authenticated user-agent (agent, user, admin, daemon). |
-| daemon | A daemon bearer token. |
+| daemon | A daemon bearer token carrying the endpoint's required OAuth scope. |
+| HTTP signature | RFC 9421 signature verified with the origin's HTTPS-discovered Ed25519 key; no local bearer token. |
 | admin | An admin bearer token. |
 
 ## Response envelope
@@ -36,7 +37,7 @@ box reads nest the message under an `entry`. Field shapes are in
 > backend; on the memory backend they raise `NotImplementedError`:
 > `DELETE /inbox/{message_id}`, `DELETE /drafts/{draft_id}`,
 > `DELETE /trash/{message_id}`, `POST /trash/clear`,
-> `PATCH /admin/webhooks/{webhook_id}`, and `POST /daemon/deliver/remote`. See
+> and `PATCH /admin/webhooks/{webhook_id}`. See
 > [Storage Backends](storage-backends.md#current-limitations).
 
 ## Root and health
@@ -50,7 +51,7 @@ box reads nest the message under an `entry`. Field shapes are in
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| POST | `/auth/token` | none | OAuth2 password grant (form fields). Returns `access_token`, `expires_in`; `refresh_token` for interactive principals (users/admins). |
+| POST | `/auth/token` | none | OAuth2 password grant. Daemons request an assigned space-delimited `scope`; the response and JWT carry the grant. Interactive principals alone receive a `refresh_token`. |
 | POST | `/auth/refresh` | refresh token | Rotates the refresh token (cookie or request body). |
 | POST | `/auth/logout` | refresh token | Idempotent; revokes the refresh family. |
 | GET | `/auth/whoami` | user-agent | Returns the caller's `MAILUserAgent`. |
@@ -98,7 +99,7 @@ Box GET-collection endpoints accept the `BoxFilterParams` query params: `limit`
 | GET | `/drafts/{draft_id}` | user-agent | |
 | PATCH | `/drafts/{draft_id}` | user-agent | Partial update; omitted fields unchanged. |
 | DELETE | `/drafts/{draft_id}` | user-agent | |
-| POST | `/drafts/{draft_id}/send` | user-agent | Bind `recipients` and send; returns the assembled `MAILMessage`. |
+| POST | `/drafts/{draft_id}/send` | user-agent | Bind `recipients` and send. Daemons need `deliver:local` for local-only sends or `deliver:federate` when any recipient is remote. Remote sends return `503` while federation is disabled. |
 
 ### Trash (`/trash`)
 
@@ -115,9 +116,27 @@ Used by delivery daemons; see [Delivery Model](../explanations/delivery-model.md
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
-| POST | `/daemon/message-buffer/clear` | daemon | Drain the pending-delivery buffer. |
-| POST | `/daemon/deliver/local` | daemon | Deliver messages between user-agents on this server. |
-| POST | `/daemon/deliver/remote` | daemon | Inbound cross-server delivery; implemented on SQLite, raises `NotImplementedError` on the memory backend (see note above). |
+| POST | `/daemon/message-buffer/clear` | daemon + `deliver:local` | Drain the pending-delivery buffer. |
+| POST | `/daemon/deliver/local` | daemon + `deliver:local` | Deliver messages between user-agents on this server. |
+| POST | `/daemon/deliver/remote/v1` | HTTP signature | Accept and durably queue one Federation v1 envelope. |
+| POST | `/daemon/deliver/remote` | none | Removed unsigned endpoint; always returns `410`. |
+
+Federation-enabled servers also expose `GET /.well-known/mail-federation`
+without bearer authentication. Disabled servers return `404` from both public
+federation routes.
+
+Federation ingress caps the raw body before parsing, then verifies signature
+headers, the discovered origin key, signature/digest, envelope and host
+invariants, five-minute freshness, 24-hour replay state, policy, and recipient
+existence. `202` means the inner message and local queue entry committed;
+duplicate envelope IDs return `409`. Authentication failures return `401`,
+verified policy/host denials `403`, envelope violations `400`, oversized bodies
+`413`, and transient local pressure `429` or `503`, with machine-readable error
+codes. The removed unsigned route always returns `410`.
+
+Reverse proxies must preserve the externally observed HTTPS target URI,
+authority, raw body bytes, and all signature headers. See
+[Enable and Operate Federation](../howtos/enable-federation.md#4-preserve-signed-request-inputs-at-the-proxy).
 
 ## Admin endpoints (`/admin`)
 

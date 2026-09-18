@@ -147,7 +147,7 @@ follow_up = await client.post_message(
     "How does that compare to the forecast for Los Angeles?",
     task_id=task_id,
     resume_from="user_response",
-) # msg_type = "request" here
+)  # msg_type = "request" here
 ```
 
 - The runtime automatically resumes the task loop, restores any stashed queue items for that task, re-hydrates the agent history with the tool output, and emits the usual `task_complete` event once the agents finish.
@@ -176,7 +176,7 @@ Both helpers require the caller to own the task; the server automatically scopes
   response = await client.debug_post_responses(
       input=[
           {"role": "system", "content": "You orchestrate the MAIL swarm."},
-          {"role": "user", "content": "Draft a response for tomorrow's stand-up."}
+          {"role": "user", "content": "Draft a response for tomorrow's stand-up."},
       ],
       tools=[],
   )

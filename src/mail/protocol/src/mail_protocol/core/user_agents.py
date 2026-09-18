@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2025-26 Addison Kline
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
 from mail_protocol.core.validators import (
     validate_agent_name,
+    validate_daemon_scopes,
     validate_daemon_worker_name,
     validate_host,
     validate_swarm_name,
@@ -58,6 +59,9 @@ class MAILDaemon(BaseModel):
     ua_type: Literal["daemon"]
     worker_name: Annotated[str, AfterValidator(validate_daemon_worker_name)]
     host: Annotated[str, AfterValidator(validate_host)]
+    scopes: Annotated[list[str], AfterValidator(validate_daemon_scopes)] = Field(
+        default_factory=lambda: ["deliver:local"]
+    )
 
     def get_address(self) -> str:
         """
@@ -72,7 +76,7 @@ class MAILUserAgent(BaseModel):
     Base class for MAIL user-agents.
     """
 
-    user_agent: Union[MAILAgent, MAILUser, MAILAdmin, MAILDaemon] = Field(
+    user_agent: MAILAgent | MAILUser | MAILAdmin | MAILDaemon = Field(
         discriminator="ua_type"
     )
 

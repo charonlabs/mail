@@ -8,9 +8,9 @@ real search results. In a production environment, these could be
 replaced with actual API integrations.
 """
 
-import json
 import hashlib
-from datetime import datetime, timedelta, UTC
+import json
+from datetime import UTC, datetime
 from random import Random
 from typing import Any
 

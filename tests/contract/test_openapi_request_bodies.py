@@ -22,7 +22,7 @@ ENDPOINTS_WITH_BODY = [
     ("/drafts/{draft_id}", "patch"),
     ("/drafts/{draft_id}/send", "post"),
     ("/daemon/deliver/local", "post"),
-    ("/daemon/deliver/remote", "post"),
+    ("/daemon/deliver/remote/v1", "post"),
     ("/admin/agents", "post"),
     ("/admin/daemons", "post"),
     ("/admin/users", "post"),
@@ -40,6 +40,7 @@ ENDPOINTS_WITH_BODY = [
 ENDPOINTS_WITHOUT_BODY = [
     ("/trash/clear", "post"),
     ("/daemon/message-buffer/clear", "post"),
+    ("/daemon/deliver/remote", "post"),
     ("/lists/{local_address}/subscribe", "post"),
     ("/lists/{local_address}/unsubscribe", "post"),
 ]
@@ -66,8 +67,7 @@ def test_endpoint_documents_request_body(schema: dict, path: str, method: str) -
     )
     content = operation["requestBody"].get("content", {})
     assert "application/json" in content, (
-        f"{method.upper()} {path} request body is not application/json: "
-        f"{list(content)}"
+        f"{method.upper()} {path} request body is not application/json: {list(content)}"
     )
     assert content["application/json"].get("schema"), (
         f"{method.upper()} {path} request body has no schema"
@@ -83,6 +83,24 @@ def test_bodyless_endpoint_has_no_request_body(
         f"{method.upper()} {path} unexpectedly advertises a request body; "
         "this endpoint is supposed to take no body."
     )
+
+
+def test_federation_endpoint_documents_exact_status_body_contract(
+    schema: dict,
+) -> None:
+    responses = schema["paths"]["/daemon/deliver/remote/v1"]["post"]["responses"]
+    expected = {"202", "400", "401", "403", "404", "409", "413", "429", "503"}
+    assert set(responses) == expected
+    assert responses["202"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/MAILFederationAcceptedResponse"
+    }
+    error_schema = {
+        "$ref": "#/components/schemas/MAILFederationErrorResponse"
+    }
+    for status in expected - {"202"}:
+        assert responses[status]["content"]["application/json"]["schema"] == (
+            error_schema
+        )
 
 
 @pytest.mark.parametrize("path", BOX_GET_PATHS)

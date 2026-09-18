@@ -8,6 +8,8 @@ import httpx
 from mail_protocol.network.responses import TrashMessageGetResponse
 from pydantic import ValidationError
 
+from mail_client.commands._dsn import print_dsn_summary
+
 
 def cmd_trash_open(args: Namespace) -> None:
     """
@@ -67,5 +69,6 @@ def _print_text(response_obj: TrashMessageGetResponse) -> None:
         print(f"- {recipient}")
     print(f"Subject: {message.subject}")
     print(f"Body:\n{message.body}\n")
+    print_dsn_summary(message)
     print("=== Trash Entry Data ===")
     print(f"Trashed At: {entry.trashed_at}")

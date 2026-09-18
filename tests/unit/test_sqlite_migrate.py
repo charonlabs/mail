@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from mail_protocol.core.federation import MAILInterServerMessage
 from mail_protocol.core.inbox import MAILInboxEntrySummary
 from mail_protocol.core.lists import MAILList, MAILListInBackend
 from mail_protocol.core.messages import MAILMessage
@@ -30,9 +31,20 @@ from mail_protocol.network.requests import BoxFilterParams
 from mail_server.backends.memory import fs as memory_fs
 from mail_server.backends.sqlite.api import SQLiteBackend
 from mail_server.backends.sqlite.migrate import import_memory_deployment
+from mail_server.federation.records import (
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
+)
 
 NOW = datetime(2026, 6, 12, 9, 0, tzinfo=UTC)
 MID = "55555555-5555-4555-8555-555555555555"
+REMOTE_MID = "66666666-6666-4666-8666-666666666666"
+TARGET_ID = "77777777-7777-4777-8777-777777777777"
+ENVELOPE_ID = "88888888-8888-4888-8888-888888888888"
+RECEIPT_ID = "99999999-9999-4999-8999-999999999999"
+EMISSION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 UALICE = "user:alice@localhost"
 SAGE = "sage@chorus@localhost"
 DAEMON = "daemon:dummy@localhost"
@@ -82,7 +94,18 @@ async def _write_fs_deployment() -> None:
                 tags=[],
                 sent_at=NOW,
                 metadata={},
-            )
+            ),
+            REMOTE_MID: MAILMessage(
+                mail_version="2.0",
+                message_id=REMOTE_MID,
+                sender=UALICE,
+                recipients=["user:bob@remote.example"],
+                subject="Federation import",
+                body="pending remote delivery",
+                tags=[],
+                sent_at=NOW,
+                metadata={},
+            ),
         }
     )
     await memory_fs.save_inbox_entries(
@@ -135,6 +158,67 @@ async def _write_fs_deployment() -> None:
             )
         }
     )
+    remote_message = (await memory_fs.load_messages())[REMOTE_MID]
+    await memory_fs.save_delivery_targets(
+        {
+            TARGET_ID: MessageDeliveryTarget(
+                target_id=TARGET_ID,
+                message_id=REMOTE_MID,
+                origin="outbound",
+                kind="remote",
+                destination_host="remote.example",
+                recipients=["user:bob@remote.example"],
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        }
+    )
+    await memory_fs.save_federation_outbound(
+        {
+            ENVELOPE_ID: OutboundFederationDelivery(
+                envelope_id=ENVELOPE_ID,
+                target_id=TARGET_ID,
+                message_id=REMOTE_MID,
+                destination_host="remote.example",
+                envelope=MAILInterServerMessage(
+                    message_id=ENVELOPE_ID,
+                    sender_host="localhost",
+                    recipient_host="remote.example",
+                    message=remote_message,
+                    metadata={},
+                    sent_at=NOW,
+                    protocol_version="1",
+                ),
+                next_attempt_at=NOW,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        }
+    )
+    await memory_fs.save_federation_inbound_receipts(
+        {
+            RECEIPT_ID: InboundFederationReceipt(
+                envelope_id=RECEIPT_ID,
+                sender_host="remote.example",
+                inner_message_id=MID,
+                content_hash="a" * 64,
+                accepted_at=NOW,
+                expires_at=NOW.replace(year=2027),
+            )
+        }
+    )
+    await memory_fs.save_bounce_emissions(
+        {
+            EMISSION_ID: BounceEmission(
+                emission_id=EMISSION_ID,
+                original_sender=UALICE,
+                original_message_id=REMOTE_MID,
+                failed_recipient="user:bob@remote.example",
+                emitted_at=NOW,
+                outcome="emitted",
+            )
+        }
+    )
 
 
 async def test_import_filesystem_deployment(deployment_dir: Path) -> None:
@@ -143,8 +227,12 @@ async def test_import_filesystem_deployment(deployment_dir: Path) -> None:
 
     counts = await import_memory_deployment(source_dir=deployment_dir, db_path=db_path)
     assert counts["user_agents"] == 2
-    assert counts["messages"] == 1
+    assert counts["messages"] == 2
     assert counts["buffered"] == 1
+    assert counts["delivery_targets"] == 1
+    assert counts["federation_outbound"] == 1
+    assert counts["federation_inbound_receipts"] == 1
+    assert counts["bounce_emissions"] == 1
 
     backend = SQLiteBackend(f"sqlite:///{db_path}")
     await backend.on_server_startup(host="localhost")
@@ -166,6 +254,23 @@ async def test_import_filesystem_deployment(deployment_dir: Path) -> None:
         daemon = MAILDaemon(ua_type="daemon", worker_name="dummy", host="localhost")
         assert await backend.daemon_clear_message_buffer(daemon) == [MID]
         assert (await backend.get_lists())[0].get_address() == LIST_ADDR
+        target = (await backend.get_message_delivery_targets(REMOTE_MID))[0]
+        assert target.target_id == TARGET_ID
+        outbound = (await backend.get_outbound_federation_deliveries(REMOTE_MID))[0]
+        assert outbound.envelope_id == ENVELOPE_ID
+        assert not await backend.accept_inbound_federation(
+            InboundFederationReceipt(
+                envelope_id=RECEIPT_ID,
+                sender_host="remote.example",
+                inner_message_id=MID,
+                content_hash="a" * 64,
+                accepted_at=NOW,
+                expires_at=NOW.replace(year=2027),
+            ),
+            opened.message,
+        )
+        emissions = await backend.get_bounce_emissions(REMOTE_MID)
+        assert emissions[0].emission_id == EMISSION_ID
     finally:
         await backend.on_server_shutdown()
 

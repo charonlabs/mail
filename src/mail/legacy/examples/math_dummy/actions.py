@@ -8,11 +8,11 @@ import ast
 import json
 import re
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation, localcontext
-from typing import Any, Final, Union
+from typing import Any, Final
 
 from mail.legacy import action
 
-Number = Union[int, Decimal]
+Number = int | Decimal
 
 # Extended-precision constants to keep deterministic values for math literals.
 _CONSTANTS: Final[dict[str, Decimal]] = {

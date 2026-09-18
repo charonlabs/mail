@@ -128,7 +128,7 @@ class TaskSummarizer:
             exclude_tools=["task_complete"],  # Force use of submit_title breakpoint
         )
 
-    async def _get_swarm(self) -> "MAILSwarm":
+    async def _get_swarm(self) -> MAILSwarm:
         """Get or create the swarm instance."""
         if self._swarm is None:
             self._swarm = self._template.instantiate(

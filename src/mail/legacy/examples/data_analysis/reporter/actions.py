@@ -4,7 +4,7 @@
 """Report formatting action for the Data Analysis swarm."""
 
 import json
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from mail.legacy import action

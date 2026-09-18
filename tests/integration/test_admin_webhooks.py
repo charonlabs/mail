@@ -56,9 +56,7 @@ def test_get_webhook_by_id(app_client: TestClient, headers_for) -> None:
     assert response.json()["webhook"]["url"] == WEBHOOK_BODY["url"]
 
 
-def test_get_webhook_unknown_returns_404(
-    app_client: TestClient, headers_for
-) -> None:
+def test_get_webhook_unknown_returns_404(app_client: TestClient, headers_for) -> None:
     # Well-formed (wh_<uuid>) but unknown id → 404.
     response = app_client.get(
         "/admin/webhooks/wh_123e4567-e89b-12d3-a456-426614174000",
@@ -79,9 +77,7 @@ def test_get_webhook_malformed_id_returns_422(
 def test_delete_webhook_removes(app_client: TestClient, headers_for) -> None:
     headers = headers_for(ADMIN)
     webhook_id = _post_webhook(app_client, headers)
-    response = app_client.delete(
-        f"/admin/webhooks/{webhook_id}", headers=headers
-    )
+    response = app_client.delete(f"/admin/webhooks/{webhook_id}", headers=headers)
     assert response.status_code == 200
 
     response = app_client.get("/admin/webhooks", headers=headers)
@@ -97,6 +93,7 @@ def test_delete_webhook_unknown_returns_404(
         headers=headers_for(ADMIN),
     )
     assert response.status_code == 404
+
 
 # NOTE: PATCH /admin/webhooks/{id} is tracked in test_stubs.py — the
 # router is wired to MemoryBackend.admin_webhook_patch, which is still

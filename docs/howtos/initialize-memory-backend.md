@@ -29,7 +29,8 @@ By default (i.e., with no specified arguments), this script will generate a new 
 - **Swarm Description**: `A MAIL swarm`
 - **Swarm Keywords**: `[]`
 - **Agents**: `['supervisor']`
-- **Daemons**: `['dummy']`
+- **Daemons**: `['dummy', 'bounces']` (`dummy` is assigned `deliver:local`;
+  `bounces` is assigned `bounce:emit`)
 - **Users**: `['dummy']`
 - **Admins**: `['dummy']`
 - **Host**: `example.com`
@@ -71,6 +72,10 @@ For a different list of daemon names (e.g. `['worker-1', 'worker-2']`), specify 
 ```bash
 uv run backend-init --daemons "worker-1" "worker-2"
 ```
+
+Every custom daemon seeded this way is assigned `deliver:local`; the special
+default name `bounces` is assigned only `bounce:emit`. Use the admin API/CLI to
+create daemons with other explicit assignments.
 
 For a different list of user names (e.g. `['user-1', 'user-2', 'user-3']`), specify the `--users` argument:
 

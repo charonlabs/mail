@@ -37,8 +37,8 @@ from mail.legacy.core.message import (
     parse_agent_address,
     parse_task_contributors,
 )
-from mail.legacy.net import types as types
 from mail.legacy.db.utils import close_pool as close_db_pool
+from mail.legacy.net import types as types
 from mail.legacy.utils.logger import init_logger
 from mail.legacy.utils.openai import SwarmOAIClient, build_oai_clients_dict
 
@@ -1161,7 +1161,6 @@ async def receive_interswarm_back(request: Request):
         raise HTTPException(status_code=400, detail="parameter 'message' is required")
     caller_info = await utils.extract_token_info(request)
     caller_id = caller_info["id"]
-    caller_api_key = caller_info["api_key"]
     # ensure the message is a valid MAILInterswarmMessage
     REQUIRED_FIELDS: dict[str, type] = {
         "message_id": str,

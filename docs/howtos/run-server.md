@@ -43,6 +43,11 @@ With no flags the server uses the memory backend and listens on
 uv run mail-server --host 0.0.0.0 --port 9000
 ```
 
+This is the bind address only. `MAIL_HOST` is the logical MAIL host, and
+`MAIL_FEDERATION_PUBLIC_HOST` plus `MAIL_FEDERATION_DELIVERY_URL` describe the
+public federation identity. See [Enable Federation](enable-federation.md) before
+exposing a server to peers.
+
 ### 4. Choose a backend
 
 The default is `memory`; use `sqlite` for a durable, transactional store:
@@ -78,6 +83,7 @@ MAIL_SERVER=http://127.0.0.1:8865 uv run mail ping
 ## See also
 
 - [Configuration](../references/configuration.md) — every server flag and env var.
+- [Enable Federation](enable-federation.md) — keys, TLS proxying, testing, rotation, and rollback.
 - [Run the MAIL Daemon](run-daemon.md) — needed for messages to actually deliver.
 - [Storage Backends](../references/storage-backends.md)
 

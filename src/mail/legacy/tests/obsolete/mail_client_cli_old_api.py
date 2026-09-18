@@ -104,4 +104,6 @@ def test_newman_interswarm_command_posts_validated_message(
 
     assert captured["message"] == MAILInterswarmMessage.model_validate(message_dict)
     assert captured["metadata"] == {"request_id": "req-123"}
-    assert printed == ["interswarm message result: [green]success[/green] (new_task=True)"]
+    assert printed == [
+        "interswarm message result: [green]success[/green] (new_task=True)"
+    ]

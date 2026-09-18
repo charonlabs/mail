@@ -157,9 +157,7 @@ app = FastAPI()
 async def mail_webhook(request: Request) -> dict[str, object]:
     if SECRET is None:
         # Not configured yet. Tell MAIL to retry later.
-        raise HTTPException(
-            status_code=503, detail="Webhook secret not configured."
-        )
+        raise HTTPException(status_code=503, detail="Webhook secret not configured.")
 
     timestamp = request.headers.get("X-MAIL-Timestamp")
     signature = request.headers.get("X-MAIL-Signature")

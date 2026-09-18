@@ -67,7 +67,7 @@ def main() -> None:
     parser.add_argument(
         "--daemons",
         nargs="+",
-        default=["dummy"],
+        default=["dummy", "bounces"],
         help="the daemon(s) to register on this server (default: %(default)s)",
     )
     parser.add_argument(
@@ -179,9 +179,7 @@ def main() -> None:
                     import_memory_deployment,
                 )
 
-                counts = asyncio.run(
-                    import_memory_deployment(deployment=deployment)
-                )
+                counts = asyncio.run(import_memory_deployment(deployment=deployment))
                 print(f"imported filesystem deployment {deployment}: {counts}")
             else:
                 from mail_server.backends.sqlite.init import init_sqlite_backend

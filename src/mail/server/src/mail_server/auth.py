@@ -4,18 +4,21 @@
 import hashlib
 import os
 import secrets
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import HTTPException, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
+from mail_protocol.core.federation import mail_address_host
 from mail_protocol.core.user_agents import (
     MAILAdmin,
     MAILDaemon,
     MAILUser,
     MAILUserAgent,
 )
+from mail_protocol.core.validators import validate_daemon_scopes
 from pwdlib import PasswordHash
 from pydantic import BaseModel
 
@@ -56,7 +59,8 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    address: str | None = None
+    address: str
+    scopes: list[str]
 
 
 password_hash = PasswordHash.recommended()
@@ -178,21 +182,49 @@ def clear_refresh_cookie(response: Response) -> None:
 async def validate_user_agent(
     backend: MAILServerBackend, request: Request
 ) -> MAILUserAgent:
+    user_agent, _token_data = await _authenticate_access_token(
+        backend=backend, request=request
+    )
+    return user_agent
+
+
+def _insufficient_scope_exception(required_scope: str) -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail=f"access token lacks required scope: {required_scope}",
+        headers={
+            "WWW-Authenticate": (
+                f'Bearer error="insufficient_scope", scope="{required_scope}"'
+            )
+        },
+    )
+
+
+async def _authenticate_access_token(
+    backend: MAILServerBackend, request: Request
+) -> tuple[MAILUserAgent, TokenData]:
+    """Authenticate a bearer token and return its live principal and claims."""
+
     credentials_exception = HTTPException(
         status_code=401,
         detail="could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        token = request.headers.get("Authorization")
-        if token is None:
+        authorization = request.headers.get("Authorization")
+        if authorization is None:
             raise credentials_exception
-        bearer_token = token.removeprefix("Bearer ")
+        scheme, separator, bearer_token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not separator or not bearer_token:
+            raise credentials_exception
         payload = jwt.decode(jwt=bearer_token, key=SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore
         address = payload.get("sub")
-        if address is None:
+        scope_claim = payload.get("scope", "")
+        if not isinstance(address, str) or not address:
             raise credentials_exception
-        _token_data = TokenData(address=address)
+        if not isinstance(scope_claim, str):
+            raise credentials_exception
+        token_data = TokenData(address=address, scopes=scope_claim.split())
     except InvalidTokenError:
         raise credentials_exception
     try:
@@ -203,15 +235,35 @@ async def validate_user_agent(
     if user_agent is None:
         raise credentials_exception
 
-    return user_agent
+    return user_agent, token_data
 
 
-async def validate_daemon(backend: MAILServerBackend, request: Request) -> MAILDaemon:
+def _require_daemon_scope(
+    daemon: MAILDaemon, token_data: TokenData, required_scope: str
+) -> None:
+    """Require a valid scope in both the JWT grant and the live daemon record."""
+
+    try:
+        validate_daemon_scopes(token_data.scopes)
+    except ValueError:
+        raise _insufficient_scope_exception(required_scope)
+    if required_scope not in token_data.scopes or required_scope not in daemon.scopes:
+        raise _insufficient_scope_exception(required_scope)
+
+
+async def validate_daemon(
+    backend: MAILServerBackend,
+    request: Request,
+    *,
+    required_scope: str | None = None,
+) -> MAILDaemon:
     """
     Ensure that the request user-agent is a valid MAIL daemon.
     """
 
-    user_agent = await validate_user_agent(backend=backend, request=request)
+    user_agent, token_data = await _authenticate_access_token(
+        backend=backend, request=request
+    )
 
     if not isinstance(user_agent.user_agent, MAILDaemon):
         raise HTTPException(
@@ -220,7 +272,33 @@ async def validate_daemon(backend: MAILServerBackend, request: Request) -> MAILD
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return user_agent.user_agent
+    daemon = user_agent.user_agent
+    if required_scope is not None:
+        _require_daemon_scope(daemon, token_data, required_scope)
+    return daemon
+
+
+async def validate_send_authority(
+    backend: MAILServerBackend,
+    request: Request,
+    recipients: Sequence[str],
+) -> MAILUserAgent:
+    """Apply daemon scopes to sends while retaining ordinary non-daemon sends."""
+
+    user_agent, token_data = await _authenticate_access_token(
+        backend=backend, request=request
+    )
+    daemon = user_agent.user_agent
+    if not isinstance(daemon, MAILDaemon):
+        return user_agent
+
+    has_remote_recipient = any(
+        mail_address_host(recipient).lower() != backend.host.lower()
+        for recipient in recipients
+    )
+    required_scope = "deliver:federate" if has_remote_recipient else "deliver:local"
+    _require_daemon_scope(daemon, token_data, required_scope)
+    return user_agent
 
 
 async def validate_admin(backend: MAILServerBackend, request: Request) -> MAILAdmin:

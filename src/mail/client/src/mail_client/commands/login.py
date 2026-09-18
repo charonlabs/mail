@@ -24,13 +24,14 @@ def cmd_login(args: Namespace) -> None:
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     if MAIL_PASSWORD is None:
         raise ValueError("environment variable MAIL_PASSWORD is required")
+    MAIL_SCOPES = os.getenv("MAIL_SCOPES", "")
 
     # 2. Attempt to log into the MAIL server and obtain a JWT
     payload = {
         "grant_type": "password",
         "username": MAIL_ADDRESS,
         "password": MAIL_PASSWORD,
-        "scope": "",
+        "scope": MAIL_SCOPES,
         "client_id": "string",
         "client_secret": "$password",
     }

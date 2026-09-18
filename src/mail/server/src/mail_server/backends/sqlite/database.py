@@ -135,6 +135,27 @@ def _ensure_schema_columns(connection: Connection) -> None:
             )
         )
 
+    # Phase 4 records whether any attempt reached a peer so exhaustion maps to
+    # delivery_expired rather than host_unreachable across process restarts.
+    if "peer_was_reached" not in _columns("federation_outbound"):
+        connection.execute(
+            text(
+                "ALTER TABLE federation_outbound "
+                "ADD COLUMN peer_was_reached BOOLEAN NOT NULL DEFAULT 0"
+            )
+        )
+
+    if "dsn_message_id" not in _columns("bounce_emissions"):
+        connection.execute(
+            text("ALTER TABLE bounce_emissions ADD COLUMN dsn_message_id VARCHAR(64)")
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_bounce_emissions_dsn_message_id "
+                "ON bounce_emissions (dsn_message_id)"
+            )
+        )
+
 
 def _ensure_sqlite_parent(url: str) -> None:
     """Create the parent directory for a file-backed SQLite database."""

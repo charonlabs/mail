@@ -9,7 +9,6 @@ import jwt
 from fastapi.testclient import TestClient
 from mail_protocol.core.swarm import MAILSwarm
 from mail_protocol.interswarm import MAILRemoteSwarm
-
 from mail_server import JWTSettings, MAILServer, StaticAPIKeyAuthBackend, TokenInfo
 from mail_server.types import PersistedSwarmRegistry, SwarmRegistryEntry
 
@@ -142,7 +141,9 @@ def test_lifecycle_hooks_and_registry_persistence(tmp_path):
 
     assert events == ["startup_a", "startup_b", "shutdown_b", "shutdown_a"]
 
-    saved_registry = PersistedSwarmRegistry.model_validate_json(registry_path.read_text())
+    saved_registry = PersistedSwarmRegistry.model_validate_json(
+        registry_path.read_text()
+    )
     assert set(saved_registry.entries) == {"loaded", "persisted"}
     assert "volatile" not in saved_registry.entries
 
@@ -284,5 +285,7 @@ def test_registry_writes_and_message_handler(tmp_path, monkeypatch):
         )
         assert missing_delete_response.status_code == 404
 
-    saved_registry = PersistedSwarmRegistry.model_validate_json(registry_path.read_text())
+    saved_registry = PersistedSwarmRegistry.model_validate_json(
+        registry_path.read_text()
+    )
     assert set(saved_registry.entries) == set()
