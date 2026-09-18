@@ -267,7 +267,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="assigned daemon scope (repeatable; default: deliver:local)",
     )
-    daemon_post_p.set_defaults(scopes=["deliver:local"])
     daemon_post_p.set_defaults(func=cmd_daemon_post, cmd="daemon-post")
 
     # command `daemon-delete`

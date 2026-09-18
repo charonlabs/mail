@@ -24,7 +24,9 @@ async def clear_message_buffer(
     request: Request,
 ) -> DaemonMessageBufferClearResponse:
     backend = request.app.state.backend
-    daemon = await validate_daemon(backend=backend, request=request)
+    daemon = await validate_daemon(
+        backend=backend, request=request, required_scope="deliver:local"
+    )
     result = await backend.daemon_clear_message_buffer(daemon=daemon)
     return DaemonMessageBufferClearResponse(
         message_ids=result,
@@ -41,7 +43,9 @@ async def deliver_local_messages(
     request: Request, payload: DaemonDeliverLocalRequest
 ) -> DaemonDeliverLocalResponse:
     backend = request.app.state.backend
-    daemon = await validate_daemon(backend=backend, request=request)
+    daemon = await validate_daemon(
+        backend=backend, request=request, required_scope="deliver:local"
+    )
     result = await backend.daemon_deliver_local(daemon=daemon, payload=payload)
     return DaemonDeliverLocalResponse(
         messages=result,

@@ -37,7 +37,7 @@ def cmd_daemon_post(args: Namespace) -> None:
     payload = AdminDaemonPostRequest(
         worker_name=worker_name,
         daemon_password=daemon_password,
-        scopes=args.scopes,
+        scopes=args.scopes or ["deliver:local"],
     )
     response = httpx.post(
         url=f"{MAIL_SERVER}/admin/daemons",

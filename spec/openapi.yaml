@@ -2243,6 +2243,10 @@ components:
           type: string
           const: bearer
           title: Token Type
+        scope:
+          type: string
+          title: Scope
+          default: ''
         refresh_token:
           anyOf:
           - type: string
@@ -2267,7 +2271,9 @@ components:
         Contains a freshly-minted access token and a rotated refresh token.
 
 
-        Mirrors `AuthTokenPostResponse`. The previous refresh token is invalidated
+        Mirrors `AuthTokenPostResponse`. Interactive principals have an empty
+
+        ``scope`` grant. The previous refresh token is invalidated
 
         on every successful refresh; ``refresh_token`` carries its replacement (also
 
@@ -2281,6 +2287,10 @@ components:
           type: string
           const: bearer
           title: Token Type
+        scope:
+          type: string
+          title: Scope
+          default: ''
         refresh_token:
           anyOf:
           - type: string
@@ -2305,7 +2315,10 @@ components:
         Contains a temporary JWT and associated metadata.
 
 
-        ``refresh_token`` is populated only for interactive principals (users and
+        ``scope`` is the space-delimited OAuth scope grant and is also carried in
+
+        the access token. ``refresh_token`` is populated only for interactive principals
+        (users and
 
         admins); agents and daemons re-authenticate with their credentials and
 

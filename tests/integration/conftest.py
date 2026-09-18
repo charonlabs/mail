@@ -287,10 +287,16 @@ def list_members(
 def token_for(app_client: TestClient):
     """Factory issuing a real JWT via ``POST /auth/token``."""
 
-    def _token(address: str, password: str = PASSWORD) -> str:
+    def _token(
+        address: str,
+        password: str = PASSWORD,
+        scope: str | None = None,
+    ) -> str:
+        if scope is None:
+            scope = "deliver:local" if address.startswith("daemon:") else ""
         response = app_client.post(
             "/auth/token",
-            data={"username": address, "password": password},
+            data={"username": address, "password": password, "scope": scope},
         )
         assert response.status_code == 200, response.text
         return response.json()["access_token"]
@@ -302,8 +308,12 @@ def token_for(app_client: TestClient):
 def headers_for(token_for):
     """Factory producing ``Authorization: Bearer <real JWT>`` headers."""
 
-    def _headers(address: str, password: str = PASSWORD) -> dict[str, str]:
-        return {"Authorization": f"Bearer {token_for(address, password)}"}
+    def _headers(
+        address: str,
+        password: str = PASSWORD,
+        scope: str | None = None,
+    ) -> dict[str, str]:
+        return {"Authorization": f"Bearer {token_for(address, password, scope=scope)}"}
 
     return _headers
 

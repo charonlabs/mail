@@ -55,6 +55,15 @@ def test_mail_admin_subcommand_help_uses_admin_prog(
     assert "usage: mail-admin ping" in capsys.readouterr().out
 
 
+def test_mail_admin_daemon_scopes_replace_default_when_explicit() -> None:
+    parser = build_admin_parser()
+
+    assert parser.parse_args(["daemon-post", "worker"]).scopes is None
+    assert parser.parse_args(
+        ["daemon-post", "bounces", "--scope", "bounce:emit"]
+    ).scopes == ["bounce:emit"]
+
+
 def test_mail_server_help_does_not_import_runtime_configuration() -> None:
     help_text = build_server_parser().format_help()
 

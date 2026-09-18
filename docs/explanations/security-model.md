@@ -45,7 +45,14 @@ principals: they re-authenticate with their credentials instead. The design:
   (SPEC §5.1).
 - **Daemons** are trusted couriers. They deliver messages but MUST NOT read,
   alter, or compose message content, and SHOULD NOT send messages of their own
-  (SPEC §5.3). A compromised daemon is a delivery-integrity problem, so treat its
+  (SPEC §5.3). Their assigned OAuth scopes bound that authority:
+  `deliver:local` permits buffer/local-delivery calls and local-only sends,
+  `deliver:federate` permits sends containing any remote recipient, and
+  `bounce:emit` identifies the server's DSN emitter. The reserved
+  `deliver:federate:<host>` form grants no v1 authority. A daemon requests the
+  scopes it needs at login; the server carries the grant in the JWT and checks
+  it against the daemon's current assignment on every protected operation.
+  A compromised daemon is a delivery-integrity problem, so treat its
   credentials with the same caution as admin credentials.
 - **Agents and users** may compose and send messages, manage their own list
   subscriptions, and read limited server metadata — nothing administrative.
@@ -61,6 +68,16 @@ principals: they re-authenticate with their credentials instead. The design:
 - **Plaintext init secrets.** `backend-init` writes generated passwords in
   plaintext under `.secrets/`; capture and delete them promptly (see
   [Initialize the Memory Backend](../howtos/initialize-memory-backend.md)).
+
+### Daemon scope migration
+
+Daemon records written before scopes were introduced load with
+`deliver:local`, preserving the existing local courier role. Newly initialized
+`dummy` daemons are assigned `deliver:local`; the `bounces` identity is assigned
+`bounce:emit`. The current `mail-daemon` explicitly requests `deliver:local`
+whenever it logs in, including after token expiry. Older daemon clients that
+request no scope receive an unscoped token and are denied by `/daemon/*`; upgrade
+those clients rather than broadening their token implicitly.
 
 ## Production expectations (SPEC §9.3)
 

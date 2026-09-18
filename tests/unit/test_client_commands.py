@@ -171,6 +171,34 @@ def test_login_requires_credentials_env(monkeypatch: pytest.MonkeyPatch) -> None
         cmd_login(Namespace(output="text"))
 
 
+@respx.mock
+def test_login_requests_scopes_from_environment(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("MAIL_SERVER", SERVER)
+    monkeypatch.setenv("MAIL_ADDRESS", "daemon:worker@localhost")
+    monkeypatch.setenv("MAIL_PASSWORD", "hunter2")
+    monkeypatch.setenv("MAIL_SCOPES", "deliver:local deliver:federate")
+    route = respx.post(f"{SERVER}/auth/token").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "access_token": "daemon-jwt",
+                "token_type": "bearer",
+                "scope": "deliver:local deliver:federate",
+                "expires_in": 900,
+                "metadata": {},
+            },
+        )
+    )
+
+    cmd_login(Namespace(output="text"))
+
+    content = route.calls[0].request.content.decode()
+    assert "scope=deliver%3Alocal+deliver%3Afederate" in content
+    assert "daemon-jwt" in capsys.readouterr().out
+
+
 # ─── refresh ───────────────────────────────────────────────────────
 
 

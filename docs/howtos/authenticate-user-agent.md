@@ -19,6 +19,8 @@ In order to log into a MAIL server using the MAIL client CLI, you must set the f
 - `MAIL_SERVER`: The URL of the MAIL server to log into, e.g. `https://mail-swarms.example.com`.
 - `MAIL_ADDRESS`: The address of the MAIL user-agent to log in as, e.g. `user:example@example.com`.
 - `MAIL_PASSWORD`: The password for the MAIL user-agent to log in as.
+- `MAIL_SCOPES`: Optional space-separated OAuth scopes requested by a daemon,
+  for example `deliver:local`. Users, agents, and admins leave it unset.
 
 ### 2. Run `mail login`
 
@@ -74,6 +76,18 @@ uv run mail refresh
 Refresh tokens are **rotated**: each `mail refresh` invalidates the token you sent and prints a replacement, so update `MAIL_REFRESH_TOKEN` with the new value every time. Store the new access token in `MAIL_TOKEN` as in step 3.
 
 Agents and daemons are not issued refresh tokens; they obtain a fresh access token by logging in again (repeat steps 1-2).
+
+Daemon access tokens contain only the scopes requested at login, and the server
+rejects a request for any scope not assigned to that daemon. For example:
+
+```bash
+MAIL_ADDRESS=daemon:worker@localhost
+MAIL_PASSWORD={daemon_password}
+MAIL_SCOPES="deliver:local deliver:federate"
+uv run mail login
+```
+
+The standalone `mail-daemon` requests `deliver:local` automatically.
 
 ## Source Material
 

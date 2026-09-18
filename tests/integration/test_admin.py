@@ -139,6 +139,7 @@ def test_get_daemon_by_worker_name(app_client: TestClient, headers_for) -> None:
     response = app_client.get("/admin/daemons/dummy", headers=headers_for(ADMIN))
     assert response.status_code == 200
     assert response.json()["daemon"]["worker_name"] == "dummy"
+    assert response.json()["daemon"]["scopes"] == ["deliver:local"]
 
 
 def test_get_daemon_unknown_returns_404(app_client: TestClient, headers_for) -> None:
@@ -160,6 +161,7 @@ def test_post_daemon_creates_and_can_login(app_client: TestClient, headers_for) 
         headers=headers_for(ADMIN),
     )
     assert response.status_code == 200
+    assert response.json()["daemon"]["scopes"] == ["deliver:local"]
 
     headers = headers_for("daemon:worker2@localhost", password="worker2-password")
     response = app_client.post("/daemon/message-buffer/clear", headers=headers)

@@ -19,7 +19,7 @@ from mail_protocol.network.responses import (
     DraftsGetResponse,
 )
 
-from mail_server.auth import validate_user_agent
+from mail_server.auth import validate_send_authority, validate_user_agent
 from mail_server.utils import build_box_metadata
 
 router = APIRouter(prefix="/drafts", tags=["drafts"])
@@ -142,7 +142,9 @@ async def post_draft_send(
     request: Request, payload: DraftSendPostRequest
 ) -> DraftSendPostResponse:
     backend = request.app.state.backend
-    user_agent = await validate_user_agent(backend=backend, request=request)
+    user_agent = await validate_send_authority(
+        backend=backend, request=request, recipients=payload.recipients
+    )
     draft_id = request.path_params.get("draft_id")
     try:
         result = await backend.send_draft(

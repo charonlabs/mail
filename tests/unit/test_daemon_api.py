@@ -23,6 +23,7 @@ ROOT_RESPONSE = {"protocol_name": "mail", "protocol_version": "2.0", "uptime": 1
 TOKEN_RESPONSE = {
     "access_token": TOKEN,
     "token_type": "bearer",
+    "scope": "deliver:local",
     "expires_in": 900,
     "metadata": {},
 }
@@ -113,7 +114,19 @@ def test_obtain_daemon_token_logs_in_and_verifies_role(daemon_state) -> None:
 
     maild._obtain_daemon_token()
     assert maild._mail_token == TOKEN
+    login_content = respx.calls[0].request.content.decode()
+    assert "scope=deliver%3Alocal" in login_content
     assert whoami.calls[0].request.headers["Authorization"] == f"Bearer {TOKEN}"
+
+
+@respx.mock
+def test_obtain_daemon_token_rejects_missing_local_scope(daemon_state) -> None:
+    response = {**TOKEN_RESPONSE, "scope": "bounce:emit"}
+    respx.post(f"{SERVER}/auth/token").mock(
+        return_value=httpx.Response(200, json=response)
+    )
+    with pytest.raises(ValueError, match="deliver:local"):
+        maild._obtain_daemon_token()
 
 
 @respx.mock
@@ -174,6 +187,20 @@ def test_clear_message_buffer_returns_empty_on_network_error(daemon_state) -> No
         side_effect=httpx.ConnectError("connection refused")
     )
     assert maild.clear_message_buffer() == []
+
+
+@respx.mock
+def test_clear_message_buffer_reauthenticates_on_401(
+    daemon_state, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.post(f"{SERVER}/daemon/message-buffer/clear").mock(
+        return_value=httpx.Response(401)
+    )
+    relogins: list[bool] = []
+    monkeypatch.setattr(maild, "_obtain_daemon_token", lambda: relogins.append(True))
+
+    assert maild.clear_message_buffer() == []
+    assert relogins == [True]
 
 
 # ─── deliver_messages ──────────────────────────────────────────────

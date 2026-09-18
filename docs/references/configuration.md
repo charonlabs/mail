@@ -91,6 +91,7 @@ print them for you to export.
 | `MAIL_TOKEN` | all authenticated commands | Bearer access token. Not used by `ping` or `login`. |
 | `MAIL_ADDRESS` | `login` | Address for the password grant. |
 | `MAIL_PASSWORD` | `login` | Password for the password grant. |
+| `MAIL_SCOPES` | `login` | Optional space-delimited daemon OAuth scopes; empty for other principals. |
 | `MAIL_REFRESH_TOKEN` | `refresh` | Refresh token sent to `POST /auth/refresh` (rotated server-side). |
 
 CLI flag: `-o`/`--output` selects output format — `text` (default), `json`
@@ -106,6 +107,9 @@ Required environment variables (raise `ValueError` at startup if unset):
 | `MAIL_SERVER` | Target server URL (also health-checked at startup). |
 | `MAIL_ADDRESS` | Daemon login address. |
 | `MAIL_PASSWORD` | Daemon login password. |
+
+`mail-daemon` always requests `deliver:local` when authenticating. Its daemon
+record must be assigned that scope.
 
 CLI flags: `-llf`/`--log-level-file` and `-llc`/`--log-level-console` (both
 default `info`; choices `debug|info|warning|error|critical`), plus `--license`.
