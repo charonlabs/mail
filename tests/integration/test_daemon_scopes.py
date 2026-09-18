@@ -62,6 +62,10 @@ def _create_draft(client: TestClient, token: str) -> str:
     return response.json()["entry"]["draft"]["draft_id"]
 
 
+def _enable_remote_sends(client: TestClient) -> None:
+    client.app.state.federation.config = object()
+
+
 def test_login_grants_assigned_scope_and_carries_it_in_jwt(
     app_client: TestClient,
 ) -> None:
@@ -150,6 +154,8 @@ def test_daemon_send_authorization_matrix(
     assert login.status_code == 200, login.text
     token = login.json()["access_token"]
     draft_id = _create_draft(app_client, token)
+    if expected == 200 and recipient.endswith("@remote.example"):
+        _enable_remote_sends(app_client)
     response = app_client.post(
         f"/drafts/{draft_id}/send",
         json={"recipients": [recipient]},
@@ -164,6 +170,7 @@ def test_non_daemon_remote_send_keeps_ordinary_authority(
     login = _login(app_client, USER)
     token = login.json()["access_token"]
     draft_id = _create_draft(app_client, token)
+    _enable_remote_sends(app_client)
     response = app_client.post(
         f"/drafts/{draft_id}/send",
         json={"recipients": ["user:bob@remote.example"]},
@@ -184,9 +191,32 @@ def test_any_remote_recipient_selects_federate_scope(
     login = _login(app_client, address, password=password, scope="deliver:federate")
     token = login.json()["access_token"]
     draft_id = _create_draft(app_client, token)
+    _enable_remote_sends(app_client)
     response = app_client.post(
         f"/drafts/{draft_id}/send",
         json={"recipients": ["user:bob@localhost", "user:bob@remote.example"]},
         headers=_bearer(token),
     )
     assert response.status_code == 200, response.text
+
+
+def test_disabled_federation_rejects_new_remote_send_but_allows_local(
+    app_client: TestClient,
+) -> None:
+    login = _login(app_client, USER)
+    token = login.json()["access_token"]
+    remote_draft = _create_draft(app_client, token)
+    remote = app_client.post(
+        f"/drafts/{remote_draft}/send",
+        json={"recipients": ["user:bob@remote.example"]},
+        headers=_bearer(token),
+    )
+    local_draft = _create_draft(app_client, token)
+    local = app_client.post(
+        f"/drafts/{local_draft}/send",
+        json={"recipients": ["user:bob@localhost"]},
+        headers=_bearer(token),
+    )
+
+    assert remote.status_code == 503
+    assert local.status_code == 200

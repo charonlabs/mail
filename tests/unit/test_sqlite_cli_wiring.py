@@ -63,6 +63,7 @@ def test_run_server_constructs_sqlite_backend(
     # Stub out the blocking calls so run_server just performs backend selection.
     monkeypatch.setattr(server_module, "init_logger", lambda: None)
     monkeypatch.setattr(server_module.uvicorn, "run", lambda *a, **k: None)
+    monkeypatch.setattr(server_module, "_settings", None)
 
     args = Namespace(
         backend="sqlite",
@@ -74,3 +75,5 @@ def test_run_server_constructs_sqlite_backend(
     server_module.run_server(args)
 
     assert isinstance(server_module._backend, SQLiteBackend)
+    assert server_module._settings is not None
+    assert server_module._settings.local_host == "localhost"

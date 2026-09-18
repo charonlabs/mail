@@ -131,6 +131,12 @@ generate another DSN if their own delivery fails. Emission is idempotent per
 original message and failed recipient and limited to 100 per sender per rolling
 hour by default.
 
+Federation is disabled by default. While disabled, new sends containing remote
+recipients fail synchronously with `503`; local-only sends and local daemon
+delivery continue. The manifest and signed ingress route are unavailable and the
+outbound worker is stopped, but queued and dead-letter records are retained so an
+operator can inspect them or resume processing after re-enabling federation.
+
 ## Pre-send versus post-send errors
 
 MAIL draws a sharp line between failures that happen *before* a message is
@@ -173,6 +179,7 @@ durable and getting it delivered is the daemon's responsibility.
 
 - [Build a Minimal HTTP Client](../tutorials/build-minimal-http-client.md) — performs the draft → send half over raw HTTP.
 - [Run the MAIL Daemon](../howtos/run-daemon.md) — running the daemon that does the carrying.
+- [Enable Federation](../howtos/enable-federation.md) — signed delivery between servers, key rotation, and recovery.
 - [Addressing Model](addressing-model.md) — how recipients are named.
 - [Daemon CLI](../references/daemon-cli.md) and [HTTP API](../references/http-api.md) — the daemon commands and `/daemon` endpoints.
 

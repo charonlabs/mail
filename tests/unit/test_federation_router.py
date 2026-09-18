@@ -26,6 +26,7 @@ from mail_server.federation.config import (
     FederationConfig,
     FederationConfigurationError,
     FederationRuntime,
+    ServerSettings,
 )
 from mail_server.federation.discovery import ResolvedFederationKey
 from mail_server.federation.keys import FederationPrivateKey
@@ -120,6 +121,10 @@ def test_enabled_configuration_loads_key_and_fails_on_host_mismatch(
         "MAIL_FEDERATION_KEY_ID": "active",
         "MAIL_FEDERATION_PRIVATE_KEY_FILE": str(key_path),
         "MAIL_FEDERATION_POLICY": "open",
+        "MAIL_FEDERATION_DISCOVERY_CONNECT_TIMEOUT_SECONDS": "1.5",
+        "MAIL_FEDERATION_DISCOVERY_READ_TIMEOUT_SECONDS": "2.5",
+        "MAIL_FEDERATION_DISCOVERY_TOTAL_TIMEOUT_SECONDS": "7",
+        "MAIL_FEDERATION_DISCOVERY_MAX_RESPONSE_BYTES": "1234",
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
@@ -132,12 +137,94 @@ def test_enabled_configuration_loads_key_and_fails_on_host_mismatch(
     assert config.retry_after_cap_seconds == 86400
     assert config.bounce_worker_name == "bounces"
     assert config.bounce_rate_limit == 100
+    runtime = FederationRuntime.from_config(config)
+    assert runtime.discovery is not None
+    assert runtime.discovery.connect_timeout_seconds == 1.5
+    assert runtime.discovery.read_timeout_seconds == 2.5
+    assert runtime.discovery.total_timeout_seconds == 7
+    assert runtime.discovery.max_response_bytes == 1234
+    asyncio.run(runtime.aclose())
     monkeypatch.setenv("MAIL_FEDERATION_WORKER_LEASE_SECONDS", "10")
     with pytest.raises(FederationConfigurationError, match="lease must exceed"):
         FederationConfig.from_env()
     monkeypatch.delenv("MAIL_FEDERATION_WORKER_LEASE_SECONDS")
     with pytest.raises(FederationConfigurationError, match="must match"):
         FederationRuntime.from_env(local_host="wrong.example.com")
+
+
+def test_server_settings_validate_identity_when_federation_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAIL_HOST", "Example.COM")
+    monkeypatch.setenv("MAIL_FEDERATION_ENABLED", "false")
+
+    settings = ServerSettings.from_env()
+
+    assert settings.local_host == "example.com"
+    assert settings.federation is None
+
+
+def test_overlap_public_keys_load_from_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    active = Ed25519PrivateKey.generate()
+    key_path = tmp_path / "active.pem"
+    key_path.write_bytes(
+        active.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    key_path.chmod(0o600)
+    overlap = _signing_key().manifest_key().model_copy(update={"key_id": "old"})
+    overlap_path = tmp_path / "overlap.json"
+    overlap_path.write_text(f"[{overlap.model_dump_json()}]", encoding="utf-8")
+    values = {
+        "MAIL_FEDERATION_ENABLED": "true",
+        "MAIL_FEDERATION_PUBLIC_HOST": LOCAL_HOST,
+        "MAIL_FEDERATION_DELIVERY_URL": DELIVERY_URL,
+        "MAIL_FEDERATION_KEY_ID": "active",
+        "MAIL_FEDERATION_PRIVATE_KEY_FILE": str(key_path),
+        "MAIL_FEDERATION_POLICY": "open",
+        "MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS_FILE": str(overlap_path),
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+    config = FederationConfig.from_env()
+
+    assert config is not None
+    assert config.public_keys[1] == overlap
+
+
+def test_configuration_rejects_nonfinite_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = Ed25519PrivateKey.generate()
+    key_path = tmp_path / "active.pem"
+    key_path.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    key_path.chmod(0o600)
+    values = {
+        "MAIL_FEDERATION_ENABLED": "true",
+        "MAIL_FEDERATION_PUBLIC_HOST": LOCAL_HOST,
+        "MAIL_FEDERATION_DELIVERY_URL": DELIVERY_URL,
+        "MAIL_FEDERATION_KEY_ID": "active",
+        "MAIL_FEDERATION_PRIVATE_KEY_FILE": str(key_path),
+        "MAIL_FEDERATION_POLICY": "open",
+        "MAIL_FEDERATION_TOTAL_TIMEOUT_SECONDS": "nan",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+
+    with pytest.raises(FederationConfigurationError, match="finite number"):
+        FederationConfig.from_env()
 
 
 def test_disabled_federation_publishes_nothing() -> None:

@@ -111,6 +111,60 @@ def load_federation_private_key(
     )
 
 
+def generate_federation_private_key(
+    path: str | Path, *, key_id: str
+) -> FederationPrivateKey:
+    """Create a new permission-restricted Ed25519 PEM without overwriting."""
+
+    key_path = Path(path)
+    private_key = Ed25519PrivateKey.generate()
+    public_key_base64 = _public_key_base64(private_key.public_key())
+    try:
+        MAILFederationPublicKey(
+            key_id=key_id,
+            algorithm="ed25519",
+            public_key=public_key_base64,
+        )
+    except ValueError as exc:
+        raise FederationKeyError("invalid federation key ID") from exc
+
+    pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    created = False
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(
+            key_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        created = True
+        if os.name == "posix":
+            os.fchmod(descriptor, 0o600)
+        key_file = os.fdopen(descriptor, "wb")
+        descriptor = None
+        with key_file:
+            key_file.write(pem)
+            key_file.flush()
+            os.fsync(key_file.fileno())
+    except FileExistsError as exc:
+        raise FederationKeyError(
+            "federation private key file already exists; refusing to overwrite"
+        ) from exc
+    except OSError as exc:
+        if created:
+            key_path.unlink(missing_ok=True)
+        raise FederationKeyError("could not create federation private key") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+    return load_federation_private_key(key_path, key_id=key_id)
+
+
 def public_key_from_manifest(key: MAILFederationPublicKey) -> Ed25519PublicKey:
     """Convert a validated discovery key to a cryptography public key."""
 

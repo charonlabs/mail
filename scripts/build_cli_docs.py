@@ -26,6 +26,12 @@ CLIS = [
     ("admin-cli.md", "Admin CLI", "mail_client.admin_panel", "mail-admin"),
     ("server-cli.md", "Server CLI", "mail_server.cli", "mail-server"),
     ("daemon-cli.md", "Daemon CLI", "mail_daemon.cli", "mail-daemon"),
+    (
+        "federation-key-cli.md",
+        "Federation Key CLI",
+        "mail_server.federation.key_cli",
+        "mail-federation-key",
+    ),
 ]
 
 BANNER = (

@@ -25,6 +25,8 @@ shared, standard way to talk. See [What is MAIL?](docs/explanations/mail-v2-over
   clients are just authenticated user-agents.
 - **Pluggable storage** — an in-memory backend for development and a
   transactional SQLite backend for durability.
+- **Signed federation** — durable inter-server delivery over HTTPS with Ed25519
+  HTTP Message Signatures, retries, deduplication, and delivery-status notices.
 - **Batteries included** — a CLI client (`mail`), an admin CLI (`mail-admin`), a
   delivery daemon, and webhook delivery for push notifications.
 
@@ -34,7 +36,7 @@ MAIL ships as five lockstep packages on PyPI under `mail-swarms-*`. Install the
 components you need:
 
 ```bash
-pip install mail-swarms-server   # the FastAPI server + backend-init
+pip install mail-swarms-server   # server + backend-init + mail-federation-key
 pip install mail-swarms-client   # the `mail` and `mail-admin` CLIs
 pip install mail-swarms-daemon   # the delivery daemon
 ```
@@ -84,7 +86,7 @@ The full walkthrough — including where the generated credentials live — is i
 | Package | Directory | Provides |
 | --- | --- | --- |
 | [`mail-swarms-protocol`](https://pypi.org/project/mail-swarms-protocol/) | `src/mail/protocol` | Shared protocol types, constants, and validators |
-| [`mail-swarms-server`](https://pypi.org/project/mail-swarms-server/) | `src/mail/server` | FastAPI server, storage backends, `backend-init` |
+| [`mail-swarms-server`](https://pypi.org/project/mail-swarms-server/) | `src/mail/server` | FastAPI server, storage backends, `backend-init`, federation key CLI |
 | [`mail-swarms-client`](https://pypi.org/project/mail-swarms-client/) | `src/mail/client` | `mail` and `mail-admin` CLIs |
 | [`mail-swarms-daemon`](https://pypi.org/project/mail-swarms-daemon/) | `src/mail/daemon` | The delivery daemon (`mail-daemon`) |
 
@@ -99,6 +101,7 @@ Full docs live in [`docs/`](docs/README.md), organized by the
   [Build a Webhook Receiver](docs/tutorials/build-webhook-receiver.md)
 - **How-to guides** — [running the server](docs/howtos/run-server.md),
   [daemon](docs/howtos/run-daemon.md), [authentication](docs/howtos/authenticate-user-agent.md),
+  [federation](docs/howtos/enable-federation.md),
   [sending messages](docs/howtos/send-message-cli.md),
   [swarms](docs/howtos/manage-swarms.md),
   [mailing lists](docs/howtos/manage-mailing-lists.md),

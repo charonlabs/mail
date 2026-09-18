@@ -19,7 +19,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = make_arg_parser(
         prog="mail-daemon",
         usage="mail-daemon [option]...",
-        description="Multi-Agent Interface Layer (MAIL) daemon implementation in Python",
+        description=(
+            "MAIL local-delivery daemon. Signed federation transport is owned by "
+            "mail-server, not this process."
+        ),
         examples=EXAMPLES,
     )
     parser.add_argument(

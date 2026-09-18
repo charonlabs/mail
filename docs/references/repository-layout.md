@@ -34,12 +34,12 @@ in lockstep under the `mail-swarms-*` names.
 | Directory | Package name | Import root | Console scripts |
 | --- | --- | --- | --- |
 | `src/mail/protocol/` | `mail-swarms-protocol` | `mail_protocol` | `mail-protocol` |
-| `src/mail/server/` | `mail-swarms-server` | `mail_server` | `mail-server`, `backend-init` |
+| `src/mail/server/` | `mail-swarms-server` | `mail_server` | `mail-server`, `backend-init`, `mail-federation-key` |
 | `src/mail/client/` | `mail-swarms-client` | `mail_client` | `mail`, `mail-admin` |
 | `src/mail/daemon/` | `mail-swarms-daemon` | `mail_daemon` | `mail-daemon` |
 
-The root `pyproject.toml` also exposes `mail` and `mail-server` so a workspace
-checkout can run them directly (`uv run mail …`, `uv run mail-server`).
+The root `pyproject.toml` also exposes `mail`, `mail-server`, and
+`mail-federation-key` so a workspace checkout can run them directly.
 
 ### `protocol` — shared types and constants
 
@@ -61,9 +61,10 @@ import its models. See [Data Models](data-models.md).
 ```text
 src/mail_server/
 ├── server.py         # app assembly + root/health endpoints + backend selection
-├── routers/          # one router per area: auth, swarms, inbox, outbox,
-│                     #   drafts, trash, daemon, admin, lists
+├── routers/          # one router per area: auth, boxes, daemon, federation,
+│                     #   admin, lists
 ├── backends/         # storage: base.py (contract), memory/, sqlite/
+├── federation/       # config, keys, signatures, discovery, policy, worker, DSNs
 ├── backend_init.py   # the `backend-init` entry point
 ├── auth.py           # token issuance, refresh tokens, role checks
 ├── validators.py, utils.py, logging.py, cli.py

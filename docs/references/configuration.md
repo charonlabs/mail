@@ -11,8 +11,9 @@ packages, with defaults and whether each is required. Default host/port come fro
 
 ### Required environment variables
 
-These are read at import/startup — the server process fails to boot (raising
-`RuntimeError`) if any is unset.
+These are validated before the server begins accepting traffic. `MAIL_HOST` and
+all federation values are assembled into one lifespan settings object; JWT and
+cookie settings are loaded by the authentication module.
 
 | Variable | Effect |
 | --- | --- |
@@ -44,9 +45,14 @@ below and fails closed if they are missing or inconsistent.
 | `MAIL_FEDERATION_PRIVATE_KEY_FILE` | required | Permission-restricted unencrypted PEM Ed25519 private key. |
 | `MAIL_FEDERATION_PUBLIC_KEY` | unset | Optional expected base64 public value; startup verifies it against the private key. |
 | `MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS` | `[]` | JSON array of additional public-key objects advertised during rotation. |
+| `MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS_FILE` | unset | File containing that JSON array; mutually exclusive with the inline variable. |
 | `MAIL_FEDERATION_POLICY` | required | `open`, `allowlist`, or `closed`. |
 | `MAIL_FEDERATION_ALLOWLIST` | empty | Comma-separated origin hosts; required by `allowlist` policy. |
 | `MAIL_FEDERATION_DISCOVERY_TTL_SECONDS` | `600` | Manifest/discovery cache lifetime; must be 300–900 seconds. |
+| `MAIL_FEDERATION_DISCOVERY_CONNECT_TIMEOUT_SECONDS` | `3` | HTTPS discovery connection timeout. |
+| `MAIL_FEDERATION_DISCOVERY_READ_TIMEOUT_SECONDS` | `5` | HTTPS discovery read/write timeout. |
+| `MAIL_FEDERATION_DISCOVERY_TOTAL_TIMEOUT_SECONDS` | `8` | Overall discovery timeout. |
+| `MAIL_FEDERATION_DISCOVERY_MAX_RESPONSE_BYTES` | `65536` | Maximum discovery manifest response size. |
 | `MAIL_FEDERATION_MAX_REQUEST_BYTES` | `1048576` | Maximum signed ingress body size. |
 | `MAIL_FEDERATION_CONNECT_TIMEOUT_SECONDS` | `3` | Outbound peer connection timeout. |
 | `MAIL_FEDERATION_READ_TIMEOUT_SECONDS` | `5` | Outbound peer read/write timeout. |
@@ -60,6 +66,10 @@ below and fails closed if they are missing or inconsistent.
 | `MAIL_FEDERATION_BOUNCE_RATE_LIMIT` | `100` | Maximum emitted DSNs per original sender in a rolling hour. |
 | `MAIL_FEDERATION_ALLOW_PRIVATE_HOSTS` | `false` | Test-only override for IP/single-label/private peers. |
 | `MAIL_FEDERATION_ALLOW_INSECURE_TRANSPORT` | `false` | Test-only ASGI override; advertised delivery remains HTTPS. |
+
+The CLI `--host` is the socket bind address and is independent of `MAIL_HOST`.
+For example, bind to `127.0.0.1` behind a proxy while `MAIL_HOST` and
+`MAIL_FEDERATION_PUBLIC_HOST` both identify `mail-a.example.com`.
 
 ### CLI flags
 

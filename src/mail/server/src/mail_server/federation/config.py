@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 import os
 from dataclasses import dataclass
 from datetime import timedelta
@@ -75,9 +76,12 @@ def _float(name: str, *, default: float) -> float:
     if raw is None:
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError as exc:
         raise FederationConfigurationError(f"{name} must be a number") from exc
+    if not math.isfinite(value):
+        raise FederationConfigurationError(f"{name} must be a finite number")
+    return value
 
 
 def _required(name: str) -> str:
@@ -115,6 +119,19 @@ def _normalize_host(value: str, *, allow_private_hosts: bool) -> str:
 
 def _overlap_public_keys() -> tuple[MAILFederationPublicKey, ...]:
     raw = os.getenv("MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS")
+    file_name = os.getenv("MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS_FILE")
+    if raw and raw.strip() and file_name and file_name.strip():
+        raise FederationConfigurationError(
+            "set only one of MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS and "
+            "MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS_FILE"
+        )
+    if file_name and file_name.strip():
+        try:
+            raw = Path(file_name.strip()).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise FederationConfigurationError(
+                "MAIL_FEDERATION_OVERLAP_PUBLIC_KEYS_FILE is not readable"
+            ) from exc
     if raw is None or not raw.strip():
         return ()
     try:
@@ -144,6 +161,10 @@ class FederationConfig:
     outbound_read_timeout_seconds: float = 5.0
     outbound_total_timeout_seconds: float = 10.0
     outbound_response_max_bytes: int = 64 * 1024
+    discovery_connect_timeout_seconds: float = 3.0
+    discovery_read_timeout_seconds: float = 5.0
+    discovery_total_timeout_seconds: float = DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS
+    discovery_response_max_bytes: int = 64 * 1024
     worker_poll_interval_seconds: float = 1.0
     worker_batch_size: int = 20
     worker_lease_seconds: float = 30.0
@@ -237,6 +258,19 @@ class FederationConfig:
         response_max_bytes = _integer(
             "MAIL_FEDERATION_MAX_RESPONSE_BYTES", default=64 * 1024
         )
+        discovery_connect_timeout = _float(
+            "MAIL_FEDERATION_DISCOVERY_CONNECT_TIMEOUT_SECONDS", default=3.0
+        )
+        discovery_read_timeout = _float(
+            "MAIL_FEDERATION_DISCOVERY_READ_TIMEOUT_SECONDS", default=5.0
+        )
+        discovery_total_timeout = _float(
+            "MAIL_FEDERATION_DISCOVERY_TOTAL_TIMEOUT_SECONDS",
+            default=DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS,
+        )
+        discovery_response_max_bytes = _integer(
+            "MAIL_FEDERATION_DISCOVERY_MAX_RESPONSE_BYTES", default=64 * 1024
+        )
         poll_interval = _float("MAIL_FEDERATION_WORKER_POLL_SECONDS", default=1.0)
         batch_size = _integer("MAIL_FEDERATION_WORKER_BATCH_SIZE", default=20)
         lease_seconds = _float("MAIL_FEDERATION_WORKER_LEASE_SECONDS", default=30.0)
@@ -253,16 +287,30 @@ class FederationConfig:
                 "MAIL_FEDERATION_BOUNCE_DAEMON must be a valid daemon worker name"
             ) from exc
         bounce_rate_limit = _integer("MAIL_FEDERATION_BOUNCE_RATE_LIMIT", default=100)
-        if min(connect_timeout, read_timeout, total_timeout) <= 0:
-            raise FederationConfigurationError(
-                "federation outbound timeouts must be positive"
+        if (
+            min(
+                connect_timeout,
+                read_timeout,
+                total_timeout,
+                discovery_connect_timeout,
+                discovery_read_timeout,
+                discovery_total_timeout,
             )
-        if response_max_bytes <= 0 or poll_interval <= 0 or batch_size <= 0:
+            <= 0
+        ):
             raise FederationConfigurationError(
-                "federation response limit, poll interval, and batch size "
-                "must be positive"
+                "federation discovery and outbound timeouts must be positive"
             )
-        if lease_seconds <= total_timeout + DEFAULT_DISCOVERY_TOTAL_TIMEOUT_SECONDS:
+        if (
+            response_max_bytes <= 0
+            or discovery_response_max_bytes <= 0
+            or poll_interval <= 0
+            or batch_size <= 0
+        ):
+            raise FederationConfigurationError(
+                "federation response limits, poll interval, and batch size must be positive"
+            )
+        if lease_seconds <= total_timeout + discovery_total_timeout:
             raise FederationConfigurationError(
                 "federation worker lease must exceed discovery plus the outbound "
                 "total timeout"
@@ -302,6 +350,10 @@ class FederationConfig:
             outbound_read_timeout_seconds=read_timeout,
             outbound_total_timeout_seconds=total_timeout,
             outbound_response_max_bytes=response_max_bytes,
+            discovery_connect_timeout_seconds=discovery_connect_timeout,
+            discovery_read_timeout_seconds=discovery_read_timeout,
+            discovery_total_timeout_seconds=discovery_total_timeout,
+            discovery_response_max_bytes=discovery_response_max_bytes,
             worker_poll_interval_seconds=poll_interval,
             worker_batch_size=batch_size,
             worker_lease_seconds=lease_seconds,
@@ -329,10 +381,22 @@ class FederationRuntime:
             raise FederationConfigurationError(
                 "MAIL_FEDERATION_PUBLIC_HOST must match the server's MAIL_HOST"
             )
+        return cls.from_config(config)
+
+    @classmethod
+    def from_config(cls, config: FederationConfig | None) -> FederationRuntime:
+        """Build lifespan services from already-validated configuration."""
+
+        if config is None:
+            return cls(config=None, discovery=None)
         return cls(
             config=config,
             discovery=FederationDiscoveryClient(
                 ttl_seconds=config.discovery_ttl_seconds,
+                connect_timeout_seconds=config.discovery_connect_timeout_seconds,
+                read_timeout_seconds=config.discovery_read_timeout_seconds,
+                total_timeout_seconds=config.discovery_total_timeout_seconds,
+                max_response_bytes=config.discovery_response_max_bytes,
                 allow_private_hosts=config.allow_private_hosts,
             ),
         )
@@ -405,3 +469,29 @@ class FederationRuntime:
             self.transport = None
         if self.discovery is not None:
             await self.discovery.aclose()
+
+
+@dataclass(frozen=True, slots=True)
+class ServerSettings:
+    """Validated server identity and optional federation configuration."""
+
+    local_host: str
+    federation: FederationConfig | None
+
+    @classmethod
+    def from_env(cls) -> ServerSettings:
+        raw_host = os.getenv("MAIL_HOST")
+        if raw_host is None or not raw_host.strip():
+            raise FederationConfigurationError("MAIL_HOST is required")
+        raw_host = raw_host.strip()
+        try:
+            validate_host(raw_host)
+            local_host = raw_host.encode("idna").decode("ascii").lower()
+        except (UnicodeError, ValueError) as exc:
+            raise FederationConfigurationError("MAIL_HOST is invalid") from exc
+        federation = FederationConfig.from_env()
+        if federation is not None and federation.public_host != local_host:
+            raise FederationConfigurationError(
+                "MAIL_FEDERATION_PUBLIC_HOST must match the server's MAIL_HOST"
+            )
+        return cls(local_host=local_host, federation=federation)

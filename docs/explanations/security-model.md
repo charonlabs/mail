@@ -84,10 +84,21 @@ those clients rather than broadening their token implicitly.
 - Serve over **TLS**; keep `MAIL_COOKIE_SECURE` on so refresh cookies are
   HTTPS-only.
 - Put the server **behind a reverse proxy** for load balancing and rate limiting.
+- Keep the federation Ed25519 private key readable only by the server account;
+  `mail-federation-key generate` creates it with mode `0600` and refuses to
+  overwrite an existing file. Rotate by advertising the old public key beside
+  the new active key for at least one discovery-cache window.
+- Configure the proxy so the application observes the externally signed target
+  URI and authority exactly, and so it receives the original request bytes.
+  Rewriting the host, path, query, or body invalidates the RFC 9421 signature.
+- Public federation is HTTPS-only. Plaintext delivery and private-network peers
+  are available only behind explicit test-only overrides and are unsupported in
+  production.
 - Rotate user-agent passwords periodically (SPEC §9.4).
 
 ## Related pages
 
 - [Authenticate a User-Agent](../howtos/authenticate-user-agent.md)
+- [Enable Federation](../howtos/enable-federation.md)
 - [Configuration](../references/configuration.md)
 - [Protocol Specification](../references/protocol-specification.md)
