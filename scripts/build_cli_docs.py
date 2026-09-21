@@ -26,6 +26,12 @@ CLIS = [
     ("admin-cli.md", "Admin CLI", "mail_client.admin_panel", "mail-admin"),
     ("server-cli.md", "Server CLI", "mail_server.cli", "mail-server"),
     ("daemon-cli.md", "Daemon CLI", "mail_daemon.cli", "mail-daemon"),
+    (
+        "federation-key-cli.md",
+        "Federation Key CLI",
+        "mail_server.federation.key_cli",
+        "mail-federation-key",
+    ),
 ]
 
 BANNER = (
@@ -149,8 +155,10 @@ def render_page(title: str, module_path: str, script: str) -> str:
     if description:
         lines.append(description)
         lines.append("")
-    lines.append(f"Invoke as `{script}` (or `uv run {script}` from a workspace "
-                 f"checkout). Source: `{module_path.replace('.', '/')}.py`.")
+    lines.append(
+        f"Invoke as `{script}` (or `uv run {script}` from a workspace "
+        f"checkout). Source: `{module_path.replace('.', '/')}.py`."
+    )
     lines.append("")
 
     sub_action = _subparsers_action(parser)

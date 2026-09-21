@@ -85,9 +85,11 @@ Actions must return a string. Two common patterns:
 from pydantic import BaseModel, Field
 from mail import action
 
+
 class AddArgs(BaseModel):
     a: int = Field(description="First number")
     b: int = Field(description="Second number")
+
 
 @action(name="add", description="Add two numbers")
 async def add(args: AddArgs) -> str:
@@ -101,11 +103,14 @@ from functools import partial
 from pydantic import BaseModel, Field
 from mail import MAILAction
 
+
 class SelectSpeakerArgs(BaseModel):
     player_name: str = Field(description="The player to speak next")
 
+
 async def select_speaker(game, payload: dict) -> str:
     return game.select_speaker(payload["player_name"])
+
 
 select_speaker_action = MAILAction.from_pydantic_model(
     model=SelectSpeakerArgs,
@@ -323,13 +328,16 @@ When a breakpoint tool is called, the response has this structure:
 
 ```python
 response["message"]["subject"] == "::breakpoint_tool_call::"
-response["message"]["body"] == '[{"arguments": "{...}", "name": "tool_name", "id": "call_..."}]'
+response["message"][
+    "body"
+] == '[{"arguments": "{...}", "name": "tool_name", "id": "call_..."}]'
 ```
 
 Tool calls are standardized to OpenAI/LiteLLM format. To extract:
 
 ```python
 import json
+
 
 def parse_breakpoint_args(response: dict, tool_name: str) -> dict | None:
     message = response.get("message", {})

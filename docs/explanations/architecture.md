@@ -17,6 +17,11 @@ all three depend on. This page explains how they fit; for the file-level map see
         │ mail-admin) │                     │  routes + auth +     │
         └─────────────┘                     │  backend (state)     │
                                             └──────────┬───────────┘
+                                                       │ signed HTTPS
+                                                       ▼
+                                            ┌──────────────────────┐
+                                            │ federated MAIL peer │
+                                            └──────────────────────┘
         ┌─────────────┐   poll + deliver               │
         │   daemon    │  ◀─────────────────────────────┘
         │(mail-daemon)│   HTTP (/daemon/*)
@@ -66,6 +71,13 @@ backend (durable). Swapping storage never changes the HTTP contract. See
 
 This split — server as system of record, daemon as courier — is what lets
 delivery status be reported honestly ("sent" vs "delivered by `daemon:…`").
+
+For remote recipients, the server groups addresses by destination host and owns
+the durable Federation v1 worker itself, keeping Ed25519 keys out of the external
+daemon. It discovers peer manifests over HTTPS, signs each attempt, persists
+leases/retries, and emits a local DSN on terminal failure. An accepting peer
+commits the signed envelope to its normal local-delivery buffer before returning
+`202`. See [Enable and Operate Federation](../howtos/enable-federation.md).
 
 ## Cross-package alignment
 

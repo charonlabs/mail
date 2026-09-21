@@ -150,7 +150,6 @@ async def calculate_statistics(args: dict[str, Any]) -> str:
 
     # Pre-calculate common values
     mean = _calculate_mean(values)
-    sorted_vals = sorted(values)
 
     for metric in metrics:
         if metric not in AVAILABLE_METRICS:

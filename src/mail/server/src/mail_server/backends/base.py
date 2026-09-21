@@ -7,7 +7,8 @@ import hmac
 import logging
 import time
 from abc import abstractmethod
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -47,6 +48,14 @@ from mail_protocol.network.requests import (
     DraftSendPostRequest,
 )
 from mail_protocol.network.webhooks import WebhookDeliveredPostRequest
+
+from mail_server.federation.records import (
+    BounceDelivery,
+    BounceEmission,
+    InboundFederationReceipt,
+    MessageDeliveryTarget,
+    OutboundFederationDelivery,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -432,6 +441,168 @@ class MAILServerBackend(Protocol):
         """
         Deliver MAIL message(s) to local agents sent by remote agents.
         """
+
+        pass
+
+    #
+    # Durable federation state (server worker / signed ingress)
+    #
+    @abstractmethod
+    async def get_message_delivery_targets(
+        self, message_id: str
+    ) -> list[MessageDeliveryTarget]:
+        """Return every internal destination target for a canonical message."""
+
+        pass
+
+    @abstractmethod
+    async def get_outbound_federation_deliveries(
+        self, message_id: str
+    ) -> list[OutboundFederationDelivery]:
+        """Return the remote envelopes created for a canonical message."""
+
+        pass
+
+    @abstractmethod
+    async def claim_due_federation_deliveries(
+        self,
+        *,
+        now: datetime,
+        lease_owner: str,
+        lease_duration: timedelta,
+        limit: int,
+    ) -> list[OutboundFederationDelivery]:
+        """Atomically lease a bounded batch of due or abandoned envelopes."""
+
+        pass
+
+    @abstractmethod
+    async def count_active_federation_deliveries(self) -> int:
+        """Count pending and currently leased outbound envelopes."""
+
+        pass
+
+    @abstractmethod
+    async def record_federation_attempt(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        attempted_at: datetime,
+        next_attempt_at: datetime,
+        http_status: int | None = None,
+        error: str | None = None,
+        peer_reached: bool = False,
+    ) -> OutboundFederationDelivery:
+        """Record one failed/retryable attempt and release its lease."""
+
+        pass
+
+    @abstractmethod
+    async def complete_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        delivered_by: str | None = None,
+        http_status: int | None = None,
+    ) -> OutboundFederationDelivery:
+        """Mark an envelope/target successful and update aggregate outbox state."""
+
+        pass
+
+    @abstractmethod
+    async def fail_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        failure_code: str,
+        http_status: int | None = None,
+        error: str | None = None,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
+    ) -> OutboundFederationDelivery:
+        """Dead-letter an envelope and leave aggregate delivered_at unset."""
+
+        pass
+
+    @abstractmethod
+    async def partition_federation_delivery(
+        self,
+        envelope_id: str,
+        *,
+        lease_owner: str,
+        completed_at: datetime,
+        failure_code: str,
+        http_status: int,
+        error: str,
+        replacement_target: MessageDeliveryTarget,
+        replacement_delivery: OutboundFederationDelivery,
+        bounces: Sequence[BounceDelivery] = (),
+        bounce_rate_limit: int = 100,
+        bounce_rate_window: timedelta = timedelta(hours=1),
+    ) -> OutboundFederationDelivery:
+        """Dead-letter one envelope and atomically queue its accepted remainder."""
+
+        pass
+
+    @abstractmethod
+    async def accept_inbound_federation(
+        self,
+        receipt: InboundFederationReceipt,
+        message: MAILMessage,
+    ) -> bool:
+        """Atomically reserve a receipt, store the message, and enqueue locally."""
+
+        pass
+
+    @abstractmethod
+    async def has_inbound_federation_receipt(self, envelope_id: str) -> bool:
+        """Return whether an unexpired inbound replay key currently exists."""
+
+        pass
+
+    @abstractmethod
+    async def purge_expired_federation_receipts(self, *, now: datetime) -> int:
+        """Remove replay records whose retention window has elapsed."""
+
+        pass
+
+    @abstractmethod
+    async def record_bounce_emission(self, emission: BounceEmission) -> None:
+        """Persist one bounce outcome for idempotency/auditing and rate counts."""
+
+        pass
+
+    @abstractmethod
+    async def get_bounce_emissions(
+        self, original_message_id: str
+    ) -> list[BounceEmission]:
+        """Return bounce outcomes for one original message."""
+
+        pass
+
+    @abstractmethod
+    async def configure_bounce_delivery(
+        self,
+        *,
+        emitter: MAILDaemon,
+        rate_limit: int,
+        rate_window: timedelta = timedelta(hours=1),
+    ) -> None:
+        """Install validated local bounce settings for local delivery failures."""
+
+        pass
+
+    @abstractmethod
+    async def count_bounce_emissions_since(
+        self, original_sender: str, *, since: datetime
+    ) -> int:
+        """Count emitted bounces for a sender at or after ``since``."""
 
         pass
 

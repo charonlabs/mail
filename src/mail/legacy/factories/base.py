@@ -11,16 +11,16 @@ from collections.abc import Awaitable
 from typing import Any, Literal, cast
 
 import anthropic
+import langsmith as ls
+import litellm
+import rich
+import ujson
 from anthropic.types import (
     ContentBlockDeltaEvent,
     ContentBlockStartEvent,
     TextDelta,
     ThinkingDelta,
 )
-import langsmith as ls
-import litellm
-import rich
-import ujson
 from langsmith.wrappers import wrap_anthropic
 from litellm import (
     ResponseFunctionToolCall,
@@ -586,7 +586,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
                     await asyncio.sleep(retries)
 
         if last_error is not None and retries == 0:
-            raise RuntimeError(f"completion failed after 5 retries") from last_error
+            raise RuntimeError("completion failed after 5 retries") from last_error
 
         msg = res.choices[0].message  # type: ignore
         tool_calls: list[AgentToolCall] = []
@@ -1313,7 +1313,7 @@ class LiteLLMAgentFunction(MAILAgentFunction):
 
         if last_error is not None and retries == 0:
             raise RuntimeError(
-                f"responses API call failed after 5 retries"
+                "responses API call failed after 5 retries"
             ) from last_error
 
         # Single-pass collection preserving original order with reasoning attachment

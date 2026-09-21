@@ -111,9 +111,7 @@ def test_admin_post_list_duplicate_returns_409(
 ) -> None:
     headers = headers_for(ADMIN_ADDRESS)
     app_client.post("/admin/lists", json=_make_post_body(), headers=headers)
-    response = app_client.post(
-        "/admin/lists", json=_make_post_body(), headers=headers
-    )
+    response = app_client.post("/admin/lists", json=_make_post_body(), headers=headers)
     assert response.status_code == 409
 
 
@@ -256,9 +254,7 @@ def test_admin_lists_reject_non_admin(
     seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
     _seed_list(seed_list)
-    response = app_client.get(
-        "/admin/lists", headers=headers_for(USER_ADDRESS)
-    )
+    response = app_client.get("/admin/lists", headers=headers_for(USER_ADDRESS))
     assert response.status_code == 401
 
 
@@ -287,16 +283,12 @@ def test_get_list_specific(
     seed_list: Callable[[MAILListInBackend], str],
 ) -> None:
     address = _seed_list(seed_list)
-    response = app_client.get(
-        f"/lists/{address}", headers=headers_for(USER_ADDRESS)
-    )
+    response = app_client.get(f"/lists/{address}", headers=headers_for(USER_ADDRESS))
     assert response.status_code == 200
     assert response.json()["mail_list"]["name"] == "welfare-discourse"
 
 
-def test_get_list_missing_returns_404(
-    app_client: TestClient, headers_for
-) -> None:
+def test_get_list_missing_returns_404(app_client: TestClient, headers_for) -> None:
     response = app_client.get(
         "/lists/nonexistent@chorus",
         headers=headers_for(USER_ADDRESS),

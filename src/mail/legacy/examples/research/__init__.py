@@ -15,15 +15,15 @@ Agents:
 """
 
 from mail.legacy.examples.research.researcher.agent import LiteLLMResearcherFunction
+from mail.legacy.examples.research.searcher.actions import extract_facts, search_topic
 from mail.legacy.examples.research.searcher.agent import LiteLLMSearcherFunction
-from mail.legacy.examples.research.searcher.actions import search_topic, extract_facts
-from mail.legacy.examples.research.verifier.agent import LiteLLMVerifierFunction
-from mail.legacy.examples.research.verifier.actions import verify_claim, rate_confidence
-from mail.legacy.examples.research.summarizer.agent import LiteLLMSummarizerFunction
 from mail.legacy.examples.research.summarizer.actions import (
-    summarize_text,
     create_bibliography,
+    summarize_text,
 )
+from mail.legacy.examples.research.summarizer.agent import LiteLLMSummarizerFunction
+from mail.legacy.examples.research.verifier.actions import rate_confidence, verify_claim
+from mail.legacy.examples.research.verifier.agent import LiteLLMVerifierFunction
 
 __all__ = [
     "LiteLLMResearcherFunction",

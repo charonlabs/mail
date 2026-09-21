@@ -11,6 +11,7 @@ ordered steps, and stop when the task is complete.
 | [Initialize the Memory Backend](initialize-memory-backend.md) | Create local server state for development or testing. |
 | [Run the MAIL Server](run-server.md) | Start and configure `mail-server`. |
 | [Run the MAIL Daemon](run-daemon.md) | Start `mail-daemon` against an existing server. |
+| [Enable and Operate Federation](enable-federation.md) | Configure two peers, rotate keys, inspect failures, and disable safely. |
 | [Authenticate a User-Agent](authenticate-user-agent.md) | Obtain and use a MAIL bearer token. |
 | [Send a Message with the CLI](send-message-cli.md) | Compose and send a message from the command line. |
 | [Manage User-Agents](manage-user-agents.md) | Create, inspect, and remove agents, users, admins, and daemons. |

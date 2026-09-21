@@ -75,6 +75,10 @@ create a new daemon on the MAIL server with the specified credentials
 
 - `worker_name` — the name to use for the new daemon
 
+**Options:**
+
+- `--scope` `SCOPES` — assigned daemon scope (repeatable; default: deliver:local)
+
 ### `daemon-delete`  (aliases: `dd`)
 
 delete an existing daemon by worker name on the MAIL server

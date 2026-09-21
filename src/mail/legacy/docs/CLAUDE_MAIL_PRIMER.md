@@ -28,9 +28,9 @@ A `MAILSwarmTemplate` is a blueprint. Calling `.instantiate()` creates a `MAILSw
 ```python
 from mail import MAILAction, MAILAgentTemplate, MAILSwarmTemplate, action
 from mail.factories import (
-    LiteLLMAgentFunction,        # Base agent (no actions, no task_complete)
+    LiteLLMAgentFunction,  # Base agent (no actions, no task_complete)
     LiteLLMActionAgentFunction,  # Agent with actions (no task_complete)
-    LiteLLMSupervisorFunction,   # Supervisor (has task_complete)
+    LiteLLMSupervisorFunction,  # Supervisor (has task_complete)
 )
 ```
 
@@ -91,13 +91,16 @@ Use when the action is standalone and doesn't need external state.
 from pydantic import BaseModel, Field
 from mail import action
 
+
 class AddNumbersArgs(BaseModel):
     a: int = Field(description="First number")
     b: int = Field(description="Second number")
 
+
 @action(name="add_numbers", description="Add two numbers together")
 async def add_numbers(args: AddNumbersArgs) -> str:
     return str(args.a + args.b)
+
 
 # Use in agent template:
 worker = MAILAgentTemplate(
@@ -118,14 +121,17 @@ from functools import partial
 from pydantic import BaseModel, Field
 from mail import MAILAction
 
+
 class SelectPlayerArgs(BaseModel):
     player_name: str = Field(description="Name of the player to select")
+
 
 async def select_player(game_state, args: dict) -> str:
     """The game_state is captured via partial()."""
     name = args["player_name"]
     game_state.current_player = name
     return f"Selected {name}"
+
 
 # Create action with game state bound
 def get_game_actions(game):
@@ -136,6 +142,7 @@ def get_game_actions(game):
             name="select_player",
         ),
     ]
+
 
 # Usage
 game = GameState()
@@ -166,22 +173,22 @@ The key distinction is **whether the agent can call `task_complete`** (superviso
 
 ```python
 MAILAgentTemplate(
-    name="agent_name",                    # Unique within swarm
-    factory=LiteLLMSupervisorFunction,    # Or LiteLLMAgentFunction
-    comm_targets=["other_agent"],         # Who this agent can message
-    actions=[my_action],                  # List of MAILAction objects
-    agent_params={                        # Passed to factory
+    name="agent_name",  # Unique within swarm
+    factory=LiteLLMSupervisorFunction,  # Or LiteLLMAgentFunction
+    comm_targets=["other_agent"],  # Who this agent can message
+    actions=[my_action],  # List of MAILAction objects
+    agent_params={  # Passed to factory
         "llm": "anthropic/claude-sonnet-4-20250514",
         "system": "System prompt here",
         "use_proxy": False,
-        "stream_tokens": True,            # Stream to terminal
-        "reasoning_effort": "high",       # For extended thinking
-        "default_tool_choice": "auto",    # Tool choice override
+        "stream_tokens": True,  # Stream to terminal
+        "reasoning_effort": "high",  # For extended thinking
+        "default_tool_choice": "auto",  # Tool choice override
     },
-    enable_entrypoint=True,               # Can receive user messages
-    can_complete_tasks=True,              # Can call task_complete
-    tool_format="completions",            # "completions" or "responses"
-    exclude_tools=[],                     # MAIL tools to hide
+    enable_entrypoint=True,  # Can receive user messages
+    can_complete_tasks=True,  # Can call task_complete
+    tool_format="completions",  # "completions" or "responses"
+    exclude_tools=[],  # MAIL tools to hide
 )
 ```
 
@@ -240,9 +247,9 @@ template = MAILSwarmTemplate(
     version="1.0.0",
     agents=[supervisor, researcher, coder],
     actions=[web_search_action, run_code_action],  # All actions used by any agent
-    entrypoint="supervisor",                        # Must have enable_entrypoint=True
-    breakpoint_tools=[],                            # Tools that pause execution
-    exclude_tools=[],                               # MAIL tools to hide from all agents
+    entrypoint="supervisor",  # Must have enable_entrypoint=True
+    breakpoint_tools=[],  # Tools that pause execution
+    exclude_tools=[],  # MAIL tools to hide from all agents
 )
 ```
 
@@ -310,7 +317,7 @@ stream = await swarm.post_message_stream(body="Hello")
 template.start_server(
     port=8000,
     host="0.0.0.0",
-    launch_ui=True,   # Starts Next.js dev server
+    launch_ui=True,  # Starts Next.js dev server
     ui_port=3000,
     open_browser=True,
 )
@@ -342,10 +349,10 @@ await swarm.submit_message_nowait(init_msg)
 # Manually step specific agents
 response = await swarm.manual_step(
     task_id=task_id,
-    target="narrator",                # Agent to invoke
-    response_targets=["all"],         # Who receives the response
-    response_type="broadcast",        # "broadcast", "response", or "request"
-    payload="Describe the scene.",    # Additional context for this step
+    target="narrator",  # Agent to invoke
+    response_targets=["all"],  # Who receives the response
+    response_type="broadcast",  # "broadcast", "response", or "request"
+    payload="Describe the scene.",  # Additional context for this step
 )
 
 # Step another agent
@@ -402,7 +409,7 @@ When a breakpoint tool is called, the response structure looks like this:
 response = {
     "message": {
         "subject": "::breakpoint_tool_call::",  # Indicates breakpoint was hit
-        "body": "[{\"arguments\": \"{\\\"field\\\": \\\"value\\\"}\", \"name\": \"tool_name\", \"id\": \"call_...\"}]"
+        "body": '[{"arguments": "{\\"field\\": \\"value\\"}", "name": "tool_name", "id": "call_..."}]',
     }
 }
 ```
@@ -411,6 +418,7 @@ Tool calls are standardized to OpenAI/LiteLLM format (arguments as JSON string).
 
 ```python
 import json
+
 
 def parse_breakpoint_tool_call(response: dict, tool_name: str) -> dict | None:
     """Extract tool call arguments from a breakpoint response."""
@@ -477,6 +485,7 @@ solo = MAILAgentTemplate(
 async def my_action(args: dict) -> dict:
     return {"result": 123}
 
+
 # Correct
 async def my_action(args: dict) -> str:
     return json.dumps({"result": 123})
@@ -488,6 +497,7 @@ async def my_action(args: dict) -> str:
 async def do_thing(state, args: dict) -> str:
     state.counter += 1
     return f"Count: {state.counter}"
+
 
 # Create action with state bound
 action = MAILAction.from_pydantic_model(

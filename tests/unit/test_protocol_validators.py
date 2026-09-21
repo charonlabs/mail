@@ -9,8 +9,44 @@ the message-field validators).
 
 import pytest
 from mail_protocol.core import validators as v
+from mail_protocol.core.user_agents import MAILDaemon
+from pydantic import ValidationError
 
 UUID = "55555555-5555-4555-8555-555555555555"
+
+
+# ─── daemon scopes ─────────────────────────────────────────────────
+
+
+def test_existing_daemon_records_default_to_local_delivery_scope() -> None:
+    daemon = MAILDaemon.model_validate(
+        {"ua_type": "daemon", "worker_name": "worker", "host": "localhost"}
+    )
+    assert daemon.scopes == ["deliver:local"]
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        "deliver:local",
+        "deliver:federate",
+        "bounce:emit",
+        "deliver:federate:peer.example",
+    ],
+)
+def test_daemon_scope_syntax_accepts_v1_and_reserved_forms(scope: str) -> None:
+    assert v.validate_daemon_scopes([scope]) == [scope]
+
+
+@pytest.mark.parametrize(
+    "scopes",
+    [["not-a-scope"], ["deliver:federate:"], ["deliver:local", "deliver:local"]],
+)
+def test_daemon_scope_syntax_rejects_invalid_values(scopes: list[str]) -> None:
+    with pytest.raises((ValueError, ValidationError)):
+        MAILDaemon(
+            ua_type="daemon", worker_name="worker", host="localhost", scopes=scopes
+        )
 
 
 # ─── UUIDs ─────────────────────────────────────────────────────────

@@ -123,9 +123,7 @@ async def test_inbox_entered_at_asc(db: Database) -> None:
         first = await _seed_inbox(store, sent_at=T1, entered_at=T1)
         second = await _seed_inbox(store, sent_at=T2, entered_at=T2)
 
-        page, _ = await store.boxes.list_inbox(
-            OWNER, BoxFilterParams(order="asc")
-        )
+        page, _ = await store.boxes.list_inbox(OWNER, BoxFilterParams(order="asc"))
 
         assert [e.message_id for e in page] == [first, second]
 
@@ -159,10 +157,7 @@ async def test_inbox_limit_offset_and_total(db: Database) -> None:
     async with db.session() as session:
         store = MailStore(session)
         await store.user_agents.add(_agent())
-        ids = [
-            await _seed_inbox(store, sent_at=t, entered_at=t)
-            for t in (T1, T2, T3)
-        ]
+        ids = [await _seed_inbox(store, sent_at=t, entered_at=t) for t in (T1, T2, T3)]
 
         page, total = await store.boxes.list_inbox(
             OWNER, BoxFilterParams(limit=1, offset=1, order="asc")
@@ -283,9 +278,7 @@ async def test_swarm_and_webhook_and_list_crud(db: Database) -> None:
         )
         await store.lists.add(mail_list)
         # Member edit rewrites the JSON body wholesale, mirroring memory.
-        mutated = mail_list.model_copy(
-            update={"members": [OWNER], "updated_at": T2}
-        )
+        mutated = mail_list.model_copy(update={"members": [OWNER], "updated_at": T2})
         await store.lists.update(mutated)
         reloaded = await store.lists.get_by_address(mail_list.get_address())
         assert reloaded is not None and reloaded.members == [OWNER]

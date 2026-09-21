@@ -8,7 +8,13 @@ from typing import Any, Literal
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from mail.legacy.api import MAILAction, MAILAgent, MAILAgentTemplate, MAILSwarmTemplate, action
+from mail.legacy.api import (
+    MAILAction,
+    MAILAgent,
+    MAILAgentTemplate,
+    MAILSwarmTemplate,
+    action,
+)
 from mail.legacy.swarms_json.utils import build_swarm_from_swarms_json
 from mail.legacy.tests.conftest import TEST_SYSTEM_PROMPT, make_stub_agent
 
@@ -752,7 +758,9 @@ def test_swarm_template_action_imports_populate_actions() -> None:
             }
         ],
         "actions": [],
-        "action_imports": ["python::mail.legacy.tests.unit.test_mail_api:decorated_for_string"],
+        "action_imports": [
+            "python::mail.legacy.tests.unit.test_mail_api:decorated_for_string"
+        ],
         "enable_interswarm": False,
         "breakpoint_tools": [],
         "exclude_tools": [],
@@ -798,7 +806,9 @@ def test_swarm_template_action_imports_duplicate_names_raise() -> None:
                 "function": "python::mail.legacy.tests.unit.test_mail_api:decorated_for_string",
             }
         ],
-        "action_imports": ["python::mail.legacy.tests.unit.test_mail_api:decorated_for_string"],
+        "action_imports": [
+            "python::mail.legacy.tests.unit.test_mail_api:decorated_for_string"
+        ],
         "enable_interswarm": False,
         "breakpoint_tools": [],
         "exclude_tools": [],

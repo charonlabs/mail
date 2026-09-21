@@ -9,6 +9,7 @@ from mail_protocol.core.lists import MAILListPolicy
 from mail_protocol.core.messages import MAILMessage
 from mail_protocol.core.validators import (
     validate_agent_name,
+    validate_daemon_scopes,
     validate_daemon_worker_name,
     validate_list_name,
     validate_mail_address,
@@ -165,6 +166,9 @@ class AdminDaemonPostRequest(BaseModel):
 
     worker_name: Annotated[str, AfterValidator(validate_daemon_worker_name)]
     daemon_password: str
+    scopes: Annotated[list[str], AfterValidator(validate_daemon_scopes)] = Field(
+        default_factory=lambda: ["deliver:local"]
+    )
 
 
 class AdminUserPostRequest(BaseModel):

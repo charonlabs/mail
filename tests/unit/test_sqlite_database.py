@@ -8,6 +8,7 @@ concurrent writers don't trip ``database is locked`` (WAL + busy_timeout).
 """
 
 import asyncio
+import sqlite3
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -65,6 +66,64 @@ async def test_connection_pragmas_applied(tmp_path: Path) -> None:
     assert busy_timeout == 5000
 
 
+async def test_schema_guard_adds_peer_reachability_to_existing_database(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "old.db"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "CREATE TABLE federation_outbound (envelope_id VARCHAR PRIMARY KEY)"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    db = Database(f"sqlite:///{path}")
+    await db.create_schema()
+    try:
+        async with db.session() as session:
+            columns = {
+                row[1]
+                for row in await session.execute(
+                    text("PRAGMA table_info(federation_outbound)")
+                )
+            }
+    finally:
+        await db.dispose()
+
+    assert "peer_was_reached" in columns
+
+
+async def test_schema_guard_adds_dsn_message_link_to_existing_database(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "old-bounces.db"
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "CREATE TABLE bounce_emissions (emission_id VARCHAR PRIMARY KEY)"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    db = Database(f"sqlite:///{path}")
+    await db.create_schema()
+    try:
+        async with db.session() as session:
+            columns = {
+                row[1]
+                for row in await session.execute(
+                    text("PRAGMA table_info(bounce_emissions)")
+                )
+            }
+    finally:
+        await db.dispose()
+
+    assert "dsn_message_id" in columns
+
+
 async def test_send_draft_rolls_back_on_failure(
     backend: SQLiteBackend, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -99,9 +158,7 @@ async def test_concurrent_sends_do_not_lock(backend: SQLiteBackend) -> None:
     """WAL + busy_timeout: concurrent committed sends don't raise locked."""
 
     drafts = [
-        await backend.post_draft(
-            ALICE, DraftPostRequest(subject=f"D{i}", body="body")
-        )
+        await backend.post_draft(ALICE, DraftPostRequest(subject=f"D{i}", body="body"))
         for i in range(8)
     ]
 

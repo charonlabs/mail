@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
+from mail_protocol.core.user_agents import MAILDaemon, MAILUserAgent
+from mail_protocol.core.validators import validate_daemon_scopes
 from mail_protocol.network.requests import (
     AuthPasswordResetRequest,
     AuthRefreshPostRequest,
@@ -41,6 +43,37 @@ default_token_limit = int(ACCESS_TOKEN_EXPIRE_MINUTES)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
+def _granted_scopes(
+    user_agent: MAILUserAgent, requested_scopes: list[str]
+) -> list[str]:
+    """Validate an OAuth scope request against the authenticated principal."""
+
+    daemon = user_agent.user_agent
+    if not isinstance(daemon, MAILDaemon):
+        if requested_scopes:
+            raise HTTPException(
+                status_code=400,
+                detail="requested scopes are not available to this principal",
+                headers={"WWW-Authenticate": 'Bearer error="invalid_scope"'},
+            )
+        return []
+    try:
+        validate_daemon_scopes(requested_scopes)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="requested daemon scope is invalid",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_scope"'},
+        )
+    if not set(requested_scopes).issubset(daemon.scopes):
+        raise HTTPException(
+            status_code=400,
+            detail="requested daemon scope is not assigned",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_scope"'},
+        )
+    return requested_scopes
+
+
 @router.post(
     "/token",
     summary="Log in with an address and password to obtain an access token",
@@ -61,9 +94,12 @@ async def create_auth_token(
             detail="incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    granted_scopes = _granted_scopes(user_agent, form_data.scopes)
+    scope_claim = " ".join(granted_scopes)
     access_token_expires = timedelta(minutes=default_token_limit)  # type: ignore
     access_token = create_access_token(
-        data={"sub": user_agent.get_address()}, expires_delta=access_token_expires
+        data={"sub": user_agent.get_address(), "scope": scope_claim},
+        expires_delta=access_token_expires,
     )
 
     # Interactive principals (users/admins) also get a refresh token, set as an
@@ -83,6 +119,7 @@ async def create_auth_token(
     return AuthTokenPostResponse(
         access_token=access_token,
         token_type="bearer",
+        scope=scope_claim,
         refresh_token=refresh_token,
         expires_in=default_token_limit * 60,
         metadata={},
@@ -156,7 +193,7 @@ async def post_auth_refresh(
     )
 
     access_token = create_access_token(
-        data={"sub": record.owner_address},
+        data={"sub": record.owner_address, "scope": ""},
         expires_delta=timedelta(minutes=default_token_limit),  # type: ignore
     )
     set_refresh_cookie(response, new_refresh_token)
@@ -164,6 +201,7 @@ async def post_auth_refresh(
     return AuthRefreshPostResponse(
         access_token=access_token,
         token_type="bearer",
+        scope="",
         refresh_token=new_refresh_token,
         expires_in=default_token_limit * 60,
         metadata={},

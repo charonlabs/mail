@@ -98,11 +98,10 @@ def test_patch_webhook_updates(app_client: TestClient, headers_for) -> None:
     assert response.status_code == 200
 
 
-@stub
 def test_daemon_deliver_remote(app_client: TestClient, headers_for) -> None:
     response = app_client.post(
         "/daemon/deliver/remote",
         json={"messages": []},
         headers=headers_for(DAEMON),
     )
-    assert response.status_code == 200
+    assert response.status_code == 410

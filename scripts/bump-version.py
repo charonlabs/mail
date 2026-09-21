@@ -38,7 +38,8 @@ _VERSION_LINE = re.compile(r'^version = "[^"]+"$', re.MULTILINE)
 # Any version specifier on an internal member pin is normalized to `==<version>`.
 # Scoped to the four member names, so external deps (e.g. dict2xml>=…) are untouched.
 _INTERNAL_PIN = re.compile(
-    r'"(mail-swarms-(?:client|server|daemon|protocol))(?:==|>=|~=|!=|===|>|<)[^"]*"')
+    r'"(mail-swarms-(?:client|server|daemon|protocol))(?:==|>=|~=|!=|===|>|<)[^"]*"'
+)
 
 
 def current_version(text: str) -> str | None:
@@ -68,18 +69,24 @@ def bump(version: str) -> int:
         text = _INTERNAL_PIN.sub(rf'"\1=={version}"', text)
         p.write_text(text)
         print(f"  bumped {p.relative_to(ROOT)} -> {version}")
-    print(f"\nAll packages set to {version}. Next: commit, tag v{version}, "
-          f"then publish the GitHub Release as a full (non-prerelease) release.")
+    print(
+        f"\nAll packages set to {version}. Next: commit, tag v{version}, "
+        f"then publish the GitHub Release as a full (non-prerelease) release."
+    )
     return 0
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("version", nargs="?", help="new version, e.g. 2.0.1")
-    g.add_argument("--check", action="store_true",
-                   help="verify all packages already share one version")
+    g.add_argument(
+        "--check",
+        action="store_true",
+        help="verify all packages already share one version",
+    )
     args = ap.parse_args()
     return check() if args.check else bump(args.version)
 

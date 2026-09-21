@@ -51,9 +51,7 @@ ALICE = MAILUserAgent(
     user_agent=MAILUser(ua_type="user", user_id="alice", host="localhost")
 )
 SAGE = MAILUserAgent(
-    user_agent=MAILAgent(
-        ua_type="agent", name="sage", swarm="chorus", host="localhost"
-    )
+    user_agent=MAILAgent(ua_type="agent", name="sage", swarm="chorus", host="localhost")
 )
 SAGE_ADDR = "sage@chorus@localhost"
 

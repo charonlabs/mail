@@ -41,7 +41,11 @@ from mail_server.backends.sqlite.repositories import (
     MailStore,
 )
 from mail_server.backends.sqlite.schema import (
+    BounceEmissionRow,
+    FederationInboundReceiptRow,
+    FederationOutboundRow,
     ListRow,
+    MessageDeliveryTargetRow,
     MessageRow,
     SwarmRow,
     UserAgentRow,
@@ -58,7 +62,17 @@ def _memory_deployment_dir(deployment: str) -> Path:
 async def _is_empty(session: AsyncSession) -> bool:
     """True if no top-level collection has any rows yet."""
 
-    for row_cls in (UserAgentRow, SwarmRow, MessageRow, WebhookRow, ListRow):
+    for row_cls in (
+        UserAgentRow,
+        SwarmRow,
+        MessageRow,
+        WebhookRow,
+        ListRow,
+        MessageDeliveryTargetRow,
+        FederationOutboundRow,
+        FederationInboundReceiptRow,
+        BounceEmissionRow,
+    ):
         count = await session.scalar(select(func.count()).select_from(row_cls))
         if count:
             return False
@@ -81,9 +95,7 @@ async def import_memory_deployment(
 
     source_dir = source_dir or _memory_deployment_dir(deployment)
     if not source_dir.is_dir():
-        raise FileNotFoundError(
-            f"no filesystem deployment to import at {source_dir}"
-        )
+        raise FileNotFoundError(f"no filesystem deployment to import at {source_dir}")
     db_path = db_path or default_sqlite_path(deployment)
 
     # Load every collection via the memory backend's loaders by pointing them at
@@ -105,6 +117,10 @@ async def import_memory_deployment(
         message_buffer = await memory_fs.load_message_buffer()
         webhooks = await memory_fs.load_webhooks()
         lists = await memory_fs.load_lists()
+        delivery_targets = await memory_fs.load_delivery_targets()
+        federation_outbound = await memory_fs.load_federation_outbound()
+        federation_inbound = await memory_fs.load_federation_inbound_receipts()
+        bounce_emissions = await memory_fs.load_bounce_emissions()
     finally:
         memory_fs.DEPLOYMENT_PATH = previous_path
 
@@ -114,8 +130,7 @@ async def import_memory_deployment(
         async with db.session() as session:
             if not await _is_empty(session):
                 raise ValueError(
-                    f"target sqlite database {db_path} is not empty; "
-                    "refusing to import"
+                    f"target sqlite database {db_path} is not empty; refusing to import"
                 )
             store = MailStore(session)
 
@@ -170,6 +185,21 @@ async def import_memory_deployment(
                 await store.webhooks.add(webhook)
             for mail_list in lists.values():
                 await store.lists.add(mail_list)
+            present_targets: set[str] = set()
+            for target in delivery_targets.values():
+                if target.message_id in present:
+                    await store.delivery_targets.add(target)
+                    present_targets.add(target.target_id)
+            for delivery in federation_outbound.values():
+                if (
+                    delivery.message_id in present
+                    and delivery.target_id in present_targets
+                ):
+                    await store.federation_outbound.add(delivery)
+            for receipt in federation_inbound.values():
+                await store.federation_inbound.add(receipt)
+            for emission in bounce_emissions.values():
+                await store.bounce_emissions.add(emission)
     finally:
         await db.dispose()
 
@@ -184,8 +214,14 @@ async def import_memory_deployment(
         "webhooks": len(webhooks),
         "lists": len(lists),
         "buffered": len(message_buffer),
+        "delivery_targets": len(delivery_targets),
+        "federation_outbound": len(federation_outbound),
+        "federation_inbound_receipts": len(federation_inbound),
+        "bounce_emissions": len(bounce_emissions),
     }
-    logger.info("imported filesystem deployment %s into %s: %s", deployment, db_path, counts)
+    logger.info(
+        "imported filesystem deployment %s into %s: %s", deployment, db_path, counts
+    )
     return counts
 
 
@@ -218,6 +254,4 @@ async def _import_membership(
                 continue
             if await store.boxes.is_member(owner, box, item_id):
                 continue
-            await store.boxes.add_membership(
-                owner, box, item_id, entered_at_of(entry)
-            )
+            await store.boxes.add_membership(owner, box, item_id, entered_at_of(entry))

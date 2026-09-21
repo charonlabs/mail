@@ -17,6 +17,7 @@ files or generated contracts.
 | [Admin CLI](admin-cli.md) | Administrator commands and options. | `src/mail/client/src/mail_client/admin_panel.py` |
 | [Server CLI](server-cli.md) | `mail-server` options. | `src/mail/server/src/mail_server/cli.py` |
 | [Daemon CLI](daemon-cli.md) | `mail-daemon` options and env vars. | `src/mail/daemon/src/mail_daemon/cli.py` |
+| [Federation Key CLI](federation-key-cli.md) | Generate and inspect Ed25519 federation keys. | `mail_server.federation.key_cli` |
 | [Data Models](data-models.md) | Pydantic models used by protocol and network contracts. | `src/mail/protocol/src/mail_protocol/` |
 | [Storage Backends](storage-backends.md) | Backend interfaces and memory backend behavior. | `src/mail/server/src/mail_server/backends/` |
 

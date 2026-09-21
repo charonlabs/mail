@@ -35,7 +35,9 @@ def cmd_daemon_post(args: Namespace) -> None:
 
     # 4. Attempt to post the new daemon to the MAIL server
     payload = AdminDaemonPostRequest(
-        worker_name=worker_name, daemon_password=daemon_password
+        worker_name=worker_name,
+        daemon_password=daemon_password,
+        scopes=args.scopes or ["deliver:local"],
     )
     response = httpx.post(
         url=f"{MAIL_SERVER}/admin/daemons",
@@ -76,3 +78,4 @@ def _print_text(response_obj: AdminDaemonPostResponse) -> None:
     print("=== Daemon ===")
     print(f"Worker Name: {daemon.worker_name}")
     print(f"Host: {daemon.host}")
+    print(f"Scopes: {', '.join(daemon.scopes)}")

@@ -4,9 +4,8 @@
 """Sentiment analysis actions for the Customer Support swarm."""
 
 import json
-import re
 import uuid
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from mail.legacy import action

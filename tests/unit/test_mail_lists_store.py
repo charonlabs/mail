@@ -45,18 +45,14 @@ async def test_load_lists_reads_valid_entries(deployment_dir: Path) -> None:
     loaded = await memory_fs.load_lists()
     assert seeded.get_address() in loaded
     assert loaded[seeded.get_address()].name == "welfare-discourse"
-    assert loaded[seeded.get_address()].members == [
-        "philosopher@chorus@localhost"
-    ]
+    assert loaded[seeded.get_address()].members == ["philosopher@chorus@localhost"]
 
 
 @pytest.mark.asyncio
 async def test_load_lists_skips_invalid_filenames(deployment_dir: Path) -> None:
     _seed_list(deployment_dir)
     # A filename that does NOT parse as a MAIL address must be skipped.
-    (deployment_dir / "lists" / "not-an-address").write_text(
-        "{}", encoding="utf-8"
-    )
+    (deployment_dir / "lists" / "not-an-address").write_text("{}", encoding="utf-8")
     loaded = await memory_fs.load_lists()
     # Only the valid entry survives.
     assert len(loaded) == 1
@@ -66,11 +62,7 @@ async def test_load_lists_skips_invalid_filenames(deployment_dir: Path) -> None:
 @pytest.mark.asyncio
 async def test_load_lists_skips_malformed_json(deployment_dir: Path) -> None:
     # Filename validates as a MAIL list address but the body is bad JSON.
-    target = (
-        deployment_dir
-        / "lists"
-        / "list:welfare-discourse@chorus@localhost"
-    )
+    target = deployment_dir / "lists" / "list:welfare-discourse@chorus@localhost"
     target.write_text("not-json", encoding="utf-8")
     loaded = await memory_fs.load_lists()
     assert loaded == {}

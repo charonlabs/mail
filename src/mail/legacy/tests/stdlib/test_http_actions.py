@@ -13,7 +13,6 @@ from mail.legacy.stdlib.http import (
     http_options,
     http_patch,
     http_post,
-    http_put,
 )
 
 

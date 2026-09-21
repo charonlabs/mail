@@ -8,7 +8,6 @@ from typing import Any
 
 from mail.legacy import action
 
-
 WEATHER_FORECAST_PARAMETERS = {
     "type": "object",
     "properties": {

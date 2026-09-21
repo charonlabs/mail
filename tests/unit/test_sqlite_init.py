@@ -59,6 +59,9 @@ async def test_init_seeds_swarm_agents_and_secrets(tmp_path: Path) -> None:
             assert verify_password(
                 plain_password=secret, hashed_password=ua.hashed_password
             )
+        daemon = await backend.get_user_agent("daemon:dummy@localhost")
+        assert daemon.user_agent.ua_type == "daemon"
+        assert daemon.user_agent.scopes == ["deliver:local"]
     finally:
         await backend.on_server_shutdown()
 

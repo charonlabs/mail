@@ -43,22 +43,31 @@ MARKDOWN_FIELD_LABELS = {
     "Delivered By",
     "Description",
     "Draft ID",
+    "Failed At",
+    "Failed Recipient",
+    "Failure Code",
+    "Failure Location",
     "Join Policy",
     "Keywords",
     "List ID",
     "Members",
     "Message ID",
+    "Original Message ID",
     "Name",
     "Owner",
     "Received At",
+    "Reason",
     "Recipient(s)",
     "Send Policy",
     "Sender",
     "Sent At",
     "Sent By",
+    "Scopes",
     "Subject",
     "Trashed At",
     "Type",
+    "Attempt Count",
+    "Attempt Timestamps",
     "Updated At",
     "Visibility",
 }
@@ -310,9 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=forward_d,
         description=forward_d,
     )
-    forward_p.add_argument(
-        "message_id", help="the ID of the inbox message to forward"
-    )
+    forward_p.add_argument("message_id", help="the ID of the inbox message to forward")
     forward_p.add_argument(
         "to", nargs="+", help="the address(es) to forward this message to"
     )

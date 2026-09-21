@@ -38,12 +38,36 @@ grammar.
 | `MAILAgent` | `"agent"` | `name@swarm@host` | `name` (`validate_agent_name`), `swarm`, `host` |
 | `MAILUser` | `"user"` | `user:user_id@host` | `user_id` (`validate_user_name`), `host` |
 | `MAILAdmin` | `"admin"` | `admin:admin_id@host` | `admin_id` (`validate_user_name`), `host` |
-| `MAILDaemon` | `"daemon"` | `daemon:worker_name@host` | `worker_name` (`validate_daemon_worker_name`), `host` |
+| `MAILDaemon` | `"daemon"` | `daemon:worker_name@host` | `worker_name` (`validate_daemon_worker_name`), `host`, `scopes` (`validate_daemon_scopes`) |
 
 - **`MAILUserAgent`** — wrapper with `user_agent: Union[...]` as a
   `Field(discriminator="ua_type")`. This is the shape returned by
   `GET /auth/whoami` (double-nested: `user_agent.user_agent`).
 - **`MAILUserAgentInBackend`** — adds `hashed_password: str`.
+
+Existing daemon records without `scopes` load as `["deliver:local"]`. Assigned
+values may be `deliver:local`, `deliver:federate`, `bounce:emit`, or the reserved
+`deliver:federate:<host>` syntax.
+
+## Federation and delivery status
+
+Protocol models in `core/federation.py` define `MAILFederationPublicKey`,
+`MAILFederationManifest`, and `MAILInterServerMessage`. The envelope carries a
+stable envelope UUID, sender/recipient hosts, the recipient-subset inner
+`MAILMessage`, a timezone-aware send time, metadata, and protocol version `1`.
+Network constants and accepted/error response models live in
+`network/federation.py`.
+
+`core/dsn.py` defines `MAILDSN` under `MAILMessage.metadata.dsn`: original
+message ID, failed recipient, failure code/reason/location/time, and federation
+attempt count/timestamps when applicable. Clients retain unknown future failure
+codes and render their free-form reason.
+
+Server-internal Pydantic records in `mail_server.federation.records` are not wire
+models: `MessageDeliveryTarget`, `OutboundFederationDelivery`,
+`InboundFederationReceipt`, `BounceEmission`, and `BounceDelivery`. They capture
+recipient grouping, durable schedules/leases, replay retention, and idempotent
+bounce outcomes.
 
 ## Messages
 
@@ -246,6 +270,7 @@ Key rules from `core/validators.py`:
 | `validate_url` | `http(s)://` URL (single-label hosts like `localhost` allowed). |
 | `validate_webhook_id` / `validate_webhook_message_id` | `wh_<uuid>` / `msg_<uuid>` shapes. |
 | `validate_webhook_event_type(s)` | Equals `mail.delivered`. |
+| `validate_daemon_scopes` | Known v1 daemon scopes or reserved `deliver:federate:<valid-host>` values; no duplicates. |
 
 The slug rule (`string_is_slug`) is `^[a-z0-9]+(?:-[a-z0-9]+)*$`: lowercase
 alphanumerics in hyphen-separated segments — no uppercase, underscores, or

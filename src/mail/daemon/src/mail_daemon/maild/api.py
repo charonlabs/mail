@@ -92,6 +92,12 @@ def clear_message_buffer() -> list[str]:
         logger.error(f"message buffer clear request failed: {e}")
         return []
 
+    if response.status_code == 401:
+        logger.info(
+            f"message buffer clear request to {_mail_server} got status code 401; logging in again"
+        )
+        _obtain_daemon_token()
+        return []
     if response.status_code != 200:
         logger.warning(
             f"message buffer clear request to {_mail_server} got non-200 status code: {response.status_code}"
@@ -238,7 +244,7 @@ def _obtain_daemon_token() -> None:
         "grant_type": "password",
         "username": _mail_address,
         "password": _mail_password,
-        "scope": "",
+        "scope": "deliver:local",
         "client_id": "string",
         "client_secret": "$password",
     }
@@ -276,6 +282,9 @@ def _obtain_daemon_token() -> None:
         raise ValueError(f"got unexpected response from `POST /auth/token`: {e}")
 
     token = post_token_response.access_token
+    if "deliver:local" not in post_token_response.scope.split():
+        logger.critical("daemon access token was not granted deliver:local")
+        raise ValueError("daemon access token lacks deliver:local scope")
 
     # 2. ensure that the returned token is a valid MAIL daemon token
     try:

@@ -36,6 +36,7 @@ to exactly one of four categories.
 - [Initialize the Memory Backend](howtos/initialize-memory-backend.md)
 - [Run the MAIL Server](howtos/run-server.md)
 - [Run the MAIL Daemon](howtos/run-daemon.md)
+- [Enable and Operate Federation](howtos/enable-federation.md)
 - [Authenticate a User-Agent](howtos/authenticate-user-agent.md)
 - [Send a Message with the CLI](howtos/send-message-cli.md)
 - [Manage User-Agents](howtos/manage-user-agents.md)
@@ -55,6 +56,7 @@ to exactly one of four categories.
 - [Admin CLI](references/admin-cli.md)
 - [Server CLI](references/server-cli.md)
 - [Daemon CLI](references/daemon-cli.md)
+- [Federation Key CLI](references/federation-key-cli.md)
 - [Data Models](references/data-models.md)
 - [Storage Backends](references/storage-backends.md)
 

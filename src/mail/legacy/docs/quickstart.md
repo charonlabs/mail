@@ -96,11 +96,13 @@ import asyncio
 import os
 from mail.client import MAILClient
 
+
 async def main() -> None:
     token = os.getenv("TOKEN")
     async with MAILClient("http://localhost:8000", api_key=token) as client:
         print(await client.ping())
         print(await client.post_message("Hello from Python"))
+
 
 asyncio.run(main())
 ```

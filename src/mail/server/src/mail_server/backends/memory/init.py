@@ -22,7 +22,7 @@ def init_memory_backend(
     swarm_description: str = "A MAIL swarm",
     swarm_keywords: list[str] = [],
     agents: list[str] = ["supervisor"],
-    daemons: list[str] = ["dummy"],
+    daemons: list[str] = ["dummy", "bounces"],
     users: list[str] = ["dummy"],
     admins: list[str] = ["dummy"],
     host: str = "example.com",
@@ -138,6 +138,16 @@ def init_memory_backend(
     REFRESH_TOKENS_PATH.mkdir(exist_ok=True)
     print(f"ensured deployment refresh_tokens: {REFRESH_TOKENS_PATH}")
 
+    for federation_directory in (
+        "message_delivery_targets",
+        "federation_outbound",
+        "federation_inbound_receipts",
+        "bounce_emissions",
+    ):
+        path = DEPLOYMENT_PATH.joinpath(federation_directory)
+        path.mkdir(exist_ok=True)
+        print(f"ensured deployment {federation_directory}: {path}")
+
     # write swarm file
     SWARM_PATH = SWARMS_PATH.joinpath(swarm)
     with open(SWARM_PATH, "w") as swarm_file:
@@ -205,6 +215,7 @@ def init_memory_backend(
             ua_type="daemon",
             worker_name=daemon_name,
             host=host,
+            scopes=(["bounce:emit"] if daemon_name == "bounces" else ["deliver:local"]),
         )
         address = daemon.get_address()
         password = secrets.token_urlsafe(32)

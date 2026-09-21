@@ -33,7 +33,10 @@ uv run mail-daemon
 ```
 
 On startup it health-checks the server, logs in to obtain a token, then begins
-polling for messages to deliver (roughly every 30 seconds).
+polling for messages to deliver (roughly every 30 seconds). It explicitly
+requests `deliver:local`; the configured daemon record must have that assigned
+scope. Records created by current `backend-init` do, and older records without a
+scope field migrate to that assignment when loaded.
 
 ### 3. Adjust log levels (optional)
 

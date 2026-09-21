@@ -21,6 +21,7 @@ license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
 [project.scripts]
 mail = "mail_client.cli:main"
 mail-server = "mail_server.cli:main"
+mail-federation-key = "mail_server.federation.key_cli:main"
 mail-daemon = "mail_daemon.cli:main"
 mail-protocol = "mail_protocol.cli:main"
 

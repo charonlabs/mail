@@ -2,13 +2,11 @@
 # Copyright (c) 2026 Addison Kline
 
 from fastapi import APIRouter, Request
-from mail_protocol.network.requests import (
-    DaemonDeliverLocalRequest,
-    DaemonDeliverRemoteRequest,
-)
+from fastapi.responses import JSONResponse
+from mail_protocol.network.federation import MAILFederationErrorResponse
+from mail_protocol.network.requests import DaemonDeliverLocalRequest
 from mail_protocol.network.responses import (
     DaemonDeliverLocalResponse,
-    DaemonDeliverRemoteResponse,
     DaemonMessageBufferClearResponse,
 )
 
@@ -26,7 +24,9 @@ async def clear_message_buffer(
     request: Request,
 ) -> DaemonMessageBufferClearResponse:
     backend = request.app.state.backend
-    daemon = await validate_daemon(backend=backend, request=request)
+    daemon = await validate_daemon(
+        backend=backend, request=request, required_scope="deliver:local"
+    )
     result = await backend.daemon_clear_message_buffer(daemon=daemon)
     return DaemonMessageBufferClearResponse(
         message_ids=result,
@@ -43,7 +43,9 @@ async def deliver_local_messages(
     request: Request, payload: DaemonDeliverLocalRequest
 ) -> DaemonDeliverLocalResponse:
     backend = request.app.state.backend
-    daemon = await validate_daemon(backend=backend, request=request)
+    daemon = await validate_daemon(
+        backend=backend, request=request, required_scope="deliver:local"
+    )
     result = await backend.daemon_deliver_local(daemon=daemon, payload=payload)
     return DaemonDeliverLocalResponse(
         messages=result,
@@ -53,16 +55,18 @@ async def deliver_local_messages(
 
 @router.post(
     "/deliver/remote",
-    summary="Upload new messages to deliver from remote agent(s)",
-    response_model=DaemonDeliverRemoteResponse,
+    status_code=410,
+    response_model=MAILFederationErrorResponse,
+    summary="Reject the removed unsigned remote-delivery endpoint",
 )
-async def deliver_remote_messages(
-    request: Request, payload: DaemonDeliverRemoteRequest
-) -> DaemonDeliverRemoteResponse:
-    backend = request.app.state.backend
-    daemon = await validate_daemon(backend=backend, request=request)
-    result = await backend.daemon_deliver_remote(daemon=daemon, payload=payload)
-    return DaemonDeliverRemoteResponse(
-        messages=result,
-        metadata={},
+async def deliver_remote_messages(request: Request) -> JSONResponse:
+    del request
+    return JSONResponse(
+        status_code=410,
+        content={
+            "code": "federation_v1_required",
+            "detail": (
+                "unsigned remote delivery has been removed; use signed Federation v1"
+            ),
+        },
     )

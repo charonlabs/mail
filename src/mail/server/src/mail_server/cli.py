@@ -41,7 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = make_arg_parser(
         prog="mail-server",
         usage="mail-server [option]...",
-        description="The Python/FastAPI server for the Multi-Agent Interface Layer (MAIL)",
+        description=(
+            "The Python/FastAPI MAIL server. Federation is configured through "
+            "MAIL_FEDERATION_* environment variables; --host controls only the "
+            "private socket bind address."
+        ),
         examples=EXAMPLES,
     )
     parser.add_argument(

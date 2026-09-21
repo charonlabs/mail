@@ -102,10 +102,40 @@ notified of new mail rather than having to poll; see [HTTP API](../references/ht
 ## Local versus remote delivery
 
 The primary delivery path is **local**: `POST /daemon/deliver/local` carries
-messages between user-agents on the *same* server. A second endpoint,
-`POST /daemon/deliver/remote`, accepts messages sent by agents on other MAIL
-servers for delivery to local recipients. It is implemented on the SQLite
-backend; on the memory backend it currently raises `NotImplementedError`.
+messages between user-agents on the *same* server. Federation ingress uses
+`POST /daemon/deliver/remote/v1`, authenticates the exact request bytes with an
+origin key discovered over HTTPS, and durably queues the inner message for that
+same local path before returning `202`. Both backends implement this flow. The
+old bearer-authenticated `POST /daemon/deliver/remote` path is removed and
+returns `410` without ingesting messages.
+
+For remote recipients, the origin server groups addresses by host and creates
+one durable outbound envelope per host. A server-owned worker discovers the
+peer's advertised HTTPS URL, signs the exact attempt body, and posts it without
+following redirects. Failed attempts are persisted and retried after 1 second,
+30 seconds, 5 minutes, 1 hour, and 6 hours. Valid `Retry-After` values on `429`
+and `503` override the next ladder delay, capped at 24 hours. Restarts resume
+pending work, and expired leases allow another server process to recover a
+crashed attempt. Only `202` and duplicate `409` responses count as success.
+If a peer rejects only some recipients with `404 recipient_not_found`, the
+origin dead-letters that envelope, queues one local bounce for each rejected
+address, and atomically queues a new envelope for the remaining recipients.
+The replacement keeps the inner message ID but receives a new envelope ID.
+
+For mixed local/remote messages, `delivered_at` remains empty until every local
+and remote target succeeds. A terminal remote rejection, exhausted retry, or
+unknown local recipient leaves it empty and queues a delivery-status
+notification to the original local sender. These DSNs are normal local messages
+from the configured `bounce:emit` daemon, never cross federation, and never
+generate another DSN if their own delivery fails. Emission is idempotent per
+original message and failed recipient and limited to 100 per sender per rolling
+hour by default.
+
+Federation is disabled by default. While disabled, new sends containing remote
+recipients fail synchronously with `503`; local-only sends and local daemon
+delivery continue. The manifest and signed ingress route are unavailable and the
+outbound worker is stopped, but queued and dead-letter records are retained so an
+operator can inspect them or resume processing after re-enabling federation.
 
 ## Pre-send versus post-send errors
 
@@ -140,8 +170,8 @@ durable and getting it delivered is the daemon's responsibility.
 - **Durability and retries.** Messages are stored server-side and preserved on
   delivery failure (§8.2). Note the shape of the loop, though: clearing the buffer
   empties it, so once a daemon has claimed a batch, delivering it is that daemon's
-  responsibility. Run a reliable daemon and watch its logs rather than assuming
-  failed items are automatically re-queued.
+  responsibility. Remote federation does not use this destructive handoff: its
+  attempts, schedules, and leases are durable server-owned state.
 - **The unit of delivery is the `message_id`.** The daemon hands the server a
   batch of ids to deliver; idempotency and retry policy live at that granularity.
 
@@ -149,6 +179,7 @@ durable and getting it delivered is the daemon's responsibility.
 
 - [Build a Minimal HTTP Client](../tutorials/build-minimal-http-client.md) — performs the draft → send half over raw HTTP.
 - [Run the MAIL Daemon](../howtos/run-daemon.md) — running the daemon that does the carrying.
+- [Enable Federation](../howtos/enable-federation.md) — signed delivery between servers, key rotation, and recovery.
 - [Addressing Model](addressing-model.md) — how recipients are named.
 - [Daemon CLI](../references/daemon-cli.md) and [HTTP API](../references/http-api.md) — the daemon commands and `/daemon` endpoints.
 

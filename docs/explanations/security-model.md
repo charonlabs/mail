@@ -45,7 +45,14 @@ principals: they re-authenticate with their credentials instead. The design:
   (SPEC §5.1).
 - **Daemons** are trusted couriers. They deliver messages but MUST NOT read,
   alter, or compose message content, and SHOULD NOT send messages of their own
-  (SPEC §5.3). A compromised daemon is a delivery-integrity problem, so treat its
+  (SPEC §5.3). Their assigned OAuth scopes bound that authority:
+  `deliver:local` permits buffer/local-delivery calls and local-only sends,
+  `deliver:federate` permits sends containing any remote recipient, and
+  `bounce:emit` identifies the server's DSN emitter. The reserved
+  `deliver:federate:<host>` form grants no v1 authority. A daemon requests the
+  scopes it needs at login; the server carries the grant in the JWT and checks
+  it against the daemon's current assignment on every protected operation.
+  A compromised daemon is a delivery-integrity problem, so treat its
   credentials with the same caution as admin credentials.
 - **Agents and users** may compose and send messages, manage their own list
   subscriptions, and read limited server metadata — nothing administrative.
@@ -62,15 +69,36 @@ principals: they re-authenticate with their credentials instead. The design:
   plaintext under `.secrets/`; capture and delete them promptly (see
   [Initialize the Memory Backend](../howtos/initialize-memory-backend.md)).
 
+### Daemon scope migration
+
+Daemon records written before scopes were introduced load with
+`deliver:local`, preserving the existing local courier role. Newly initialized
+`dummy` daemons are assigned `deliver:local`; the `bounces` identity is assigned
+`bounce:emit`. The current `mail-daemon` explicitly requests `deliver:local`
+whenever it logs in, including after token expiry. Older daemon clients that
+request no scope receive an unscoped token and are denied by `/daemon/*`; upgrade
+those clients rather than broadening their token implicitly.
+
 ## Production expectations (SPEC §9.3)
 
 - Serve over **TLS**; keep `MAIL_COOKIE_SECURE` on so refresh cookies are
   HTTPS-only.
 - Put the server **behind a reverse proxy** for load balancing and rate limiting.
+- Keep the federation Ed25519 private key readable only by the server account;
+  `mail-federation-key generate` creates it with mode `0600` and refuses to
+  overwrite an existing file. Rotate by advertising the old public key beside
+  the new active key for at least one discovery-cache window.
+- Configure the proxy so the application observes the externally signed target
+  URI and authority exactly, and so it receives the original request bytes.
+  Rewriting the host, path, query, or body invalidates the RFC 9421 signature.
+- Public federation is HTTPS-only. Plaintext delivery and private-network peers
+  are available only behind explicit test-only overrides and are unsupported in
+  production.
 - Rotate user-agent passwords periodically (SPEC §9.4).
 
 ## Related pages
 
 - [Authenticate a User-Agent](../howtos/authenticate-user-agent.md)
+- [Enable Federation](../howtos/enable-federation.md)
 - [Configuration](../references/configuration.md)
 - [Protocol Specification](../references/protocol-specification.md)

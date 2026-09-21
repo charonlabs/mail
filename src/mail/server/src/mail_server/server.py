@@ -2,7 +2,6 @@
 # Copyright (c) 2025-26 Addison Kline
 
 import logging
-import os
 import time
 from argparse import Namespace
 from contextlib import asynccontextmanager
@@ -14,12 +13,14 @@ from mail_protocol.network.responses import HealthGetResponse, RootGetResponse
 
 from mail_server.backends.base import MAILServerBackend
 from mail_server.backends.memory.api import MemoryBackend
+from mail_server.federation.config import FederationRuntime, ServerSettings
 from mail_server.logging import init_logger
 from mail_server.routers import (
     admin,
     auth,
     daemon,
     drafts,
+    federation,
     inbox,
     lists,
     outbox,
@@ -28,13 +29,10 @@ from mail_server.routers import (
 )
 from mail_server.utils import get_mail_protocol_version
 
-HOST = os.getenv("MAIL_HOST")
-if HOST is None:
-    raise RuntimeError("env var MAIL_HOST must be set")
-
 logger = logging.getLogger(__name__)
 
 _backend: MAILServerBackend = None  # type: ignore
+_settings: ServerSettings | None = None
 
 
 async def _server_startup(app: FastAPI):
@@ -44,9 +42,19 @@ async def _server_startup(app: FastAPI):
 
     logger.info("server starting up...")
 
-    global _backend
-    await _backend.on_server_startup(host=HOST)
+    global _backend, _settings
+    settings = _settings or ServerSettings.from_env()
+    await _backend.on_server_startup(host=settings.local_host)
     app.state.backend = _backend
+    app.state.settings = settings
+    try:
+        app.state.federation = FederationRuntime.from_config(settings.federation)
+        await app.state.federation.start(_backend)
+    except Exception:
+        if hasattr(app.state, "federation"):
+            await app.state.federation.aclose()
+        await _backend.on_server_shutdown()
+        raise
 
     app.state.time_start = time.time()
 
@@ -60,6 +68,7 @@ async def _server_shutdown(app: FastAPI):
 
     logger.info("server shutting down...")
 
+    await app.state.federation.aclose()
     await app.state.backend.on_server_shutdown()
 
     logger.info("server shutdown complete")
@@ -68,10 +77,10 @@ async def _server_shutdown(app: FastAPI):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _server_startup(app)
-
-    yield
-
-    await _server_shutdown(app)
+    try:
+        yield
+    finally:
+        await _server_shutdown(app)
 
 
 app = FastAPI(
@@ -93,6 +102,7 @@ app.include_router(daemon.router)
 app.include_router(admin.router)
 app.include_router(lists.admin_router)
 app.include_router(lists.public_router)
+app.include_router(federation.router)
 
 
 #
@@ -154,7 +164,8 @@ def run_server(args: Namespace) -> None:
     Run the MAIL server from the CLI.
     """
 
-    global _backend
+    global _backend, _settings
+    _settings = ServerSettings.from_env()
     match args.backend:
         case "memory" | "mem":
             _backend = MemoryBackend(
